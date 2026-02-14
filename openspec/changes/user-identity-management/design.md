@@ -89,25 +89,25 @@ No migration needed as this is the first implementation. Deploy as new API endpo
 ## Deployment Architecture
 
 ```mermaid
-graph TB
+flowchart TB
     subgraph "Client Layer"
-        PWA[React PWA<br/>Vite]
+        PWA["React PWA\nVite"]
     end
 
     subgraph "API Layer"
-        API[NestJS API<br/>TypeScript]
+        API["NestJS API\nTypeScript"]
     end
 
     subgraph "Data Layer"
-        DB[(PostgreSQL<br/>+ PostGIS)]
-        Redis[(Redis<br/>Sessions)]
-        MinIO[MinIO<br/>Object Storage]
+        DB[("PostgreSQL\n+ PostGIS")]
+        Redis[("Redis\nSessions")]
+        MinIO["MinIO\nObject Storage"]
     end
 
     subgraph "External Services"
-        OpenAI[OpenAI Vision API<br/>Image Analysis]
-        OSM[OpenStreetMap<br/>Tiles]
-        Email[Email Service<br/>Magic Links]
+        OpenAI["OpenAI Vision API\nImage Analysis"]
+        OSM["OpenStreetMap\nTiles"]
+        Email["Email Service\nMagic Links"]
     end
 
     PWA --> API
@@ -117,5 +117,5 @@ graph TB
     API --> OpenAI
     PWA --> OSM
     API --> Email
-```</content>
+```
 <parameter name="filePath">openspec/changes/user-identity-management/design.md
