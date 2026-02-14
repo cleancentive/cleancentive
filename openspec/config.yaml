@@ -3,10 +3,11 @@ schema: spec-driven
 # Project context
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
-  context: |
-    Tech stack: Bun runtime and package manager, NestJS (backend API), React + Vite (frontend PWA), PostgreSQL with PostGIS (database), MinIO (object storage), Redis + BullMQ (job queue), OpenAI Vision API (image analysis), MapLibre GL + OpenStreetMap (mapping)
-    Conventions: Conventional commits, TypeScript, monorepo with Bun workspaces, Avoid referencing "cleancetive" in the specs - prefer "The solution"
-    Domain: Environmental cleanup and litter tracking app (Cleancentive) - reimplementation of Delitter with fixes for data persistence and architecture issues
+context: |
+  Tech stack: Bun runtime and package manager, NestJS (backend API), React + Vite (frontend PWA), PostgreSQL with PostGIS (database), MinIO (object storage), Redis + BullMQ (job queue), OpenAI Vision API (image analysis), MapLibre GL + OpenStreetMap (mapping)
+  Conventions: Conventional commits, TypeScript, monorepo with Bun workspaces, Avoid referencing "cleancetive" in the specs - prefer "The solution", use relative file paths
+  Data Model Guidelines: All persisted entities have UUID as identifier, creation timestamp, created_by foreign key to user; mutable entities have update timestamp and updated_by foreign key to user; user accounts can only be updated by the user itself (created_by = updated_by = user UUID)
+  Domain: Environmental cleanup and litter tracking app (Cleancentive) - reimplementation of Delitter with fixes for data persistence and architecture issues
 
 # Per-artifact rules
 # Add custom rules for specific artifacts.
