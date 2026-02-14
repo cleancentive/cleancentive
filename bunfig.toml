@@ -1,0 +1,22 @@
+[install]
+# Use exact versions to ensure reproducibility
+exact = true
+
+# Prefer offline packages when available
+preferOffline = true
+
+# Auto-install peer dependencies
+auto = true
+
+[install.cache]
+# Cache packages for faster installs
+dir = "~/.bun/install/cache"
+
+[test]
+# Use bun test for all test files
+preload = []
+coverage = true
+
+[run]
+# Use bun runtime for all scripts
+bun = true

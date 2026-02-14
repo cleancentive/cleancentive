@@ -1,0 +1,24 @@
+{
+  "name": "cleancentive",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Litter cleanup tracking platform with automated image analysis",
+  "license": "AGPL-3.0",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "worker"
+  ],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "dev:services": "cd infrastructure && docker-compose -f docker-compose.dev.yml up -d",
+    "stop:services": "cd infrastructure && docker-compose -f docker-compose.dev.yml down",
+    "build": "bun run --filter '*' build",
+    "test": "bun run --filter '*' test",
+    "lint": "bun run --filter '*' lint",
+    "install:all": "bun install && bun install --cwd backend && bun install --cwd frontend && bun install --cwd worker"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

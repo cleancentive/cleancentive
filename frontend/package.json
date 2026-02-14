@@ -1,0 +1,36 @@
+{
+  "name": "@cleancentive/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PWA frontend for cleancentive",
+  "scripts": {
+    "dev": "bunx --bun vite",
+    "build": "bun run tsc && bunx --bun vite build",
+    "preview": "bunx --bun vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.21.3",
+    "maplibre-gl": "^4.0.0",
+    "axios": "^1.6.5",
+    "zustand": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^8.56.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.11",
+    "vite-plugin-pwa": "^0.17.4",
+    "vitest": "^1.2.0"
+  }
+}
