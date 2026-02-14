@@ -1,15 +1,14 @@
 schema: spec-driven
 
-# Project context (optional)
+# Project context
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+  context: |
+    Tech stack: Bun runtime and package manager, NestJS (backend API), React + Vite (frontend PWA), PostgreSQL with PostGIS (database), MinIO (object storage), Redis + BullMQ (job queue), OpenAI Vision API (image analysis), MapLibre GL + OpenStreetMap (mapping)
+    Conventions: Conventional commits, TypeScript, monorepo with Bun workspaces, Avoid referencing "cleancetive" in the specs - prefer "The solution"
+    Domain: Environmental cleanup and litter tracking app (Cleancentive) - reimplementation of Delitter with fixes for data persistence and architecture issues
 
-# Per-artifact rules (optional)
+# Per-artifact rules
 # Add custom rules for specific artifacts.
 # Example:
 #   rules:
