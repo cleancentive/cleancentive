@@ -20,13 +20,14 @@ The solution currently has no user authentication or identity management system.
 ## Decisions
 
 ### Data Model Architecture
-**Decision**: Use PostgreSQL with normalized tables: `users` (UUID primary key, nickname, full_name, created_at, updated_at, created_by, updated_by) and `user_emails` (many-to-many with users, including selection flags for login links). Guest accounts are stored in `users` with nickname="guest" and no emails.
+**Decision**: Use PostgreSQL with normalized tables: `users` (UUID primary key, nickname, full_name, created_at, updated_at, created_by, updated_by) and `user_emails` (one-to-many with users, including selection flags for login links). Guest accounts are stored in `users` with nickname="guest" and no emails.
 
-**Rationale**: Follows project data model guidelines for consistency. Normalized schema avoids embedding issues from the old MongoDB design. UUIDs ensure privacy and distributed compatibility. Separate emails table supports multiple associations and flexible link selection.
+**Rationale**: Follows project data model guidelines for consistency. Normalized schema avoids embedding issues from the old MongoDB design. UUIDs ensure privacy and distributed compatibility. Separate emails table supports multiple associations per user with unique email constraints, and flexible link selection.
 
 **Alternatives Considered**:
 - Single users table with JSON emails: Rejected for normalization and query complexity.
 - Auto-increment IDs: Rejected for privacy concerns in a public app.
+- Many-to-many emails: Rejected for login ambiguity and security risks.
 
 ### Authentication Flow
 **Decision**: Passwordless magic links sent to user-selected emails. Links expire after 24 hours for usability. Sessions managed via JWT tokens stored client-side, valid for 30 days.
@@ -83,5 +84,38 @@ No migration needed as this is the first implementation. Deploy as new API endpo
 - Email service provider (e.g., SendGrid, AWS SES, or self-hosted)?
 - Exact link expiration time (24 hours confirmed, but adjustable)?
 - Client-side session storage (localStorage vs. secure cookies)?
-- How to handle guest-to-registered account conversion (merge data)?</content>
+- How to handle guest-to-registered account conversion (merge data)?
+
+## Deployment Architecture
+
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        PWA[React PWA<br/>Vite]
+    end
+
+    subgraph "API Layer"
+        API[NestJS API<br/>TypeScript]
+    end
+
+    subgraph "Data Layer"
+        DB[(PostgreSQL<br/>+ PostGIS)]
+        Redis[(Redis<br/>Sessions)]
+        MinIO[MinIO<br/>Object Storage]
+    end
+
+    subgraph "External Services"
+        OpenAI[OpenAI Vision API<br/>Image Analysis]
+        OSM[OpenStreetMap<br/>Tiles]
+        Email[Email Service<br/>Magic Links]
+    end
+
+    PWA --> API
+    API --> DB
+    API --> Redis
+    API --> MinIO
+    API --> OpenAI
+    PWA --> OSM
+    API --> Email
+```</content>
 <parameter name="filePath">openspec/changes/user-identity-management/design.md
