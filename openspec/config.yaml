@@ -21,5 +21,4 @@ context: |
 #       - Break tasks into chunks of max 2 hours
 rules:
   design:
-    - Always include a deployment diagram in Mermaid format
-    - Keep the deployment diagram up to date with current architecture in the docs folder
+    - Review architecture views in docs/architecture/ and update any that are affected by this change
