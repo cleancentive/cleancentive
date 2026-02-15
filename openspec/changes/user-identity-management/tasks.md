@@ -15,7 +15,7 @@
 ## 3. Guest Account Management
 
 - [x] 3.1 Implement guest account creation with UUIDv7 generation
-- [ ] 3.2 Add device storage logic for guest UUID persistence
+- [x] 3.2 Add device storage logic for guest UUID persistence
 - [x] 3.3 Create API endpoint for guest account retrieval/validation
 
 ## 4. User Registration and Email Management
@@ -46,15 +46,15 @@
 
 ## 8. Frontend Integration
 
-- [ ] 8.1 Create React components for registration/login forms
-- [ ] 8.2 Implement guest account detection and storage in PWA
-- [ ] 8.3 Add authentication state management
-- [ ] 8.4 Create profile editing UI
+- [x] 8.1 Create React components for registration/login forms
+- [x] 8.2 Implement guest account detection and storage in PWA
+- [x] 8.3 Add authentication state management
+- [x] 8.4 Create profile editing UI
 
 ## 9. Testing and Validation
 
-- [ ] 9.1 Write unit tests for UUID generation and validation
-- [ ] 9.2 Add integration tests for registration and authentication flows
+- [x] 9.1 Write unit tests for UUID generation and validation
+- [x] 9.2 Add integration tests for registration and authentication flows
 - [ ] 9.3 Test guest account merging scenarios
-- [ ] 9.4 Validate email service and magic link expiration</content>
+- [x] 9.4 Validate email service and magic link expiration</content>
 <parameter name="filePath">/Users/matthias/git/cleancentive/openspec/changes/user-identity-management/tasks.md

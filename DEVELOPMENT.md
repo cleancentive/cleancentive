@@ -54,7 +54,7 @@ bun run dev
 bun run install:all
 
 # Start infrastructure services (PostgreSQL, Redis, MinIO)
-bun run dev:services
+bun run dev:infra:start
 
 # Run all services in development mode
 bun run dev
@@ -73,7 +73,7 @@ cd frontend && bun run dev
 cd worker && bun run dev
 
 # Stop infrastructure services
-bun run stop:services
+bun run dev:infra:stop
 ```
 
 ### Environment Setup

@@ -6,6 +6,7 @@
   "description": "PWA frontend for cleancentive",
   "scripts": {
     "dev": "bunx --bun vite",
+    "dev:stop": "lsof -ti :5173 | xargs kill -9 2>/dev/null || true",
     "build": "bun run tsc && bunx --bun vite build",
     "preview": "bunx --bun vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",

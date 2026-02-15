@@ -11,8 +11,9 @@
   ],
   "scripts": {
     "dev": "bun run --filter '*' dev",
-    "dev:services": "cd infrastructure && docker-compose -f docker-compose.dev.yml up -d",
-    "stop:services": "cd infrastructure && docker-compose -f docker-compose.dev.yml down",
+    "dev:stop": "bun run --filter '*' dev:stop",
+    "dev:infra:start": "cd infrastructure && docker-compose -f docker-compose.dev.yml up -d",
+    "dev:infra:stop": "cd infrastructure && docker-compose -f docker-compose.dev.yml down",
     "build": "bun run --filter '*' build",
     "test": "bun run --filter '*' test",
     "lint": "bun run --filter '*' lint",

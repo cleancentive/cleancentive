@@ -89,27 +89,23 @@ No migration needed as this is the first implementation. Deploy as new API endpo
 ## Deployment Architecture
 
 ```mermaid
-flowchart TB
-    subgraph "Client Layer"
-        PWA["React PWA\nVite"]
+graph TD
+    subgraph Client["Client Layer"]
+        PWA["React PWA (Vite)"]
     end
-
-    subgraph "API Layer"
-        API["NestJS API\nTypeScript"]
+    subgraph APILayer["API Layer"]
+        API["NestJS API - TypeScript"]
     end
-
-    subgraph "Data Layer"
-        DB[("PostgreSQL\n+ PostGIS")]
-        Redis[("Redis\nSessions")]
-        MinIO["MinIO\nObject Storage"]
+    subgraph Data["Data Layer"]
+        DB[("PostgreSQL + PostGIS")]
+        Redis[("Redis Sessions")]
+        MinIO["MinIO Object Storage"]
     end
-
-    subgraph "External Services"
-        OpenAI["OpenAI Vision API\nImage Analysis"]
-        OSM["OpenStreetMap\nTiles"]
-        Email["Email Service\nMagic Links"]
+    subgraph External["External Services"]
+        OpenAI["OpenAI Vision API"]
+        OSM["OpenStreetMap Tiles"]
+        Email["Email - Magic Links"]
     end
-
     PWA --> API
     API --> DB
     API --> Redis

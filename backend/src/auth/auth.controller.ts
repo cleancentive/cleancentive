@@ -1,4 +1,5 @@
-import { Controller, Post, Body, Get, Query } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { AuthService } from './auth.service';
 
 @Controller('auth')
@@ -12,8 +13,12 @@ export class AuthController {
   }
 
   @Get('verify')
-  async verifyMagicLink(@Query('token') token: string): Promise<any> {
-    return this.authService.verifyMagicLink(token);
+  async verifyMagicLink(@Query('token') token: string, @Res() res: Response): Promise<void> {
+    const { userId, email } = await this.authService.verifyMagicLink(token);
+    const sessionToken = await this.authService.generateSessionToken(userId);
+
+    res.setHeader('x-session-token', sessionToken);
+    res.json({ userId, email });
   }
 
   @Post('refresh')
