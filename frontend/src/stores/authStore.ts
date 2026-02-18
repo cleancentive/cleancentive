@@ -18,6 +18,7 @@ interface AuthState {
   guestId: string | null
   isLoading: boolean
   error: string | null
+  guestReady: boolean
 
   // Actions
   initializeGuest: () => Promise<void>
@@ -38,29 +39,35 @@ export const useAuthStore = create<AuthState>()(
       guestId: null,
       isLoading: false,
       error: null,
+      guestReady: false,
 
       initializeGuest: async () => {
-        set({ isLoading: true, error: null })
+        set({ isLoading: true, error: null, guestReady: false })
 
         try {
-          // Check if we already have a guest ID in localStorage
-          const existingGuestId = localStorage.getItem('guestId')
+          const existingGuestId = get().guestId || localStorage.getItem('guestId')
 
           if (existingGuestId) {
-            // Validate the guest ID with the server
-            await axios.get(`${API_BASE}/user/guest/${existingGuestId}`)
-            set({ guestId: existingGuestId, isLoading: false })
-          } else {
-            // Create a new guest account
-            const response = await axios.post(`${API_BASE}/user/guest`)
-            const newGuestId = response.data.id
-            localStorage.setItem('guestId', newGuestId)
-            set({ guestId: newGuestId, isLoading: false })
+            try {
+              await axios.get(`${API_BASE}/user/${existingGuestId}`)
+              localStorage.setItem('guestId', existingGuestId)
+              set({ guestId: existingGuestId, isLoading: false, guestReady: true })
+              return
+            } catch {
+              // Stale guest ID — clear and create a new one
+              localStorage.removeItem('guestId')
+            }
           }
+
+          const response = await axios.post(`${API_BASE}/user/guest`)
+          const newGuestId = response.data.id
+          localStorage.setItem('guestId', newGuestId)
+          set({ guestId: newGuestId, isLoading: false, guestReady: true })
         } catch (error: any) {
           set({
             error: error.response?.data?.message || 'Failed to initialize guest account',
-            isLoading: false
+            isLoading: false,
+            guestReady: false
           })
         }
       },
@@ -69,7 +76,7 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null })
 
         try {
-          await axios.post(`${API_BASE}/auth/magic-link`, { email })
+          await axios.post(`${API_BASE}/auth/magic-link`, { email, guestId: get().guestId })
           set({ isLoading: false })
         } catch (error: any) {
           set({
@@ -94,11 +101,10 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: profileResponse.data,
             sessionToken,
-            guestId: null, // Clear guest ID as user is now authenticated
+            guestId: null,
             isLoading: false
           })
 
-          // Remove guest ID from localStorage
           localStorage.removeItem('guestId')
         } catch (error: any) {
           set({
@@ -112,6 +118,8 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           sessionToken: null,
+          guestId: null,
+          guestReady: false,
           error: null
         })
         localStorage.removeItem('guestId')

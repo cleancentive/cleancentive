@@ -3,7 +3,7 @@ import { BaseEntity } from '../common/base.entity';
 
 @Entity('users')
 export class User extends BaseEntity {
-  @Column('varchar', { unique: true })
+  @Column('varchar')
   nickname: string;
 
   @Column('varchar', { nullable: true })

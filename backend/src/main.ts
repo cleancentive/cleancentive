@@ -18,6 +18,7 @@ async function bootstrap() {
     app.enableCors({
       origin: process.env.FRONTEND_URL || 'http://localhost:5173',
       credentials: true,
+      exposedHeaders: ['x-session-token'],
     });
 
     const port = process.env.API_PORT || 3000;

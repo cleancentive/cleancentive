@@ -11,29 +11,52 @@ export class AuthService {
     private userService: UserService,
   ) {}
 
-  async sendMagicLink(email: string): Promise<void> {
-    // Find user by email
-    const user = await this.userService.findUserByEmail(email);
-    if (!user) {
-      // Don't reveal if email exists or not for security
+  async sendMagicLink(email: string, guestId?: string): Promise<void> {
+    const existingUser = await this.userService.findUserByEmail(email);
+
+    let userId: string;
+
+    if (existingUser) {
+      // Returning user — send magic link to existing account
+      // Include guestId in token so verify step can merge the guest into this account
+      userId = existingUser.id;
+    } else if (guestId) {
+      // New claim — attach email to guest account, then send magic link
+      const guestUser = await this.userService.findById(guestId);
+      if (!guestUser) {
+        return;
+      }
+      await this.userService.validateAndAssociateEmail(guestId, email);
+      userId = guestId;
+    } else {
+      // No guest context and email not found — nothing to do
       return;
     }
 
-    // Generate JWT token with 24-hour expiration
-    const payload = { sub: user.id, email };
+    const payload: Record<string, string> = { sub: userId, email };
+    if (guestId && existingUser && existingUser.id !== guestId) {
+      payload.guestId = guestId;
+    }
     const token = this.jwtService.sign(payload, { expiresIn: '24h' });
 
-    // Create magic link
-    const magicLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/verify?token=${token}`;
+    const magicLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/verify?token=${token}`;
 
-    // Send email
     await this.emailService.sendMagicLink(email, magicLink);
   }
 
-  async verifyMagicLink(token: string): Promise<any> {
+  async verifyMagicLink(token: string): Promise<{ userId: string; email: string }> {
     try {
       const payload = this.jwtService.verify(token);
-      return { userId: payload.sub, email: payload.email };
+      const userId = payload.sub;
+      const guestId = payload.guestId;
+
+      // If a guest session was active when the magic link was requested,
+      // merge the guest account into the existing user
+      if (guestId && guestId !== userId) {
+        await this.userService.mergeGuestAccount(guestId, userId);
+      }
+
+      return { userId, email: payload.email };
     } catch (error) {
       throw new Error('Invalid or expired magic link');
     }

@@ -3,7 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
 import { UserEmail } from './user-email.entity';
-import { v7 as uuidv7 } from 'uuid';
 
 @Injectable()
 export class UserService {
@@ -137,19 +136,23 @@ export class UserService {
   }
 
   async mergeGuestAccount(guestUserId: string, existingUserId: string): Promise<User> {
-    // Transfer all entities that reference the guest user to the existing user
-    // For now, just handle the basic case - in a real app, you'd transfer cleanup reports, etc.
-    
-    // Update user references in user_emails (though the email association is already done)
-    // Update created_by/updated_by references in other tables (not implemented yet)
-    
-    // Delete the guest user
-    const guestUser = await this.findById(guestUserId);
-    if (guestUser && guestUser.nickname === 'guest') {
-      await this.userRepository.remove(guestUser);
+    if (guestUserId === existingUserId) {
+      return this.findById(existingUserId);
     }
 
-    // Return the existing user
+    const guestUser = await this.findById(guestUserId);
+    if (!guestUser || guestUser.nickname !== 'guest') {
+      return this.findById(existingUserId);
+    }
+
+    // Transfer emails from guest to existing user (if any)
+    await this.userEmailRepository.update(
+      { user_id: guestUserId },
+      { user_id: existingUserId },
+    );
+
+    await this.userRepository.remove(guestUser);
+
     return this.findById(existingUserId);
   }
 
@@ -161,7 +164,6 @@ export class UserService {
     }
 
     if (updates.nickname) {
-      // Validate nickname uniqueness (except for "guest")
       if (updates.nickname !== 'guest') {
         const existingUser = await this.findByNickname(updates.nickname);
         if (existingUser && existingUser.id !== userId) {

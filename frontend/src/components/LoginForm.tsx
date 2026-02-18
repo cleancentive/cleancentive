@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/authStore'
 export function LoginForm() {
   const [email, setEmail] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
-  const { login, isLoading, error, clearError } = useAuthStore()
+  const { login, isLoading, error, clearError, guestReady } = useAuthStore()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -62,7 +62,7 @@ export function LoginForm() {
 
         <button
           type="submit"
-          disabled={isLoading || !email}
+          disabled={isLoading || !email || !guestReady}
           className="primary-button"
         >
           {isLoading ? 'Sending...' : 'Send magic link'}

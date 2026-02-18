@@ -19,7 +19,10 @@ export class UserProfileController {
     @Request() req: any,
     @Body() updates: { nickname?: string; full_name?: string }
   ): Promise<User> {
-    return this.userService.updateProfile(req.user.userId, updates);
+    return this.userService.updateProfile(req.user.userId, {
+      nickname: updates.nickname,
+      fullName: updates.full_name,
+    });
   }
 
   @UseGuards(JwtAuthGuard)

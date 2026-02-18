@@ -7,8 +7,11 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('magic-link')
-  async sendMagicLink(@Body('email') email: string): Promise<{ success: boolean }> {
-    await this.authService.sendMagicLink(email);
+  async sendMagicLink(
+    @Body('email') email: string,
+    @Body('guestId') guestId?: string,
+  ): Promise<{ success: boolean }> {
+    await this.authService.sendMagicLink(email, guestId);
     return { success: true };
   }
 

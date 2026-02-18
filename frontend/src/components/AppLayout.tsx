@@ -8,11 +8,11 @@ export function AppLayout() {
   const { user, guestId, initializeGuest, logout } = useAuthStore()
 
   useEffect(() => {
-    // Initialize guest account on app load if not authenticated
-    if (!user && !guestId) {
+    // Validate or create guest account on app load if not authenticated
+    if (!user) {
       initializeGuest()
     }
-  }, [user, guestId, initializeGuest])
+  }, [user, initializeGuest])
 
   return (
     <div className="app">
