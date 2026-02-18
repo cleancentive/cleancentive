@@ -4,22 +4,28 @@ import { useAuthStore } from './stores/authStore'
 import './App.css'
 
 function App() {
-  const { verifyMagicLink } = useAuthStore()
+  const { verifyMagicLink, refreshProfile, logout } = useAuthStore()
 
   useEffect(() => {
-    // Check for magic link token in URL
     const urlParams = new URLSearchParams(window.location.search)
     const token = urlParams.get('token')
+    const emailAdded = urlParams.get('emailAdded')
+    const merged = urlParams.get('merged')
+
+    // Clean URL params
+    if (token || emailAdded || merged) {
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
 
     if (token) {
-      // Remove token from URL
-      const newUrl = window.location.pathname
-      window.history.replaceState({}, document.title, newUrl)
-
-      // Verify the magic link
       verifyMagicLink(token)
+    } else if (emailAdded) {
+      refreshProfile()
+    } else if (merged) {
+      // Account was merged into another — log out current session since this account is deleted
+      logout()
     }
-  }, [verifyMagicLink])
+  }, [verifyMagicLink, refreshProfile, logout])
 
   return <AppLayout />
 }

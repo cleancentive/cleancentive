@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Put, Delete, Body, UseGuards, Request, Param, Query, BadRequestException } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserService } from './user.service';
 import { User } from './user.entity';
@@ -26,11 +26,39 @@ export class UserProfileController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post('email')
-  async addEmail(
+  @Delete('profile/email/:emailId')
+  async removeEmail(
     @Request() req: any,
-    @Body('email') email: string
+    @Param('emailId') emailId: string,
+  ): Promise<User> {
+    return this.userService.removeEmail(req.user.userId, emailId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('profile/emails/selection')
+  async updateEmailSelection(
+    @Request() req: any,
+    @Body('emailIds') emailIds: string[],
   ): Promise<any> {
-    return this.userService.registerUser(req.user.userId, email);
+    if (!emailIds || emailIds.length === 0) {
+      throw new BadRequestException('At least one email must be selected for login');
+    }
+    return this.userService.updateEmailSelection(req.user.userId, emailIds);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('profile')
+  async deleteOrAnonymizeAccount(
+    @Request() req: any,
+    @Query('mode') mode: string,
+  ): Promise<{ success: boolean }> {
+    if (mode === 'delete') {
+      await this.userService.deleteAccount(req.user.userId);
+    } else if (mode === 'anonymize') {
+      await this.userService.anonymizeAccount(req.user.userId);
+    } else {
+      throw new BadRequestException('mode must be "delete" or "anonymize"');
+    }
+    return { success: true };
   }
 }

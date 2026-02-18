@@ -68,10 +68,13 @@ export class UserService {
       }
     }
 
-    // Create new email association
+    // Check if this is the first email for the user (claiming guest account)
+    const existingEmails = await this.userEmailRepository.count({ where: { user_id: userId } });
+
     const userEmail = this.userEmailRepository.create({
       email,
       user_id: userId,
+      is_selected_for_login: existingEmails === 0,
     });
 
     return this.userEmailRepository.save(userEmail);
@@ -156,6 +159,80 @@ export class UserService {
     return this.findById(existingUserId);
   }
 
+
+  async mergeAccounts(sourceUserId: string, targetUserId: string): Promise<User> {
+    if (sourceUserId === targetUserId) {
+      return this.findById(targetUserId);
+    }
+
+    const sourceUser = await this.findById(sourceUserId);
+    if (!sourceUser) {
+      return this.findById(targetUserId);
+    }
+
+    // Transfer emails from source to target
+    await this.userEmailRepository.update(
+      { user_id: sourceUserId },
+      { user_id: targetUserId },
+    );
+
+    // Delete source account (future: transfer littering data, etc.)
+    await this.userRepository.remove(sourceUser);
+
+    return this.findById(targetUserId);
+  }
+
+  async removeEmail(userId: string, emailId: string): Promise<User> {
+    const emails = await this.userEmailRepository.find({ where: { user_id: userId } });
+    if (emails.length <= 1) {
+      throw new BadRequestException('Cannot remove last email. Use account deletion or anonymization instead.');
+    }
+
+    const emailToRemove = emails.find(e => e.id === emailId);
+    if (!emailToRemove) {
+      throw new BadRequestException('Email not found');
+    }
+
+    await this.userEmailRepository.remove(emailToRemove);
+
+    // If removed email was selected for login and no others are, select the first remaining
+    if (emailToRemove.is_selected_for_login) {
+      const remaining = await this.userEmailRepository.find({ where: { user_id: userId, is_selected_for_login: true } });
+      if (remaining.length === 0) {
+        const first = await this.userEmailRepository.findOne({ where: { user_id: userId } });
+        if (first) {
+          first.is_selected_for_login = true;
+          await this.userEmailRepository.save(first);
+        }
+      }
+    }
+
+    return this.findById(userId);
+  }
+
+  async deleteAccount(userId: string): Promise<void> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+    await this.userRepository.remove(user);
+  }
+
+  async anonymizeAccount(userId: string): Promise<void> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Delete all emails
+    await this.userEmailRepository.delete({ user_id: userId });
+
+    // Reset to guest state
+    user.nickname = 'guest';
+    user.full_name = null;
+    user.updated_by = null;
+    await this.userRepository.save(user);
+  }
 
   async updateProfile(userId: string, updates: { nickname?: string; fullName?: string }): Promise<User> {
     const user = await this.findById(userId);
