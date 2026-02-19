@@ -9,6 +9,9 @@ export class User extends BaseEntity {
   @Column('varchar', { nullable: true })
   full_name: string;
 
+  @Column('timestamp', { nullable: true })
+  last_login: Date;
+
   @OneToMany('UserEmail', (email: any) => email.user)
   emails: any[];
 }

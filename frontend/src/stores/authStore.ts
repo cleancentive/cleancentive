@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import axios from 'axios'
+import { v7 as uuidv7 } from 'uuid'
 
 interface UserEmail {
   id: string
@@ -37,6 +38,7 @@ interface AuthState {
   anonymizeAccount: () => Promise<void>
   recoverAccount: (email: string) => Promise<void>
   refreshProfile: () => Promise<void>
+  refreshTokenIfNeeded: () => Promise<void>
   clearError: () => void
 }
 
@@ -53,34 +55,24 @@ export const useAuthStore = create<AuthState>()(
       guestReady: false,
 
       initializeGuest: async () => {
-        set({ isLoading: true, error: null, guestReady: false })
-
-        try {
-          const existingGuestId = get().guestId || localStorage.getItem('guestId')
-
-          if (existingGuestId) {
-            try {
-              await axios.get(`${API_BASE}/user/${existingGuestId}`)
-              localStorage.setItem('guestId', existingGuestId)
-              set({ guestId: existingGuestId, isLoading: false, guestReady: true })
-              return
-            } catch {
-              // Stale guest ID — clear and create a new one
-              localStorage.removeItem('guestId')
-            }
-          }
-
-          const response = await axios.post(`${API_BASE}/user/guest`)
-          const newGuestId = response.data.id
-          localStorage.setItem('guestId', newGuestId)
-          set({ guestId: newGuestId, isLoading: false, guestReady: true })
-        } catch (error: any) {
-          set({
-            error: error.response?.data?.message || 'Failed to initialize guest account',
-            isLoading: false,
-            guestReady: false
-          })
+        // If already authenticated, skip guest initialization
+        if (get().sessionToken && get().user) {
+          set({ guestReady: true })
+          return
         }
+
+        const existingGuestId = get().guestId || localStorage.getItem('guestId')
+        if (existingGuestId) {
+          localStorage.setItem('guestId', existingGuestId)
+          set({ guestId: existingGuestId, guestReady: true })
+          return
+        }
+
+        // Generate a client-side UUIDv7 — no server call needed.
+        // The DB row is created lazily on the first write (e.g., claiming via magic link).
+        const newGuestId = uuidv7()
+        localStorage.setItem('guestId', newGuestId)
+        set({ guestId: newGuestId, guestReady: true })
       },
 
       login: async (email: string) => {
@@ -321,6 +313,27 @@ export const useAuthStore = create<AuthState>()(
           set({ user: response.data })
         } catch {
           // Silent fail — profile refresh is best-effort
+        }
+      },
+
+      refreshTokenIfNeeded: async () => {
+        const { sessionToken } = get()
+        if (!sessionToken) return
+
+        try {
+          // Decode JWT payload (base64url middle segment) to check expiry
+          const payload = JSON.parse(atob(sessionToken.split('.')[1]))
+          const expiresAt = payload.exp * 1000 // Convert to ms
+          const thirtyDays = 30 * 24 * 60 * 60 * 1000
+
+          if (expiresAt - Date.now() < thirtyDays) {
+            const response = await axios.post(`${API_BASE}/auth/refresh`, {}, {
+              headers: { Authorization: `Bearer ${sessionToken}` }
+            })
+            set({ sessionToken: response.data.token })
+          }
+        } catch {
+          // Silent fail — token refresh is best-effort
         }
       },
 

@@ -53,6 +53,7 @@ describe('AuthService', () => {
         nickname: 'testuser',
         full_name: null,
         emails: [],
+        last_login: null,
         created_at: new Date(),
         updated_at: new Date(),
         created_by: null,

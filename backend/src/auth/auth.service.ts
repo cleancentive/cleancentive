@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { EmailService } from '../email/email.service';
 import { UserService } from '../user/user.service';
+import { AdminService } from '../admin/admin.service';
 
 @Injectable()
 export class AuthService {
@@ -9,6 +10,7 @@ export class AuthService {
     private jwtService: JwtService,
     private emailService: EmailService,
     private userService: UserService,
+    private adminService: AdminService,
   ) {}
 
   async sendMagicLink(email: string, guestId?: string): Promise<void> {
@@ -21,11 +23,8 @@ export class AuthService {
       // Include guestId in token so verify step can merge the guest into this account
       userId = existingUser.id;
     } else if (guestId) {
-      // New claim — attach email to guest account, then send magic link
-      const guestUser = await this.userService.findById(guestId);
-      if (!guestUser) {
-        return;
-      }
+      // New claim — create guest if needed, attach email, then send magic link
+      await this.userService.findOrCreateGuest(guestId);
       await this.userService.validateAndAssociateEmail(guestId, email);
       userId = guestId;
     } else {
@@ -56,6 +55,13 @@ export class AuthService {
         await this.userService.mergeGuestAccount(guestId, userId);
       }
 
+      await this.userService.updateLastLogin(userId);
+
+      // Auto-promote to admin if email is in ADMIN_EMAILS
+      if (this.adminService.isAdminEmail(payload.email)) {
+        await this.adminService.promoteToAdmin(userId, null);
+      }
+
       return { userId, email: payload.email };
     } catch (error) {
       throw new Error('Invalid or expired magic link');
@@ -74,7 +80,8 @@ export class AuthService {
 
     const payload = { sub: userId, email, purpose: 'add-email' };
     const token = this.jwtService.sign(payload, { expiresIn: '24h' });
-    const magicLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/verify-email?token=${token}`;
+    const apiBase = `${process.env.API_URL || 'http://localhost:3000'}${process.env.API_PREFIX || '/api/v1'}`;
+    const magicLink = `${apiBase}/auth/verify-email?token=${token}`;
     await this.emailService.sendMagicLink(email, magicLink);
     return { status: 'verification-sent' };
   }
@@ -86,6 +93,12 @@ export class AuthService {
         throw new Error('Invalid token purpose');
       }
       await this.userService.validateAndAssociateEmail(payload.sub, payload.email);
+
+      // Auto-promote to admin if newly added email is in ADMIN_EMAILS
+      if (this.adminService.isAdminEmail(payload.email)) {
+        await this.adminService.promoteToAdmin(payload.sub, null);
+      }
+
       return { userId: payload.sub, email: payload.email };
     } catch (error) {
       if (error.message === 'Invalid token purpose') throw error;
@@ -133,8 +146,8 @@ export class AuthService {
       mergeIntoUserId: requesterId,
     };
     const token = this.jwtService.sign(payload, { expiresIn: '24h' });
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    const link = `${frontendUrl}/auth/merge-confirm?token=${token}`;
+    const apiBase = `${process.env.API_URL || 'http://localhost:3000'}${process.env.API_PREFIX || '/api/v1'}`;
+    const link = `${apiBase}/auth/merge-confirm?token=${token}`;
 
     await this.emailService.sendMergeWarning(email, link, requester.nickname);
     return { sent: true };
@@ -174,8 +187,10 @@ export class AuthService {
   }
 
   async refreshSessionToken(userId: string): Promise<string> {
-    // For now, just generate a new token
-    // In a more complex system, you might check token expiration
     return this.generateSessionToken(userId);
+  }
+
+  async updateLastSeen(userId: string): Promise<void> {
+    await this.userService.updateLastLogin(userId);
   }
 }

@@ -1,20 +1,23 @@
 import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams, useNavigate } from 'react-router-dom'
 import { AppLayout } from './components/AppLayout'
+import { AdminPanel } from './components/AdminPanel'
+import { UserDetail } from './components/UserDetail'
 import { useAuthStore } from './stores/authStore'
 import './App.css'
 
-function App() {
+function AuthHandler() {
   const { verifyMagicLink, refreshProfile, logout } = useAuthStore()
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    const token = urlParams.get('token')
-    const emailAdded = urlParams.get('emailAdded')
-    const merged = urlParams.get('merged')
+    const token = searchParams.get('token')
+    const emailAdded = searchParams.get('emailAdded')
+    const merged = searchParams.get('merged')
 
-    // Clean URL params
     if (token || emailAdded || merged) {
-      window.history.replaceState({}, document.title, window.location.pathname)
+      navigate(window.location.pathname, { replace: true })
     }
 
     if (token) {
@@ -22,12 +25,25 @@ function App() {
     } else if (emailAdded) {
       refreshProfile()
     } else if (merged) {
-      // Account was merged into another — log out current session since this account is deleted
       logout()
     }
-  }, [verifyMagicLink, refreshProfile, logout])
+  }, [searchParams, navigate, verifyMagicLink, refreshProfile, logout])
 
-  return <AppLayout />
+  return null
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthHandler />
+      <Routes>
+        <Route path="/" element={<AppLayout />} />
+        <Route path="/admin" element={<AdminPanel />} />
+        <Route path="/admin/users/:id" element={<UserDetail />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  )
 }
 
 export default App

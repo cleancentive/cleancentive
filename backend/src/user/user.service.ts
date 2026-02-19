@@ -20,6 +20,20 @@ export class UserService {
     return this.userRepository.save(guestUser);
   }
 
+  async findOrCreateGuest(guestId: string): Promise<User> {
+    const existing = await this.userRepository.findOne({
+      where: { id: guestId },
+      relations: ['emails'],
+    });
+    if (existing) return existing;
+
+    const guest = this.userRepository.create({
+      id: guestId,
+      nickname: 'guest',
+    });
+    return this.userRepository.save(guest);
+  }
+
   async findById(id: string): Promise<User | null> {
     return this.userRepository.findOne({
       where: { id },
@@ -232,6 +246,10 @@ export class UserService {
     user.full_name = null;
     user.updated_by = null;
     await this.userRepository.save(user);
+  }
+
+  async updateLastLogin(userId: string): Promise<void> {
+    await this.userRepository.update({ id: userId }, { last_login: new Date() });
   }
 
   async updateProfile(userId: string, updates: { nickname?: string; fullName?: string }): Promise<User> {

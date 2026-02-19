@@ -76,10 +76,22 @@ export class AuthController {
     }
   }
 
+  @UseGuards(JwtAuthGuard)
   @Post('refresh')
-  async refreshToken(@Body('userId') userId: string): Promise<{ token: string }> {
-    const token = await this.authService.refreshSessionToken(userId);
+  async refreshToken(@Request() req: any): Promise<{ token: string }> {
+    const token = await this.authService.refreshSessionToken(req.user.userId);
     return { token };
+  }
+
+  @Post('last-seen')
+  async lastSeen(@Body('token') token: string, @Res() res: Response): Promise<void> {
+    try {
+      const payload = await this.authService.validateSessionToken(token);
+      await this.authService.updateLastSeen(payload.sub);
+      res.status(204).send();
+    } catch {
+      res.status(204).send(); // Silent fail — don't leak info
+    }
   }
 
   @Post('logout')

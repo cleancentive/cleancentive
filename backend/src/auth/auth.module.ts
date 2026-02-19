@@ -6,16 +6,18 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { EmailModule } from '../email/email.module';
 import { UserModule } from '../user/user.module';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
   imports: [
     PassportModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'default-secret-change-in-production',
-      signOptions: { expiresIn: '30d' },
+      signOptions: { expiresIn: '365d' },
     }),
     EmailModule,
     UserModule,
+    AdminModule,
   ],
   providers: [AuthService, JwtStrategy],
   controllers: [AuthController],

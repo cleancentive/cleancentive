@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
+import { AdminService } from './admin/admin.service';
 
 const logger = new Logger('Bootstrap');
 
@@ -21,9 +22,13 @@ async function bootstrap() {
       exposedHeaders: ['x-session-token'],
     });
 
+    // Ensure ADMIN_EMAILS users are promoted on startup
+    const adminService = app.get(AdminService);
+    await adminService.ensureAdminEmailsPromoted();
+
     const port = process.env.API_PORT || 3000;
     await app.listen(port);
-    
+
     logger.log(`🚀 Application is running on: http://localhost:${port}/api/v1`);
     logger.log(`📧 Email service: SMTP (check Mailpit at http://localhost:8025 for dev)`);
   } catch (error) {
