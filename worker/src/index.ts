@@ -1,12 +1,5 @@
 import { Worker, Job } from 'bullmq';
-import { Redis } from 'ioredis';
 import OpenAI from 'openai';
-
-// Initialize Redis connection
-const redis = new Redis({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-});
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -29,7 +22,10 @@ const imageAnalysisWorker = new Worker(
     };
   },
   {
-    connection: redis,
+    connection: {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379'),
+    },
   }
 );
 
@@ -45,16 +41,11 @@ imageAnalysisWorker.on('failed', (job, err) => {
 console.log('Image analysis worker started and listening for jobs...');
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
+const shutdown = async () => {
   console.log('Shutting down worker...');
   await imageAnalysisWorker.close();
-  await redis.quit();
   process.exit(0);
-});
+};
 
-process.on('SIGINT', async () => {
-  console.log('Shutting down worker...');
-  await imageAnalysisWorker.close();
-  await redis.quit();
-  process.exit(0);
-});
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
