@@ -28,6 +28,7 @@ interface AuthState {
   initializeGuest: () => Promise<void>
   login: (email: string) => Promise<void>
   verifyMagicLink: (token: string) => Promise<void>
+  cancelPendingAuth: () => void
   logout: () => void
   updateProfile: (data: { nickname?: string; full_name?: string }) => Promise<void>
   addEmail: (email: string) => Promise<{ status: string; ownerNickname?: string }>
@@ -43,6 +44,58 @@ interface AuthState {
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+
+// Module-level polling handles (not in Zustand state — not serializable)
+let pollIntervalId: ReturnType<typeof setInterval> | null = null
+let pollTimeoutId: ReturnType<typeof setTimeout> | null = null
+
+function clearPolling() {
+  if (pollIntervalId !== null) { clearInterval(pollIntervalId); pollIntervalId = null }
+  if (pollTimeoutId !== null) { clearTimeout(pollTimeoutId); pollTimeoutId = null }
+}
+
+function startPolling(
+  requestId: string,
+  get: () => AuthState,
+  set: (partial: Partial<AuthState>) => void,
+) {
+  clearPolling()
+
+  // Auto-stop polling after 24h (matches magic link expiry)
+  pollTimeoutId = setTimeout(clearPolling, 24 * 60 * 60 * 1000)
+
+  pollIntervalId = setInterval(async () => {
+    // Stop if the user has already logged in (e.g. they clicked the link in this browser too)
+    if (get().sessionToken) {
+      clearPolling()
+      return
+    }
+
+    try {
+      const response = await axios.get(`${API_BASE}/auth/pending/${requestId}`)
+      if (response.data.status === 'completed') {
+        clearPolling()
+        const sessionToken = response.data.sessionToken as string
+        const profileResponse = await axios.get(`${API_BASE}/user/profile`, {
+          headers: { Authorization: `Bearer ${sessionToken}` },
+        })
+        set({
+          user: profileResponse.data,
+          sessionToken,
+          guestId: null,
+          isLoading: false,
+        })
+        localStorage.removeItem('guestId')
+      }
+    } catch (error: any) {
+      // 404 means expired/consumed — stop polling silently
+      if (error.response?.status === 404) {
+        clearPolling()
+      }
+      // Other errors: keep polling
+    }
+  }, 2000)
+}
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -77,19 +130,27 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email: string) => {
         set({ isLoading: true, error: null })
+        clearPolling()
 
         try {
-          await axios.post(`${API_BASE}/auth/magic-link`, { email, guestId: get().guestId })
+          const response = await axios.post(`${API_BASE}/auth/magic-link`, { email, guestId: get().guestId })
           set({ isLoading: false })
+
+          const requestId = response.data.requestId as string | undefined
+          if (requestId) {
+            startPolling(requestId, get, set)
+          }
         } catch (error: any) {
           set({
             error: error.response?.data?.message || 'Failed to send magic link',
-            isLoading: false
+            isLoading: false,
           })
         }
       },
 
       verifyMagicLink: async (token: string) => {
+        // This browser clicked the magic link — stop any active polling
+        clearPolling()
         set({ isLoading: true, error: null })
 
         try {
@@ -116,7 +177,12 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      cancelPendingAuth: () => {
+        clearPolling()
+      },
+
       logout: () => {
+        clearPolling()
         set({
           user: null,
           sessionToken: null,
@@ -243,6 +309,7 @@ export const useAuthStore = create<AuthState>()(
           await axios.delete(`${API_BASE}/user/profile?mode=delete`, {
             headers: { Authorization: `Bearer ${sessionToken}` }
           })
+          clearPolling()
           set({
             user: null,
             sessionToken: null,
@@ -270,6 +337,7 @@ export const useAuthStore = create<AuthState>()(
           await axios.delete(`${API_BASE}/user/profile?mode=anonymize`, {
             headers: { Authorization: `Bearer ${sessionToken}` }
           })
+          clearPolling()
           set({
             user: null,
             sessionToken: null,

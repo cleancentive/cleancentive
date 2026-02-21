@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query, Res, UseGuards, Request, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Param, Res, UseGuards, Request, BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -11,18 +11,27 @@ export class AuthController {
   async sendMagicLink(
     @Body('email') email: string,
     @Body('guestId') guestId?: string,
-  ): Promise<{ success: boolean }> {
-    await this.authService.sendMagicLink(email, guestId);
-    return { success: true };
+  ): Promise<{ success: boolean; requestId?: string }> {
+    const result = await this.authService.sendMagicLink(email, guestId);
+    return { success: true, requestId: result?.requestId };
   }
 
   @Get('verify')
   async verifyMagicLink(@Query('token') token: string, @Res() res: Response): Promise<void> {
-    const { userId, email } = await this.authService.verifyMagicLink(token);
+    const { userId, email, requestId } = await this.authService.verifyMagicLink(token);
     const sessionToken = await this.authService.generateSessionToken(userId);
+
+    if (requestId) {
+      await this.authService.completePendingAuth(requestId, sessionToken);
+    }
 
     res.setHeader('x-session-token', sessionToken);
     res.json({ userId, email });
+  }
+
+  @Get('pending/:requestId')
+  async pollPendingAuth(@Param('requestId') requestId: string): Promise<{ status: string; sessionToken?: string }> {
+    return this.authService.pollPendingAuth(requestId);
   }
 
   @UseGuards(JwtAuthGuard)

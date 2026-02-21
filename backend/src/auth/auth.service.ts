@@ -1,8 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
 import { EmailService } from '../email/email.service';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
+import { PendingAuthRequest, PendingAuthStatus } from './pending-auth-request.entity';
 
 @Injectable()
 export class AuthService {
@@ -11,9 +15,11 @@ export class AuthService {
     private emailService: EmailService,
     private userService: UserService,
     private adminService: AdminService,
+    @InjectRepository(PendingAuthRequest)
+    private pendingAuthRepo: Repository<PendingAuthRequest>,
   ) {}
 
-  async sendMagicLink(email: string, guestId?: string): Promise<void> {
+  async sendMagicLink(email: string, guestId?: string): Promise<{ requestId: string } | null> {
     const existingUser = await this.userService.findUserByEmail(email);
 
     let userId: string;
@@ -29,10 +35,12 @@ export class AuthService {
       userId = guestId;
     } else {
       // No guest context and email not found — nothing to do
-      return;
+      return null;
     }
 
-    const payload: Record<string, string> = { sub: userId, email };
+    const requestId = uuidv4();
+
+    const payload: Record<string, string> = { sub: userId, email, requestId };
     if (guestId && existingUser && existingUser.id !== guestId) {
       payload.guestId = guestId;
     }
@@ -40,14 +48,27 @@ export class AuthService {
 
     const magicLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/verify?token=${token}`;
 
+    // Create pending auth request so the requesting browser can poll for completion
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await this.pendingAuthRepo.save({
+      id: requestId,
+      userId,
+      sessionToken: null,
+      status: PendingAuthStatus.PENDING,
+      expiresAt,
+    });
+
     await this.emailService.sendMagicLink(email, magicLink);
+
+    return { requestId };
   }
 
-  async verifyMagicLink(token: string): Promise<{ userId: string; email: string }> {
+  async verifyMagicLink(token: string): Promise<{ userId: string; email: string; requestId?: string }> {
     try {
       const payload = this.jwtService.verify(token);
       const userId = payload.sub;
       const guestId = payload.guestId;
+      const requestId = payload.requestId as string | undefined;
 
       // If a guest session was active when the magic link was requested,
       // merge the guest account into the existing user
@@ -62,10 +83,35 @@ export class AuthService {
         await this.adminService.promoteToAdmin(userId, null);
       }
 
-      return { userId, email: payload.email };
+      return { userId, email: payload.email, requestId };
     } catch (error) {
       throw new Error('Invalid or expired magic link');
     }
+  }
+
+  async completePendingAuth(requestId: string, sessionToken: string): Promise<void> {
+    const record = await this.pendingAuthRepo.findOne({ where: { id: requestId } });
+    if (!record || record.status === PendingAuthStatus.COMPLETED) return;
+    await this.pendingAuthRepo.update(requestId, {
+      status: PendingAuthStatus.COMPLETED,
+      sessionToken,
+    });
+  }
+
+  async pollPendingAuth(requestId: string): Promise<{ status: string; sessionToken?: string }> {
+    const record = await this.pendingAuthRepo.findOne({ where: { id: requestId } });
+
+    if (!record || record.expiresAt < new Date()) {
+      if (record) await this.pendingAuthRepo.delete(requestId);
+      throw new NotFoundException('Pending auth request not found or expired');
+    }
+
+    if (record.status === PendingAuthStatus.COMPLETED) {
+      await this.pendingAuthRepo.delete(requestId);
+      return { status: 'completed', sessionToken: record.sessionToken };
+    }
+
+    return { status: 'pending' };
   }
 
   async sendEmailVerification(userId: string, email: string): Promise<{ status: string; ownerNickname?: string }> {
