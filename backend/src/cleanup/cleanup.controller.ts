@@ -3,16 +3,19 @@ import {
   Controller,
   Get,
   HttpCode,
+  NotFoundException,
   Param,
   Post,
   Query,
   Req,
+  Res,
+  StreamableFile,
   UnauthorizedException,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { CleanupService } from './cleanup.service';
 import { AuthService } from '../auth/auth.service';
 import { UserService } from '../user/user.service';
@@ -243,5 +246,16 @@ export class CleanupController {
     return {
       reports: reports.map((report) => this.toReportDto(report)),
     };
+  }
+
+  @Get('reports/:id/thumbnail')
+  async getThumbnail(
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const result = await this.cleanupService.getThumbnailStream(id);
+    if (!result) throw new NotFoundException('Thumbnail not available');
+    res.set({ 'Content-Type': result.contentType, 'Cache-Control': 'public, max-age=31536000, immutable' });
+    return new StreamableFile(result.body as any);
   }
 }

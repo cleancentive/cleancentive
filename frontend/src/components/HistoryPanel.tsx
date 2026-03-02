@@ -79,6 +79,7 @@ export function HistoryPanel() {
   const { sessionToken, guestId } = useAuthStore()
   const [reports, setReports] = useState<HistoryItem[]>([])
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([])
+  const [localThumbnails, setLocalThumbnails] = useState<Map<string, string>>(new Map())
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -126,6 +127,17 @@ export function HistoryPanel() {
     const all = await getOutboxItems()
     setOutboxItems(all)
   }, [])
+
+  useEffect(() => {
+    const urls = new Map<string, string>()
+    for (const item of outboxItems) {
+      if (item.thumbnailBlob) {
+        urls.set(item.id, URL.createObjectURL(item.thumbnailBlob))
+      }
+    }
+    setLocalThumbnails(urls)
+    return () => { for (const url of urls.values()) URL.revokeObjectURL(url) }
+  }, [outboxItems])
 
   useEffect(() => {
     void loadHistory()
@@ -188,6 +200,9 @@ export function HistoryPanel() {
                       {localStatusLabel(item.status)}
                     </strong>
                     <span>{formatDateTime(item.capturedAt)}</span>
+                    {localThumbnails.get(item.id) && (
+                      <img className="history-thumb" src={localThumbnails.get(item.id)} alt="" />
+                    )}
                   </div>
 
                   <p className="history-meta">
@@ -210,6 +225,12 @@ export function HistoryPanel() {
                     {serverStatusLabel(item.status)}
                   </strong>
                   <span>{formatDateTime(item.capturedAt)}</span>
+                  <img
+                    className="history-thumb"
+                    src={`${API_BASE}/cleanup/reports/${item.id}/thumbnail`}
+                    alt=""
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  />
                 </div>
 
                 <p className="history-meta">

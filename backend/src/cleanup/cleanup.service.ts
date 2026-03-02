@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ServiceUnavailableException } from '@nes
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Queue } from 'bullmq';
-import { S3Client, PutObjectCommand, HeadBucketCommand, CreateBucketCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, HeadBucketCommand, CreateBucketCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { CleanupReport } from './cleanup-report.entity';
 
 interface CreateUploadInput {
@@ -227,6 +227,18 @@ export class CleanupService {
       order: { captured_at: 'DESC' },
       take: limit,
     });
+  }
+
+  async getThumbnailStream(reportId: string): Promise<{ body: NodeJS.ReadableStream; contentType: string } | null> {
+    const report = await this.reportRepository.findOne({ where: { id: reportId } });
+    if (!report?.thumbnail_key) return null;
+
+    const result = await this.s3Client.send(
+      new GetObjectCommand({ Bucket: this.bucketName, Key: report.thumbnail_key }),
+    );
+
+    if (!result.Body) return null;
+    return { body: result.Body as NodeJS.ReadableStream, contentType: 'image/jpeg' };
   }
 
   async close(): Promise<void> {
