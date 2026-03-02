@@ -204,28 +204,52 @@ export function CapturePanel() {
       return
     }
 
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        setLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-          timestamp: Date.now(),
-        })
-        setLocationError(null)
-      },
-      (error) => {
-        setLocationError(error.message)
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 10000,
-        timeout: 10000,
-      },
-    )
+    let watchId: number
+
+    const startWatch = () => {
+      watchId = navigator.geolocation.watchPosition(
+        (position) => {
+          setLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            timestamp: Date.now(),
+          })
+          setLocationError(null)
+        },
+        (error) => {
+          setLocationError(error.message)
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 30000,
+          timeout: 30000,
+        },
+      )
+    }
+
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        if (result.state === 'denied') {
+          setLocationError('Location access was denied. Enable it in your browser site settings.')
+          return
+        }
+        startWatch()
+        result.onchange = () => {
+          if (result.state === 'denied') {
+            setLocationError('Location access was denied. Enable it in your browser site settings.')
+            navigator.geolocation.clearWatch(watchId)
+          }
+        }
+      })
+    } else {
+      startWatch()
+    }
 
     return () => {
-      navigator.geolocation.clearWatch(watchId)
+      if (watchId !== undefined) {
+        navigator.geolocation.clearWatch(watchId)
+      }
     }
   }, [])
 
