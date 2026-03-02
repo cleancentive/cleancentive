@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
+import { getOutboxItems, type OutboxItem } from '../lib/uploadOutbox'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'
 
@@ -22,6 +23,10 @@ interface HistoryItem {
   }[]
 }
 
+type Row =
+  | { kind: 'local'; item: OutboxItem }
+  | { kind: 'server'; item: HistoryItem }
+
 function formatDateTime(value: string): string {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) {
@@ -35,10 +40,32 @@ function formatCoordinate(value: number): string {
   return value.toFixed(5)
 }
 
-function statusClass(status: string): string {
+function serverStatusLabel(status: string): string {
+  if (status === 'completed') return 'Completed'
+  if (status === 'processing') return 'Processing'
+  if (status === 'queued') return 'Queued'
+  if (status === 'failed') return 'Processing failed'
+  return status
+}
+
+function serverStatusClass(status: string): string {
   if (status === 'completed') return 'history-status-completed'
   if (status === 'processing') return 'history-status-processing'
   if (status === 'queued') return 'history-status-queued'
+  if (status === 'failed') return 'history-status-failed'
+  return 'history-status-queued'
+}
+
+function localStatusLabel(status: OutboxItem['status']): string {
+  if (status === 'pending') return 'Upload pending'
+  if (status === 'uploading') return 'Uploading\u2026'
+  if (status === 'failed') return 'Upload failed'
+  return status
+}
+
+function localStatusClass(status: OutboxItem['status']): string {
+  if (status === 'pending') return 'history-status-queued'
+  if (status === 'uploading') return 'history-status-processing'
   if (status === 'failed') return 'history-status-failed'
   return 'history-status-queued'
 }
@@ -51,6 +78,7 @@ function itemLabel(item: HistoryItem['items'][number]): string {
 export function HistoryPanel() {
   const { sessionToken, guestId } = useAuthStore()
   const [reports, setReports] = useState<HistoryItem[]>([])
+  const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -94,68 +122,121 @@ export function HistoryPanel() {
     }
   }, [guestId, requestUrl, sessionToken])
 
+  const loadOutbox = useCallback(async () => {
+    const all = await getOutboxItems()
+    setOutboxItems(all)
+  }, [])
+
   useEffect(() => {
     void loadHistory()
-  }, [loadHistory])
+    void loadOutbox()
+  }, [loadHistory, loadOutbox])
 
   useEffect(() => {
     const interval = window.setInterval(() => {
       void loadHistory()
+      void loadOutbox()
     }, 15000)
 
     return () => {
       window.clearInterval(interval)
     }
-  }, [loadHistory])
+  }, [loadHistory, loadOutbox])
+
+  const rows = useMemo((): Row[] => {
+    const serverIds = new Set(reports.map(r => r.id))
+    const localOnly = outboxItems.filter(o => !serverIds.has(o.id))
+
+    return [
+      ...localOnly.map(item => ({ kind: 'local' as const, item })),
+      ...reports.map(item => ({ kind: 'server' as const, item })),
+    ].sort((a, b) => {
+      const aTime = a.item.capturedAt
+      const bTime = b.item.capturedAt
+      return bTime.localeCompare(aTime)
+    })
+  }, [reports, outboxItems])
 
   return (
     <section className="history-panel">
       <header className="history-header">
         <h2>Upload History</h2>
-        <button className="secondary-button" onClick={() => void loadHistory()} disabled={isLoading}>
+        <button
+          className="secondary-button"
+          onClick={() => { void loadHistory(); void loadOutbox() }}
+          disabled={isLoading}
+        >
           {isLoading ? 'Refreshing...' : 'Refresh'}
         </button>
       </header>
 
       {error && <p className="error-message">{error}</p>}
 
-      {!isLoading && reports.length === 0 && (
+      {!isLoading && rows.length === 0 && (
         <p className="history-empty">No uploads yet. Capture or import a photo to start your history.</p>
       )}
 
-      {reports.length > 0 && (
+      {rows.length > 0 && (
         <ul className="history-list">
-          {reports.map((report) => (
-            <li key={report.id} className="history-card">
-              <div className="history-card-header">
-                <strong className={`history-status ${statusClass(report.status)}`}>{report.status}</strong>
-                <span>{formatDateTime(report.capturedAt)}</span>
-              </div>
+          {rows.map((row) => {
+            if (row.kind === 'local') {
+              const { item } = row
+              return (
+                <li key={item.id} className="history-card">
+                  <div className="history-card-header">
+                    <strong className={`history-status ${localStatusClass(item.status)}`}>
+                      {localStatusLabel(item.status)}
+                    </strong>
+                    <span>{formatDateTime(item.capturedAt)}</span>
+                  </div>
 
-              <p className="history-meta">
-                {formatCoordinate(report.latitude)}, {formatCoordinate(report.longitude)} | accuracy {Math.round(report.accuracyMeters)}m
-              </p>
+                  <p className="history-meta">
+                    {formatCoordinate(item.latitude)}, {formatCoordinate(item.longitude)} | accuracy {Math.round(item.accuracyMeters)}m
+                  </p>
 
-              {report.processingError && <p className="history-error">{report.processingError}</p>}
+                  {item.lastError && <p className="history-error">{item.lastError}</p>}
+                  {item.attempts > 0 && (
+                    <p className="history-meta">Attempt {item.attempts}</p>
+                  )}
+                </li>
+              )
+            }
 
-              {report.status === 'completed' && report.items.length === 0 && (
-                <p className="history-meta">No detectable litter items were found.</p>
-              )}
+            const { item } = row
+            return (
+              <li key={item.id} className="history-card">
+                <div className="history-card-header">
+                  <strong className={`history-status ${serverStatusClass(item.status)}`}>
+                    {serverStatusLabel(item.status)}
+                  </strong>
+                  <span>{formatDateTime(item.capturedAt)}</span>
+                </div>
 
-              {report.items.length > 0 && (
-                <ul className="history-items">
-                  {report.items.map((item) => (
-                    <li key={item.id} className="history-item-row">
-                      <span>{itemLabel(item)}</span>
-                      <span>
-                        {item.confidence !== null ? `${Math.round(item.confidence * 100)}%` : 'n/a'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
+                <p className="history-meta">
+                  {formatCoordinate(item.latitude)}, {formatCoordinate(item.longitude)} | accuracy {Math.round(item.accuracyMeters)}m
+                </p>
+
+                {item.processingError && <p className="history-error">{item.processingError}</p>}
+
+                {item.status === 'completed' && item.items.length === 0 && (
+                  <p className="history-meta">No detectable litter items were found.</p>
+                )}
+
+                {item.items.length > 0 && (
+                  <ul className="history-items">
+                    {item.items.map((detected) => (
+                      <li key={detected.id} className="history-item-row">
+                        <span>{itemLabel(detected)}</span>
+                        <span>
+                          {detected.confidence !== null ? `${Math.round(detected.confidence * 100)}%` : 'n/a'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            )
+          })}
         </ul>
       )}
     </section>
