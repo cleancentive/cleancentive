@@ -48,6 +48,55 @@ export class UserService {
     });
   }
 
+  private async transferCleanupOwnership(sourceUserId: string, targetUserId: string): Promise<void> {
+    await this.userRepository.query(
+      `
+        UPDATE cleanup_reports
+        SET user_id = $1,
+            updated_by = $1,
+            updated_at = NOW()
+        WHERE user_id = $2
+      `,
+      [targetUserId, sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
+        UPDATE cleanup_reports
+        SET created_by = $1
+        WHERE created_by = $2
+      `,
+      [targetUserId, sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
+        UPDATE cleanup_reports
+        SET updated_by = $1
+        WHERE updated_by = $2
+      `,
+      [targetUserId, sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
+        UPDATE litter_items
+        SET created_by = $1
+        WHERE created_by = $2
+      `,
+      [targetUserId, sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
+        UPDATE litter_items
+        SET updated_by = $1
+        WHERE updated_by = $2
+      `,
+      [targetUserId, sourceUserId],
+    );
+  }
+
   private validateEmailFormat(email: string): boolean {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
@@ -168,6 +217,8 @@ export class UserService {
       { user_id: existingUserId },
     );
 
+    await this.transferCleanupOwnership(guestUserId, existingUserId);
+
     await this.userRepository.remove(guestUser);
 
     return this.findById(existingUserId);
@@ -190,7 +241,8 @@ export class UserService {
       { user_id: targetUserId },
     );
 
-    // Delete source account (future: transfer littering data, etc.)
+    await this.transferCleanupOwnership(sourceUserId, targetUserId);
+
     await this.userRepository.remove(sourceUser);
 
     return this.findById(targetUserId);

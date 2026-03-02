@@ -5,10 +5,13 @@ import { User } from './user/user.entity';
 import { UserEmail } from './user/user-email.entity';
 import { Admin } from './admin/admin.entity';
 import { PendingAuthRequest } from './auth/pending-auth-request.entity';
+import { CleanupReport } from './cleanup/cleanup-report.entity';
+import { LitterItem } from './cleanup/litter-item.entity';
 import { UserModule } from './user/user.module';
 import { EmailModule } from './email/email.module';
 import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
+import { CleanupModule } from './cleanup/cleanup.module';
 
 @Module({
   imports: [
@@ -22,7 +25,7 @@ import { AdminModule } from './admin/admin.module';
       username: process.env.DB_USERNAME || 'cleancentive',
       password: process.env.DB_PASSWORD || 'cleancentive_dev_password',
       database: process.env.DB_DATABASE || 'cleancentive',
-      entities: [User, UserEmail, Admin, PendingAuthRequest],
+      entities: [User, UserEmail, Admin, PendingAuthRequest, CleanupReport, LitterItem],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: ['dist/migrations/*.js'],
     }),
@@ -30,6 +33,7 @@ import { AdminModule } from './admin/admin.module';
     EmailModule,
     AuthModule,
     AdminModule,
+    CleanupModule,
   ],
 })
 export class AppModule {}

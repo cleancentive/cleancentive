@@ -53,12 +53,11 @@ bun run dev
 # Install dependencies for all workspaces
 bun run install:all
 
-# Start infrastructure services (PostgreSQL, Redis, MinIO)
-bun run dev:infra:start
-
 # Run all services in development mode
 bun run dev
 ```
+
+`bun run dev` now starts infrastructure (Docker) and all app services (backend, frontend, worker).
 
 ### Development
 
@@ -67,7 +66,7 @@ The development workflow uses Docker for all infrastructure services (PostgreSQL
 #### 1. Start Infrastructure Services
 
 ```bash
-# Start all Docker services
+# Optional: start only Docker services without app processes
 bun run dev:infra:start
 
 # Verify services are healthy
@@ -77,20 +76,14 @@ docker compose -f infrastructure/docker-compose.dev.yml ps
 Services available:
 - **PostgreSQL**: localhost:5432 (database)
 - **Redis**: localhost:6379 (queue/cache)
-- **MinIO**: localhost:9000 (API) and localhost:9001 (console)
+- **MinIO**: localhost:9002 (API, mapped to container 9000) and localhost:9001 (console)
 - **Mailpit**: localhost:8025 (web UI) and localhost:1025 (SMTP)
 
 #### 2. Run Application Services
 
 ```bash
-# Backend API (port 3000)
-cd backend && bun run dev
-
-# Frontend PWA (port 5173)
-cd frontend && bun run dev
-
-# Image analysis worker
-cd worker && bun run dev
+# Start backend + frontend + worker (also ensures infra is up)
+bun run dev
 ```
 
 #### 3. Access Development Tools

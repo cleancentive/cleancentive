@@ -26,7 +26,7 @@ docker compose -f docker-compose.dev.yml up -d
 This provides:
 - **PostgreSQL** (localhost:5432) - Database
 - **Redis** (localhost:6379) - Queue/Cache
-- **MinIO** (localhost:9000) - S3-compatible storage
+- **MinIO** (localhost:9002 for API, localhost:9001 for console) - S3-compatible storage
 - **Mailpit** (localhost:8025) - Email testing UI & SMTP server
 
 ### Running the Backend

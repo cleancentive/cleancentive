@@ -7,8 +7,10 @@ graph TD
     subgraph API["NestJS API"]
         AuthCtrl["Auth Controller<br/>/auth/*"]
         UserCtrl["User Profile Controller<br/>/users/*"]
+        CleanupCtrl["Cleanup Controller<br/>/cleanup/*"]
         AuthModule["Auth Module<br/>JWT, magic links"]
         UserModule["User Module<br/>accounts, emails"]
+        CleanupModule["Cleanup Module<br/>uploads, status"]
         EmailService["Email Service<br/>magic link delivery"]
         CommonModule["Common Module<br/>shared utilities"]
         Migrations["Migrations<br/>TypeORM"]
@@ -16,14 +18,20 @@ graph TD
 
     DB[("PostgreSQL")]
     Redis[("Redis")]
+    MinIO["MinIO"]
     EmailProvider["Email Service"]
 
     AuthCtrl --> AuthModule
     UserCtrl --> UserModule
+    CleanupCtrl --> CleanupModule
     AuthModule --> UserModule
+    CleanupModule --> UserModule
     AuthModule --> EmailService
     UserModule --> DB
+    CleanupModule --> DB
+    CleanupModule --> Redis
     AuthModule --> Redis
+    CleanupModule --> MinIO
     EmailService --> EmailProvider
     Migrations --> DB
     CommonModule --> AuthModule
@@ -36,6 +44,7 @@ graph TD
 |--------|---------------|
 | Auth | Passwordless magic link authentication, JWT session management, guest account creation |
 | User | User entity management (profiles, nicknames), email associations, account lifecycle |
+| Cleanup | Async image upload endpoint, geolocated cleanup report persistence, analysis status tracking |
 | Email | Magic link email composition and delivery via external email service |
 | Common | Shared utilities, guards, decorators |
 | Migrations | TypeORM database schema migrations |
@@ -46,9 +55,10 @@ graph TD
 |------|---------------|
 | Components | Reusable UI components |
 | Stores | Client-side state management |
+| Offline Outbox | IndexedDB-backed queue for offline image + thumbnail captures |
 
 ## Worker (Image Analysis)
 
 | Component | Responsibility |
 |-----------|---------------|
-| Job Processor | Dequeues BullMQ jobs from Redis, calls OpenAI Vision API, stores results |
+| Job Processor | Dequeues BullMQ jobs from Redis, calls OpenAI Vision API, stores litter-item results |

@@ -6,10 +6,11 @@ Progressive Web App (PWA) for cleancentive.
 
 - Photo capture interface with camera access
 - Geolocation integration
+- Offline capture outbox with thumbnail generation (IndexedDB)
 - Interactive map visualization (MapLibre + OSM)
 - Cleanup history and timeline views
 - User authentication UI
-- Upload and track cleanup progress
+- Automatic upload sync when connectivity returns
 
 ## Development
 

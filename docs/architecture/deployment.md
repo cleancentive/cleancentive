@@ -15,7 +15,7 @@ graph TD
     subgraph Docker["Docker Compose (infrastructure/docker-compose.dev.yml)"]
         DB["PostgreSQL 15 + PostGIS 3.4<br/>:5432<br/>Volume: postgres_data"]
         Redis["Redis 7 Alpine<br/>:6379<br/>Volume: redis_data"]
-        MinIO["MinIO<br/>:9000 (API) :9001 (Console)<br/>Volume: minio_data"]
+        MinIO["MinIO<br/>:9002 (Host API -> container 9000) :9001 (Console)<br/>Volume: minio_data"]
     end
 
     subgraph External["External Services"]
@@ -42,6 +42,6 @@ graph TD
 |---------|-------|-------|-------------|
 | postgres | `postgis/postgis:15-3.4` | 5432 | `pg_isready` every 10s |
 | redis | `redis:7-alpine` | 6379 | `redis-cli ping` every 10s |
-| minio | `minio/minio:latest` | 9000 (API), 9001 (Console) | HTTP `/minio/health/live` every 15s |
+| minio | `minio/minio:latest` | 9002 (Host API -> container 9000), 9001 (Console) | HTTP `/minio/health/live` every 15s |
 
 All services use named Docker volumes for data persistence across restarts.

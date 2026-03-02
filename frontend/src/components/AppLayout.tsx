@@ -5,6 +5,8 @@ import { useAdminStore } from '../stores/adminStore'
 import { GuestBanner } from './GuestBanner'
 import { LoginForm } from './LoginForm'
 import { ProfileEditor } from './ProfileEditor'
+import { CapturePanel } from './CapturePanel'
+import { HistoryPanel } from './HistoryPanel'
 
 export function AppLayout() {
   const { user, guestId, initializeGuest, logout, refreshTokenIfNeeded } = useAuthStore()
@@ -67,11 +69,11 @@ export function AppLayout() {
             <div className="auth-content">
               <div className="auth-intro">
                 <h2>Welcome to CleanCentive</h2>
-                <p>Your personal cleaning companion for a spotless home.</p>
+                <p>Track cleanup impact with offline-first photo reporting.</p>
                 <ul>
-                  <li>Track your cleaning tasks</li>
-                  <li>Get personalized recommendations</li>
-                  <li>Monitor your progress over time</li>
+                  <li>Capture litter photos with geolocation</li>
+                  <li>Create thumbnails and queue uploads offline</li>
+                  <li>Auto-sync uploads as soon as you reconnect</li>
                 </ul>
               </div>
               <LoginForm />
@@ -79,10 +81,10 @@ export function AppLayout() {
           </div>
         ) : (
           <div className="dashboard">
-            <ProfileEditor />
+            {user && <ProfileEditor />}
             <div className="dashboard-content">
-              <h2>Dashboard</h2>
-              <p>Welcome to your CleanCentive dashboard! The cleaning management features will be implemented here.</p>
+              <CapturePanel />
+              <HistoryPanel />
             </div>
           </div>
         )}

@@ -1,6 +1,8 @@
 import { DataSource } from 'typeorm';
 import { User } from './src/user/user.entity';
 import { UserEmail } from './src/user/user-email.entity';
+import { CleanupReport } from './src/cleanup/cleanup-report.entity';
+import { LitterItem } from './src/cleanup/litter-item.entity';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -9,6 +11,6 @@ export const AppDataSource = new DataSource({
   username: process.env.DB_USERNAME || 'cleancentive',
   password: process.env.DB_PASSWORD || 'cleancentive_dev_password',
   database: process.env.DB_DATABASE || 'cleancentive',
-  entities: [User, UserEmail],
+  entities: [User, UserEmail, CleanupReport, LitterItem],
   migrations: ['src/migrations/*.ts'],
 });
