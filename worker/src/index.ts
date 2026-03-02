@@ -25,7 +25,8 @@ interface AnalysisResult {
 }
 
 const queueName = process.env.ANALYSIS_QUEUE_NAME || 'image-analysis';
-const openaiModel = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const analysisModel = process.env.ANALYSIS_MODEL || 'gpt-4o-mini';
+const analysisBaseUrl = process.env.ANALYSIS_BASE_URL;
 const bucketName = process.env.S3_BUCKET || 'cleancentive-images';
 
 const redisConnection = {
@@ -51,8 +52,13 @@ const s3Client = new S3Client({
   },
 });
 
-const openaiApiKey = process.env.OPENAI_API_KEY;
-const openai = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
+const analysisApiKey = process.env.ANALYSIS_API_KEY;
+const openai = analysisApiKey
+  ? new OpenAI({
+      apiKey: analysisApiKey,
+      ...(analysisBaseUrl ? { baseURL: analysisBaseUrl } : {}),
+    })
+  : null;
 
 const SYSTEM_PROMPT = `You analyze cleanup photos and return JSON only.
 Return this shape:
@@ -157,13 +163,13 @@ async function fetchImageBytes(imageKey: string): Promise<Uint8Array> {
 
 async function analyzeImage(imageBytes: Uint8Array, mimeType: string): Promise<AnalysisResult> {
   if (!openai) {
-    throw new Error('OPENAI_API_KEY is not configured for the worker');
+    throw new Error('ANALYSIS_API_KEY is not configured for the worker');
   }
 
   const dataUrl = `data:${mimeType};base64,${Buffer.from(imageBytes).toString('base64')}`;
 
   const completion = await openai.chat.completions.create({
-    model: openaiModel,
+    model: analysisModel,
     temperature: 0,
     response_format: { type: 'json_object' },
     messages: [
@@ -318,7 +324,7 @@ const imageAnalysisWorker = new Worker<ImageAnalysisJobData>(
 
     const imageBytes = await fetchImageBytes(imageKey);
     const analysis = await analyzeImage(imageBytes, mimeType);
-    await persistAnalysis(reportId, userId, analysis, openaiModel);
+    await persistAnalysis(reportId, userId, analysis, analysisModel);
 
     return {
       reportId,
