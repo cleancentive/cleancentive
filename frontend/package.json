@@ -13,7 +13,9 @@
     "test": "bun test",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:debug": "playwright test --debug"
+    "test:e2e:debug": "playwright test --debug",
+    "browser:launch": "bun run scripts/launch-browser.ts",
+    "test:e2e:shared": "CDP_URL=ws://127.0.0.1:9222 playwright test"
   },
   "dependencies": {
     "axios": "^1.6.5",
