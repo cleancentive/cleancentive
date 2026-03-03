@@ -248,6 +248,18 @@ export class CleanupController {
     };
   }
 
+  @Post('reports/:id/retry')
+  @HttpCode(202)
+  async retryAnalysis(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Query('guestId') guestId?: string,
+  ): Promise<{ status: string }> {
+    const userId = await this.resolveUserId(req.headers.authorization, guestId);
+    await this.cleanupService.retryAnalysis(id, userId);
+    return { status: 'queued' };
+  }
+
   @Get('reports/:id/thumbnail')
   async getThumbnail(
     @Param('id') id: string,

@@ -128,6 +128,17 @@ export function HistoryPanel() {
     setOutboxItems(all)
   }, [])
 
+  const retryReport = useCallback(async (id: string) => {
+    const headers: Record<string, string> = {}
+    if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
+
+    const params = new URLSearchParams()
+    if (!sessionToken && guestId) params.set('guestId', guestId)
+
+    await fetch(`${API_BASE}/cleanup/reports/${id}/retry?${params.toString()}`, { method: 'POST', headers })
+    void loadHistory()
+  }, [sessionToken, guestId, loadHistory])
+
   useEffect(() => {
     const urls = new Map<string, string>()
     for (const item of outboxItems) {
@@ -238,6 +249,15 @@ export function HistoryPanel() {
                 </p>
 
                 {item.processingError && <p className="history-error">{item.processingError}</p>}
+
+                {item.status === 'failed' && (
+                  <button
+                    className="secondary-button history-retry-button"
+                    onClick={() => { void retryReport(item.id) }}
+                  >
+                    Retry analysis
+                  </button>
+                )}
 
                 {item.status === 'completed' && item.items.length === 0 && (
                   <p className="history-meta">No detectable litter items were found.</p>

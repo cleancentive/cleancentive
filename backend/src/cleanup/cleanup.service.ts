@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Queue } from 'bullmq';
@@ -239,6 +239,29 @@ export class CleanupService {
 
     if (!result.Body) return null;
     return { body: result.Body as NodeJS.ReadableStream, contentType: 'image/jpeg' };
+  }
+
+  async retryAnalysis(reportId: string, userId: string): Promise<void> {
+    const report = await this.reportRepository.findOne({ where: { id: reportId, user_id: userId } });
+    if (!report) throw new NotFoundException('Report not found');
+    if (report.processing_status !== 'failed') throw new BadRequestException('Only failed reports can be retried');
+
+    report.processing_status = 'queued';
+    report.processing_error = null;
+    report.analysis_started_at = null;
+    report.updated_by = userId;
+    await this.reportRepository.save(report);
+
+    const existingJob = await this.analysisQueue.getJob(reportId);
+    if (existingJob) {
+      await existingJob.retry();
+    } else {
+      await this.analysisQueue.add(
+        'analyze-upload',
+        { reportId: report.id, userId: report.user_id, imageKey: report.image_key, mimeType: report.mime_type },
+        { jobId: report.id, attempts: 5, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true, removeOnFail: false },
+      );
+    }
   }
 
   async close(): Promise<void> {

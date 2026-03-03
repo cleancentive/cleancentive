@@ -753,6 +753,13 @@
   font-size: 0.86rem;
 }
 
+.history-retry-button {
+  margin-top: 0.5rem;
+  width: auto;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.86rem;
+}
+
 .history-items {
   list-style: none;
   margin: 0.75rem 0 0;
