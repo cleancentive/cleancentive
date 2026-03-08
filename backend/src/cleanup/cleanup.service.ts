@@ -244,27 +244,38 @@ export class CleanupService {
   async retryAnalysis(reportId: string, userId: string): Promise<void> {
     const report = await this.reportRepository.findOne({ where: { id: reportId, user_id: userId } });
     if (!report) throw new NotFoundException('Report not found');
+    await this.retryFailedReport(report, userId);
+  }
+
+  async retryAnalysisAsAdmin(reportId: string): Promise<void> {
+    const report = await this.reportRepository.findOne({ where: { id: reportId } });
+    if (!report) throw new NotFoundException('Report not found');
+    await this.retryFailedReport(report, report.user_id);
+  }
+
+  async close(): Promise<void> {
+    await this.analysisQueue.close();
+  }
+
+  private async retryFailedReport(report: CleanupReport, updatedBy: string): Promise<void> {
     if (report.processing_status !== 'failed') throw new BadRequestException('Only failed reports can be retried');
 
     report.processing_status = 'queued';
     report.processing_error = null;
     report.analysis_started_at = null;
-    report.updated_by = userId;
+    report.updated_by = updatedBy;
     await this.reportRepository.save(report);
 
-    const existingJob = await this.analysisQueue.getJob(reportId);
+    const existingJob = await this.analysisQueue.getJob(report.id);
     if (existingJob) {
       await existingJob.retry();
-    } else {
-      await this.analysisQueue.add(
-        'analyze-upload',
-        { reportId: report.id, userId: report.user_id, imageKey: report.image_key, mimeType: report.mime_type },
-        { jobId: report.id, attempts: 5, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true, removeOnFail: false },
-      );
+      return;
     }
-  }
 
-  async close(): Promise<void> {
-    await this.analysisQueue.close();
+    await this.analysisQueue.add(
+      'analyze-upload',
+      { reportId: report.id, userId: report.user_id, imageKey: report.image_key, mimeType: report.mime_type },
+      { jobId: report.id, attempts: 5, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true, removeOnFail: false },
+    );
   }
 }
