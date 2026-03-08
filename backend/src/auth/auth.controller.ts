@@ -1,5 +1,6 @@
 import { Controller, Post, Body, Get, Query, Param, Res, UseGuards, Request, BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
@@ -35,6 +36,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('Bearer')
   @Post('add-email')
   async addEmail(
     @Request() req: any,
@@ -44,6 +46,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('Bearer')
   @Post('add-email/confirm-merge')
   async confirmMerge(
     @Request() req: any,
@@ -86,6 +89,7 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('Bearer')
   @Post('refresh')
   async refreshToken(@Request() req: any): Promise<{ token: string }> {
     const token = await this.authService.refreshSessionToken(req.user.userId);
