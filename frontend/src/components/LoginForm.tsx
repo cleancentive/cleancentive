@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
+
+const lastUsedEmailStorageKey = 'lastUsedSignInEmail'
 
 export function LoginForm() {
   const [email, setEmail] = useState('')
@@ -8,12 +10,31 @@ export function LoginForm() {
   const [recoverySent, setRecoverySent] = useState(false)
   const { login, recoverAccount, isLoading, error, clearError, guestReady } = useAuthStore()
 
+  useEffect(() => {
+    const lastUsedEmail = localStorage.getItem(lastUsedEmailStorageKey)
+    if (lastUsedEmail) {
+      setEmail(lastUsedEmail)
+    }
+  }, [])
+
+  const updateEmail = (value: string) => {
+    setEmail(value)
+    const trimmedValue = value.trim()
+    if (trimmedValue) {
+      localStorage.setItem(lastUsedEmailStorageKey, trimmedValue)
+      return
+    }
+
+    localStorage.removeItem(lastUsedEmailStorageKey)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     clearError()
 
     try {
       await login(email)
+      localStorage.setItem(lastUsedEmailStorageKey, email.trim())
       setIsSubmitted(true)
     } catch {
       // Error is handled by the store
@@ -26,6 +47,7 @@ export function LoginForm() {
 
     try {
       await recoverAccount(email)
+      localStorage.setItem(lastUsedEmailStorageKey, email.trim())
       setRecoverySent(true)
     } catch {
       // Error is handled by the store
@@ -41,7 +63,7 @@ export function LoginForm() {
           onClick={() => {
             setRecoverySent(false)
             setIsRecovery(false)
-            setEmail('')
+            setEmail(localStorage.getItem(lastUsedEmailStorageKey) || '')
           }}
           className="secondary-button"
         >
@@ -60,7 +82,7 @@ export function LoginForm() {
         <button
           onClick={() => {
             setIsSubmitted(false)
-            setEmail('')
+            setEmail(localStorage.getItem(lastUsedEmailStorageKey) || '')
           }}
           className="secondary-button"
         >
@@ -82,7 +104,7 @@ export function LoginForm() {
               id="recovery-email"
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => updateEmail(e.target.value)}
               placeholder="your@email.com"
               required
               disabled={isLoading}
@@ -121,15 +143,15 @@ export function LoginForm() {
       <h2>Sign in to CleanCentive</h2>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="email">Email address</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="your@email.com"
-            required
-            disabled={isLoading}
+            <label htmlFor="email">Email address</label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => updateEmail(e.target.value)}
+              placeholder="your@email.com"
+              required
+              disabled={isLoading}
           />
         </div>
 

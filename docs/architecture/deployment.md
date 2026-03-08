@@ -30,8 +30,10 @@ graph TD
     API --> Redis
     API --> MinIO
     API --> EmailProvider
+    API -->|ops reads| Redis
     API -->|enqueue| Redis
     Redis -->|dequeue| Worker
+    Worker -->|heartbeat| Redis
     Worker --> OpenAI
     Worker --> MinIO
 ```

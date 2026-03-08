@@ -1,8 +1,10 @@
 import { Worker, Job } from 'bullmq';
+import Redis from 'ioredis';
 import OpenAI from 'openai';
 import { Pool, PoolClient } from 'pg';
 import { v7 as uuidv7 } from 'uuid';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { hostname } from 'os';
 
 interface ImageAnalysisJobData {
   reportId: string;
@@ -24,15 +26,33 @@ interface AnalysisResult {
   notes: string | null;
 }
 
+interface WorkerOpsState {
+  name: string;
+  lastHeartbeatAt?: string;
+  lastJobStartedAt?: string;
+  lastJobCompletedAt?: string;
+  lastJobFailedAt?: string;
+  lastFailedError?: string | null;
+  concurrency: number;
+  hostname: string;
+  pid: number;
+}
+
 const queueName = process.env.ANALYSIS_QUEUE_NAME || 'image-analysis';
 const analysisModel = process.env.ANALYSIS_MODEL || 'gpt-4o-mini';
 const analysisBaseUrl = process.env.ANALYSIS_BASE_URL;
 const bucketName = process.env.S3_BUCKET || 'cleancentive-images';
+const workerConcurrency = 2;
+const workerOpsKey = `ops:worker:${queueName}`;
+const workerHeartbeatIntervalMs = 10_000;
+const workerHeartbeatTtlSeconds = 30;
 
 const redisConnection = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379', 10),
 };
+
+const redisClient = new Redis(redisConnection);
 
 const dbPool = new Pool({
   host: process.env.DATABASE_HOST || 'localhost',
@@ -131,6 +151,38 @@ function normalizeObjects(rawObjects: unknown): DetectedObject[] {
       };
     })
     .filter((value): value is DetectedObject => value !== null);
+}
+
+function nowIsoString(): string {
+  return new Date().toISOString();
+}
+
+async function writeWorkerState(patch: Partial<WorkerOpsState>): Promise<void> {
+  let current: Partial<WorkerOpsState> = {};
+
+  try {
+    const existing = await redisClient.get(workerOpsKey);
+    if (existing) {
+      current = JSON.parse(existing) as Partial<WorkerOpsState>;
+    }
+  } catch {
+    current = {};
+  }
+
+  const nextState: WorkerOpsState = {
+    name: queueName,
+    concurrency: workerConcurrency,
+    hostname: hostname(),
+    pid: process.pid,
+    ...current,
+    ...patch,
+  };
+
+  await redisClient.set(workerOpsKey, JSON.stringify(nextState), 'EX', workerHeartbeatTtlSeconds);
+}
+
+async function publishHeartbeat(): Promise<void> {
+  await writeWorkerState({ lastHeartbeatAt: nowIsoString() });
 }
 
 async function fetchImageBytes(imageKey: string): Promise<Uint8Array> {
@@ -320,6 +372,11 @@ const imageAnalysisWorker = new Worker<ImageAnalysisJobData>(
       throw new Error('Invalid job payload');
     }
 
+    await writeWorkerState({
+      lastHeartbeatAt: nowIsoString(),
+      lastJobStartedAt: nowIsoString(),
+    });
+
     await markReportProcessing(reportId, userId);
 
     const imageBytes = await fetchImageBytes(imageKey);
@@ -334,11 +391,16 @@ const imageAnalysisWorker = new Worker<ImageAnalysisJobData>(
   },
   {
     connection: redisConnection,
-    concurrency: 2,
+    concurrency: workerConcurrency,
   },
 );
 
 imageAnalysisWorker.on('completed', (job) => {
+  void writeWorkerState({
+    lastHeartbeatAt: nowIsoString(),
+    lastJobCompletedAt: nowIsoString(),
+    lastFailedError: null,
+  });
   console.log(`Image analysis completed for report ${job.id}`);
 });
 
@@ -350,14 +412,27 @@ imageAnalysisWorker.on('failed', async (job, error) => {
     await markReportFailed(reportId, userId, error.message);
   }
 
+  await writeWorkerState({
+    lastHeartbeatAt: nowIsoString(),
+    lastJobFailedAt: nowIsoString(),
+    lastFailedError: error.message.slice(0, 1000),
+  });
+
   console.error(`Image analysis failed for report ${reportId || 'unknown'}`, error);
 });
+
+await publishHeartbeat();
+const heartbeatInterval = setInterval(() => {
+  void publishHeartbeat();
+}, workerHeartbeatIntervalMs);
 
 console.log(`Image analysis worker started. Queue: ${queueName}`);
 
 const shutdown = async () => {
   console.log('Shutting down image analysis worker...');
+  clearInterval(heartbeatInterval);
   await imageAnalysisWorker.close();
+  await redisClient.quit();
   await dbPool.end();
   process.exit(0);
 };

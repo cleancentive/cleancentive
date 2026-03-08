@@ -19,6 +19,40 @@ interface AdminUser {
   is_admin: boolean
 }
 
+interface OpsOverview {
+  timestamp: string
+  health: {
+    status: 'ok' | 'degraded' | 'down'
+  }
+  queue: {
+    name: string
+    counts: {
+      waiting: number
+      active: number
+      delayed: number
+      failed: number
+      paused: number
+    }
+  }
+  reports: {
+    counts: {
+      queued: number
+      processing: number
+      completed: number
+      failed: number
+    }
+    oldestQueuedAgeSeconds: number | null
+    oldestProcessingAgeSeconds: number | null
+  }
+  worker: {
+    healthy: boolean
+    lastHeartbeatAt: string | null
+    lastJobStartedAt: string | null
+    lastJobCompletedAt: string | null
+    lastJobFailedAt: string | null
+  }
+}
+
 interface AdminState {
   isAdmin: boolean
   users: AdminUser[]
@@ -28,11 +62,17 @@ interface AdminState {
   order: 'ASC' | 'DESC'
   search: string
   isLoading: boolean
+  isLoadingOps: boolean
+  isRetryingFailedReports: boolean
   hasMore: boolean
   error: string | null
+  opsOverview: OpsOverview | null
+  retryFailedReportsResult: string | null
 
   checkAdminStatus: () => Promise<void>
   fetchUsers: (loadMore?: boolean) => Promise<void>
+  fetchOpsOverview: () => Promise<void>
+  retryFailedReports: (limit: number) => Promise<void>
   setSort: (sort: 'created_at' | 'last_login') => void
   setOrder: (order: 'ASC' | 'DESC') => void
   setSearch: (search: string) => void
@@ -59,8 +99,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   order: 'DESC',
   search: '',
   isLoading: false,
+  isLoadingOps: false,
+  isRetryingFailedReports: false,
   hasMore: false,
   error: null,
+  opsOverview: null,
+  retryFailedReportsResult: null,
 
   checkAdminStatus: async () => {
     const sessionToken = useAuthStore.getState().sessionToken
@@ -111,6 +155,45 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       set({
         error: error.response?.data?.message || 'Failed to fetch users',
         isLoading: false,
+      })
+    }
+  },
+
+  fetchOpsOverview: async () => {
+    const headers = getHeaders()
+    if (!headers.Authorization) return
+
+    set({ isLoadingOps: true })
+
+    try {
+      const response = await axios.get(`${API_BASE}/admin/ops/overview`, { headers })
+      set({ opsOverview: response.data, isLoadingOps: false })
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to fetch operations overview',
+        isLoadingOps: false,
+      })
+    }
+  },
+
+  retryFailedReports: async (limit) => {
+    const headers = getHeaders()
+    if (!headers.Authorization) return
+
+    set({ isRetryingFailedReports: true, retryFailedReportsResult: null, error: null })
+
+    try {
+      const response = await axios.post(`${API_BASE}/admin/ops/reports/retry-failed`, { limit }, { headers })
+      const data = response.data
+      set({
+        isRetryingFailedReports: false,
+        retryFailedReportsResult: `Queued ${data.retried} failed reports, skipped ${data.skipped}.`,
+      })
+      await get().fetchOpsOverview()
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to retry failed reports',
+        isRetryingFailedReports: false,
       })
     }
   },
@@ -167,6 +250,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     currentPage: 1,
     search: '',
     hasMore: false,
+    opsOverview: null,
+    isLoadingOps: false,
+    isRetryingFailedReports: false,
+    retryFailedReportsResult: null,
     error: null,
   }),
 }))
