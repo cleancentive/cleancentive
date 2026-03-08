@@ -89,6 +89,7 @@ bun run dev
 #### 3. Access Development Tools
 
 - **Backend API**: http://localhost:3000/api/v1
+- **Swagger UI**: http://localhost:3000/api/v1/docs
 - **Frontend**: http://localhost:5173
 - **Mailpit (Email Testing)**: http://localhost:8025
 - **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
