@@ -51,6 +51,19 @@ export class UserService {
   private async transferCleanupOwnership(sourceUserId: string, targetUserId: string): Promise<void> {
     await this.userRepository.query(
       `
+        UPDATE users AS target
+        SET active_team_id = COALESCE(target.active_team_id, source.active_team_id),
+            active_event_occurrence_id = COALESCE(target.active_event_occurrence_id, source.active_event_occurrence_id),
+            updated_at = NOW()
+        FROM users AS source
+        WHERE target.id = $1
+          AND source.id = $2
+      `,
+      [targetUserId, sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
         UPDATE cleanup_reports
         SET user_id = $1,
             updated_by = $1,
@@ -92,6 +105,112 @@ export class UserService {
         UPDATE litter_items
         SET updated_by = $1
         WHERE updated_by = $2
+      `,
+      [targetUserId, sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
+        UPDATE team_memberships source
+        SET user_id = $1,
+            updated_by = $1,
+            updated_at = NOW()
+        WHERE source.user_id = $2
+          AND NOT EXISTS (
+            SELECT 1
+            FROM team_memberships target
+            WHERE target.team_id = source.team_id
+              AND target.user_id = $1
+          )
+      `,
+      [targetUserId, sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
+        UPDATE team_memberships
+        SET role = 'admin',
+            updated_by = $1,
+            updated_at = NOW()
+        WHERE user_id = $1
+          AND team_id IN (
+            SELECT team_id
+            FROM team_memberships
+            WHERE user_id = $2
+              AND role = 'admin'
+          )
+      `,
+      [targetUserId, sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
+        DELETE FROM team_memberships
+        WHERE user_id = $1
+      `,
+      [sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
+        UPDATE event_participants source
+        SET user_id = $1,
+            updated_by = $1,
+            updated_at = NOW()
+        WHERE source.user_id = $2
+          AND NOT EXISTS (
+            SELECT 1
+            FROM event_participants target
+            WHERE target.event_id = source.event_id
+              AND target.user_id = $1
+          )
+      `,
+      [targetUserId, sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
+        UPDATE event_participants
+        SET role = 'admin',
+            updated_by = $1,
+            updated_at = NOW()
+        WHERE user_id = $1
+          AND event_id IN (
+            SELECT event_id
+            FROM event_participants
+            WHERE user_id = $2
+              AND role = 'admin'
+          )
+      `,
+      [targetUserId, sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
+        DELETE FROM event_participants
+        WHERE user_id = $1
+      `,
+      [sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
+        UPDATE team_messages
+        SET author_user_id = $1,
+            updated_by = $1,
+            updated_at = NOW()
+        WHERE author_user_id = $2
+      `,
+      [targetUserId, sourceUserId],
+    );
+
+    await this.userRepository.query(
+      `
+        UPDATE event_messages
+        SET author_user_id = $1,
+            updated_by = $1,
+            updated_at = NOW()
+        WHERE author_user_id = $2
       `,
       [targetUserId, sourceUserId],
     );
@@ -296,6 +415,8 @@ export class UserService {
     // Reset to guest state
     user.nickname = 'guest';
     user.full_name = null;
+    user.active_team_id = null;
+    user.active_event_occurrence_id = null;
     user.updated_by = null;
     await this.userRepository.save(user);
   }

@@ -12,6 +12,12 @@ export class User extends BaseEntity {
   @Column('timestamp', { nullable: true })
   last_login: Date;
 
+  @Column('uuid', { nullable: true })
+  active_team_id: string | null;
+
+  @Column('uuid', { nullable: true })
+  active_event_occurrence_id: string | null;
+
   @OneToMany('UserEmail', (email: any) => email.user)
   emails: any[];
 }

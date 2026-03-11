@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { Queue } from 'bullmq';
 import { S3Client, PutObjectCommand, HeadBucketCommand, CreateBucketCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { CleanupReport } from './cleanup-report.entity';
+import { TeamService } from '../team/team.service';
+import { EventService } from '../event/event.service';
 
 interface CreateUploadInput {
   userId: string;
@@ -17,6 +19,11 @@ interface CreateUploadInput {
   accuracyMeters: number;
 }
 
+interface CreateUploadResult {
+  report: CleanupReport;
+  warning: string | null;
+}
+
 @Injectable()
 export class CleanupService {
   private readonly queueName = process.env.ANALYSIS_QUEUE_NAME || 'image-analysis';
@@ -28,6 +35,8 @@ export class CleanupService {
   constructor(
     @InjectRepository(CleanupReport)
     private readonly reportRepository: Repository<CleanupReport>,
+    private readonly teamService: TeamService,
+    private readonly eventService: EventService,
   ) {
     this.analysisQueue = new Queue(this.queueName, {
       connection: {
@@ -73,7 +82,7 @@ export class CleanupService {
     this.bucketReady = true;
   }
 
-  async createUpload(input: CreateUploadInput): Promise<CleanupReport> {
+  async createUpload(input: CreateUploadInput): Promise<CreateUploadResult> {
     const existing = await this.reportRepository.findOne({
       where: {
         upload_id: input.uploadId,
@@ -82,15 +91,25 @@ export class CleanupService {
     });
 
     if (existing) {
-      return existing;
+      return { report: existing, warning: null };
     }
 
     await this.ensureBucketExists();
 
     const fileExt = this.getFileExtension(input.mimeType);
 
+    const activeTeam = await this.teamService.resolveActiveTeamForUser(input.userId);
+    const activeEvent = await this.eventService.resolveActiveOccurrenceForReport(
+      input.userId,
+      input.latitude,
+      input.longitude,
+    );
+
     const report = this.reportRepository.create({
       user_id: input.userId,
+      team_id: activeTeam?.id || null,
+      event_id: activeEvent.eventId,
+      event_occurrence_id: activeEvent.occurrenceId,
       latitude: input.latitude,
       longitude: input.longitude,
       location_accuracy_meters: input.accuracyMeters,
@@ -176,7 +195,10 @@ export class CleanupService {
       throw new ServiceUnavailableException('Image upload accepted but analysis queue is unavailable');
     }
 
-    return savedReport;
+    return {
+      report: savedReport,
+      warning: activeEvent.warning,
+    };
   }
 
   async getUploadStatus(reportId: string, userId: string): Promise<CleanupReport> {

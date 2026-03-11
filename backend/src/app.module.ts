@@ -12,6 +12,15 @@ import { EmailModule } from './email/email.module';
 import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { CleanupModule } from './cleanup/cleanup.module';
+import { Team } from './team/team.entity';
+import { TeamMembership } from './team/team-membership.entity';
+import { TeamMessage } from './team/team-message.entity';
+import { Event } from './event/event.entity';
+import { EventOccurrence } from './event/event-occurrence.entity';
+import { EventParticipant } from './event/event-participant.entity';
+import { EventMessage } from './event/event-message.entity';
+import { TeamModule } from './team/team.module';
+import { EventModule } from './event/event.module';
 
 @Module({
   imports: [
@@ -25,7 +34,21 @@ import { CleanupModule } from './cleanup/cleanup.module';
       username: process.env.DB_USERNAME || 'cleancentive',
       password: process.env.DB_PASSWORD || 'cleancentive_dev_password',
       database: process.env.DB_DATABASE || 'cleancentive',
-      entities: [User, UserEmail, Admin, PendingAuthRequest, CleanupReport, LitterItem],
+      entities: [
+        User,
+        UserEmail,
+        Admin,
+        PendingAuthRequest,
+        CleanupReport,
+        LitterItem,
+        Team,
+        TeamMembership,
+        TeamMessage,
+        Event,
+        EventOccurrence,
+        EventParticipant,
+        EventMessage,
+      ],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: ['dist/migrations/*.js'],
     }),
@@ -34,6 +57,8 @@ import { CleanupModule } from './cleanup/cleanup.module';
     AuthModule,
     AdminModule,
     CleanupModule,
+    TeamModule,
+    EventModule,
   ],
 })
 export class AppModule {}

@@ -37,6 +37,9 @@ interface CleanupItemDto {
 interface CleanupReportDto {
   id: string;
   status: string;
+  teamId: string | null;
+  eventId: string | null;
+  eventOccurrenceId: string | null;
   capturedAt: Date;
   latitude: number;
   longitude: number;
@@ -80,6 +83,9 @@ export class CleanupController {
     return {
       id: report.id,
       status: report.processing_status,
+      teamId: report.team_id,
+      eventId: report.event_id,
+      eventOccurrenceId: report.event_occurrence_id,
       capturedAt: report.captured_at,
       latitude: report.latitude,
       longitude: report.longitude,
@@ -138,7 +144,7 @@ export class CleanupController {
   async uploadCleanup(
     @UploadedFiles() files: UploadFiles,
     @Req() req: Request,
-  ): Promise<{ reportId: string; status: string }> {
+  ): Promise<{ reportId: string; status: string; warning?: string }> {
     const image = files?.image?.[0];
     const thumbnail = files?.thumbnail?.[0];
 
@@ -183,7 +189,7 @@ export class CleanupController {
 
     const userId = await this.resolveUserId(req.headers.authorization, guestId);
 
-    const report = await this.cleanupService.createUpload({
+    const result = await this.cleanupService.createUpload({
       userId,
       uploadId,
       imageBuffer: image.buffer,
@@ -196,8 +202,9 @@ export class CleanupController {
     });
 
     return {
-      reportId: report.id,
-      status: report.processing_status,
+      reportId: result.report.id,
+      status: result.report.processing_status,
+      ...(result.warning ? { warning: result.warning } : {}),
     };
   }
 

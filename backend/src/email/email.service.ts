@@ -89,6 +89,32 @@ export class EmailService {
     }
   }
 
+  async sendCommunityMessage(
+    emails: string[],
+    payload: { subject: string; preheader: string; title: string; body: string; disclosure: string },
+  ): Promise<void> {
+    const fromAddress = this.configService.get<string>('SMTP_FROM', 'noreply@cleancentive.local');
+    const uniqueEmails = [...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean))];
+
+    if (uniqueEmails.length === 0) {
+      return;
+    }
+
+    for (const email of uniqueEmails) {
+      try {
+        await this.transporter.sendMail({
+          from: fromAddress,
+          to: email,
+          subject: payload.subject,
+          text: this.generateCommunityPlainText(payload),
+          html: this.generateCommunityHtml(payload),
+        });
+      } catch (error) {
+        this.logger.error(`Failed to send community message to ${email}`, error.stack);
+      }
+    }
+  }
+
   private generateRecoveryPlainText(link: string): string {
     return `CleanCentive Account Recovery
 
@@ -211,6 +237,53 @@ If you didn't request this email, you can safely ignore it.
 
 ---
 CleanCentive - Environmental Cleanup Tracking
+`;
+  }
+
+  private generateCommunityPlainText(payload: {
+    preheader: string;
+    title: string;
+    body: string;
+    disclosure: string;
+  }): string {
+    return `${payload.preheader}
+
+${payload.title}
+
+${payload.body}
+
+---
+${payload.disclosure}
+
+CleanCentive - Environmental Cleanup Tracking
+`;
+  }
+
+  private generateCommunityHtml(payload: {
+    preheader: string;
+    title: string;
+    body: string;
+    disclosure: string;
+  }): string {
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${payload.preheader}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: #0f766e; padding: 24px; border-radius: 10px 10px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">${payload.title}</h1>
+  </div>
+  <div style="background: #f9f9f9; padding: 24px; border-radius: 0 0 10px 10px;">
+    <p style="margin-top: 0; color: #374151;">${payload.body.replace(/\n/g, '<br>')}</p>
+    <hr style="border: none; border-top: 1px solid #d1d5db; margin: 24px 0;">
+    <p style="font-size: 12px; color: #6b7280; margin: 0;">${payload.disclosure}</p>
+  </div>
+</body>
+</html>
 `;
   }
 

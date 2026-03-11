@@ -125,4 +125,9 @@ export class AdminService {
       }
     }
   }
+
+  async getAdminUserIds(): Promise<string[]> {
+    const admins = await this.adminRepository.find({ select: ['user_id'] });
+    return admins.map((admin) => admin.user_id);
+  }
 }

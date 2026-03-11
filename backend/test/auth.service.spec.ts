@@ -3,12 +3,16 @@ import { JwtService } from '@nestjs/jwt';
 import { AuthService } from '../src/auth/auth.service';
 import { EmailService } from '../src/email/email.service';
 import { UserService } from '../src/user/user.service';
+import { AdminService } from '../src/admin/admin.service';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { PendingAuthRequest } from '../src/auth/pending-auth-request.entity';
 
 describe('AuthService', () => {
   let service: AuthService;
   let jwtService: JwtService;
   let emailService: EmailService;
   let userService: UserService;
+  let adminService: AdminService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -31,6 +35,26 @@ describe('AuthService', () => {
           provide: UserService,
           useValue: {
             findUserByEmail: jest.fn(),
+            findOrCreateGuest: jest.fn(),
+            validateAndAssociateEmail: jest.fn(),
+            mergeGuestAccount: jest.fn(),
+            updateLastLogin: jest.fn(),
+          },
+        },
+        {
+          provide: AdminService,
+          useValue: {
+            isAdminEmail: jest.fn().mockReturnValue(false),
+            promoteToAdmin: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(PendingAuthRequest),
+          useValue: {
+            save: jest.fn(),
+            findOne: jest.fn(),
+            update: jest.fn(),
+            delete: jest.fn(),
           },
         },
       ],
@@ -40,6 +64,7 @@ describe('AuthService', () => {
     jwtService = module.get<JwtService>(JwtService);
     emailService = module.get<EmailService>(EmailService);
     userService = module.get<UserService>(UserService);
+    adminService = module.get<AdminService>(AdminService);
   });
 
   it('should be defined', () => {
@@ -58,6 +83,8 @@ describe('AuthService', () => {
         updated_at: new Date(),
         created_by: null,
         updated_by: null,
+        active_team_id: null,
+        active_event_occurrence_id: null,
         generateId: jest.fn(),
       };
       const mockToken = 'jwt-token-123';
@@ -70,7 +97,7 @@ describe('AuthService', () => {
 
       expect(userService.findUserByEmail).toHaveBeenCalledWith('test@example.com');
       expect(jwtService.sign).toHaveBeenCalledWith(
-        { sub: 'user-123', email: 'test@example.com' },
+        expect.objectContaining({ sub: 'user-123', email: 'test@example.com' }),
         { expiresIn: '24h' }
       );
       expect(emailService.sendMagicLink).toHaveBeenCalledWith(
@@ -94,6 +121,7 @@ describe('AuthService', () => {
       const mockPayload = { sub: 'user-123', email: 'test@example.com' };
 
       jest.spyOn(jwtService, 'verify').mockReturnValue(mockPayload);
+      jest.spyOn(adminService, 'isAdminEmail').mockReturnValue(false);
 
       const result = await service.verifyMagicLink('valid-token');
 
