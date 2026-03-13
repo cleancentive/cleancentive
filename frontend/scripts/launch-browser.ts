@@ -1,7 +1,7 @@
 /**
  * Launch a shared Chromium browser for human + agent collaboration.
  *
- * Usage: bun run browser:launch
+ * Usage: bun run browse
  *
  * Starts a visible Chromium with CDP remote debugging enabled.
  * - Human can interact with the browser directly
@@ -90,10 +90,9 @@ console.log('\nAgents can connect with:');
 console.log(`  CDP_URL=http://127.0.0.1:${CDP_PORT} bun run test:e2e:shared`);
 console.log('\nPress Ctrl+C to close.\n');
 
+context.on('close', () => process.exit(0));
+
 process.on('SIGINT', async () => {
   await context.close();
   process.exit(0);
 });
-
-// Keep process alive until Ctrl+C
-await new Promise(() => {});
