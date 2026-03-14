@@ -64,7 +64,7 @@ export function UserDetail() {
     return (
       <div className="user-detail">
         <p className="error-text">{error || 'User not found'}</p>
-        <Link to="/admin" className="back-link">Back to Admin Panel</Link>
+        <Link to="/admin" className="back-link">Back</Link>
       </div>
     )
   }
