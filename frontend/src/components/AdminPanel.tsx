@@ -169,28 +169,30 @@ export function AdminPanel() {
           </button>
         </div>
 
-        <div className="ops-actions-row">
-          <label className="ops-batch-label">
-            Retry batch size
-            <input
-              type="number"
-              min="1"
-              max="100"
-              value={retryBatchSize}
-              onChange={(e) => setRetryBatchSize(e.target.value)}
-              className="ops-batch-input"
-            />
-          </label>
-          <button
-            type="button"
-            className="ops-retry-button"
-            onClick={() => retryFailedReports(retryLimit)}
-            disabled={isRetryingFailedReports || isLoadingOps || (opsOverview?.reports.counts.failed ?? 0) === 0}
-          >
-            {isRetryingFailedReports ? 'Retrying...' : 'Retry failed jobs'}
-          </button>
-          {retryFailedReportsResult && <p className="ops-retry-result">{retryFailedReportsResult}</p>}
-        </div>
+        {(opsOverview?.reports.counts.failed ?? 0) > 0 && (
+          <div className="ops-actions-row">
+            <label className="ops-batch-label">
+              Retry batch size
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={retryBatchSize}
+                onChange={(e) => setRetryBatchSize(e.target.value)}
+                className="ops-batch-input"
+              />
+            </label>
+            <button
+              type="button"
+              className="ops-retry-button"
+              onClick={() => retryFailedReports(retryLimit)}
+              disabled={isRetryingFailedReports || isLoadingOps}
+            >
+              {isRetryingFailedReports ? 'Retrying...' : 'Retry failed jobs'}
+            </button>
+            {retryFailedReportsResult && <p className="ops-retry-result">{retryFailedReportsResult}</p>}
+          </div>
+        )}
 
         <div className="ops-metrics-grid">
           <article className="ops-card ops-card-status">
