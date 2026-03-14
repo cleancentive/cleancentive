@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
@@ -55,7 +56,13 @@ const navItems: NavItem[] = [
 
 export function AppShell() {
   const { user, guestId, logout } = useAuthStore()
-  const { isAdmin } = useAdminStore()
+  const { isAdmin, checkAdminStatus } = useAdminStore()
+
+  useEffect(() => {
+    if (user) {
+      checkAdminStatus()
+    }
+  }, [user, checkAdminStatus])
 
   const visibleItems = navItems.filter(item => !item.adminOnly || isAdmin)
   const isAuthenticated = !!user
