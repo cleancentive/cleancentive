@@ -11,7 +11,7 @@ graph LR
     C[".opencode/instructions.md"] --> D
     E["other agents"] --> D
     D --> F["CONTRIBUTING.md"]
-    D --> G["openspec/config.yaml"]
+    D --> G["docs/domain-glossary.md"]
     F --> H["docs/architecture/"]
     G --> H
 ```
@@ -24,7 +24,7 @@ graph LR
 
 3. **CONTRIBUTING.md** -- code quality principles shared by humans and agents: clean code, YAGNI, refactoring guidelines, documentation-as-living-artifacts. This is the single source of truth for how code should be written.
 
-4. **openspec/config.yaml** -- spec-driven workflow configuration. Provides project context (tech stack, conventions, domain knowledge, data model guidelines) and per-artifact rules (e.g., design docs must include deployment diagrams). Agents use this when creating proposals, designs, specs, and task breakdowns via OpenSpec.
+4. **docs/domain-glossary.md** -- canonical vocabulary for the project. Defines the terms used in code, UI, and documentation. Both humans and agents should use these terms consistently.
 
 **Why this structure:**
 - Humans read CONTRIBUTING.md. Agents read their tool file, then AGENTS.md, then CONTRIBUTING.md. Everyone follows the same code quality rules.

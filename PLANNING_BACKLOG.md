@@ -1,7 +1,7 @@
 # Cleancentive Planning Backlog
 
 > Feature list for reimplementing Delitter as Cleancentive
-> Features to be specified using [OpenSpec](https://github.com/Fission-AI/OpenSpec)
+> Feature list for reimplementation planning
 
 ## Repository Governance & Setup
 *Phase 0 - Project scaffolding*
@@ -689,14 +689,7 @@
 
 ### Immediate Actions (Phase 0) - TODAY
 
-1. **Initialize OpenSpec** in this repository
-   ```bash
-   npm install -g @fission-ai/openspec@latest
-   cd /Users/matthias/git/cleancentive
-   openspec init
-   ```
-
-2. **Create GitHub organization** (if not exists)
+1. **Create GitHub organization** (if not exists)
    - Org name: `cleancentive` or similar
    - Create public repo: `cleancentive` (main project)
    - Create private repo: `cleancentive-private` (secrets, private docs)
@@ -751,7 +744,6 @@ Based on decisions, the MVP includes ONLY these features:
 ### Phase 1: Foundation (Days 1-3)
 
 **Day 1: Project Setup**
-- [ ] Initialize OpenSpec
 - [ ] Create GitHub org and repos
 - [ ] Setup monorepo structure
 - [ ] Add AGPL license and basic docs
@@ -824,20 +816,9 @@ Based on decisions, the MVP includes ONLY these features:
   - app.cleancentive.org → PWA frontend
   - api.cleancentive.org → Backend API
 
-### OpenSpec Workflow
-Each feature can be tracked as its own OpenSpec change with:
-- `/opsx:new <feature-name>` - Create new change
-- `proposal.md` - Why and what we're building
-- `specs/` - Detailed requirements and user stories
-- `design.md` - Technical approach and architecture
-- `tasks.md` - Implementation checklist
-- `/opsx:apply` - Implement the change
-- `/opsx:archive` - Complete and archive
-
 ### Success Metrics for MVP Launch
 - [ ] Repository setup complete ✅
 - [ ] All strategic questions answered ✅
-- [ ] OpenSpec initialized and first change created
 - [ ] Backend API functional with health checks
 - [ ] PWA can capture photos and upload
 - [ ] AI analysis working end-to-end
@@ -906,4 +887,4 @@ Each feature can be tracked as its own OpenSpec change with:
 - Firebase hosting → Self-hosted VPS
 - Supervisord → Docker Compose
 
-**Next Immediate Action**: Initialize OpenSpec and start with Feature #0 (Repository Setup)
+**Next Immediate Action**: Start with Feature #0 (Repository Setup)

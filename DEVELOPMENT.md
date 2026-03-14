@@ -12,8 +12,7 @@ cleancentive/
 ├── frontend/         # React PWA
 ├── worker/           # Image analysis worker (Bun)
 ├── infrastructure/   # Docker Compose configs
-├── docs/            # Documentation
-└── openspec/        # Feature specifications
+└── docs/            # Documentation (architecture, domain glossary)
 ```
 
 ## Quick Start

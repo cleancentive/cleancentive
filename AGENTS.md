@@ -6,8 +6,7 @@ You are working on Cleancentive, an environmental cleanup and litter tracking ap
 
 ## Before You Code
 
-- Read the relevant OpenSpec artifacts in `openspec/changes/` before implementing a feature. Follow the specs, design, and task breakdown.
-- Check `openspec/config.yaml` for data model conventions (UUIDs, timestamps, audit fields).
+- Read [docs/domain-glossary.md](docs/domain-glossary.md) for canonical terminology. Use these terms in code, UI text, and documentation.
 - Check `docs/architecture/` for architecture documentation (C4 diagrams, data models).
 - Check existing code in the relevant workspace for patterns before creating new ones.
 

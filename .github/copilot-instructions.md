@@ -6,4 +6,4 @@ Read and follow all instructions in [AGENTS.md](../AGENTS.md) before starting an
 
 - Runtime and package manager: Bun (not npm, not yarn)
 - Monorepo workspaces: backend/, frontend/, worker/
-- Feature workflow: OpenSpec (see prompts in .github/prompts/)
+- Domain vocabulary: [docs/domain-glossary.md](../docs/domain-glossary.md) — use these terms in code, UI, and documentation

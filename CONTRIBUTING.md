@@ -95,7 +95,7 @@ We follow the [Conventional Commits](https://www.conventionalcommits.org/) speci
 - Do not create abstractions for a single implementation. Wait until you have two or three concrete cases.
 - Do not add configuration options for things that have only one value.
 - Do not build generic frameworks or utility libraries. Solve the specific problem.
-- If a feature is not in the current OpenSpec task breakdown, it is out of scope.
+- If a feature is not needed for the current task, it is out of scope.
 
 ## Refactoring Guidelines
 
@@ -133,26 +133,6 @@ bun run test
 cd backend && bun run test:watch
 ```
 
-## Using OpenSpec
-
-We use [OpenSpec](https://github.com/Fission-AI/OpenSpec) for feature specification and development workflow:
-
-1. **Create a new feature**:
-   ```bash
-   /opsx:new feature-name
-   ```
-
-2. **Develop with OpenSpec artifacts**:
-   - Review `proposal.md` for context
-   - Follow requirements in `specs/`
-   - Implement according to `design.md`
-   - Complete tasks in `tasks.md`
-
-3. **Archive when complete**:
-   ```bash
-   /opsx:archive
-   ```
-
 ## Project Structure
 
 ```
@@ -160,9 +140,8 @@ cleancentive/
 ├── backend/          # NestJS API
 ├── frontend/         # React PWA
 ├── worker/           # Image analysis worker
-├── docs/             # Long-living documentation (C4 architecture views)
-├── infrastructure/   # Docker configs
-└── openspec/         # Feature specs and change tracking
+├── docs/             # Long-living documentation (C4 architecture views, domain glossary)
+└── infrastructure/   # Docker configs
 ```
 
 ## Questions?
