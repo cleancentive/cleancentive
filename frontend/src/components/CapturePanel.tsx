@@ -479,11 +479,15 @@ export function CapturePanel() {
           >
             {isImportingFile ? 'Importing...' : 'Import Photo'}
           </button>
+          <button
+            className={isCameraActive ? "secondary-button" : "primary-button"}
+            onClick={isCameraActive ? stopCamera : startCamera}
+          >
+            {isCameraActive ? 'Stop Camera' : 'Enable Camera'}
+          </button>
         </div>
 
-        {!isCameraActive ? (
-          <button className="primary-button" onClick={startCamera}>Enable Camera</button>
-        ) : (
+        {isCameraActive && (
           <>
             <video ref={videoRef} autoPlay muted playsInline className="camera-preview" />
             <div className="camera-actions">
@@ -494,7 +498,6 @@ export function CapturePanel() {
                 >
                 {isCapturing ? 'Capturing...' : 'Log Pick'}
               </button>
-              <button className="secondary-button" onClick={stopCamera}>Stop Camera</button>
             </div>
           </>
         )}
