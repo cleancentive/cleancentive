@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Param, Query, UseGuards, Request, ParseIntPipe, DefaultValuePipe, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Query, UseGuards, Request, ParseIntPipe, ParseUUIDPipe, DefaultValuePipe, NotFoundException } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from './admin.guard';
@@ -39,24 +39,24 @@ export class AdminController {
 
   @Get('users/:id')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  async getUserDetail(@Param('id') id: string) {
+  async getUserDetail(@Param('id', ParseUUIDPipe) id: string) {
     const user = await this.adminService.getUserDetail(id);
     if (!user) {
-      throw new BadRequestException('User not found');
+      throw new NotFoundException('User not found');
     }
     return user;
   }
 
   @Post('users/:id/promote')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  async promoteUser(@Request() req: any, @Param('id') id: string) {
+  async promoteUser(@Request() req: any, @Param('id', ParseUUIDPipe) id: string) {
     await this.adminService.promoteToAdmin(id, req.user.userId);
     return { success: true };
   }
 
   @Delete('users/:id/demote')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  async demoteUser(@Param('id') id: string) {
+  async demoteUser(@Param('id', ParseUUIDPipe) id: string) {
     await this.adminService.demoteFromAdmin(id);
     return { success: true };
   }

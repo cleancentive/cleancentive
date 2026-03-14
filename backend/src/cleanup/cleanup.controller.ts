@@ -5,6 +5,7 @@ import {
   HttpCode,
   NotFoundException,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   Req,
@@ -210,7 +211,7 @@ export class CleanupController {
 
   @Get('uploads/:id')
   async getUploadStatus(
-    @Param('id') reportId: string,
+    @Param('id', ParseUUIDPipe) reportId: string,
     @Req() req: Request,
     @Query('guestId') guestId?: string,
   ): Promise<CleanupReportDto> {
@@ -258,7 +259,7 @@ export class CleanupController {
   @Post('reports/:id/retry')
   @HttpCode(202)
   async retryAnalysis(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Req() req: Request,
     @Query('guestId') guestId?: string,
   ): Promise<{ status: string }> {
@@ -269,7 +270,7 @@ export class CleanupController {
 
   @Get('reports/:id/thumbnail')
   async getThumbnail(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
     const result = await this.cleanupService.getThumbnailStream(id);

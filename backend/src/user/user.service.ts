@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './user.entity';
@@ -275,9 +275,9 @@ export class UserService {
     // Normal registration - associate email with current user
     const userEmail = await this.validateAndAssociateEmail(userId, email);
     const user = await this.findById(userId);
-    
+
     if (!user) {
-      throw new BadRequestException('User not found');
+      throw new NotFoundException('User not found');
     }
 
     return { user, email: userEmail, needsMerge: false };
@@ -375,7 +375,7 @@ export class UserService {
 
     const emailToRemove = emails.find(e => e.id === emailId);
     if (!emailToRemove) {
-      throw new BadRequestException('Email not found');
+      throw new NotFoundException('Email not found');
     }
 
     await this.userEmailRepository.remove(emailToRemove);
@@ -398,7 +398,7 @@ export class UserService {
   async deleteAccount(userId: string): Promise<void> {
     const user = await this.findById(userId);
     if (!user) {
-      throw new BadRequestException('User not found');
+      throw new NotFoundException('User not found');
     }
     await this.userRepository.remove(user);
   }
@@ -406,7 +406,7 @@ export class UserService {
   async anonymizeAccount(userId: string): Promise<void> {
     const user = await this.findById(userId);
     if (!user) {
-      throw new BadRequestException('User not found');
+      throw new NotFoundException('User not found');
     }
 
     // Delete all emails
@@ -428,7 +428,7 @@ export class UserService {
   async updateProfile(userId: string, updates: { nickname?: string; fullName?: string }): Promise<User> {
     const user = await this.findById(userId);
     if (!user) {
-      throw new BadRequestException('User not found');
+      throw new NotFoundException('User not found');
     }
 
     if (updates.nickname) {

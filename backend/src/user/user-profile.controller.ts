@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Delete, Body, UseGuards, Request, Param, Query, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Put, Delete, Body, UseGuards, Request, Param, Query, BadRequestException, ParseUUIDPipe } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserService } from './user.service';
@@ -31,7 +31,7 @@ export class UserProfileController {
   @Delete('profile/email/:emailId')
   async removeEmail(
     @Request() req: any,
-    @Param('emailId') emailId: string,
+    @Param('emailId', ParseUUIDPipe) emailId: string,
   ): Promise<User> {
     return this.userService.removeEmail(req.user.userId, emailId);
   }

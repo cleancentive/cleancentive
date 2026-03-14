@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   Request,
@@ -86,24 +87,24 @@ export class EventController {
   }
 
   @Get(':id')
-  async getEvent(@Param('id') eventId: string) {
+  async getEvent(@Param('id', ParseUUIDPipe) eventId: string) {
     return this.eventService.getEvent(eventId);
   }
 
   @Post(':id/join')
-  async joinEvent(@Request() req: any, @Param('id') eventId: string) {
+  async joinEvent(@Request() req: any, @Param('id', ParseUUIDPipe) eventId: string) {
     return this.eventService.joinEvent(eventId, req.user.userId);
   }
 
   @Post(':id/leave')
-  async leaveEvent(@Request() req: any, @Param('id') eventId: string) {
+  async leaveEvent(@Request() req: any, @Param('id', ParseUUIDPipe) eventId: string) {
     return this.eventService.leaveEvent(eventId, req.user.userId);
   }
 
   @Post(':id/occurrences')
   async addOccurrence(
     @Request() req: any,
-    @Param('id') eventId: string,
+    @Param('id', ParseUUIDPipe) eventId: string,
     @Body()
     body: {
       startAt?: string;
@@ -123,7 +124,7 @@ export class EventController {
   }
 
   @Post('occurrences/:id/activate')
-  async activateOccurrence(@Request() req: any, @Param('id') occurrenceId: string) {
+  async activateOccurrence(@Request() req: any, @Param('id', ParseUUIDPipe) occurrenceId: string) {
     return this.eventService.activateOccurrence(occurrenceId, req.user.userId);
   }
 
@@ -136,28 +137,28 @@ export class EventController {
   @Post(':id/participants/:userId/promote')
   async promoteParticipant(
     @Request() req: any,
-    @Param('id') eventId: string,
-    @Param('userId') userId: string,
+    @Param('id', ParseUUIDPipe) eventId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
   ): Promise<{ success: boolean }> {
     await this.eventService.promoteParticipant(eventId, userId, req.user.userId);
     return { success: true };
   }
 
   @Post(':id/archive')
-  async archiveEvent(@Request() req: any, @Param('id') eventId: string): Promise<{ success: boolean }> {
+  async archiveEvent(@Request() req: any, @Param('id', ParseUUIDPipe) eventId: string): Promise<{ success: boolean }> {
     await this.eventService.archiveEvent(eventId, req.user.userId);
     return { success: true };
   }
 
   @Get(':id/messages')
-  async listMessages(@Request() req: any, @Param('id') eventId: string) {
+  async listMessages(@Request() req: any, @Param('id', ParseUUIDPipe) eventId: string) {
     return this.eventService.listMessages(eventId, req.user.userId);
   }
 
   @Post(':id/messages')
   async createMessage(
     @Request() req: any,
-    @Param('id') eventId: string,
+    @Param('id', ParseUUIDPipe) eventId: string,
     @Body() body: { audience?: 'members' | 'admins'; subject?: string; body?: string },
   ) {
     const message = await this.eventService.createMessage({
