@@ -132,8 +132,37 @@
   left: 0;
 }
 
+/* Page Card — shared card style for all pages */
+.page-card {
+  padding: 1.5rem;
+  border: 1px solid #dbe4ee;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.page-card legend {
+  font-weight: 600;
+  color: #374151;
+  padding: 0 0.25rem;
+}
+
+/* Profile Page */
+.profile-page {
+  max-width: 600px;
+}
+
+.profile-page h2 {
+  color: #1f2937;
+  margin-bottom: 1rem;
+}
+
+.profile-page .page-card + .page-card {
+  margin-top: 1.5rem;
+}
+
 /* Forms */
-.login-form, .profile-editor {
+.login-form {
   background: white;
   padding: 2rem;
   border-radius: 0.75rem;
@@ -294,19 +323,6 @@
   border: 1px solid #a7f3d0;
 }
 
-/* Profile Cards */
-.profile-card {
-  margin-top: 1.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 1rem;
-}
-
-.profile-card legend {
-  font-weight: 600;
-  color: #374151;
-  padding: 0 0.25rem;
-}
 
 /* Avatar Settings */
 .avatar-preview {
@@ -412,7 +428,7 @@
   background: #b91c1c;
 }
 
-.delete-confirm-overlay {
+.confirm-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
@@ -422,7 +438,7 @@
   z-index: 100;
 }
 
-.delete-confirm-dialog {
+.confirm-dialog {
   background: white;
   padding: 2rem;
   border-radius: 0.75rem;
@@ -431,12 +447,12 @@
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
 }
 
-.delete-confirm-dialog h3 {
+.confirm-dialog h3 {
   color: #1f2937;
   margin-bottom: 0.75rem;
 }
 
-.delete-confirm-dialog p {
+.confirm-dialog p {
   color: #6b7280;
   margin-bottom: 1.5rem;
   font-size: 0.875rem;
@@ -600,23 +616,9 @@
 /* Dashboard */
 .dashboard {
   max-width: 800px;
-}
-
-.dashboard-content {
-  margin-top: 2rem;
-  padding: 2rem;
-  background: white;
-  border-radius: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
-}
-
-.dashboard-content h2 {
-  color: #1f2937;
-  margin-bottom: 1rem;
+  gap: 1.5rem;
 }
 
 .capture-panel {
@@ -698,20 +700,13 @@
 }
 
 .history-panel {
-  border-top: 1px solid #e5e7eb;
-  padding-top: 1.5rem;
 }
 
 .history-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 1rem;
-}
-
-.history-header h2 {
-  margin: 0;
-  color: #1f2937;
 }
 
 .history-header .secondary-button {
@@ -991,9 +986,7 @@
 
 /* Profile Sign Out */
 .profile-sign-out {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e5e7eb;
+  margin-top: 1.5rem;
 }
 
 .profile-sign-out .danger-button {
@@ -1002,11 +995,6 @@
 
 .ops-overview-panel {
   margin-bottom: 2rem;
-  padding: 1.5rem;
-  border: 1px solid #dbe4ee;
-  border-radius: 1rem;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
 }
 
 .ops-overview-header {
@@ -1216,11 +1204,6 @@
 }
 
 .user-admin-panel {
-  padding: 1.5rem;
-  border: 1px solid #dbe4ee;
-  border-radius: 1rem;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
 }
 
 .user-admin-header {

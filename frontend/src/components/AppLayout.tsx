@@ -63,10 +63,8 @@ export function AppLayout() {
 
   return (
     <div className="dashboard">
-      <div className="dashboard-content">
-        <CapturePanel />
-        <HistoryPanel />
-      </div>
+      <CapturePanel />
+      <HistoryPanel />
     </div>
   )
 }

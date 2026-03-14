@@ -438,9 +438,9 @@ export function CapturePanel() {
   }
 
   return (
-    <section className="capture-panel">
+    <fieldset className="page-card capture-panel">
+      <legend>Log a Pick</legend>
       <div className="capture-toolbar">
-        <h2>Log a Pick</h2>
         <span
           className={`capture-status-pill ${locationAccepted ? 'capture-status-pill--good' : 'capture-status-pill--warning'}`}
           onClick={() => setShowLocationDetail(prev => !prev)}
@@ -506,6 +506,6 @@ export function CapturePanel() {
 
       {locationError && <p className="error-message">Location error: {locationError}</p>}
       {captureError && <p className="error-message">{captureError}</p>}
-    </section>
+    </fieldset>
   )
 }

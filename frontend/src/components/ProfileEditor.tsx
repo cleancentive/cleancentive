@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useUiStore } from '../stores/uiStore'
 import { Avatar } from './Avatar'
+import { ConfirmDialog } from './ConfirmDialog'
 import { SignIn } from './SignIn'
 
 export function ProfileEditor() {
@@ -23,6 +24,11 @@ export function ProfileEditor() {
   const [conflictEmail, setConflictEmail] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [showAccountDelete, setShowAccountDelete] = useState(false)
+
+  const sortedEmails = useMemo(
+    () => [...(user?.emails ?? [])].sort((a, b) => a.id.localeCompare(b.id)),
+    [user?.emails]
+  )
 
   useEffect(() => {
     if (user) {
@@ -129,8 +135,7 @@ export function ProfileEditor() {
   }
 
   if (!user) return (
-    <div className="profile-editor">
-      <h2>Your Profile</h2>
+    <div className="profile-page">
       <p>Sign in to view and edit your profile.</p>
       <SignIn />
       {pickCount > 0 && (
@@ -141,40 +146,38 @@ export function ProfileEditor() {
             </button>
           </div>
           {showAccountDelete && (
-            <div className="delete-confirm-overlay">
-              <div className="delete-confirm-dialog">
-                <h3>Delete Guest Data</h3>
-                <p>Choose what to do with your picks:</p>
-                <div className="form-actions">
-                  <button
-                    onClick={async () => {
-                      setShowAccountDelete(false)
-                      await deleteGuestData('delete')
-                    }}
-                    disabled={!isOnline || isLoading}
-                    className="danger-button"
-                  >
-                    Delete all data
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowAccountDelete(false)
-                      logout()
-                    }}
-                    className="secondary-button"
-                  >
-                    Just forget me locally
-                  </button>
-                  <button
-                    onClick={() => setShowAccountDelete(false)}
-                    disabled={isLoading}
-                    className="secondary-button"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
+            <ConfirmDialog title="Delete Guest Data" actions={
+              <>
+                <button
+                  onClick={async () => {
+                    setShowAccountDelete(false)
+                    await deleteGuestData('delete')
+                  }}
+                  disabled={!isOnline || isLoading}
+                  className="danger-button"
+                >
+                  Delete all data
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAccountDelete(false)
+                    logout()
+                  }}
+                  className="secondary-button"
+                >
+                  Just forget me locally
+                </button>
+                <button
+                  onClick={() => setShowAccountDelete(false)}
+                  disabled={isLoading}
+                  className="secondary-button"
+                >
+                  Cancel
+                </button>
+              </>
+            }>
+              <p>Choose what to do with your picks:</p>
+            </ConfirmDialog>
           )}
         </>
       )}
@@ -182,12 +185,10 @@ export function ProfileEditor() {
   )
 
   return (
-    <div className="profile-editor">
-      <h2>Your Profile</h2>
-
+    <div className="profile-page">
       {!isOnline && <p className="offline-banner">You're offline — editing is paused.</p>}
 
-      <fieldset className="profile-card" disabled={!isOnline || isLoading}>
+      <fieldset className="page-card" disabled={!isOnline || isLoading}>
         <legend>Name</legend>
         {isEditing ? (
           <form onSubmit={handleSubmit}>
@@ -266,9 +267,9 @@ export function ProfileEditor() {
         )}
       </fieldset>
 
-      {user.emails.length > 0 && (
-        <fieldset className="profile-card avatar-email-picker" disabled={!isOnline || isLoading}>
-          <legend>Profile picture</legend>
+      {sortedEmails.length > 0 && (
+        <fieldset className="page-card avatar-email-picker" disabled={!isOnline || isLoading}>
+          <legend>Picture</legend>
           {user.avatar_email_id && (
             <div className="avatar-preview">
               <Avatar
@@ -291,7 +292,7 @@ export function ProfileEditor() {
             />
             <span>No Gravatar</span>
           </label>
-          {user.emails.map((email) => (
+          {sortedEmails.map((email) => (
             <label key={email.id} className="avatar-radio">
               <input
                 type="radio"
@@ -305,11 +306,11 @@ export function ProfileEditor() {
         </fieldset>
       )}
 
-      <fieldset className="profile-card email-management" disabled={!isOnline || isLoading}>
-        <legend>Email addresses</legend>
+      <fieldset className="page-card email-management" disabled={!isOnline || isLoading}>
+        <legend>Emails</legend>
 
         <div className="email-list">
-          {user.emails.map((email) => (
+          {sortedEmails.map((email) => (
             <div key={email.id} className="email-item">
               <label className="email-checkbox">
                 <input
@@ -321,7 +322,7 @@ export function ProfileEditor() {
                 />
                 <span>{email.email}</span>
                 {email.is_selected_for_login && (
-                  <span className="login-email">(login)</span>
+                  <span className="login-email">login</span>
                 )}
               </label>
               <button
@@ -372,68 +373,64 @@ export function ProfileEditor() {
       </fieldset>
 
       {conflictNickname && conflictEmail && (
-        <div className="delete-confirm-overlay">
-          <div className="delete-confirm-dialog">
-            <h3>Email belongs to another account</h3>
-            <p>
-              This email belongs to account &lsquo;{conflictNickname}&rsquo;. Adding it will send them a merge request. If they confirm, their data merges into yours and their account is deleted.
-            </p>
-            <div className="form-actions">
-              <button
-                onClick={handleConfirmMerge}
-                disabled={!isOnline || isLoading}
-                className="danger-button"
-              >
-                Send merge request
-              </button>
-              <button
-                onClick={handleCancelMerge}
-                disabled={isLoading}
-                className="secondary-button"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog title="Email belongs to another account" actions={
+          <>
+            <button
+              onClick={handleConfirmMerge}
+              disabled={!isOnline || isLoading}
+              className="danger-button"
+            >
+              Send merge request
+            </button>
+            <button
+              onClick={handleCancelMerge}
+              disabled={isLoading}
+              className="secondary-button"
+            >
+              Cancel
+            </button>
+          </>
+        }>
+          <p>
+            This email belongs to account &lsquo;{conflictNickname}&rsquo;. Adding it will send them a merge request. If they confirm, their data merges into yours and their account is deleted.
+          </p>
+        </ConfirmDialog>
       )}
 
       {showDeleteConfirm && (
-        <div className="delete-confirm-overlay">
-          <div className="delete-confirm-dialog">
-            <h3>Remove last email</h3>
-            <p>This is your only email address. Removing it will de-authenticate your account. Choose what to do with your data:</p>
-            <div className="form-actions">
-              <button
-                onClick={async () => {
-                  setShowDeleteConfirm(null)
-                  await deleteAccount()
-                }}
-                disabled={!isOnline || isLoading}
-                className="danger-button"
-              >
-                Delete all data
-              </button>
-              <button
-                onClick={async () => {
-                  setShowDeleteConfirm(null)
-                  await anonymizeAccount()
-                }}
-                disabled={!isOnline || isLoading}
-                className="secondary-button"
-              >
-                Only delete personal info
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(null)}
-                disabled={isLoading}
-                className="secondary-button"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog title="Remove last email" actions={
+          <>
+            <button
+              onClick={async () => {
+                setShowDeleteConfirm(null)
+                await deleteAccount()
+              }}
+              disabled={!isOnline || isLoading}
+              className="danger-button"
+            >
+              Delete all data
+            </button>
+            <button
+              onClick={async () => {
+                setShowDeleteConfirm(null)
+                await anonymizeAccount()
+              }}
+              disabled={!isOnline || isLoading}
+              className="secondary-button"
+            >
+              Only delete personal info
+            </button>
+            <button
+              onClick={() => setShowDeleteConfirm(null)}
+              disabled={isLoading}
+              className="secondary-button"
+            >
+              Cancel
+            </button>
+          </>
+        }>
+          <p>This is your only email address. Removing it will de-authenticate your account. Choose what to do with your data:</p>
+        </ConfirmDialog>
       )}
 
       <div className="profile-sign-out">
@@ -447,41 +444,39 @@ export function ProfileEditor() {
       </div>
 
       {showAccountDelete && (
-        <div className="delete-confirm-overlay">
-          <div className="delete-confirm-dialog">
-            <h3>Delete Account</h3>
-            <p>This action cannot be undone. Choose what to do with your data:</p>
-            <div className="form-actions">
-              <button
-                onClick={async () => {
-                  setShowAccountDelete(false)
-                  await deleteAccount()
-                }}
-                disabled={!isOnline || isLoading}
-                className="danger-button"
-              >
-                Delete all data
-              </button>
-              <button
-                onClick={async () => {
-                  setShowAccountDelete(false)
-                  await anonymizeAccount()
-                }}
-                disabled={!isOnline || isLoading}
-                className="secondary-button"
-              >
-                Only delete personal info
-              </button>
-              <button
-                onClick={() => setShowAccountDelete(false)}
-                disabled={isLoading}
-                className="secondary-button"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog title="Delete Account" actions={
+          <>
+            <button
+              onClick={async () => {
+                setShowAccountDelete(false)
+                await deleteAccount()
+              }}
+              disabled={!isOnline || isLoading}
+              className="danger-button"
+            >
+              Delete all data
+            </button>
+            <button
+              onClick={async () => {
+                setShowAccountDelete(false)
+                await anonymizeAccount()
+              }}
+              disabled={!isOnline || isLoading}
+              className="secondary-button"
+            >
+              Only delete personal info
+            </button>
+            <button
+              onClick={() => setShowAccountDelete(false)}
+              disabled={isLoading}
+              className="secondary-button"
+            >
+              Cancel
+            </button>
+          </>
+        }>
+          <p>This action cannot be undone. Choose what to do with your data:</p>
+        </ConfirmDialog>
       )}
     </div>
   )

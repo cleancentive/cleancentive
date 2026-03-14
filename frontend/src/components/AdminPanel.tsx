@@ -125,10 +125,10 @@ export function AdminPanel() {
 
   return (
     <div className="admin-panel">
-      <section className="ops-overview-panel">
+      <fieldset className="page-card ops-overview-panel">
+        <legend>Operations Overview</legend>
         <div className="ops-overview-header">
           <div>
-            <h2>Operations Overview</h2>
             <p>
               {opsOverview
                 ? `Updated ${new Date(opsOverview.timestamp).toLocaleTimeString()}`
@@ -220,12 +220,12 @@ export function AdminPanel() {
             <strong>{formatAge(opsOverview?.spots.oldestProcessingAgeSeconds ?? null)}</strong>
           </div>
         </div>
-      </section>
+      </fieldset>
 
-      <section className="user-admin-panel">
+      <fieldset className="page-card user-admin-panel">
+        <legend>Users</legend>
         <div className="user-admin-header">
           <div>
-            <h2>Users</h2>
             <p>{total} total</p>
           </div>
         </div>
@@ -268,7 +268,6 @@ export function AdminPanel() {
         <div className="user-list">
           {users.map((u) => (
             <Link key={u.id} to={`/admin/users/${u.id}`} className="user-card">
-              <Avatar userId={u.id} avatarEmailId={u.avatar_email_id} nickname={u.nickname} size={36} />
               <div className="user-info">
                 <h3>
                   {u.nickname}
@@ -287,6 +286,7 @@ export function AdminPanel() {
                   )}
                 </div>
               </div>
+              <Avatar userId={u.id} avatarEmailId={u.avatar_email_id} nickname={u.nickname} size={36} />
               <span className="view-details">View Details &rarr;</span>
             </Link>
           ))}
@@ -299,7 +299,7 @@ export function AdminPanel() {
             <p className="end-of-list">All users loaded</p>
           )}
         </div>
-      </section>
+      </fieldset>
     </div>
   )
 }

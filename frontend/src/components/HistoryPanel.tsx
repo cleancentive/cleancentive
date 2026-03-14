@@ -295,9 +295,9 @@ export function HistoryPanel() {
   }), [rows])
 
   return (
-    <section className="history-panel">
+    <fieldset className="page-card history-panel">
+      <legend>My Picks</legend>
       <header className="history-header">
-        <h2>My Picks</h2>
         <CountdownButton
           intervalSeconds={hasInFlight ? 3 : 30}
           isLoading={isLoading}
@@ -387,6 +387,6 @@ export function HistoryPanel() {
           <img className="lightbox-image" src={lightboxSrc} alt="" />
         </div>
       )}
-    </section>
+    </fieldset>
   )
 }
