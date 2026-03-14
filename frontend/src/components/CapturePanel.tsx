@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'reac
 import { useAuthStore } from '../stores/authStore'
 import { flushOutbox, getOutboxItems, queueCapture, type OutboxItem } from '../lib/uploadOutbox'
 import { extractImageMetadata } from '../lib/imageMetadata'
+import { formatTimestamp } from '../utils/formatTimestamp'
 
 const DEFAULT_MAX_LOCATION_ACCURACY_METERS = import.meta.env.DEV ? 5000 : 200
 const MAX_LOCATION_ACCURACY_METERS = Number(
@@ -105,7 +106,7 @@ async function createThumbnailFromBlob(blob: Blob): Promise<Blob> {
 }
 
 function formatTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  return formatTimestamp(timestamp)
 }
 
 export function CapturePanel() {

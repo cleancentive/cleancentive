@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { getOutboxItems, type OutboxItem } from '../lib/uploadOutbox'
+import { formatTimestamp } from '../utils/formatTimestamp'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'
 
@@ -28,12 +29,7 @@ type Row =
   | { kind: 'server'; item: HistoryItem }
 
 function formatDateTime(value: string): string {
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) {
-    return value
-  }
-
-  return parsed.toLocaleString()
+  return formatTimestamp(value)
 }
 
 function formatCoordinate(value: number): string {

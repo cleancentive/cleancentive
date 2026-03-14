@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { useAdminStore } from '../stores/adminStore'
 import { useAuthStore } from '../stores/authStore'
+import { formatTimestamp } from '../utils/formatTimestamp'
 import axios from 'axios'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
@@ -95,15 +96,15 @@ export function UserDetail() {
           </div>
           <div className="info-item">
             <label>Created</label>
-            <span>{new Date(user.created_at).toLocaleString()}</span>
+            <span>{formatTimestamp(user.created_at)}</span>
           </div>
           <div className="info-item">
             <label>Last Updated</label>
-            <span>{new Date(user.updated_at).toLocaleString()}</span>
+            <span>{formatTimestamp(user.updated_at)}</span>
           </div>
           <div className="info-item">
             <label>Last Login</label>
-            <span>{user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</span>
+            <span>{user.last_login ? formatTimestamp(user.last_login) : 'Never'}</span>
           </div>
         </div>
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAdminStore } from '../stores/adminStore'
 import { useAuthStore } from '../stores/authStore'
+import { formatTimestamp } from '../utils/formatTimestamp'
 
 function formatAge(seconds: number | null) {
   if (seconds === null) {
@@ -21,14 +22,6 @@ function formatAge(seconds: number | null) {
   const hours = Math.floor(minutes / 60)
   const remainderMinutes = minutes % 60
   return `${hours}h ${remainderMinutes}m`
-}
-
-function formatTimestamp(value: string | null) {
-  if (!value) {
-    return 'n/a'
-  }
-
-  return new Date(value).toLocaleString()
 }
 
 export function AdminPanel() {
