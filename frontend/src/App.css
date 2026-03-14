@@ -512,45 +512,39 @@
   gap: 1rem;
 }
 
-.capture-header h2 {
+.capture-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.capture-toolbar h2 {
   margin: 0;
   color: #1f2937;
 }
 
-.capture-header p {
-  margin: 0.5rem 0 0;
-  color: #6b7280;
+.capture-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: default;
 }
 
-.capture-status-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
-  gap: 0.75rem;
-}
-
-.status-card {
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  padding: 0.75rem;
-  background: #f9fafb;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.status-label {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #6b7280;
-}
-
-.status-good {
+.capture-status-pill--good {
   color: #059669;
 }
 
-.status-warning {
+.capture-status-pill--warning {
   color: #d97706;
+}
+
+.capture-detail {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin: 0;
 }
 
 .camera-wrapper {
@@ -564,11 +558,6 @@
   display: none;
 }
 
-.capture-hint {
-  margin: 0 0 0.75rem;
-  font-size: 0.85rem;
-  color: #6b7280;
-}
 
 .camera-preview {
   width: 100%;
@@ -1500,10 +1489,6 @@
 
   .action-buttons {
     flex-direction: column;
-  }
-
-  .capture-status-grid {
-    grid-template-columns: 1fr;
   }
 
   .camera-actions {

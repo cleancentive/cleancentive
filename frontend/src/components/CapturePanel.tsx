@@ -122,6 +122,7 @@ export function CapturePanel() {
   const [location, setLocation] = useState<LocationSnapshot | null>(null)
   const [locationError, setLocationError] = useState<string | null>(null)
   const [captureError, setCaptureError] = useState<string | null>(null)
+  const [showLocationDetail, setShowLocationDetail] = useState(false)
 
   const locationWithinAccuracy = Boolean(location && location.accuracy <= MAX_LOCATION_ACCURACY_METERS)
   const locationAccepted = Boolean(location && (DISABLE_LOCATION_ACCURACY_CHECK || locationWithinAccuracy))
@@ -456,29 +457,34 @@ export function CapturePanel() {
 
   return (
     <section className="capture-panel">
-      <header className="capture-header">
+      <div className="capture-toolbar">
         <h2>Log a Pick</h2>
-        <p>{isOnline ? 'Online - picks sync automatically.' : 'Offline - picks queue locally until you reconnect.'}</p>
-      </header>
-
-      <div className="capture-status-grid">
-        <div className="status-card">
-          <span className="status-label">Connection</span>
-          <strong className={isOnline ? 'status-good' : 'status-warning'}>{isOnline ? 'Online' : 'Offline'}</strong>
-        </div>
-        <div className="status-card">
-          <span className="status-label">Location</span>
-          <strong className={locationAccepted ? 'status-good' : 'status-warning'}>
-            {location
-              ? DISABLE_LOCATION_ACCURACY_CHECK
-                ? `Ready (${Math.round(location.accuracy)}m, accuracy check disabled)`
-                : locationWithinAccuracy
-                  ? `Ready (${Math.round(location.accuracy)}m)`
-                  : `Not accurate enough (${Math.round(location.accuracy)}m > ${Math.round(MAX_LOCATION_ACCURACY_METERS)}m)`
-              : 'Waiting for location'}
-          </strong>
-        </div>
+        <span className={`capture-status-pill ${isOnline ? 'capture-status-pill--good' : 'capture-status-pill--warning'}`}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 10.5a6 6 0 0 1 12 0" /><path d="M3.5 8.5a3.5 3.5 0 0 1 7 0" /><circle cx="7" cy="10.5" r="0.75" fill="currentColor" stroke="none" />
+          </svg>
+          {isOnline ? 'Online' : 'Offline'}
+        </span>
+        <span
+          className={`capture-status-pill ${locationAccepted ? 'capture-status-pill--good' : 'capture-status-pill--warning'}`}
+          onClick={() => setShowLocationDetail(prev => !prev)}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 1C4.5 1 3 3 3 5.25 3 8.5 7 13 7 13s4-4.5 4-7.75C11 3 9.5 1 7 1z" /><circle cx="7" cy="5.25" r="1.5" />
+          </svg>
+          {location ? `${Math.round(location.accuracy)}m` : 'Waiting...'}
+        </span>
       </div>
+
+      {showLocationDetail && location && (
+        <p className="capture-detail">
+          {DISABLE_LOCATION_ACCURACY_CHECK
+            ? `Accuracy: ${Math.round(location.accuracy)}m (accuracy check disabled)`
+            : locationWithinAccuracy
+              ? `Accuracy: ${Math.round(location.accuracy)}m`
+              : `Not accurate enough: ${Math.round(location.accuracy)}m > ${Math.round(MAX_LOCATION_ACCURACY_METERS)}m`}
+        </p>
+      )}
 
       <div className="camera-wrapper">
         <input
@@ -488,16 +494,16 @@ export function CapturePanel() {
           onChange={handleFileInputChange}
           className="file-import-input"
         />
+
         <div className="camera-actions">
           <button
             className="secondary-button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isImportingFile}
           >
-            {isImportingFile ? 'Importing...' : 'Import Photo File'}
+            {isImportingFile ? 'Importing...' : 'Import Photo'}
           </button>
         </div>
-        <p className="capture-hint">Imported photos must include EXIF GPS metadata, otherwise import is rejected.</p>
 
         {!isCameraActive ? (
           <button className="primary-button" onClick={startCamera}>Enable Camera</button>
