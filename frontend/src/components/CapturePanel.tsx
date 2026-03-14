@@ -297,7 +297,7 @@ export function CapturePanel() {
     if (error && typeof error === 'object' && 'name' in error) {
       const errorName = String((error as { name?: string }).name || '')
       if (errorName === 'NotAllowedError') {
-        return 'Camera permission was denied. Please allow camera access in Firefox site permissions.'
+        return 'Camera permission was denied. Please allow camera access in your browser\'s site settings.'
       }
       if (errorName === 'NotFoundError') {
         return 'No camera was found for this browser session.'
