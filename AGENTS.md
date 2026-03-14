@@ -38,3 +38,18 @@ You are working on Cleancentive, an environmental cleanup and litter tracking ap
 - Follow the conventional commit format specified in CONTRIBUTING.md.
 - One logical change per commit. Do not bundle unrelated changes.
 - Keep PRs focused. If you discover something unrelated that needs fixing, note it separately.
+
+## Browser Tools (MCP)
+
+Coding agents can interact with the shared development browser via the Playwright MCP server.
+
+**Prerequisites:** Start the shared browser with `bun browse` before using browser tools.
+
+The MCP server connects to the running browser on CDP port 9222 and provides tools for:
+- Taking screenshots of the current page
+- Navigating to URLs
+- Clicking elements, filling forms, reading page content
+- Evaluating JavaScript in the page context
+
+The browser must be running — the MCP server attaches to it, it does not launch its own.
+Agent and human share the same browser; changes are visible to both.
