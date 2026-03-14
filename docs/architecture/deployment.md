@@ -16,12 +16,12 @@ graph TD
         DB["PostgreSQL 15 + PostGIS 3.4<br/>:5432<br/>Volume: postgres_data"]
         Redis["Redis 7 Alpine<br/>:6379<br/>Volume: redis_data"]
         MinIO["MinIO<br/>:9002 (Host API -> container 9000) :9001 (Console)<br/>Volume: minio_data"]
+        Mailpit["Mailpit<br/>:8025 (Web UI) :1025 (SMTP)"]
     end
 
     subgraph External["External Services"]
         OpenAI["OpenAI Vision API"]
         OSM["OpenStreetMap Tiles"]
-        EmailProvider["Email Service"]
     end
 
     PWA --> API
@@ -29,7 +29,7 @@ graph TD
     API --> DB
     API --> Redis
     API --> MinIO
-    API --> EmailProvider
+    API --> Mailpit
     API -->|ops reads| Redis
     API -->|enqueue| Redis
     Redis -->|dequeue| Worker
@@ -45,5 +45,6 @@ graph TD
 | postgres | `postgis/postgis:15-3.4` | 5432 | `pg_isready` every 10s |
 | redis | `redis:7-alpine` | 6379 | `redis-cli ping` every 10s |
 | minio | `minio/minio:latest` | 9002 (Host API -> container 9000), 9001 (Console) | HTTP `/minio/health/live` every 15s |
+| mailpit | `axllent/mailpit:latest` | 8025 (Web UI), 1025 (SMTP) | — |
 
 All services use named Docker volumes for data persistence across restarts.

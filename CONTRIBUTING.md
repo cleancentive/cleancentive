@@ -146,7 +146,6 @@ cleancentive/
 
 ## Questions?
 
-- Check the [planning backlog](planning%20backlog.md) for roadmap and decisions
 - Open an issue for bugs or feature requests
 - Join discussions in GitHub Discussions
 
