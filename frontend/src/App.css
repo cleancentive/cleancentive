@@ -294,32 +294,23 @@
   border: 1px solid #a7f3d0;
 }
 
-/* Avatar Settings */
-.avatar-settings {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e5e7eb;
-}
-
-.avatar-settings h3 {
-  color: #1f2937;
-  margin-bottom: 1rem;
-}
-
-.avatar-preview {
-  margin-bottom: 1rem;
-}
-
-.avatar-email-picker {
+/* Profile Cards */
+.profile-card {
+  margin-top: 1.5rem;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   padding: 1rem;
 }
 
-.avatar-email-picker legend {
+.profile-card legend {
   font-weight: 600;
   color: #374151;
   padding: 0 0.25rem;
+}
+
+/* Avatar Settings */
+.avatar-preview {
+  margin-bottom: 1rem;
 }
 
 .avatar-radio {
@@ -331,22 +322,17 @@
 }
 
 .avatar-hint {
-  margin-top: 0.75rem;
+  margin-bottom: 0.5rem;
   font-size: 0.8rem;
   color: #6b7280;
 }
 
-/* Email Management */
-.email-management {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid #e5e7eb;
+.avatar-hint a {
+  color: inherit;
+  text-decoration: underline;
 }
 
-.email-management h3 {
-  color: #1f2937;
-  margin-bottom: 1rem;
-}
+/* Email Management */
 
 .email-checkbox {
   display: flex;

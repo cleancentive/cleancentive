@@ -187,124 +187,126 @@ export function ProfileEditor() {
 
       {!isOnline && <p className="offline-banner">You're offline — editing is paused.</p>}
 
-      {isEditing ? (
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="nickname">Nickname *</label>
-            <input
-              id="nickname"
-              type="text"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              placeholder="Choose a unique nickname"
-              required
-              disabled={isLoading}
-              minLength={1}
-              maxLength={50}
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="fullName">Full Name</label>
-            <input
-              id="fullName"
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Your full name (optional)"
-              disabled={isLoading}
-              maxLength={100}
-            />
-          </div>
-
-          {error && (
-            <div className="error-message">
-              {error}
+      <fieldset className="profile-card" disabled={!isOnline || isLoading}>
+        <legend>Name</legend>
+        {isEditing ? (
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label htmlFor="nickname">Nickname *</label>
+              <input
+                id="nickname"
+                type="text"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="Choose a unique nickname"
+                required
+                disabled={isLoading}
+                minLength={1}
+                maxLength={50}
+              />
             </div>
-          )}
 
-          <div className="form-actions">
+            <div className="form-group">
+              <label htmlFor="fullName">Full Name</label>
+              <input
+                id="fullName"
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Your full name (optional)"
+                disabled={isLoading}
+                maxLength={100}
+              />
+            </div>
+
+            {error && (
+              <div className="error-message">
+                {error}
+              </div>
+            )}
+
+            <div className="form-actions">
+              <button
+                type="submit"
+                disabled={!isOnline || isLoading || !nickname.trim()}
+                className="primary-button"
+              >
+                {isLoading ? 'Saving...' : 'Save changes'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={isLoading}
+                className="secondary-button"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="profile-display">
+            <div className="profile-field">
+              <label>Nickname:</label>
+              <span>{user.nickname}</span>
+            </div>
+
+            <div className="profile-field">
+              <label>Full Name:</label>
+              <span>{user.full_name || 'Not set'}</span>
+            </div>
+
             <button
-              type="submit"
-              disabled={!isOnline || isLoading || !nickname.trim()}
+              onClick={() => setIsEditing(true)}
+              disabled={!isOnline}
               className="primary-button"
             >
-              {isLoading ? 'Saving...' : 'Save changes'}
-            </button>
-            <button
-              type="button"
-              onClick={handleCancel}
-              disabled={isLoading}
-              className="secondary-button"
-            >
-              Cancel
+              Edit Profile
             </button>
           </div>
-        </form>
-      ) : (
-        <div className="profile-display">
-          <div className="profile-field">
-            <label>Nickname:</label>
-            <span>{user.nickname}</span>
-          </div>
+        )}
+      </fieldset>
 
-          <div className="profile-field">
-            <label>Full Name:</label>
-            <span>{user.full_name || 'Not set'}</span>
-          </div>
-
-          <button
-            onClick={() => setIsEditing(true)}
-            disabled={!isOnline}
-            className="primary-button"
-          >
-            Edit Profile
-          </button>
-        </div>
-      )}
-
-      <div className="avatar-settings">
-        <h3>Avatar</h3>
-        <div className="avatar-preview">
-          <Avatar
-            userId={user.id}
-            avatarEmailId={user.avatar_email_id}
-            nickname={user.nickname}
-            size={80}
-          />
-        </div>
-        {user.emails.length > 0 && (
-          <fieldset className="avatar-email-picker" disabled={!isOnline || isLoading}>
-            <legend>Gravatar email</legend>
-            <label className="avatar-radio">
+      {user.emails.length > 0 && (
+        <fieldset className="profile-card avatar-email-picker" disabled={!isOnline || isLoading}>
+          <legend>Profile picture</legend>
+          {user.avatar_email_id && (
+            <div className="avatar-preview">
+              <Avatar
+                userId={user.id}
+                avatarEmailId={user.avatar_email_id}
+                nickname={user.nickname}
+                size={80}
+              />
+            </div>
+          )}
+          <p className="avatar-hint">
+            Your profile picture is loaded from <a href="https://gravatar.com" target="_blank" rel="noopener noreferrer">Gravatar</a>. The email address is never exposed to other users.
+          </p>
+          <label className="avatar-radio">
+            <input
+              type="radio"
+              name="avatarEmail"
+              checked={!user.avatar_email_id}
+              onChange={() => updateAvatarEmail(null)}
+            />
+            <span>No Gravatar</span>
+          </label>
+          {user.emails.map((email) => (
+            <label key={email.id} className="avatar-radio">
               <input
                 type="radio"
                 name="avatarEmail"
-                checked={!user.avatar_email_id}
-                onChange={() => updateAvatarEmail(null)}
+                checked={user.avatar_email_id === email.id}
+                onChange={() => updateAvatarEmail(email.id)}
               />
-              <span>No Gravatar</span>
+              <span>{email.email}</span>
             </label>
-            {user.emails.map((email) => (
-              <label key={email.id} className="avatar-radio">
-                <input
-                  type="radio"
-                  name="avatarEmail"
-                  checked={user.avatar_email_id === email.id}
-                  onChange={() => updateAvatarEmail(email.id)}
-                />
-                <span>{email.email}</span>
-              </label>
-            ))}
-            <p className="avatar-hint">
-              Your avatar is loaded from Gravatar. The email address is never exposed to other users.
-            </p>
-          </fieldset>
-        )}
-      </div>
+          ))}
+        </fieldset>
+      )}
 
-      <div className="email-management">
-        <h3>Email Addresses</h3>
+      <fieldset className="profile-card email-management" disabled={!isOnline || isLoading}>
+        <legend>Email addresses</legend>
 
         <div className="email-list">
           {user.emails.map((email) => (
@@ -367,7 +369,7 @@ export function ProfileEditor() {
             {error}
           </div>
         )}
-      </div>
+      </fieldset>
 
       {conflictNickname && conflictEmail && (
         <div className="delete-confirm-overlay">
