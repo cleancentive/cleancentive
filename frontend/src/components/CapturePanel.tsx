@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useAuthStore } from '../stores/authStore'
+import { useConnectivityStore } from '../stores/connectivityStore'
 import { flushOutbox, queueCapture } from '../lib/pendingPicks'
 import { extractImageMetadata } from '../lib/imageMetadata'
 
@@ -110,6 +111,7 @@ function notifyPicksChanged() {
 
 export function CapturePanel() {
   const { user, sessionToken, guestId } = useAuthStore()
+  const { isOnline } = useConnectivityStore()
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -118,7 +120,6 @@ export function CapturePanel() {
   const [isCameraActive, setIsCameraActive] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
   const [isImportingFile, setIsImportingFile] = useState(false)
-  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
   const [location, setLocation] = useState<LocationSnapshot | null>(null)
   const [locationError, setLocationError] = useState<string | null>(null)
   const [captureError, setCaptureError] = useState<string | null>(null)
@@ -128,7 +129,7 @@ export function CapturePanel() {
   const locationAccepted = Boolean(location && (DISABLE_LOCATION_ACCURACY_CHECK || locationWithinAccuracy))
 
   const runSync = useCallback(async () => {
-    if (typeof navigator === 'undefined' || !navigator.onLine || syncInProgressRef.current) {
+    if (!useConnectivityStore.getState().isOnline || syncInProgressRef.current) {
       return
     }
 
@@ -147,33 +148,16 @@ export function CapturePanel() {
     }
   }, [guestId, sessionToken, user?.id])
 
-  useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true)
-      runSync()
-    }
-
-    const handleOffline = () => {
-      setIsOnline(false)
-    }
-
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
-
-    return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
-    }
-  }, [runSync])
-
+  // Sync on mount and when going online
   useEffect(() => {
     runSync()
   }, [runSync])
 
   useEffect(() => {
-    if (!isOnline) {
-      return
-    }
+    if (!isOnline) return
+
+    // Came online — trigger sync immediately
+    runSync()
 
     const interval = window.setInterval(() => {
       runSync()
@@ -389,7 +373,7 @@ export function CapturePanel() {
 
       notifyPicksChanged()
 
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
+      if (isOnline) {
         await runSync()
       }
     } catch (error) {
@@ -432,7 +416,7 @@ export function CapturePanel() {
 
       notifyPicksChanged()
 
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
+      if (isOnline) {
         await runSync()
       }
     } catch (error) {
@@ -459,12 +443,6 @@ export function CapturePanel() {
     <section className="capture-panel">
       <div className="capture-toolbar">
         <h2>Log a Pick</h2>
-        <span className={`capture-status-pill ${isOnline ? 'capture-status-pill--good' : 'capture-status-pill--warning'}`}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M1 10.5a6 6 0 0 1 12 0" /><path d="M3.5 8.5a3.5 3.5 0 0 1 7 0" /><circle cx="7" cy="10.5" r="0.75" fill="currentColor" stroke="none" />
-          </svg>
-          {isOnline ? 'Online' : 'Offline'}
-        </span>
         <span
           className={`capture-status-pill ${locationAccepted ? 'capture-status-pill--good' : 'capture-status-pill--warning'}`}
           onClick={() => setShowLocationDetail(prev => !prev)}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
+import { useConnectivityStore } from '../stores/connectivityStore'
 import { flushOutbox, getOutboxItems, type OutboxItem } from '../lib/pendingPicks'
 import { formatTimestamp } from '../utils/formatTimestamp'
 import { CountdownButton } from './CountdownButton'
@@ -168,6 +169,7 @@ function itemLabel(item: HistoryItem['items'][number]): string {
 
 export function HistoryPanel() {
   const { sessionToken, guestId, user } = useAuthStore()
+  const { isOnline } = useConnectivityStore()
   const [reports, setReports] = useState<HistoryItem[]>([])
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([])
   const [localThumbnails, setLocalThumbnails] = useState<Map<string, string>>(new Map())
@@ -293,6 +295,7 @@ export function HistoryPanel() {
         <CountdownButton
           intervalSeconds={hasInFlight ? 3 : 30}
           isLoading={isLoading}
+          disabled={!isOnline}
           onRefresh={refresh}
         />
       </header>

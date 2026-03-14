@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAdminStore } from '../stores/adminStore'
 import { useAuthStore } from '../stores/authStore'
+import { useConnectivityStore } from '../stores/connectivityStore'
 import { formatTimestamp } from '../utils/formatTimestamp'
 import { CountdownButton } from './CountdownButton'
 
@@ -27,6 +28,7 @@ function formatAge(seconds: number | null) {
 
 export function AdminPanel() {
   const { user } = useAuthStore()
+  const { isOnline } = useConnectivityStore()
   const {
     isAdmin,
     users,
@@ -135,7 +137,7 @@ export function AdminPanel() {
           <CountdownButton
             intervalSeconds={5}
             isLoading={isLoadingOps}
-            disabled={isRetryingFailedSpots}
+            disabled={!isOnline || isRetryingFailedSpots}
             onRefresh={fetchOpsOverview}
           />
         </div>

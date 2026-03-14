@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
+import { useConnectivityStore } from '../stores/connectivityStore'
 
 function HomeIcon() {
   return (
@@ -54,9 +55,26 @@ const navItems: NavItem[] = [
   { to: '/admin', label: 'Admin', icon: <ShieldIcon />, adminOnly: true },
 ]
 
+function WifiIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 5.5a8.5 8.5 0 0 1 12 0" /><path d="M3.5 8a5 5 0 0 1 7 0" /><circle cx="7" cy="10.5" r="0.75" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
+function WifiOffIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 5.5a8.5 8.5 0 0 1 3.2-1.8" /><path d="M9.8 3.7a8.5 8.5 0 0 1 3.2 1.8" /><path d="M3.5 8a5 5 0 0 1 2.5-1.3" /><path d="M8 6.7A5 5 0 0 1 10.5 8" /><circle cx="7" cy="10.5" r="0.75" fill="currentColor" stroke="none" /><line x1="2" y1="2" x2="12" y2="12" />
+    </svg>
+  )
+}
+
 export function AppShell() {
   const { user, guestId, logout } = useAuthStore()
   const { isAdmin, checkAdminStatus } = useAdminStore()
+  const { isOnline, browserOnline, isForceOffline, setForceOffline } = useConnectivityStore()
 
   useEffect(() => {
     if (user) {
@@ -82,6 +100,15 @@ export function AppShell() {
         )}
         {(user || guestId) && (
           <div className="user-menu">
+            <button
+              className={`connectivity-pill ${isOnline ? 'connectivity-pill--online' : 'connectivity-pill--offline'}`}
+              onClick={() => browserOnline && setForceOffline(!isForceOffline)}
+              disabled={!browserOnline}
+              title={!browserOnline ? 'No network connection' : isForceOffline ? 'Click to go online' : 'Click to go offline'}
+            >
+              {isOnline ? <WifiIcon /> : <WifiOffIcon />}
+              {!browserOnline ? 'No network' : isForceOffline ? 'Offline' : 'Online'}
+            </button>
             <span>Welcome, {user?.nickname || 'Guest'}!</span>
             {isAuthenticated && (
               <button onClick={logout} className="logout-button">

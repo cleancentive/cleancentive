@@ -26,6 +26,39 @@
   gap: 1rem;
 }
 
+.connectivity-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  background: none;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.connectivity-pill--online {
+  color: #065f46;
+  background: #d1fae5;
+  border-color: #a7f3d0;
+}
+
+.connectivity-pill--offline {
+  color: #92400e;
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+
+.connectivity-pill:disabled {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fecaca;
+  cursor: default;
+}
+
 .logout-button {
   background: rgba(255,255,255,0.2);
   color: white;
