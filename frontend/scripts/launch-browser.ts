@@ -13,6 +13,8 @@
  *   BROWSER_PROFILE_DIR Persistent Chromium profile directory (default: frontend/.browser-profile)
  *   MINIO_USERNAME    MinIO console username (default: minioadmin)
  *   MINIO_PASSWORD    MinIO console password (default: minioadmin)
+ *   BROWSER_LAT       Geolocation centre latitude (default: 47.5596 — Basel)
+ *   BROWSER_LNG       Geolocation centre longitude (default: 7.5886 — Basel)
  */
 import { chromium, type BrowserContext, type Page } from '@playwright/test';
 import path from 'node:path';
@@ -22,6 +24,19 @@ const PROFILE_DIR = process.env.BROWSER_PROFILE_DIR ?? path.resolve(import.meta.
 const MINIO_URL = 'http://localhost:9001';
 const MINIO_USERNAME = process.env.MINIO_USERNAME ?? 'minioadmin';
 const MINIO_PASSWORD = process.env.MINIO_PASSWORD ?? 'minioadmin';
+
+const BASE_LAT = Number(process.env.BROWSER_LAT ?? 47.5596);
+const BASE_LNG = Number(process.env.BROWSER_LNG ?? 7.5886);
+
+function randomGeoInRadius(lat: number, lng: number, radiusKm: number) {
+  const angle = Math.random() * 2 * Math.PI;
+  const r = radiusKm * Math.sqrt(Math.random());
+  const dLat = (r * Math.cos(angle)) / 111.32;
+  const dLng = (r * Math.sin(angle)) / (111.32 * Math.cos((lat * Math.PI) / 180));
+  return { latitude: lat + dLat, longitude: lng + dLng, accuracy: 10 + Math.random() * 40 };
+}
+
+const mockLocation = randomGeoInRadius(BASE_LAT, BASE_LNG, 5);
 
 const URLS = [
   MINIO_URL,
@@ -63,9 +78,12 @@ async function loginToMinio(page: Page) {
 
 console.log('Launching shared Chromium browser...');
 console.log(`Using browser profile: ${PROFILE_DIR}`);
+console.log(`Mock geolocation:      ${mockLocation.latitude.toFixed(4)}, ${mockLocation.longitude.toFixed(4)} (5km around ${BASE_LAT}, ${BASE_LNG})`);
 
 const context = await chromium.launchPersistentContext(PROFILE_DIR, {
   headless: false,
+  permissions: ['geolocation', 'camera'],
+  geolocation: mockLocation,
   args: [
     `--remote-debugging-port=${CDP_PORT}`,
     '--disable-session-crashed-bubble',
