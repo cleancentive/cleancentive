@@ -62,6 +62,8 @@ export function AdminPanel() {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const [checked, setChecked] = useState(false)
   const [retryBatchSize, setRetryBatchSize] = useState('10')
+  const [countdown, setCountdown] = useState(5)
+  const refreshBtnRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     checkAdminStatus().then(() => setChecked(true))
@@ -79,18 +81,48 @@ export function AdminPanel() {
       return
     }
 
-    const refresh = () => {
+    setCountdown(5)
+
+    const resetCountdown = () => {
+      const btn = refreshBtnRef.current
+      if (btn) {
+        btn.classList.add('ops-refresh-no-transition')
+      }
+      setCountdown(5)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (btn) {
+            btn.classList.remove('ops-refresh-no-transition')
+          }
+        })
+      })
+    }
+
+    const tick = window.setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 0) {
+          if (document.visibilityState === 'visible') {
+            fetchOpsOverview()
+          }
+          resetCountdown()
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         fetchOpsOverview()
+        resetCountdown()
       }
     }
 
-    const interval = window.setInterval(refresh, 5000)
-    document.addEventListener('visibilitychange', refresh)
+    document.addEventListener('visibilitychange', onVisibilityChange)
 
     return () => {
-      window.clearInterval(interval)
-      document.removeEventListener('visibilitychange', refresh)
+      window.clearInterval(tick)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [checked, isAdmin, fetchOpsOverview])
 
@@ -160,9 +192,11 @@ export function AdminPanel() {
             </p>
           </div>
           <button
+            ref={refreshBtnRef}
             type="button"
             className="ops-refresh-button"
-            onClick={() => fetchOpsOverview()}
+            style={{ '--refresh-progress': isLoadingOps ? 0 : (5 - countdown) / 5 } as React.CSSProperties}
+            onClick={() => { fetchOpsOverview(); setCountdown(5) }}
             disabled={isLoadingOps || isRetryingFailedReports}
           >
             {isLoadingOps ? 'Refreshing...' : 'Refresh'}
