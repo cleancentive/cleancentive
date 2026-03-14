@@ -5,6 +5,7 @@ import { Pool, PoolClient } from 'pg';
 import { v7 as uuidv7 } from 'uuid';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { hostname } from 'os';
+import sharp from 'sharp';
 
 interface LitterDetectionJobData {
   spotId: string;
@@ -42,6 +43,7 @@ const queueName = process.env.DETECTION_QUEUE_NAME || 'litter-detection';
 const detectionModel = process.env.DETECTION_MODEL || 'gpt-4o-mini';
 const detectionBaseUrl = process.env.DETECTION_BASE_URL;
 const bucketName = process.env.S3_BUCKET || 'cleancentive-images';
+const detectionMaxImageSize = parseInt(process.env.DETECTION_MAX_IMAGE_SIZE || '1024', 10);
 const workerConcurrency = 2;
 const workerOpsKey = `ops:worker:${queueName}`;
 const workerHeartbeatIntervalMs = 10_000;
@@ -213,6 +215,21 @@ async function fetchImageBytes(imageKey: string): Promise<Uint8Array> {
   return new Uint8Array(Buffer.concat(chunks));
 }
 
+async function resizeForDetection(imageBytes: Uint8Array, maxDimension: number): Promise<Uint8Array> {
+  const image = sharp(imageBytes);
+  const metadata = await image.metadata();
+
+  if (metadata.width && metadata.height &&
+      metadata.width <= maxDimension && metadata.height <= maxDimension) {
+    return imageBytes;
+  }
+
+  return image
+    .resize(maxDimension, maxDimension, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+}
+
 async function detectLitter(imageBytes: Uint8Array, mimeType: string): Promise<DetectionResult> {
   if (!openai) {
     throw new Error('DETECTION_API_KEY is not configured for the worker');
@@ -380,7 +397,8 @@ const litterDetectionWorker = new Worker<LitterDetectionJobData>(
     await markSpotProcessing(spotId, userId);
 
     const imageBytes = await fetchImageBytes(imageKey);
-    const detection = await detectLitter(imageBytes, mimeType);
+    const resizedBytes = await resizeForDetection(imageBytes, detectionMaxImageSize);
+    const detection = await detectLitter(resizedBytes, 'image/jpeg');
     await persistDetection(spotId, userId, detection, detectionModel);
 
     return {
