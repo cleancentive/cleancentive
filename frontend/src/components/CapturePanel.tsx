@@ -169,18 +169,18 @@ export function CapturePanel() {
   }, [isOnline, runSync])
 
   useEffect(() => {
-    if (typeof navigator === 'undefined') {
-      return
-    }
-
+    if (typeof navigator === 'undefined') return
     if (!navigator.geolocation) {
       setLocationError('Geolocation is not supported in this browser.')
       return
     }
 
-    let watchId: number
+    let watchId: number | undefined
+    let cancelled = false
+    let permissionStatus: PermissionStatus | null = null
 
     const startWatch = () => {
+      if (cancelled) return
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           setLocation({
@@ -194,25 +194,23 @@ export function CapturePanel() {
         (error) => {
           setLocationError(error.message)
         },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 30000,
-          timeout: 30000,
-        },
+        { enableHighAccuracy: true, maximumAge: 30000, timeout: 30000 },
       )
     }
 
     if (navigator.permissions) {
       navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        if (cancelled) return
         if (result.state === 'denied') {
           setLocationError('Location access was denied. Enable it in your browser site settings.')
           return
         }
         startWatch()
+        permissionStatus = result
         result.onchange = () => {
           if (result.state === 'denied') {
             setLocationError('Location access was denied. Enable it in your browser site settings.')
-            navigator.geolocation.clearWatch(watchId)
+            if (watchId !== undefined) navigator.geolocation.clearWatch(watchId)
           }
         }
       })
@@ -221,9 +219,9 @@ export function CapturePanel() {
     }
 
     return () => {
-      if (watchId !== undefined) {
-        navigator.geolocation.clearWatch(watchId)
-      }
+      cancelled = true
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId)
+      if (permissionStatus) permissionStatus.onchange = null
     }
   }, [])
 
