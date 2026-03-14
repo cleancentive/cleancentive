@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
-import { getOutboxItems, type OutboxItem } from '../lib/pendingPicks'
+import { flushOutbox, getOutboxItems, type OutboxItem } from '../lib/pendingPicks'
 import { formatTimestamp } from '../utils/formatTimestamp'
+import { CountdownButton } from './CountdownButton'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'
 
@@ -28,6 +29,130 @@ type Row =
   | { kind: 'local'; item: OutboxItem }
   | { kind: 'server'; item: HistoryItem }
 
+type StageStatus = 'not-reached' | 'in-progress' | 'success' | 'failed'
+
+interface StageState {
+  label: string
+  status: StageStatus
+}
+
+function mapRowToStages(row: Row): { stages: [StageState, StageState, StageState]; errorMessage: string | null } {
+  if (row.kind === 'local') {
+    const s = row.item.status
+    return {
+      stages: [
+        { label: 'Local', status: s === 'failed' ? 'failed' : 'in-progress' },
+        { label: 'Synced', status: 'not-reached' },
+        { label: 'Detected', status: 'not-reached' },
+      ],
+      errorMessage: s === 'failed' ? row.item.lastError : null,
+    }
+  }
+
+  const s = row.item.status
+  if (s === 'completed') {
+    return {
+      stages: [
+        { label: 'Local', status: 'success' },
+        { label: 'Synced', status: 'success' },
+        { label: 'Detected', status: 'success' },
+      ],
+      errorMessage: null,
+    }
+  }
+  if (s === 'failed') {
+    return {
+      stages: [
+        { label: 'Local', status: 'success' },
+        { label: 'Synced', status: 'success' },
+        { label: 'Detected', status: 'failed' },
+      ],
+      errorMessage: row.item.processingError,
+    }
+  }
+  // queued or processing
+  return {
+    stages: [
+      { label: 'Local', status: 'success' },
+      { label: 'Synced', status: 'success' },
+      { label: 'Detected', status: 'in-progress' },
+    ],
+    errorMessage: null,
+  }
+}
+
+function CheckIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="2.5 6.5 5 9 9.5 3.5" />
+    </svg>
+  )
+}
+
+function SpinnerIcon() {
+  return (
+    <svg className="lifecycle-stepper-spin" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <path d="M6 1a5 5 0 0 1 5 5" />
+    </svg>
+  )
+}
+
+function ErrorIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="3" y1="3" x2="9" y2="9" />
+      <line x1="9" y1="3" x2="3" y2="9" />
+    </svg>
+  )
+}
+
+function DotIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 12 12">
+      <circle cx="6" cy="6" r="2.5" fill="currentColor" />
+    </svg>
+  )
+}
+
+function stageIcon(status: StageStatus) {
+  if (status === 'success') return <CheckIcon />
+  if (status === 'in-progress') return <SpinnerIcon />
+  if (status === 'failed') return <ErrorIcon />
+  return <DotIcon />
+}
+
+function LifecycleStepper({ stages, errorMessage, onRetry }: {
+  stages: [StageState, StageState, StageState]
+  errorMessage: string | null
+  onRetry: (() => void) | null
+}) {
+  return (
+    <div className="lifecycle-stepper">
+      <div className="lifecycle-stepper-row">
+        {stages.map((stage, i) => (
+          <div key={stage.label} className="lifecycle-stepper-segment">
+            {i > 0 && (
+              <div className={`lifecycle-stepper-line${stage.status !== 'not-reached' ? ' lifecycle-stepper-line--done' : ''}`} />
+            )}
+            <div className="lifecycle-stepper-stage">
+              <div className={`lifecycle-stepper-circle lifecycle-stepper-circle--${stage.status}`}>
+                {stageIcon(stage.status)}
+              </div>
+              <span className="lifecycle-stepper-label">{stage.label}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+      {errorMessage && <p className="history-error">{errorMessage}</p>}
+      {onRetry && (
+        <button className="secondary-button history-retry-button" onClick={onRetry}>
+          Retry
+        </button>
+      )}
+    </div>
+  )
+}
+
 function formatDateTime(value: string): string {
   return formatTimestamp(value)
 }
@@ -36,51 +161,19 @@ function formatCoordinate(value: number): string {
   return value.toFixed(5)
 }
 
-function serverStatusLabel(status: string): string {
-  if (status === 'completed') return 'Complete'
-  if (status === 'processing') return 'Detecting litter...'
-  if (status === 'queued') return 'Waiting for detection'
-  if (status === 'failed') return 'Detection failed'
-  return status
-}
-
-function serverStatusClass(status: string): string {
-  if (status === 'completed') return 'history-status-completed'
-  if (status === 'processing') return 'history-status-processing'
-  if (status === 'queued') return 'history-status-queued'
-  if (status === 'failed') return 'history-status-failed'
-  return 'history-status-queued'
-}
-
-function localStatusLabel(status: OutboxItem['status']): string {
-  if (status === 'pending') return 'Waiting to sync'
-  if (status === 'uploading') return 'Syncing\u2026'
-  if (status === 'failed') return 'Sync failed'
-  return status
-}
-
-function localStatusClass(status: OutboxItem['status']): string {
-  if (status === 'pending') return 'history-status-queued'
-  if (status === 'uploading') return 'history-status-processing'
-  if (status === 'failed') return 'history-status-failed'
-  return 'history-status-queued'
-}
-
 function itemLabel(item: HistoryItem['items'][number]): string {
   const parts = [item.category, item.material, item.brand].filter(Boolean)
   return parts.length > 0 ? parts.join(' / ') : 'Unspecified item'
 }
 
-type StatusFilter = 'all' | 'outbox' | 'processing' | 'completed' | 'failed'
-
 export function HistoryPanel() {
-  const { sessionToken, guestId } = useAuthStore()
+  const { sessionToken, guestId, user } = useAuthStore()
   const [reports, setReports] = useState<HistoryItem[]>([])
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([])
   const [localThumbnails, setLocalThumbnails] = useState<Map<string, string>>(new Map())
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<StatusFilter>('all')
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
 
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams({ limit: '50' })
@@ -115,7 +208,7 @@ export function HistoryPanel() {
       const payload = (await response.json()) as { spots?: HistoryItem[] }
       setReports(payload.spots || [])
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : 'Failed to load upload history'
+      const message = loadError instanceof Error ? loadError.message : 'Failed to load pick history'
       setError(message)
     } finally {
       setIsLoading(false)
@@ -127,7 +220,7 @@ export function HistoryPanel() {
     setOutboxItems(all)
   }, [])
 
-  const retryReport = useCallback(async (id: string) => {
+  const retryDetection = useCallback(async (id: string) => {
     const headers: Record<string, string> = {}
     if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
 
@@ -137,6 +230,16 @@ export function HistoryPanel() {
     await fetch(`${API_BASE}/spots/${id}/retry?${params.toString()}`, { method: 'POST', headers })
     void loadHistory()
   }, [sessionToken, guestId, loadHistory])
+
+  const retrySync = useCallback(async () => {
+    await flushOutbox({
+      apiBase: API_BASE,
+      sessionToken,
+      currentUserId: user?.id ?? null,
+      currentGuestId: guestId ?? null,
+    })
+    void loadOutbox()
+  }, [sessionToken, user, guestId, loadOutbox])
 
   useEffect(() => {
     const urls = new Map<string, string>()
@@ -149,21 +252,20 @@ export function HistoryPanel() {
     return () => { for (const url of urls.values()) URL.revokeObjectURL(url) }
   }, [outboxItems])
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     void loadHistory()
     void loadOutbox()
   }, [loadHistory, loadOutbox])
 
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      void loadHistory()
-      void loadOutbox()
-    }, 15000)
+    refresh()
+  }, [refresh])
 
-    return () => {
-      window.clearInterval(interval)
-    }
-  }, [loadHistory, loadOutbox])
+  useEffect(() => {
+    const onPicksChanged = () => refresh()
+    window.addEventListener('picks-changed', onPicksChanged)
+    return () => window.removeEventListener('picks-changed', onPicksChanged)
+  }, [refresh])
 
   const rows = useMemo((): Row[] => {
     const serverIds = new Set(reports.map(r => r.id))
@@ -179,140 +281,102 @@ export function HistoryPanel() {
     })
   }, [reports, outboxItems])
 
-  const filteredRows = useMemo(() => {
-    if (filter === 'all') return rows
-    return rows.filter((row) => {
-      if (filter === 'outbox') return row.kind === 'local'
-      if (filter === 'processing') return row.kind === 'server' && (row.item.status === 'queued' || row.item.status === 'processing')
-      if (filter === 'completed') return row.kind === 'server' && row.item.status === 'completed'
-      if (filter === 'failed') return (row.kind === 'server' && row.item.status === 'failed') || (row.kind === 'local' && row.item.status === 'failed')
-      return true
-    })
-  }, [rows, filter])
-
-  const filterCounts = useMemo(() => ({
-    all: rows.length,
-    outbox: rows.filter(r => r.kind === 'local').length,
-    processing: rows.filter(r => r.kind === 'server' && (r.item.status === 'queued' || r.item.status === 'processing')).length,
-    completed: rows.filter(r => r.kind === 'server' && r.item.status === 'completed').length,
-    failed: rows.filter(r => (r.kind === 'server' && r.item.status === 'failed') || (r.kind === 'local' && r.item.status === 'failed')).length,
+  const hasInFlight = useMemo(() => rows.some((row) => {
+    if (row.kind === 'local') return row.item.status === 'pending' || row.item.status === 'uploading'
+    return row.item.status === 'queued' || row.item.status === 'processing'
   }), [rows])
 
   return (
     <section className="history-panel">
       <header className="history-header">
         <h2>My Picks</h2>
-        <button
-          className="secondary-button"
-          onClick={() => { void loadHistory(); void loadOutbox() }}
-          disabled={isLoading}
-        >
-          {isLoading ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <CountdownButton
+          intervalSeconds={hasInFlight ? 3 : 30}
+          isLoading={isLoading}
+          onRefresh={refresh}
+        />
       </header>
 
       {error && <p className="error-message">{error}</p>}
 
-      <div className="history-filters">
-        {(['all', 'outbox', 'processing', 'completed', 'failed'] as const).map((key) => (
-          <button
-            key={key}
-            className={filter === key ? 'primary-button' : 'secondary-button'}
-            onClick={() => setFilter(key)}
-          >
-            {key.charAt(0).toUpperCase() + key.slice(1)} ({filterCounts[key]})
-          </button>
-        ))}
-      </div>
-
-      {!isLoading && filteredRows.length === 0 && (
+      {!isLoading && rows.length === 0 && (
         <p className="history-empty">
-          {rows.length === 0
-            ? 'No picks yet. Take or import a photo to log your first pick.'
-            : 'No items match this filter.'}
+          No picks yet. Take or import a photo to log your first pick.
         </p>
       )}
 
-      {filteredRows.length > 0 && (
+      {rows.length > 0 && (
         <ul className="history-list">
-          {filteredRows.map((row) => {
-            if (row.kind === 'local') {
-              const { item } = row
-              return (
-                <li key={item.id} className="history-card">
-                  <div className="history-card-header">
-                    <strong className={`history-status ${localStatusClass(item.status)}`}>
-                      {localStatusLabel(item.status)}
-                    </strong>
-                    <span>{formatDateTime(item.capturedAt)}</span>
-                    {localThumbnails.get(item.id) && (
-                      <img className="history-thumb" src={localThumbnails.get(item.id)} alt="" />
+          {rows.map((row) => {
+            const { stages, errorMessage } = mapRowToStages(row)
+            const isFailed = stages.some(s => s.status === 'failed')
+            const onRetry = isFailed
+              ? row.kind === 'local'
+                ? () => { void retrySync() }
+                : () => { void retryDetection(row.item.id) }
+              : null
+
+            const thumbSrc = row.kind === 'local'
+              ? localThumbnails.get(row.item.id) ?? null
+              : `${API_BASE}/spots/${row.item.id}/thumbnail`
+
+            const thumbnail = thumbSrc
+              ? <img
+                  className="history-thumb"
+                  src={thumbSrc}
+                  alt=""
+                  onClick={() => setLightboxSrc(thumbSrc)}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              : null
+
+            const serverItem = row.kind === 'server' ? row.item : null
+
+            return (
+              <li key={row.item.id} className="history-card">
+                <div className="history-card-body">
+                  <div className="history-card-info">
+                    <span className="history-timestamp">{formatDateTime(row.item.capturedAt)}</span>
+
+                    <LifecycleStepper stages={stages} errorMessage={errorMessage} onRetry={onRetry} />
+
+                    <p className="history-meta">
+                      {formatCoordinate(row.item.latitude)}, {formatCoordinate(row.item.longitude)} | accuracy {Math.round(row.item.accuracyMeters)}m
+                    </p>
+
+                    {row.kind === 'local' && row.item.attempts > 0 && (
+                      <p className="history-meta">Attempt {row.item.attempts}</p>
+                    )}
+
+                    {serverItem?.status === 'completed' && serverItem.items.length === 0 && (
+                      <p className="history-meta">No detectable litter items were found.</p>
+                    )}
+
+                    {serverItem && serverItem.items.length > 0 && (
+                      <ul className="history-items">
+                        {serverItem.items.map((detected) => (
+                          <li key={detected.id} className="history-item-row">
+                            <span>{itemLabel(detected)}</span>
+                            <span>
+                              {detected.confidence !== null ? `${Math.round(detected.confidence * 100)}%` : 'n/a'}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
-
-                  <p className="history-meta">
-                    {formatCoordinate(item.latitude)}, {formatCoordinate(item.longitude)} | accuracy {Math.round(item.accuracyMeters)}m
-                  </p>
-
-                  {item.lastError && <p className="history-error">{item.lastError}</p>}
-                  {item.attempts > 0 && (
-                    <p className="history-meta">Attempt {item.attempts}</p>
-                  )}
-                </li>
-              )
-            }
-
-            const { item } = row
-            return (
-              <li key={item.id} className="history-card">
-                <div className="history-card-header">
-                  <strong className={`history-status ${serverStatusClass(item.status)}`}>
-                    {serverStatusLabel(item.status)}
-                  </strong>
-                  <span>{formatDateTime(item.capturedAt)}</span>
-                  <img
-                    className="history-thumb"
-                    src={`${API_BASE}/spots/${item.id}/thumbnail`}
-                    alt=""
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
-                  />
+                  {thumbnail}
                 </div>
-
-                <p className="history-meta">
-                  {formatCoordinate(item.latitude)}, {formatCoordinate(item.longitude)} | accuracy {Math.round(item.accuracyMeters)}m
-                </p>
-
-                {item.processingError && <p className="history-error">{item.processingError}</p>}
-
-                {item.status === 'failed' && (
-                  <button
-                    className="secondary-button history-retry-button"
-                    onClick={() => { void retryReport(item.id) }}
-                  >
-                    Retry detection
-                  </button>
-                )}
-
-                {item.status === 'completed' && item.items.length === 0 && (
-                  <p className="history-meta">No detectable litter items were found.</p>
-                )}
-
-                {item.items.length > 0 && (
-                  <ul className="history-items">
-                    {item.items.map((detected) => (
-                      <li key={detected.id} className="history-item-row">
-                        <span>{itemLabel(detected)}</span>
-                        <span>
-                          {detected.confidence !== null ? `${Math.round(detected.confidence * 100)}%` : 'n/a'}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </li>
             )
           })}
         </ul>
+      )}
+
+      {lightboxSrc && (
+        <div className="lightbox-overlay" onClick={() => setLightboxSrc(null)}>
+          <img className="lightbox-image" src={lightboxSrc} alt="" />
+        </div>
       )}
     </section>
   )

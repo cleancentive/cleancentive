@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useAuthStore } from '../stores/authStore'
-import { flushOutbox, getOutboxItems, queueCapture, type OutboxItem } from '../lib/pendingPicks'
+import { flushOutbox, queueCapture } from '../lib/pendingPicks'
 import { extractImageMetadata } from '../lib/imageMetadata'
-import { formatTimestamp } from '../utils/formatTimestamp'
 
 const DEFAULT_MAX_LOCATION_ACCURACY_METERS = import.meta.env.DEV ? 5000 : 200
 const MAX_LOCATION_ACCURACY_METERS = Number(
@@ -105,8 +104,8 @@ async function createThumbnailFromBlob(blob: Blob): Promise<Blob> {
   return createThumbnail(sourceCanvas)
 }
 
-function formatTime(timestamp: number): string {
-  return formatTimestamp(timestamp)
+function notifyPicksChanged() {
+  window.dispatchEvent(new Event('picks-changed'))
 }
 
 export function CapturePanel() {
@@ -123,16 +122,9 @@ export function CapturePanel() {
   const [location, setLocation] = useState<LocationSnapshot | null>(null)
   const [locationError, setLocationError] = useState<string | null>(null)
   const [captureError, setCaptureError] = useState<string | null>(null)
-  const [lastCapturePreviewUrl, setLastCapturePreviewUrl] = useState<string | null>(null)
-  const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([])
 
   const locationWithinAccuracy = Boolean(location && location.accuracy <= MAX_LOCATION_ACCURACY_METERS)
   const locationAccepted = Boolean(location && (DISABLE_LOCATION_ACCURACY_CHECK || locationWithinAccuracy))
-
-  const refreshOutbox = useCallback(async () => {
-    const items = await getOutboxItems()
-    setOutboxItems(items)
-  }, [])
 
   const runSync = useCallback(async () => {
     if (typeof navigator === 'undefined' || !navigator.onLine || syncInProgressRef.current) {
@@ -148,15 +140,11 @@ export function CapturePanel() {
         currentUserId: user?.id || null,
         currentGuestId: guestId,
       })
-      await refreshOutbox()
+      notifyPicksChanged()
     } finally {
       syncInProgressRef.current = false
     }
-  }, [guestId, refreshOutbox, sessionToken, user?.id])
-
-  useEffect(() => {
-    refreshOutbox()
-  }, [refreshOutbox])
+  }, [guestId, sessionToken, user?.id])
 
   useEffect(() => {
     const handleOnline = () => {
@@ -253,14 +241,6 @@ export function CapturePanel() {
       }
     }
   }, [])
-
-  useEffect(() => {
-    return () => {
-      if (lastCapturePreviewUrl) {
-        URL.revokeObjectURL(lastCapturePreviewUrl)
-      }
-    }
-  }, [lastCapturePreviewUrl])
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -394,7 +374,7 @@ export function CapturePanel() {
       const imageBlob = await createBlobFromCanvas(canvas, 'image/jpeg', 0.9)
       const thumbnailBlob = await createThumbnail(canvas)
 
-      const queued = await queueCapture({
+      await queueCapture({
         ownerUserId: user?.id || null,
         ownerGuestId: guestId,
         capturedAt: new Date().toISOString(),
@@ -406,15 +386,7 @@ export function CapturePanel() {
         thumbnailBlob,
       })
 
-      await refreshOutbox()
-
-      if (lastCapturePreviewUrl) {
-        URL.revokeObjectURL(lastCapturePreviewUrl)
-      }
-
-      if (queued.thumbnailBlob) {
-        setLastCapturePreviewUrl(URL.createObjectURL(queued.thumbnailBlob))
-      }
+      notifyPicksChanged()
 
       if (typeof navigator !== 'undefined' && navigator.onLine) {
         await runSync()
@@ -445,7 +417,7 @@ export function CapturePanel() {
       const imageBlob = file
       const thumbnailBlob = await createThumbnailFromBlob(file)
 
-      const queued = await queueCapture({
+      await queueCapture({
         ownerUserId: user?.id || null,
         ownerGuestId: guestId,
         capturedAt,
@@ -457,15 +429,7 @@ export function CapturePanel() {
         thumbnailBlob,
       })
 
-      await refreshOutbox()
-
-      if (lastCapturePreviewUrl) {
-        URL.revokeObjectURL(lastCapturePreviewUrl)
-      }
-
-      if (queued.thumbnailBlob) {
-        setLastCapturePreviewUrl(URL.createObjectURL(queued.thumbnailBlob))
-      }
+      notifyPicksChanged()
 
       if (typeof navigator !== 'undefined' && navigator.onLine) {
         await runSync()
@@ -490,10 +454,6 @@ export function CapturePanel() {
     await queueImportedFile(selectedFile)
   }
 
-  const pendingCount = outboxItems.filter((item) => item.status === 'pending').length
-  const failedCount = outboxItems.filter((item) => item.status === 'failed').length
-  const uploadingCount = outboxItems.filter((item) => item.status === 'uploading').length
-
   return (
     <section className="capture-panel">
       <header className="capture-header">
@@ -517,10 +477,6 @@ export function CapturePanel() {
                   : `Not accurate enough (${Math.round(location.accuracy)}m > ${Math.round(MAX_LOCATION_ACCURACY_METERS)}m)`
               : 'Waiting for location'}
           </strong>
-        </div>
-        <div className="status-card">
-          <span className="status-label">Pending</span>
-          <strong>{outboxItems.length} queued</strong>
         </div>
       </div>
 
@@ -562,33 +518,6 @@ export function CapturePanel() {
         )}
         <canvas ref={captureCanvasRef} className="capture-canvas" />
       </div>
-
-      {lastCapturePreviewUrl && (
-        <div className="last-capture">
-          <h3>Latest Offline Thumbnail</h3>
-          <img src={lastCapturePreviewUrl} alt="Latest capture thumbnail" />
-        </div>
-      )}
-
-      <div className="outbox-summary">
-        <span>Pending: {pendingCount}</span>
-        <span>Uploading: {uploadingCount}</span>
-        <span>Failed: {failedCount}</span>
-      </div>
-
-      {outboxItems.length > 0 && (
-        <ul className="outbox-list">
-          {outboxItems.slice(-8).reverse().map((item) => (
-            <li key={item.id} className="outbox-item">
-              <div>
-                <strong>{item.status}</strong>
-                <p>{formatTime(item.createdAt)} - {item.attempts} attempt{item.attempts === 1 ? '' : 's'}</p>
-              </div>
-              {item.lastError && <p className="outbox-error">{item.lastError}</p>}
-            </li>
-          ))}
-        </ul>
-      )}
 
       {locationError && <p className="error-message">Location error: {locationError}</p>}
       {captureError && <p className="error-message">{captureError}</p>}

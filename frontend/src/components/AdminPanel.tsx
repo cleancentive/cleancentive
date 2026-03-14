@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { useAdminStore } from '../stores/adminStore'
 import { useAuthStore } from '../stores/authStore'
 import { formatTimestamp } from '../utils/formatTimestamp'
+import { CountdownButton } from './CountdownButton'
 
 function formatAge(seconds: number | null) {
   if (seconds === null) {
@@ -55,8 +56,6 @@ export function AdminPanel() {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const [checked, setChecked] = useState(false)
   const [retryBatchSize, setRetryBatchSize] = useState('10')
-  const [countdown, setCountdown] = useState(5)
-  const refreshBtnRef = useRef<HTMLButtonElement | null>(null)
 
   useEffect(() => {
     checkAdminStatus().then(() => setChecked(true))
@@ -69,55 +68,6 @@ export function AdminPanel() {
     }
   }, [checked, isAdmin, fetchUsers, fetchOpsOverview])
 
-  useEffect(() => {
-    if (!checked || !isAdmin) {
-      return
-    }
-
-    setCountdown(5)
-
-    const resetCountdown = () => {
-      const btn = refreshBtnRef.current
-      if (btn) {
-        btn.classList.add('ops-refresh-no-transition')
-      }
-      setCountdown(5)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (btn) {
-            btn.classList.remove('ops-refresh-no-transition')
-          }
-        })
-      })
-    }
-
-    const tick = window.setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 0) {
-          if (document.visibilityState === 'visible') {
-            fetchOpsOverview()
-          }
-          resetCountdown()
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        fetchOpsOverview()
-        resetCountdown()
-      }
-    }
-
-    document.addEventListener('visibilitychange', onVisibilityChange)
-
-    return () => {
-      window.clearInterval(tick)
-      document.removeEventListener('visibilitychange', onVisibilityChange)
-    }
-  }, [checked, isAdmin, fetchOpsOverview])
 
   // Debounced search
   const handleSearchChange = (value: string) => {
@@ -182,16 +132,12 @@ export function AdminPanel() {
                 : 'Live processing status for admins'}
             </p>
           </div>
-          <button
-            ref={refreshBtnRef}
-            type="button"
-            className="ops-refresh-button"
-            style={{ '--refresh-progress': isLoadingOps ? 0 : (5 - countdown) / 5 } as React.CSSProperties}
-            onClick={() => { fetchOpsOverview(); setCountdown(5) }}
-            disabled={isLoadingOps || isRetryingFailedSpots}
-          >
-            {isLoadingOps ? 'Refreshing...' : 'Refresh'}
-          </button>
+          <CountdownButton
+            intervalSeconds={5}
+            isLoading={isLoadingOps}
+            disabled={isRetryingFailedSpots}
+            onRefresh={fetchOpsOverview}
+          />
         </div>
 
         {(opsOverview?.spots.counts.failed ?? 0) > 0 && (
