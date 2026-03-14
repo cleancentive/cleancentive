@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
+import { Avatar } from './Avatar'
 
 function HomeIcon() {
   return (
@@ -109,6 +110,14 @@ export function AppShell() {
               {isOnline ? <WifiIcon /> : <WifiOffIcon />}
               {!browserOnline ? 'No network' : isForceOffline ? 'Offline' : 'Online'}
             </button>
+            {user && (
+              <Avatar
+                userId={user.id}
+                avatarEmailId={user.avatar_email_id}
+                nickname={user.nickname}
+                size={32}
+              />
+            )}
             <span>Welcome, {user?.nickname || 'Guest'}!</span>
             {isAuthenticated && (
               <button onClick={logout} className="logout-button">

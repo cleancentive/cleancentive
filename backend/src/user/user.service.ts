@@ -1,8 +1,14 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { createHash } from 'node:crypto';
+import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
+import { join } from 'node:path';
 import { User } from './user.entity';
 import { UserEmail } from './user-email.entity';
+
+const AVATAR_CACHE_DIR = join(process.env.AVATAR_CACHE_DIR || '/tmp', 'avatar-cache');
+const AVATAR_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 @Injectable()
 export class UserService {
@@ -415,6 +421,7 @@ export class UserService {
     // Reset to guest state
     user.nickname = 'guest';
     user.full_name = null;
+    user.avatar_email_id = null;
     user.active_team_id = null;
     user.active_cleanup_date_id = null;
     user.updated_by = null;
@@ -449,5 +456,77 @@ export class UserService {
     user.updated_by = userId;
 
     return this.userRepository.save(user);
+  }
+
+  async updateAvatarEmail(userId: string, emailId: string | null): Promise<User> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (emailId !== null) {
+      const email = await this.userEmailRepository.findOne({
+        where: { id: emailId, user_id: userId },
+      });
+      if (!email) {
+        throw new BadRequestException('Email not found on your account');
+      }
+    }
+
+    user.avatar_email_id = emailId;
+    user.updated_by = userId;
+    return this.userRepository.save(user);
+  }
+
+  async getAvatarImage(userId: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+    const user = await this.findById(userId);
+    if (!user || !user.avatar_email_id) {
+      return null;
+    }
+
+    const email = user.emails?.find(e => e.id === user.avatar_email_id);
+    if (!email) {
+      return null;
+    }
+
+    const hash = createHash('md5').update(email.email.trim().toLowerCase()).digest('hex');
+    const cachePath = join(AVATAR_CACHE_DIR, `${hash}.jpg`);
+
+    // Check cache
+    try {
+      const fileStat = await stat(cachePath);
+      if (Date.now() - fileStat.mtimeMs < AVATAR_CACHE_TTL_MS) {
+        const buffer = await readFile(cachePath);
+        return { buffer, contentType: 'image/jpeg' };
+      }
+    } catch {
+      // Cache miss — continue to fetch
+    }
+
+    // Fetch from Gravatar
+    try {
+      const response = await fetch(
+        `https://www.gravatar.com/avatar/${hash}?s=200&d=404`,
+      );
+      if (!response.ok) {
+        return null;
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+
+      // Cache to disk
+      try {
+        await mkdir(AVATAR_CACHE_DIR, { recursive: true });
+        await writeFile(cachePath, buffer);
+      } catch {
+        // Cache write failure is non-fatal
+      }
+
+      return { buffer, contentType };
+    } catch {
+      return null;
+    }
   }
 }

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { LoginForm } from './LoginForm'
+import { Avatar } from './Avatar'
 
 export function GuestBanner() {
   const { user, guestId } = useAuthStore()
@@ -13,7 +14,7 @@ export function GuestBanner() {
     <div className="guest-banner">
       <div className="guest-banner-content">
         <div className="guest-info">
-          <span className="guest-icon">👤</span>
+          <Avatar userId={guestId} nickname="Guest" size={32} />
           <div className="guest-text">
             <p><strong>You're browsing as a guest</strong></p>
             <p>Sign in to save your progress and access all features</p>

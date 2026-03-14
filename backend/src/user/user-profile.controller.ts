@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Delete, Body, UseGuards, Request, Param, Query, BadRequestException, ParseUUIDPipe } from '@nestjs/common';
+import { Controller, Get, Put, Delete, Body, UseGuards, Request, Param, Query, BadRequestException, ParseUUIDPipe, HttpCode } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserService } from './user.service';
@@ -46,6 +46,15 @@ export class UserProfileController {
       throw new BadRequestException('At least one email must be selected for login');
     }
     return this.userService.updateEmailSelection(req.user.userId, emailIds);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('profile/avatar')
+  async updateAvatarEmail(
+    @Request() req: any,
+    @Body('emailId') emailId: string | null,
+  ): Promise<User> {
+    return this.userService.updateAvatarEmail(req.user.userId, emailId ?? null);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
+import { Avatar } from './Avatar'
 
 export function ProfileEditor() {
   const { isOnline } = useConnectivityStore()
   const {
     user, logout, updateProfile, addEmail, confirmMerge, removeEmail,
-    updateEmailSelection, deleteAccount, anonymizeAccount,
+    updateEmailSelection, updateAvatarEmail, deleteAccount, anonymizeAccount,
     isLoading, error, clearError
   } = useAuthStore()
 
@@ -207,6 +208,46 @@ export function ProfileEditor() {
           </button>
         </div>
       )}
+
+      <div className="avatar-settings">
+        <h3>Avatar</h3>
+        <div className="avatar-preview">
+          <Avatar
+            userId={user.id}
+            avatarEmailId={user.avatar_email_id}
+            nickname={user.nickname}
+            size={80}
+          />
+        </div>
+        {user.emails.length > 0 && (
+          <fieldset className="avatar-email-picker" disabled={!isOnline || isLoading}>
+            <legend>Gravatar email</legend>
+            <label className="avatar-radio">
+              <input
+                type="radio"
+                name="avatarEmail"
+                checked={!user.avatar_email_id}
+                onChange={() => updateAvatarEmail(null)}
+              />
+              <span>No Gravatar</span>
+            </label>
+            {user.emails.map((email) => (
+              <label key={email.id} className="avatar-radio">
+                <input
+                  type="radio"
+                  name="avatarEmail"
+                  checked={user.avatar_email_id === email.id}
+                  onChange={() => updateAvatarEmail(email.id)}
+                />
+                <span>{email.email}</span>
+              </label>
+            ))}
+            <p className="avatar-hint">
+              Your avatar is loaded from Gravatar. The email address is never exposed to other users.
+            </p>
+          </fieldset>
+        )}
+      </div>
 
       <div className="email-management">
         <h3>Email Addresses</h3>

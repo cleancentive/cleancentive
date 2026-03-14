@@ -18,6 +18,9 @@ export class User extends BaseEntity {
   @Column('uuid', { nullable: true })
   active_cleanup_date_id: string | null;
 
+  @Column('uuid', { nullable: true })
+  avatar_email_id: string | null;
+
   @OneToMany('UserEmail', (email: any) => email.user)
   emails: any[];
 }

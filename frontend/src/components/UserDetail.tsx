@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { formatTimestamp } from '../utils/formatTimestamp'
 import axios from 'axios'
+import { Avatar } from './Avatar'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
@@ -18,6 +19,7 @@ interface UserData {
   id: string
   nickname: string
   full_name?: string
+  avatar_email_id?: string | null
   last_login?: string
   created_at: string
   updated_at: string
@@ -85,6 +87,7 @@ export function UserDetail() {
   return (
     <div className="user-detail">
       <div className="user-info-section">
+        <Avatar userId={user.id} avatarEmailId={user.avatar_email_id} nickname={user.nickname} size={64} />
         <h2>
           {user.nickname}
           {user.is_admin && <span className="badge admin-badge">Admin</span>}

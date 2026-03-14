@@ -13,6 +13,7 @@ interface User {
   id: string
   nickname: string
   full_name?: string
+  avatar_email_id?: string | null
   emails: UserEmail[]
 }
 
@@ -35,6 +36,7 @@ interface AuthState {
   confirmMerge: (email: string) => Promise<boolean>
   removeEmail: (emailId: string) => Promise<void>
   updateEmailSelection: (emailIds: string[]) => Promise<void>
+  updateAvatarEmail: (emailId: string | null) => Promise<void>
   deleteAccount: () => Promise<void>
   anonymizeAccount: () => Promise<void>
   recoverAccount: (email: string) => Promise<void>
@@ -296,6 +298,20 @@ export const useAuthStore = create<AuthState>()(
             error: error.response?.data?.message || 'Failed to update email selection',
             isLoading: false
           })
+        }
+      },
+
+      updateAvatarEmail: async (emailId: string | null) => {
+        const { sessionToken } = get()
+        if (!sessionToken) return
+
+        try {
+          const response = await axios.put(`${API_BASE}/user/profile/avatar`, { emailId }, {
+            headers: { Authorization: `Bearer ${sessionToken}` }
+          })
+          set({ user: response.data })
+        } catch {
+          // Silent fail
         }
       },
 

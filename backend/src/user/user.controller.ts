@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, Put, ParseUUIDPipe, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Put, Res, ParseUUIDPipe, NotFoundException } from '@nestjs/common';
 import { UserService } from './user.service';
 import { User } from './user.entity';
 
@@ -9,6 +9,21 @@ export class UserController {
   @Post('guest')
   async createGuest(): Promise<User> {
     return this.userService.createGuestAccount();
+  }
+
+  @Get(':id/avatar')
+  async getAvatar(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: any,
+  ): Promise<void> {
+    const result = await this.userService.getAvatarImage(id);
+    if (!result) {
+      res.status(404).end();
+      return;
+    }
+    res.set('Content-Type', result.contentType);
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(result.buffer);
   }
 
   @Get(':id')

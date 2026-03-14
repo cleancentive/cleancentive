@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { formatTimestamp } from '../utils/formatTimestamp'
 import { CountdownButton } from './CountdownButton'
+import { Avatar } from './Avatar'
 
 function formatAge(seconds: number | null) {
   if (seconds === null) {
@@ -267,6 +268,7 @@ export function AdminPanel() {
         <div className="user-list">
           {users.map((u) => (
             <Link key={u.id} to={`/admin/users/${u.id}`} className="user-card">
+              <Avatar userId={u.id} avatarEmailId={u.avatar_email_id} nickname={u.nickname} size={36} />
               <div className="user-info">
                 <h3>
                   {u.nickname}

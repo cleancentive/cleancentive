@@ -12,6 +12,7 @@ interface AdminUser {
   id: string
   nickname: string
   full_name?: string
+  avatar_email_id?: string | null
   last_login?: string
   created_at: string
   updated_at: string
