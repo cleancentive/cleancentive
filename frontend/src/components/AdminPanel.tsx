@@ -221,78 +221,83 @@ export function AdminPanel() {
         </div>
       </section>
 
-      <div className="admin-controls">
-        <input
-          type="text"
-          placeholder="Search users by name or email..."
-          value={searchInput}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="search-input"
-        />
-
-        <div className="sort-controls">
-          <label>
-            Sort by:
-            <select value={sort} onChange={(e) => setSort(e.target.value as any)}>
-              <option value="created_at">Created</option>
-              <option value="last_login">Last Login</option>
-            </select>
-          </label>
-
-          <label>
-            Order:
-            <select value={order} onChange={(e) => setOrder(e.target.value as any)}>
-              <option value="DESC">Newest First</option>
-              <option value="ASC">Oldest First</option>
-            </select>
-          </label>
+      <section className="user-admin-panel">
+        <div className="user-admin-header">
+          <div>
+            <h2>Users</h2>
+            <p>{total} total</p>
+          </div>
         </div>
-      </div>
 
-      {error && (
-        <div className="error-message">
-          {error}
-          <button onClick={clearError}>&times;</button>
+        <div className="admin-controls">
+          <input
+            type="text"
+            placeholder="Search users by name or email..."
+            value={searchInput}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            className="search-input"
+          />
+
+          <div className="sort-controls">
+            <label>
+              Sort by:
+              <select value={sort} onChange={(e) => setSort(e.target.value as any)}>
+                <option value="created_at">Created</option>
+                <option value="last_login">Last Login</option>
+              </select>
+            </label>
+
+            <label>
+              Order:
+              <select value={order} onChange={(e) => setOrder(e.target.value as any)}>
+                <option value="DESC">Newest First</option>
+                <option value="ASC">Oldest First</option>
+              </select>
+            </label>
+          </div>
         </div>
-      )}
 
-      <div className="user-list-header">
-        <p>Total Users: {total}</p>
-      </div>
-
-      <div className="user-list">
-        {users.map((u) => (
-          <Link key={u.id} to={`/admin/users/${u.id}`} className="user-card">
-            <div className="user-info">
-              <h3>
-                {u.nickname}
-                {u.is_admin && <span className="badge admin-badge">Admin</span>}
-              </h3>
-              {u.full_name && <p className="full-name">{u.full_name}</p>}
-              <div className="user-emails">
-                {u.emails.map(email => (
-                  <span key={email.id} className="email-badge">{email.email}</span>
-                ))}
-              </div>
-              <div className="user-meta">
-                <span>Created: {new Date(u.created_at).toLocaleDateString()}</span>
-                {u.last_login && (
-                  <span>Last Login: {new Date(u.last_login).toLocaleDateString()}</span>
-                )}
-              </div>
-            </div>
-            <span className="view-details">View Details &rarr;</span>
-          </Link>
-        ))}
-
-        {/* Sentinel for infinite scroll */}
-        <div ref={sentinelRef} className="scroll-sentinel" />
-
-        {isLoading && <p className="loading">Loading...</p>}
-        {!isLoading && !hasMore && users.length > 0 && (
-          <p className="end-of-list">All users loaded</p>
+        {error && (
+          <div className="error-message">
+            {error}
+            <button onClick={clearError}>&times;</button>
+          </div>
         )}
-      </div>
+
+        <div className="user-list">
+          {users.map((u) => (
+            <Link key={u.id} to={`/admin/users/${u.id}`} className="user-card">
+              <div className="user-info">
+                <h3>
+                  {u.nickname}
+                  {u.is_admin && <span className="badge admin-badge">Admin</span>}
+                </h3>
+                {u.full_name && <p className="full-name">{u.full_name}</p>}
+                <div className="user-emails">
+                  {u.emails.map(email => (
+                    <span key={email.id} className="email-badge">{email.email}</span>
+                  ))}
+                </div>
+                <div className="user-meta">
+                  <span>Created: {new Date(u.created_at).toLocaleDateString()}</span>
+                  {u.last_login && (
+                    <span>Last Login: {new Date(u.last_login).toLocaleDateString()}</span>
+                  )}
+                </div>
+              </div>
+              <span className="view-details">View Details &rarr;</span>
+            </Link>
+          ))}
+
+          {/* Sentinel for infinite scroll */}
+          <div ref={sentinelRef} className="scroll-sentinel" />
+
+          {isLoading && <p className="loading">Loading...</p>}
+          {!isLoading && !hasMore && users.length > 0 && (
+            <p className="end-of-list">All users loaded</p>
+          )}
+        </div>
+      </section>
     </div>
   )
 }
