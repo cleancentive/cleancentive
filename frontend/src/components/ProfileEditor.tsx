@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
+import { useConnectivityStore } from '../stores/connectivityStore'
 
 export function ProfileEditor() {
+  const { isOnline } = useConnectivityStore()
   const {
     user, logout, updateProfile, addEmail, confirmMerge, removeEmail,
     updateEmailSelection, deleteAccount, anonymizeAccount,
@@ -128,6 +130,8 @@ export function ProfileEditor() {
     <div className="profile-editor">
       <h2>Your Profile</h2>
 
+      {!isOnline && <p className="offline-banner">You're offline — editing is paused.</p>}
+
       {isEditing ? (
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -167,7 +171,7 @@ export function ProfileEditor() {
           <div className="form-actions">
             <button
               type="submit"
-              disabled={isLoading || !nickname.trim()}
+              disabled={!isOnline || isLoading || !nickname.trim()}
               className="primary-button"
             >
               {isLoading ? 'Saving...' : 'Save changes'}
@@ -196,6 +200,7 @@ export function ProfileEditor() {
 
           <button
             onClick={() => setIsEditing(true)}
+            disabled={!isOnline}
             className="primary-button"
           >
             Edit Profile
@@ -214,7 +219,7 @@ export function ProfileEditor() {
                   type="checkbox"
                   checked={email.is_selected_for_login}
                   onChange={() => handleToggleLoginEmail(email.id, email.is_selected_for_login)}
-                  disabled={isLoading}
+                  disabled={!isOnline || isLoading}
                   title="Receive magic links at this address"
                 />
                 <span>{email.email}</span>
@@ -224,7 +229,7 @@ export function ProfileEditor() {
               </label>
               <button
                 onClick={() => handleRemoveEmail(email.id)}
-                disabled={isLoading}
+                disabled={!isOnline || isLoading}
                 className="remove-email-button"
                 title="Remove email"
               >
@@ -245,7 +250,7 @@ export function ProfileEditor() {
           />
           <button
             type="submit"
-            disabled={isLoading || !newEmail.trim()}
+            disabled={!isOnline || isLoading || !newEmail.trim()}
             className="secondary-button"
           >
             Add
@@ -279,7 +284,7 @@ export function ProfileEditor() {
             <div className="form-actions">
               <button
                 onClick={handleConfirmMerge}
-                disabled={isLoading}
+                disabled={!isOnline || isLoading}
                 className="danger-button"
               >
                 Send merge request
@@ -307,7 +312,7 @@ export function ProfileEditor() {
                   setShowDeleteConfirm(null)
                   await deleteAccount()
                 }}
-                disabled={isLoading}
+                disabled={!isOnline || isLoading}
                 className="danger-button"
               >
                 Delete all data
@@ -317,7 +322,7 @@ export function ProfileEditor() {
                   setShowDeleteConfirm(null)
                   await anonymizeAccount()
                 }}
-                disabled={isLoading}
+                disabled={!isOnline || isLoading}
                 className="secondary-button"
               >
                 Only delete personal info

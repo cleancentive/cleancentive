@@ -159,7 +159,7 @@ export function AdminPanel() {
               type="button"
               className="ops-retry-button"
               onClick={() => retryFailedSpots(retryLimit)}
-              disabled={isRetryingFailedSpots || isLoadingOps}
+              disabled={!isOnline || isRetryingFailedSpots || isLoadingOps}
             >
               {isRetryingFailedSpots ? 'Retrying...' : 'Retry failed spots'}
             </button>

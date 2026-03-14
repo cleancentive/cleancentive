@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link, Navigate } from 'react-router-dom'
 import { useAdminStore } from '../stores/adminStore'
 import { useAuthStore } from '../stores/authStore'
+import { useConnectivityStore } from '../stores/connectivityStore'
 import { formatTimestamp } from '../utils/formatTimestamp'
 import axios from 'axios'
 
@@ -28,6 +29,7 @@ export function UserDetail() {
   const { id } = useParams<{ id: string }>()
   const { sessionToken, user: currentUser } = useAuthStore()
   const { isAdmin, promoteUser, demoteUser } = useAdminStore()
+  const { isOnline } = useConnectivityStore()
   const [user, setUser] = useState<UserData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -126,11 +128,11 @@ export function UserDetail() {
             <h3>Admin Actions</h3>
             <div className="action-buttons">
               {!user.is_admin ? (
-                <button onClick={handlePromote} className="btn-promote">
+                <button onClick={handlePromote} disabled={!isOnline} className="btn-promote">
                   Promote to Admin
                 </button>
               ) : (
-                <button onClick={handleDemote} className="btn-demote">
+                <button onClick={handleDemote} disabled={!isOnline} className="btn-demote">
                   Remove Admin Role
                 </button>
               )}

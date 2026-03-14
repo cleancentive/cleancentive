@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
+import { useConnectivityStore } from '../stores/connectivityStore'
 
 const lastUsedEmailStorageKey = 'lastUsedSignInEmail'
 
@@ -9,6 +10,7 @@ export function LoginForm() {
   const [isRecovery, setIsRecovery] = useState(false)
   const [recoverySent, setRecoverySent] = useState(false)
   const { login, recoverAccount, isLoading, error, clearError, guestReady } = useAuthStore()
+  const { isOnline } = useConnectivityStore()
 
   useEffect(() => {
     const lastUsedEmail = localStorage.getItem(lastUsedEmailStorageKey)
@@ -117,9 +119,11 @@ export function LoginForm() {
             </div>
           )}
 
+          {!isOnline && <p className="offline-banner">Sign in requires an internet connection.</p>}
+
           <button
             type="submit"
-            disabled={isLoading || !email}
+            disabled={!isOnline || isLoading || !email}
             className="primary-button"
           >
             {isLoading ? 'Sending...' : 'Send recovery links'}
@@ -161,9 +165,11 @@ export function LoginForm() {
           </div>
         )}
 
+        {!isOnline && <p className="offline-banner">Sign in requires an internet connection.</p>}
+
         <button
           type="submit"
-          disabled={isLoading || !email || !guestReady}
+          disabled={!isOnline || isLoading || !email || !guestReady}
           className="primary-button"
         >
           {isLoading ? 'Sending...' : 'Send magic link'}
