@@ -71,6 +71,8 @@ function itemLabel(item: HistoryItem['items'][number]): string {
   return parts.length > 0 ? parts.join(' / ') : 'Unspecified item'
 }
 
+type StatusFilter = 'all' | 'outbox' | 'processing' | 'completed' | 'failed'
+
 export function HistoryPanel() {
   const { sessionToken, guestId } = useAuthStore()
   const [reports, setReports] = useState<HistoryItem[]>([])
@@ -78,6 +80,7 @@ export function HistoryPanel() {
   const [localThumbnails, setLocalThumbnails] = useState<Map<string, string>>(new Map())
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<StatusFilter>('all')
 
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams({ limit: '50' })
@@ -176,6 +179,25 @@ export function HistoryPanel() {
     })
   }, [reports, outboxItems])
 
+  const filteredRows = useMemo(() => {
+    if (filter === 'all') return rows
+    return rows.filter((row) => {
+      if (filter === 'outbox') return row.kind === 'local'
+      if (filter === 'processing') return row.kind === 'server' && (row.item.status === 'queued' || row.item.status === 'processing')
+      if (filter === 'completed') return row.kind === 'server' && row.item.status === 'completed'
+      if (filter === 'failed') return (row.kind === 'server' && row.item.status === 'failed') || (row.kind === 'local' && row.item.status === 'failed')
+      return true
+    })
+  }, [rows, filter])
+
+  const filterCounts = useMemo(() => ({
+    all: rows.length,
+    outbox: rows.filter(r => r.kind === 'local').length,
+    processing: rows.filter(r => r.kind === 'server' && (r.item.status === 'queued' || r.item.status === 'processing')).length,
+    completed: rows.filter(r => r.kind === 'server' && r.item.status === 'completed').length,
+    failed: rows.filter(r => (r.kind === 'server' && r.item.status === 'failed') || (r.kind === 'local' && r.item.status === 'failed')).length,
+  }), [rows])
+
   return (
     <section className="history-panel">
       <header className="history-header">
@@ -191,13 +213,29 @@ export function HistoryPanel() {
 
       {error && <p className="error-message">{error}</p>}
 
-      {!isLoading && rows.length === 0 && (
-        <p className="history-empty">No uploads yet. Capture or import a photo to start your history.</p>
+      <div className="history-filters">
+        {(['all', 'outbox', 'processing', 'completed', 'failed'] as const).map((key) => (
+          <button
+            key={key}
+            className={filter === key ? 'primary-button' : 'secondary-button'}
+            onClick={() => setFilter(key)}
+          >
+            {key.charAt(0).toUpperCase() + key.slice(1)} ({filterCounts[key]})
+          </button>
+        ))}
+      </div>
+
+      {!isLoading && filteredRows.length === 0 && (
+        <p className="history-empty">
+          {rows.length === 0
+            ? 'No uploads yet. Capture or import a photo to start your history.'
+            : 'No items match this filter.'}
+        </p>
       )}
 
-      {rows.length > 0 && (
+      {filteredRows.length > 0 && (
         <ul className="history-list">
-          {rows.map((row) => {
+          {filteredRows.map((row) => {
             if (row.kind === 'local') {
               const { item } = row
               return (
