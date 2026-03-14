@@ -515,8 +515,8 @@
 
 /* Guest Banner */
 .guest-banner {
-  background: #fef3c7;
-  border-top: 1px solid #f59e0b;
+  background: #fff7ed;
+  border-top: 1px solid #f97316;
   padding: 1rem 2rem;
 }
 
@@ -540,32 +540,75 @@
 
 .guest-text p {
   margin: 0;
-  color: #92400e;
+  color: #9a3412;
 }
 
 .guest-text p:first-child {
   font-weight: 600;
 }
 
+.guest-text .link-button {
+  color: #ea580c;
+  font-size: inherit;
+  text-decoration: underline;
+}
+
+.guest-text .link-button:hover {
+  color: #c2410c;
+}
+
 .sign-in-button {
-  background: #f59e0b;
-  color: #92400e;
-  border: 1px solid #d97706;
-  padding: 0.5rem 1rem;
+  background: #f97316;
+  color: white;
+  border: 1px solid #ea580c;
+  padding: 0.5rem 1.25rem;
   border-radius: 0.375rem;
   cursor: pointer;
-  font-weight: 500;
+  font-weight: 600;
+  font-size: 0.875rem;
   transition: background-color 0.2s;
 }
 
 .sign-in-button:hover {
-  background: #d97706;
+  background: #ea580c;
 }
 
-.guest-login-modal {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #fbbf24;
+/* Sign In Modal */
+.sign-in-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.sign-in-dialog {
+  background: white;
+  padding: 2rem;
+  border-radius: 0.75rem;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  position: relative;
+}
+
+.sign-in-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+}
+
+.sign-in-close:hover {
+  color: #1f2937;
 }
 
 /* Dashboard */
@@ -1265,8 +1308,8 @@
 
 .user-card {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 1rem;
   padding: 1rem 1.25rem;
   border: 1px solid #e5e7eb;
   border-radius: 0.5rem;
@@ -1278,6 +1321,11 @@
 
 .user-card:hover {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
 }
 
 .user-info h3 {

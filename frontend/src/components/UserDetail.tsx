@@ -87,7 +87,9 @@ export function UserDetail() {
   return (
     <div className="user-detail">
       <div className="user-info-section">
-        <Avatar userId={user.id} avatarEmailId={user.avatar_email_id} nickname={user.nickname} size={64} />
+        {user.avatar_email_id && (
+          <Avatar userId={user.id} avatarEmailId={user.avatar_email_id} nickname={user.nickname} size={64} />
+        )}
         <h2>
           {user.nickname}
           {user.is_admin && <span className="badge admin-badge">Admin</span>}

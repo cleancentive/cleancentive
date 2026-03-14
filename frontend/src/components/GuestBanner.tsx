@@ -1,14 +1,12 @@
-import { useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
-import { LoginForm } from './LoginForm'
+import { useUiStore } from '../stores/uiStore'
 import { Avatar } from './Avatar'
 
 export function GuestBanner() {
   const { user, guestId } = useAuthStore()
-  const [showLogin, setShowLogin] = useState(false)
+  const { openSignInModal, pickCount } = useUiStore()
 
-  // Don't show if user is authenticated or if there's no guest account
-  if (user || !guestId) return null
+  if (user || !guestId || pickCount === 0) return null
 
   return (
     <div className="guest-banner">
@@ -17,23 +15,10 @@ export function GuestBanner() {
           <Avatar userId={guestId} nickname="Guest" size={32} />
           <div className="guest-text">
             <p><strong>You're browsing as a guest</strong></p>
-            <p>Sign in to save your progress and access all features</p>
+            <p><button onClick={openSignInModal} className="link-button">Sign in</button> to save your progress and access all features</p>
           </div>
         </div>
-
-        <button
-          onClick={() => setShowLogin(!showLogin)}
-          className="sign-in-button"
-        >
-          {showLogin ? 'Cancel' : 'Sign In'}
-        </button>
       </div>
-
-      {showLogin && (
-        <div className="guest-login-modal">
-          <LoginForm />
-        </div>
-      )}
     </div>
   )
 }

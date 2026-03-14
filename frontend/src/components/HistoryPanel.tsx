@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
+import { useUiStore } from '../stores/uiStore'
 import { flushOutbox, getOutboxItems, type OutboxItem } from '../lib/pendingPicks'
 import { formatTimestamp } from '../utils/formatTimestamp'
 import { CountdownButton } from './CountdownButton'
@@ -282,6 +283,11 @@ export function HistoryPanel() {
       return bTime.localeCompare(aTime)
     })
   }, [reports, outboxItems])
+
+  const setPickCount = useUiStore((s) => s.setPickCount)
+  useEffect(() => {
+    setPickCount(rows.length)
+  }, [rows.length, setPickCount])
 
   const hasInFlight = useMemo(() => rows.some((row) => {
     if (row.kind === 'local') return row.item.status === 'pending' || row.item.status === 'uploading'

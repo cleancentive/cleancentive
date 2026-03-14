@@ -72,4 +72,20 @@ export class UserProfileController {
     }
     return { success: true };
   }
+
+  @Delete('guest/:guestId')
+  @HttpCode(200)
+  async deleteGuestData(
+    @Param('guestId', ParseUUIDPipe) guestId: string,
+    @Query('mode') mode: string,
+  ): Promise<{ success: boolean }> {
+    if (mode === 'delete') {
+      await this.userService.deleteAccount(guestId);
+    } else if (mode === 'anonymize') {
+      await this.userService.anonymizeAccount(guestId);
+    } else {
+      throw new BadRequestException('mode must be "delete" or "anonymize"');
+    }
+    return { success: true };
+  }
 }

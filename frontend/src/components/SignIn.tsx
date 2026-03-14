@@ -4,7 +4,7 @@ import { useConnectivityStore } from '../stores/connectivityStore'
 
 const lastUsedEmailStorageKey = 'lastUsedSignInEmail'
 
-export function LoginForm() {
+export function SignIn() {
   const [email, setEmail] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isRecovery, setIsRecovery] = useState(false)

@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
+import { useUiStore } from '../stores/uiStore'
 import { Avatar } from './Avatar'
+import { SignIn } from './SignIn'
 
 export function ProfileEditor() {
   const { isOnline } = useConnectivityStore()
+  const pickCount = useUiStore((s) => s.pickCount)
   const {
-    user, logout, updateProfile, addEmail, confirmMerge, removeEmail,
+    user, logout, deleteGuestData, updateProfile, addEmail, confirmMerge, removeEmail,
     updateEmailSelection, updateAvatarEmail, deleteAccount, anonymizeAccount,
     isLoading, error, clearError
   } = useAuthStore()
@@ -20,6 +22,7 @@ export function ProfileEditor() {
   const [conflictNickname, setConflictNickname] = useState<string | null>(null)
   const [conflictEmail, setConflictEmail] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
+  const [showAccountDelete, setShowAccountDelete] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -125,7 +128,58 @@ export function ProfileEditor() {
     await updateEmailSelection(newSelection)
   }
 
-  if (!user) return <Navigate to="/" replace />
+  if (!user) return (
+    <div className="profile-editor">
+      <h2>Your Profile</h2>
+      <p>Sign in to view and edit your profile.</p>
+      <SignIn />
+      {pickCount > 0 && (
+        <>
+          <div className="profile-sign-out">
+            <button onClick={() => setShowAccountDelete(true)} disabled={!isOnline} className="danger-button">
+              Delete Guest Data
+            </button>
+          </div>
+          {showAccountDelete && (
+            <div className="delete-confirm-overlay">
+              <div className="delete-confirm-dialog">
+                <h3>Delete Guest Data</h3>
+                <p>Choose what to do with your picks:</p>
+                <div className="form-actions">
+                  <button
+                    onClick={async () => {
+                      setShowAccountDelete(false)
+                      await deleteGuestData('delete')
+                    }}
+                    disabled={!isOnline || isLoading}
+                    className="danger-button"
+                  >
+                    Delete all data
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAccountDelete(false)
+                      logout()
+                    }}
+                    className="secondary-button"
+                  >
+                    Just forget me locally
+                  </button>
+                  <button
+                    onClick={() => setShowAccountDelete(false)}
+                    disabled={isLoading}
+                    className="secondary-button"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
 
   return (
     <div className="profile-editor">
@@ -381,10 +435,52 @@ export function ProfileEditor() {
       )}
 
       <div className="profile-sign-out">
-        <button onClick={logout} className="danger-button">
-          Sign Out
+        <button
+          onClick={() => setShowAccountDelete(true)}
+          disabled={!isOnline}
+          className="danger-button"
+        >
+          Delete Account
         </button>
       </div>
+
+      {showAccountDelete && (
+        <div className="delete-confirm-overlay">
+          <div className="delete-confirm-dialog">
+            <h3>Delete Account</h3>
+            <p>This action cannot be undone. Choose what to do with your data:</p>
+            <div className="form-actions">
+              <button
+                onClick={async () => {
+                  setShowAccountDelete(false)
+                  await deleteAccount()
+                }}
+                disabled={!isOnline || isLoading}
+                className="danger-button"
+              >
+                Delete all data
+              </button>
+              <button
+                onClick={async () => {
+                  setShowAccountDelete(false)
+                  await anonymizeAccount()
+                }}
+                disabled={!isOnline || isLoading}
+                className="secondary-button"
+              >
+                Only delete personal info
+              </button>
+              <button
+                onClick={() => setShowAccountDelete(false)}
+                disabled={isLoading}
+                className="secondary-button"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

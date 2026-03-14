@@ -3,7 +3,11 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
+import { useUiStore } from '../stores/uiStore'
 import { Avatar } from './Avatar'
+import { AuthButton } from './AuthButton'
+import { GuestBanner } from './GuestBanner'
+import { SignInModal } from './SignInModal'
 
 function HomeIcon() {
   return (
@@ -73,7 +77,7 @@ function WifiOffIcon() {
 }
 
 export function AppShell() {
-  const { user, guestId, logout } = useAuthStore()
+  const { user, guestId } = useAuthStore()
   const { isAdmin, checkAdminStatus } = useAdminStore()
   const { isOnline, browserOnline, isForceOffline, setForceOffline } = useConnectivityStore()
 
@@ -83,22 +87,20 @@ export function AppShell() {
     }
   }, [user, checkAdminStatus])
 
+  const pickCount = useUiStore((s) => s.pickCount)
   const visibleItems = navItems.filter(item => !item.adminOnly || isAdmin)
-  const isAuthenticated = !!user
 
   return (
     <div className="app">
       <header className="app-header">
         <h1>CleanCentive</h1>
-        {isAuthenticated && (
-          <nav className="nav-links">
-            {visibleItems.map(item => (
-              <NavLink key={item.to} to={item.to} end={item.end} className="nav-link">
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-        )}
+        <nav className="nav-links">
+          {visibleItems.map(item => (
+            <NavLink key={item.to} to={item.to} end={item.end} className="nav-link">
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
         {(user || guestId) && (
           <div className="user-menu">
             <button
@@ -119,11 +121,7 @@ export function AppShell() {
               />
             )}
             <span>Welcome, {user?.nickname || 'Guest'}!</span>
-            {isAuthenticated && (
-              <button onClick={logout} className="logout-button">
-                Sign Out
-              </button>
-            )}
+            <AuthButton className={!user && pickCount > 0 ? 'sign-in-button' : 'logout-button'} />
           </div>
         )}
       </header>
@@ -132,16 +130,18 @@ export function AppShell() {
         <Outlet />
       </main>
 
-      {isAuthenticated && (
-        <nav className="tab-bar">
-          {visibleItems.map(item => (
-            <NavLink key={item.to} to={item.to} end={item.end} className="tab-item">
-              <span className="tab-icon">{item.icon}</span>
-              <span className="tab-label">{item.label}</span>
-            </NavLink>
-          ))}
-        </nav>
-      )}
+      <GuestBanner />
+
+      <nav className="tab-bar">
+        {visibleItems.map(item => (
+          <NavLink key={item.to} to={item.to} end={item.end} className="tab-item">
+            <span className="tab-icon">{item.icon}</span>
+            <span className="tab-label">{item.label}</span>
+          </NavLink>
+        ))}
+      </nav>
+
+      <SignInModal />
     </div>
   )
 }

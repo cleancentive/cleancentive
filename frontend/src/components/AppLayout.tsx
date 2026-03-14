@@ -1,14 +1,14 @@
 import { useEffect } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
-import { GuestBanner } from './GuestBanner'
-import { LoginForm } from './LoginForm'
+import { useUiStore } from '../stores/uiStore'
 import { CapturePanel } from './CapturePanel'
 import { HistoryPanel } from './HistoryPanel'
 
 export function AppLayout() {
   const { user, guestId, initializeGuest, refreshTokenIfNeeded } = useAuthStore()
   const { checkAdminStatus } = useAdminStore()
+  const { openSignInModal } = useUiStore()
 
   useEffect(() => {
     if (!user) {
@@ -42,35 +42,31 @@ export function AppLayout() {
 
   if (!user && !guestId) {
     return (
-      <>
-        <div className="auth-section">
-          <div className="auth-content">
-            <div className="auth-intro">
-              <h2>Welcome to CleanCentive</h2>
-              <p>Track your litter picks with offline-first photo logging.</p>
-              <ul>
-                <li>Log litter picks with geolocation</li>
-                <li>Queue picks offline with thumbnails</li>
-                <li>Auto-sync as soon as you reconnect</li>
-              </ul>
-            </div>
-            <LoginForm />
+      <div className="auth-section">
+        <div className="auth-content">
+          <div className="auth-intro">
+            <h2>Welcome to CleanCentive</h2>
+            <p>Track your litter picks with offline-first photo logging.</p>
+            <ul>
+              <li>Log litter picks with geolocation</li>
+              <li>Queue picks offline with thumbnails</li>
+              <li>Auto-sync as soon as you reconnect</li>
+            </ul>
           </div>
+          <button onClick={openSignInModal} className="primary-button">
+            Sign In
+          </button>
         </div>
-        <GuestBanner />
-      </>
+      </div>
     )
   }
 
   return (
-    <>
-      <div className="dashboard">
-        <div className="dashboard-content">
-          <CapturePanel />
-          <HistoryPanel />
-        </div>
+    <div className="dashboard">
+      <div className="dashboard-content">
+        <CapturePanel />
+        <HistoryPanel />
       </div>
-      <GuestBanner />
-    </>
+    </div>
   )
 }

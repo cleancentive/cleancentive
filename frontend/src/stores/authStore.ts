@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import axios from 'axios'
 import { v7 as uuidv7 } from 'uuid'
+import { useUiStore } from './uiStore'
 
 interface UserEmail {
   id: string
@@ -39,6 +40,7 @@ interface AuthState {
   updateAvatarEmail: (emailId: string | null) => Promise<void>
   deleteAccount: () => Promise<void>
   anonymizeAccount: () => Promise<void>
+  deleteGuestData: (mode: 'delete' | 'anonymize') => Promise<void>
   recoverAccount: (email: string) => Promise<void>
   refreshProfile: () => Promise<void>
   refreshTokenIfNeeded: () => Promise<void>
@@ -193,6 +195,7 @@ export const useAuthStore = create<AuthState>()(
           error: null
         })
         localStorage.removeItem('guestId')
+        useUiStore.getState().setPickCount(0)
       },
 
       updateProfile: async (data: { nickname?: string; full_name?: string }) => {
@@ -366,6 +369,33 @@ export const useAuthStore = create<AuthState>()(
         } catch (error: any) {
           set({
             error: error.response?.data?.message || 'Failed to anonymize account',
+            isLoading: false
+          })
+        }
+      },
+
+      deleteGuestData: async (mode: 'delete' | 'anonymize') => {
+        const { guestId } = get()
+        if (!guestId) return
+
+        set({ isLoading: true, error: null })
+
+        try {
+          await axios.delete(`${API_BASE}/user/guest/${guestId}?mode=${mode}`)
+          clearPolling()
+          set({
+            user: null,
+            sessionToken: null,
+            guestId: null,
+            guestReady: false,
+            isLoading: false,
+            error: null
+          })
+          localStorage.removeItem('guestId')
+          useUiStore.getState().setPickCount(0)
+        } catch (error: any) {
+          set({
+            error: error.response?.data?.message || 'Failed to delete guest data',
             isLoading: false
           })
         }
