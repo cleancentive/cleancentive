@@ -1,7 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { CleanupReport } from '../cleanup/cleanup-report.entity';
+import { Spot } from '../spot/spot.entity';
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
@@ -22,24 +22,24 @@ interface WorkerOpsState {
 
 @Injectable()
 export class AdminOpsService implements OnModuleDestroy {
-  private readonly queueName = process.env.ANALYSIS_QUEUE_NAME || 'image-analysis';
+  private readonly queueName = process.env.DETECTION_QUEUE_NAME || 'litter-detection';
   private readonly workerOpsKey = `ops:worker:${this.queueName}`;
   private readonly workerHeartbeatTtlSeconds = 30;
   private readonly bucketName = process.env.S3_BUCKET || 'cleancentive-images';
-  private readonly analysisQueue: Queue;
+  private readonly detectionQueue: Queue;
   private readonly redisClient: Redis;
   private readonly s3Client: S3Client;
 
   constructor(
-    @InjectRepository(CleanupReport)
-    private readonly reportRepository: Repository<CleanupReport>,
+    @InjectRepository(Spot)
+    private readonly spotRepository: Repository<Spot>,
   ) {
     const redisConnection = {
       host: process.env.REDIS_HOST || 'localhost',
       port: parseInt(process.env.REDIS_PORT || '6379', 10),
     };
 
-    this.analysisQueue = new Queue(this.queueName, {
+    this.detectionQueue = new Queue(this.queueName, {
       connection: redisConnection,
     });
 
@@ -57,14 +57,14 @@ export class AdminOpsService implements OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    await this.analysisQueue.close();
+    await this.detectionQueue.close();
     await this.redisClient.quit();
   }
 
   async getOverview() {
-    const [queue, reports, worker] = await Promise.all([
+    const [queue, spots, worker] = await Promise.all([
       this.getQueueSummary(),
-      this.getReportSummary(),
+      this.getSpotSummary(),
       this.getWorkerSummary(),
     ]);
 
@@ -74,7 +74,7 @@ export class AdminOpsService implements OnModuleDestroy {
         status: this.getOverallHealthStatus(queue.counts.failed, worker.healthy),
       },
       queue,
-      reports,
+      spots,
       worker: {
         healthy: worker.healthy,
         lastHeartbeatAt: worker.lastHeartbeatAt,
@@ -100,12 +100,12 @@ export class AdminOpsService implements OnModuleDestroy {
     };
   }
 
-  async getReports(failureLimit: number) {
-    const reports = await this.getReportSummary();
-    const recentFailures = await this.reportRepository.query(
+  async getSpots(failureLimit: number) {
+    const spots = await this.getSpotSummary();
+    const recentFailures = await this.spotRepository.query(
       `
         SELECT id, user_id, updated_at, processing_error
-        FROM cleanup_reports
+        FROM spots
         WHERE processing_status = 'failed'
         ORDER BY updated_at DESC
         LIMIT $1
@@ -115,10 +115,10 @@ export class AdminOpsService implements OnModuleDestroy {
 
     return {
       timestamp: new Date().toISOString(),
-      reports: {
-        ...reports,
+      spots: {
+        ...spots,
         recentFailures: recentFailures.map((failure: Record<string, unknown>) => ({
-          reportId: failure.id,
+          spotId: failure.id,
           userId: failure.user_id,
           updatedAt: failure.updated_at,
           error: failure.processing_error,
@@ -166,11 +166,11 @@ export class AdminOpsService implements OnModuleDestroy {
     };
   }
 
-  async retryFailedReports(limit: number) {
-    const failedReports = await this.reportRepository.query(
+  async retryFailedSpots(limit: number) {
+    const failedSpots = await this.spotRepository.query(
       `
         SELECT id
-        FROM cleanup_reports
+        FROM spots
         WHERE processing_status = 'failed'
         ORDER BY updated_at ASC
         LIMIT $1
@@ -178,22 +178,22 @@ export class AdminOpsService implements OnModuleDestroy {
       [limit],
     );
 
-    const queuedReportIds: string[] = [];
-    const skippedReportIds: string[] = [];
-    const errors: Array<{ reportId: string; message: string }> = [];
+    const queuedSpotIds: string[] = [];
+    const skippedSpotIds: string[] = [];
+    const errors: Array<{ spotId: string; message: string }> = [];
     const concurrency = 5;
 
-    for (let index = 0; index < failedReports.length; index += concurrency) {
-      const batch = failedReports.slice(index, index + concurrency);
+    for (let index = 0; index < failedSpots.length; index += concurrency) {
+      const batch = failedSpots.slice(index, index + concurrency);
       const results = await Promise.all(
-        batch.map(async (report: { id: string }) => {
+        batch.map(async (spot: { id: string }) => {
           try {
-            await this.retryFailedReport(report.id);
-            queuedReportIds.push(report.id);
+            await this.retryFailedSpot(spot.id);
+            queuedSpotIds.push(spot.id);
           } catch (error) {
-            skippedReportIds.push(report.id);
+            skippedSpotIds.push(spot.id);
             errors.push({
-              reportId: report.id,
+              spotId: spot.id,
               message: error instanceof Error ? error.message : 'Retry failed',
             });
           }
@@ -204,17 +204,17 @@ export class AdminOpsService implements OnModuleDestroy {
     }
 
     return {
-      requested: failedReports.length,
-      retried: queuedReportIds.length,
-      skipped: skippedReportIds.length,
-      queuedReportIds,
-      skippedReportIds,
+      requested: failedSpots.length,
+      retried: queuedSpotIds.length,
+      skipped: skippedSpotIds.length,
+      queuedSpotIds,
+      skippedSpotIds,
       errors,
     };
   }
 
   private async getQueueSummary() {
-    const counts = await this.analysisQueue.getJobCounts('waiting', 'active', 'delayed', 'failed', 'paused');
+    const counts = await this.detectionQueue.getJobCounts('waiting', 'active', 'delayed', 'failed', 'paused');
 
     return {
       name: this.queueName,
@@ -229,7 +229,7 @@ export class AdminOpsService implements OnModuleDestroy {
   }
 
   private async getRecentFailedJobs(limit: number) {
-    const jobs = await this.analysisQueue.getJobs(['failed'], 0, Math.max(limit - 1, 0), false);
+    const jobs = await this.detectionQueue.getJobs(['failed'], 0, Math.max(limit - 1, 0), false);
     return jobs.map((job) => ({
       jobId: job.id,
       failedAt: job.finishedOn ? new Date(job.finishedOn).toISOString() : null,
@@ -238,26 +238,26 @@ export class AdminOpsService implements OnModuleDestroy {
     }));
   }
 
-  private async getReportSummary() {
+  private async getSpotSummary() {
     const [countRows, oldestQueuedRow, oldestProcessingRow] = await Promise.all([
-      this.reportRepository.query(
+      this.spotRepository.query(
         `
           SELECT processing_status, COUNT(*)::int AS count
-          FROM cleanup_reports
+          FROM spots
           GROUP BY processing_status
         `,
       ),
-      this.reportRepository.query(
+      this.spotRepository.query(
         `
           SELECT MIN(created_at) AS oldest_queued_at
-          FROM cleanup_reports
+          FROM spots
           WHERE processing_status = 'queued'
         `,
       ),
-      this.reportRepository.query(
+      this.spotRepository.query(
         `
-          SELECT MIN(analysis_started_at) AS oldest_processing_at
-          FROM cleanup_reports
+          SELECT MIN(detection_started_at) AS oldest_processing_at
+          FROM spots
           WHERE processing_status = 'processing'
         `,
       ),
@@ -335,7 +335,7 @@ export class AdminOpsService implements OnModuleDestroy {
   private async checkPostgres() {
     const startedAt = Date.now();
     try {
-      await this.reportRepository.query('SELECT 1');
+      await this.spotRepository.query('SELECT 1');
       return { status: 'ok' as const, latencyMs: Date.now() - startedAt };
     } catch {
       return { status: 'down' as const, latencyMs: Date.now() - startedAt };
@@ -391,38 +391,38 @@ export class AdminOpsService implements OnModuleDestroy {
     return 'ok';
   }
 
-  private async retryFailedReport(reportId: string): Promise<void> {
-    const report = await this.reportRepository.findOne({ where: { id: reportId } });
-    if (!report) {
-      throw new Error('Report not found');
+  private async retryFailedSpot(spotId: string): Promise<void> {
+    const spot = await this.spotRepository.findOne({ where: { id: spotId } });
+    if (!spot) {
+      throw new Error('Spot not found');
     }
 
-    if (report.processing_status !== 'failed') {
-      throw new Error('Only failed reports can be retried');
+    if (spot.processing_status !== 'failed') {
+      throw new Error('Only failed spots can be retried');
     }
 
-    report.processing_status = 'queued';
-    report.processing_error = null;
-    report.analysis_started_at = null;
-    report.updated_by = report.user_id;
-    await this.reportRepository.save(report);
+    spot.processing_status = 'queued';
+    spot.processing_error = null;
+    spot.detection_started_at = null;
+    spot.updated_by = spot.user_id;
+    await this.spotRepository.save(spot);
 
-    const existingJob = await this.analysisQueue.getJob(report.id);
+    const existingJob = await this.detectionQueue.getJob(spot.id);
     if (existingJob) {
       await existingJob.retry();
       return;
     }
 
-    await this.analysisQueue.add(
-      'analyze-upload',
+    await this.detectionQueue.add(
+      'detect-litter',
       {
-        reportId: report.id,
-        userId: report.user_id,
-        imageKey: report.image_key,
-        mimeType: report.mime_type,
+        spotId: spot.id,
+        userId: spot.user_id,
+        imageKey: spot.image_key,
+        mimeType: spot.mime_type,
       },
       {
-        jobId: report.id,
+        jobId: spot.id,
         attempts: 5,
         backoff: { type: 'exponential', delay: 5000 },
         removeOnComplete: true,

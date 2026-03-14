@@ -1,15 +1,15 @@
 import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from '../common/base.entity';
 
-@Entity('litter_items')
-@Index('IDX_litter_items_report_id', ['report_id'])
-export class LitterItem extends BaseEntity {
+@Entity('detected_items')
+@Index('IDX_detected_items_spot_id', ['spot_id'])
+export class DetectedItem extends BaseEntity {
   @Column('uuid')
-  report_id: string;
+  spot_id: string;
 
-  @ManyToOne('CleanupReport', (report: any) => report.items, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'report_id' })
-  report: any;
+  @ManyToOne('Spot', (spot: any) => spot.items, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'spot_id' })
+  spot: any;
 
   @Column('varchar', { nullable: true })
   category: string | null;

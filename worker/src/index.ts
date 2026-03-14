@@ -6,8 +6,8 @@ import { v7 as uuidv7 } from 'uuid';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { hostname } from 'os';
 
-interface ImageAnalysisJobData {
-  reportId: string;
+interface LitterDetectionJobData {
+  spotId: string;
   userId: string;
   imageKey: string;
   mimeType: string;
@@ -21,7 +21,7 @@ interface DetectedObject {
   confidence: number | null;
 }
 
-interface AnalysisResult {
+interface DetectionResult {
   objects: DetectedObject[];
   notes: string | null;
 }
@@ -38,9 +38,9 @@ interface WorkerOpsState {
   pid: number;
 }
 
-const queueName = process.env.ANALYSIS_QUEUE_NAME || 'image-analysis';
-const analysisModel = process.env.ANALYSIS_MODEL || 'gpt-4o-mini';
-const analysisBaseUrl = process.env.ANALYSIS_BASE_URL;
+const queueName = process.env.DETECTION_QUEUE_NAME || 'litter-detection';
+const detectionModel = process.env.DETECTION_MODEL || 'gpt-4o-mini';
+const detectionBaseUrl = process.env.DETECTION_BASE_URL;
 const bucketName = process.env.S3_BUCKET || 'cleancentive-images';
 const workerConcurrency = 2;
 const workerOpsKey = `ops:worker:${queueName}`;
@@ -72,15 +72,15 @@ const s3Client = new S3Client({
   },
 });
 
-const analysisApiKey = process.env.ANALYSIS_API_KEY;
-const openai = analysisApiKey
+const detectionApiKey = process.env.DETECTION_API_KEY;
+const openai = detectionApiKey
   ? new OpenAI({
-      apiKey: analysisApiKey,
-      ...(analysisBaseUrl ? { baseURL: analysisBaseUrl } : {}),
+      apiKey: detectionApiKey,
+      ...(detectionBaseUrl ? { baseURL: detectionBaseUrl } : {}),
     })
   : null;
 
-const SYSTEM_PROMPT = `You analyze cleanup photos and return JSON only.
+const SYSTEM_PROMPT = `You detect litter in photos and return JSON only.
 Return this shape:
 {
   "objects": [
@@ -213,15 +213,15 @@ async function fetchImageBytes(imageKey: string): Promise<Uint8Array> {
   return new Uint8Array(Buffer.concat(chunks));
 }
 
-async function analyzeImage(imageBytes: Uint8Array, mimeType: string): Promise<AnalysisResult> {
+async function detectLitter(imageBytes: Uint8Array, mimeType: string): Promise<DetectionResult> {
   if (!openai) {
-    throw new Error('ANALYSIS_API_KEY is not configured for the worker');
+    throw new Error('DETECTION_API_KEY is not configured for the worker');
   }
 
   const dataUrl = `data:${mimeType};base64,${Buffer.from(imageBytes).toString('base64')}`;
 
   const completion = await openai.chat.completions.create({
-    model: analysisModel,
+    model: detectionModel,
     temperature: 0,
     response_format: { type: 'json_object' },
     messages: [
@@ -232,7 +232,7 @@ async function analyzeImage(imageBytes: Uint8Array, mimeType: string): Promise<A
       {
         role: 'user',
         content: [
-          { type: 'text', text: 'Analyze this cleanup image and return litter objects.' },
+          { type: 'text', text: 'Detect litter items in this photo and return the results.' },
           { type: 'image_url', image_url: { url: dataUrl } },
         ],
       },
@@ -268,62 +268,62 @@ async function withTransaction<T>(handler: (client: PoolClient) => Promise<T>): 
   }
 }
 
-async function markReportProcessing(reportId: string, userId: string): Promise<void> {
+async function markSpotProcessing(spotId: string, userId: string): Promise<void> {
   await dbPool.query(
     `
-      UPDATE cleanup_reports
+      UPDATE spots
       SET processing_status = 'processing',
-          analysis_started_at = NOW(),
+          detection_started_at = NOW(),
           processing_error = NULL,
           updated_at = NOW(),
           updated_by = $2
       WHERE id = $1
     `,
-    [reportId, userId],
+    [spotId, userId],
   );
 }
 
-async function markReportFailed(reportId: string, userId: string, errorMessage: string): Promise<void> {
+async function markSpotFailed(spotId: string, userId: string, errorMessage: string): Promise<void> {
   const truncatedError = errorMessage.slice(0, 4000);
 
   await dbPool.query(
     `
-      UPDATE cleanup_reports
+      UPDATE spots
       SET processing_status = 'failed',
           processing_error = $3,
           updated_at = NOW(),
           updated_by = $2
       WHERE id = $1
     `,
-    [reportId, userId, truncatedError],
+    [spotId, userId, truncatedError],
   );
 }
 
-async function persistAnalysis(
-  reportId: string,
+async function persistDetection(
+  spotId: string,
   userId: string,
-  analysis: AnalysisResult,
+  detection: DetectionResult,
   model: string,
 ): Promise<void> {
-  const analysisRaw = {
-    objects: analysis.objects,
-    notes: analysis.notes,
+  const detectionRaw = {
+    objects: detection.objects,
+    notes: detection.notes,
     model,
   };
 
   await withTransaction(async (client) => {
-    await client.query(`DELETE FROM litter_items WHERE report_id = $1`, [reportId]);
+    await client.query(`DELETE FROM detected_items WHERE spot_id = $1`, [spotId]);
 
-    for (const object of analysis.objects) {
+    for (const object of detection.objects) {
       await client.query(
         `
-          INSERT INTO litter_items (
+          INSERT INTO detected_items (
             id,
             created_at,
             updated_at,
             created_by,
             updated_by,
-            report_id,
+            spot_id,
             category,
             material,
             brand,
@@ -336,7 +336,7 @@ async function persistAnalysis(
         [
           uuidv7(),
           userId,
-          reportId,
+          spotId,
           object.category,
           object.material,
           object.brand,
@@ -349,26 +349,26 @@ async function persistAnalysis(
 
     await client.query(
       `
-        UPDATE cleanup_reports
+        UPDATE spots
         SET processing_status = 'completed',
-            analysis_completed_at = NOW(),
+            detection_completed_at = NOW(),
             processing_error = NULL,
-            analysis_raw = $1::jsonb,
+            detection_raw = $1::jsonb,
             updated_at = NOW(),
             updated_by = $2
         WHERE id = $3
       `,
-      [JSON.stringify(analysisRaw), userId, reportId],
+      [JSON.stringify(detectionRaw), userId, spotId],
     );
   });
 }
 
-const imageAnalysisWorker = new Worker<ImageAnalysisJobData>(
+const litterDetectionWorker = new Worker<LitterDetectionJobData>(
   queueName,
-  async (job: Job<ImageAnalysisJobData>) => {
-    const { reportId, userId, imageKey, mimeType } = job.data;
+  async (job: Job<LitterDetectionJobData>) => {
+    const { spotId, userId, imageKey, mimeType } = job.data;
 
-    if (!reportId || !userId || !imageKey || !mimeType) {
+    if (!spotId || !userId || !imageKey || !mimeType) {
       throw new Error('Invalid job payload');
     }
 
@@ -377,15 +377,15 @@ const imageAnalysisWorker = new Worker<ImageAnalysisJobData>(
       lastJobStartedAt: nowIsoString(),
     });
 
-    await markReportProcessing(reportId, userId);
+    await markSpotProcessing(spotId, userId);
 
     const imageBytes = await fetchImageBytes(imageKey);
-    const analysis = await analyzeImage(imageBytes, mimeType);
-    await persistAnalysis(reportId, userId, analysis, analysisModel);
+    const detection = await detectLitter(imageBytes, mimeType);
+    await persistDetection(spotId, userId, detection, detectionModel);
 
     return {
-      reportId,
-      analyzedObjects: analysis.objects.length,
+      spotId,
+      detectedItems: detection.objects.length,
       completedAt: new Date().toISOString(),
     };
   },
@@ -395,21 +395,21 @@ const imageAnalysisWorker = new Worker<ImageAnalysisJobData>(
   },
 );
 
-imageAnalysisWorker.on('completed', (job) => {
+litterDetectionWorker.on('completed', (job) => {
   void writeWorkerState({
     lastHeartbeatAt: nowIsoString(),
     lastJobCompletedAt: nowIsoString(),
     lastFailedError: null,
   });
-  console.log(`Image analysis completed for report ${job.id}`);
+  console.log(`Litter detection completed for spot ${job.id}`);
 });
 
-imageAnalysisWorker.on('failed', async (job, error) => {
-  const reportId = job?.data?.reportId;
+litterDetectionWorker.on('failed', async (job, error) => {
+  const spotId = job?.data?.spotId;
   const userId = job?.data?.userId;
 
-  if (reportId && userId) {
-    await markReportFailed(reportId, userId, error.message);
+  if (spotId && userId) {
+    await markSpotFailed(spotId, userId, error.message);
   }
 
   await writeWorkerState({
@@ -418,7 +418,7 @@ imageAnalysisWorker.on('failed', async (job, error) => {
     lastFailedError: error.message.slice(0, 1000),
   });
 
-  console.error(`Image analysis failed for report ${reportId || 'unknown'}`, error);
+  console.error(`Litter detection failed for spot ${spotId || 'unknown'}`, error);
 });
 
 await publishHeartbeat();
@@ -426,12 +426,12 @@ const heartbeatInterval = setInterval(() => {
   void publishHeartbeat();
 }, workerHeartbeatIntervalMs);
 
-console.log(`Image analysis worker started. Queue: ${queueName}`);
+console.log(`Litter detection worker started. Queue: ${queueName}`);
 
 const shutdown = async () => {
-  console.log('Shutting down image analysis worker...');
+  console.log('Shutting down litter detection worker...');
   clearInterval(heartbeatInterval);
-  await imageAnalysisWorker.close();
+  await litterDetectionWorker.close();
   await redisClient.quit();
   await dbPool.end();
   process.exit(0);

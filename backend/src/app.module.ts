@@ -5,22 +5,22 @@ import { User } from './user/user.entity';
 import { UserEmail } from './user/user-email.entity';
 import { Admin } from './admin/admin.entity';
 import { PendingAuthRequest } from './auth/pending-auth-request.entity';
-import { CleanupReport } from './cleanup/cleanup-report.entity';
-import { LitterItem } from './cleanup/litter-item.entity';
+import { Spot } from './spot/spot.entity';
+import { DetectedItem } from './spot/detected-item.entity';
 import { UserModule } from './user/user.module';
 import { EmailModule } from './email/email.module';
 import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
-import { CleanupModule } from './cleanup/cleanup.module';
+import { SpotModule } from './spot/spot.module';
 import { Team } from './team/team.entity';
 import { TeamMembership } from './team/team-membership.entity';
 import { TeamMessage } from './team/team-message.entity';
-import { Event } from './event/event.entity';
-import { EventOccurrence } from './event/event-occurrence.entity';
-import { EventParticipant } from './event/event-participant.entity';
-import { EventMessage } from './event/event-message.entity';
+import { Cleanup } from './cleanup/cleanup.entity';
+import { CleanupDate } from './cleanup/cleanup-date.entity';
+import { CleanupParticipant } from './cleanup/cleanup-participant.entity';
+import { CleanupMessage } from './cleanup/cleanup-message.entity';
 import { TeamModule } from './team/team.module';
-import { EventModule } from './event/event.module';
+import { CleanupModule } from './cleanup/cleanup.module';
 
 @Module({
   imports: [
@@ -39,15 +39,15 @@ import { EventModule } from './event/event.module';
         UserEmail,
         Admin,
         PendingAuthRequest,
-        CleanupReport,
-        LitterItem,
+        Spot,
+        DetectedItem,
         Team,
         TeamMembership,
         TeamMessage,
-        Event,
-        EventOccurrence,
-        EventParticipant,
-        EventMessage,
+        Cleanup,
+        CleanupDate,
+        CleanupParticipant,
+        CleanupMessage,
       ],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: ['dist/migrations/*.js'],
@@ -56,9 +56,9 @@ import { EventModule } from './event/event.module';
     EmailModule,
     AuthModule,
     AdminModule,
-    CleanupModule,
+    SpotModule,
     TeamModule,
-    EventModule,
+    CleanupModule,
   ],
 })
 export class AppModule {}

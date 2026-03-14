@@ -1,281 +1,177 @@
 import {
-  BadRequestException,
+  Body,
   Controller,
+  Delete,
   Get,
-  HttpCode,
-  NotFoundException,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
-  Req,
-  Res,
-  StreamableFile,
-  UnauthorizedException,
-  UploadedFiles,
-  UseInterceptors,
+  Request,
+  UseGuards,
 } from '@nestjs/common';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import type { Request, Response } from 'express';
+import { ApiBearerAuth } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CleanupService } from './cleanup.service';
-import { AuthService } from '../auth/auth.service';
-import { UserService } from '../user/user.service';
+import { AdminService } from '../admin/admin.service';
 
-type UploadFiles = {
-  image?: Array<{ buffer: Buffer; mimetype: string; size: number }>;
-  thumbnail?: Array<{ buffer: Buffer; mimetype: string; size: number }>;
-};
-
-interface CleanupItemDto {
-  id: string;
-  category: string | null;
-  material: string | null;
-  brand: string | null;
-  weightGrams: number | null;
-  confidence: number | null;
-}
-
-interface CleanupReportDto {
-  id: string;
-  status: string;
-  teamId: string | null;
-  eventId: string | null;
-  eventOccurrenceId: string | null;
-  capturedAt: Date;
-  latitude: number;
-  longitude: number;
-  accuracyMeters: number;
-  processingError: string | null;
-  analysisCompletedAt: Date | null;
-  items: CleanupItemDto[];
-}
-
-@Controller('cleanup')
+@Controller('cleanups')
+@ApiBearerAuth('Bearer')
+@UseGuards(JwtAuthGuard)
 export class CleanupController {
-  private readonly maxUploadSizeBytes = parseInt(process.env.UPLOAD_MAX_SIZE_BYTES || `${15 * 1024 * 1024}`, 10);
-  private readonly maxAcceptedAccuracyMeters = parseFloat(
-    process.env.LOCATION_MAX_ACCURACY_METERS || (process.env.NODE_ENV === 'development' ? '5000' : '200'),
-  );
-  private readonly disableAccuracyCheck =
-    process.env.NODE_ENV === 'development' &&
-    ['true', '1', 'yes', 'on'].includes((process.env.LOCATION_DISABLE_ACCURACY_CHECK || 'false').toLowerCase());
-
-  private isLocalhostRequest(req: Request): boolean {
-    const hostHeader = (req.headers.host || '').split(':')[0].toLowerCase();
-    const origin = (req.headers.origin || '').toLowerCase();
-
-    return (
-      hostHeader === 'localhost' ||
-      hostHeader === '127.0.0.1' ||
-      hostHeader === '::1' ||
-      origin.startsWith('http://localhost') ||
-      origin.startsWith('http://127.0.0.1') ||
-      origin.startsWith('http://[::1]')
-    );
-  }
-
   constructor(
     private readonly cleanupService: CleanupService,
-    private readonly authService: AuthService,
-    private readonly userService: UserService,
+    private readonly adminService: AdminService,
   ) {}
 
-  private toReportDto(report: any): CleanupReportDto {
-    return {
-      id: report.id,
-      status: report.processing_status,
-      teamId: report.team_id,
-      eventId: report.event_id,
-      eventOccurrenceId: report.event_occurrence_id,
-      capturedAt: report.captured_at,
-      latitude: report.latitude,
-      longitude: report.longitude,
-      accuracyMeters: report.location_accuracy_meters,
-      processingError: report.processing_error,
-      analysisCompletedAt: report.analysis_completed_at,
-      items: report.items.map((item: any) => ({
-        id: item.id,
-        category: item.category,
-        material: item.material,
-        brand: item.brand,
-        weightGrams: item.weight_grams,
-        confidence: item.confidence,
-      })),
-    };
-  }
-
-  private async resolveUserId(authHeader: string | undefined, guestId: string | undefined): Promise<string> {
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.slice('Bearer '.length).trim();
-      if (!token) {
-        throw new UnauthorizedException('Invalid Authorization header');
-      }
-
-      try {
-        const payload = await this.authService.validateSessionToken(token);
-        return payload.sub;
-      } catch {
-        throw new UnauthorizedException('Invalid session token');
-      }
-    }
-
-    if (!guestId) {
-      throw new BadRequestException('guestId is required when not authenticated');
-    }
-
-    const guest = await this.userService.findOrCreateGuest(guestId);
-    return guest.id;
-  }
-
-  @Post('uploads')
-  @HttpCode(202)
-  @UseInterceptors(
-    FileFieldsInterceptor(
-      [
-        { name: 'image', maxCount: 1 },
-        { name: 'thumbnail', maxCount: 1 },
-      ],
-      {
-        limits: {
-          fileSize: parseInt(process.env.UPLOAD_MAX_SIZE_BYTES || `${15 * 1024 * 1024}`, 10),
-        },
+  @Post()
+  async createCleanup(
+    @Request() req: any,
+    @Body()
+    body: {
+      name?: string;
+      description?: string;
+      date?: {
+        startAt?: string;
+        endAt?: string;
+        latitude?: number;
+        longitude?: number;
+        locationName?: string;
+      };
+    },
+  ) {
+    return this.cleanupService.createCleanup(req.user.userId, {
+      name: body.name || '',
+      description: body.description || '',
+      date: {
+        startAt: new Date(body.date?.startAt || ''),
+        endAt: new Date(body.date?.endAt || ''),
+        latitude: Number(body.date?.latitude),
+        longitude: Number(body.date?.longitude),
+        locationName: body.date?.locationName,
       },
-    ),
-  )
-  async uploadCleanup(
-    @UploadedFiles() files: UploadFiles,
-    @Req() req: Request,
-  ): Promise<{ reportId: string; status: string; warning?: string }> {
-    const image = files?.image?.[0];
-    const thumbnail = files?.thumbnail?.[0];
+    });
+  }
 
-    if (!image) {
-      throw new BadRequestException('image file is required');
-    }
+  @Get('search')
+  async searchCleanups(
+    @Request() req: any,
+    @Query('q') query?: string,
+    @Query('status') status?: 'past' | 'ongoing' | 'future',
+    @Query('date') date?: string,
+    @Query('includeArchived') includeArchived?: string,
+  ) {
+    const isPlatformAdmin = await this.adminService.isAdmin(req.user.userId);
+    return this.cleanupService.searchCleanups({
+      query,
+      status,
+      date: date ? new Date(date) : undefined,
+      includeArchived: includeArchived === 'true',
+      currentUserIsPlatformAdmin: isPlatformAdmin,
+    });
+  }
 
-    if (image.size > this.maxUploadSizeBytes) {
-      throw new BadRequestException(`image exceeds max size of ${this.maxUploadSizeBytes} bytes`);
-    }
+  @Get('similar')
+  async getSimilarCleanups(
+    @Query('name') name?: string,
+    @Query('startAt') startAt?: string,
+    @Query('latitude') latitude?: string,
+    @Query('longitude') longitude?: string,
+  ) {
+    return this.cleanupService.findSimilarCleanups({
+      name: name || '',
+      startAt: startAt ? new Date(startAt) : undefined,
+      latitude: latitude !== undefined ? Number(latitude) : undefined,
+      longitude: longitude !== undefined ? Number(longitude) : undefined,
+    });
+  }
 
-    const body = req.body as Record<string, string | undefined>;
+  @Get(':id')
+  async getCleanup(@Param('id', ParseUUIDPipe) cleanupId: string) {
+    return this.cleanupService.getCleanup(cleanupId);
+  }
 
-    const uploadId = body.uploadId?.trim();
-    const latitude = parseFloat(body.latitude || '');
-    const longitude = parseFloat(body.longitude || '');
-    const accuracy = parseFloat(body.accuracyMeters || '');
-    const capturedAt = new Date(body.capturedAt || '');
-    const guestId = body.guestId?.trim();
+  @Post(':id/join')
+  async joinCleanup(@Request() req: any, @Param('id', ParseUUIDPipe) cleanupId: string) {
+    return this.cleanupService.joinCleanup(cleanupId, req.user.userId);
+  }
 
-    if (!uploadId) {
-      throw new BadRequestException('uploadId is required');
-    }
+  @Post(':id/leave')
+  async leaveCleanup(@Request() req: any, @Param('id', ParseUUIDPipe) cleanupId: string) {
+    return this.cleanupService.leaveCleanup(cleanupId, req.user.userId);
+  }
 
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      throw new BadRequestException('latitude and longitude are required numeric values');
-    }
+  @Post(':id/dates')
+  async addDate(
+    @Request() req: any,
+    @Param('id', ParseUUIDPipe) cleanupId: string,
+    @Body()
+    body: {
+      startAt?: string;
+      endAt?: string;
+      latitude?: number;
+      longitude?: number;
+      locationName?: string;
+    },
+  ) {
+    return this.cleanupService.addDate(cleanupId, req.user.userId, {
+      startAt: new Date(body.startAt || ''),
+      endAt: new Date(body.endAt || ''),
+      latitude: Number(body.latitude),
+      longitude: Number(body.longitude),
+      locationName: body.locationName,
+    });
+  }
 
-    if (!Number.isFinite(accuracy) || accuracy <= 0) {
-      throw new BadRequestException('accuracyMeters is required and must be greater than 0');
-    }
+  @Post('dates/:id/activate')
+  async activateDate(@Request() req: any, @Param('id', ParseUUIDPipe) cleanupDateId: string) {
+    return this.cleanupService.activateDate(cleanupDateId, req.user.userId);
+  }
 
-    const skipAccuracyCheck = this.disableAccuracyCheck || this.isLocalhostRequest(req);
+  @Delete('dates/active')
+  async deactivateDate(@Request() req: any): Promise<{ success: boolean }> {
+    await this.cleanupService.deactivateDate(req.user.userId);
+    return { success: true };
+  }
 
-    if (!skipAccuracyCheck && accuracy > this.maxAcceptedAccuracyMeters) {
-      throw new BadRequestException(`location accuracy must be <= ${this.maxAcceptedAccuracyMeters} meters`);
-    }
+  @Post(':id/participants/:userId/promote')
+  async promoteParticipant(
+    @Request() req: any,
+    @Param('id', ParseUUIDPipe) cleanupId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ): Promise<{ success: boolean }> {
+    await this.cleanupService.promoteParticipant(cleanupId, userId, req.user.userId);
+    return { success: true };
+  }
 
-    if (Number.isNaN(capturedAt.getTime())) {
-      throw new BadRequestException('capturedAt must be a valid ISO date');
-    }
+  @Post(':id/archive')
+  async archiveCleanup(@Request() req: any, @Param('id', ParseUUIDPipe) cleanupId: string): Promise<{ success: boolean }> {
+    await this.cleanupService.archiveCleanup(cleanupId, req.user.userId);
+    return { success: true };
+  }
 
-    const userId = await this.resolveUserId(req.headers.authorization, guestId);
+  @Get(':id/messages')
+  async listMessages(@Request() req: any, @Param('id', ParseUUIDPipe) cleanupId: string) {
+    return this.cleanupService.listMessages(cleanupId, req.user.userId);
+  }
 
-    const result = await this.cleanupService.createUpload({
-      userId,
-      uploadId,
-      imageBuffer: image.buffer,
-      thumbnailBuffer: thumbnail?.buffer || null,
-      mimeType: image.mimetype || 'image/jpeg',
-      capturedAt,
-      latitude,
-      longitude,
-      accuracyMeters: accuracy,
+  @Post(':id/messages')
+  async createMessage(
+    @Request() req: any,
+    @Param('id', ParseUUIDPipe) cleanupId: string,
+    @Body() body: { audience?: 'members' | 'admins'; subject?: string; body?: string },
+  ) {
+    const message = await this.cleanupService.createMessage({
+      cleanupId,
+      authorUserId: req.user.userId,
+      audience: body.audience || 'members',
+      subject: body.subject || '',
+      body: body.body || '',
     });
 
     return {
-      reportId: result.report.id,
-      status: result.report.processing_status,
-      ...(result.warning ? { warning: result.warning } : {}),
+      message,
+      disclosure: 'Platform admins can read team and cleanup messages.',
     };
-  }
-
-  @Get('uploads/:id')
-  async getUploadStatus(
-    @Param('id', ParseUUIDPipe) reportId: string,
-    @Req() req: Request,
-    @Query('guestId') guestId?: string,
-  ): Promise<CleanupReportDto> {
-    let report;
-
-    if (req.headers.authorization?.startsWith('Bearer ')) {
-      const userId = await this.resolveUserId(req.headers.authorization, undefined);
-      report = await this.cleanupService.getUploadStatus(reportId, userId);
-    } else {
-      if (!guestId) {
-        throw new BadRequestException('guestId is required when not authenticated');
-      }
-      report = await this.cleanupService.getUploadStatusForGuest(reportId, guestId);
-    }
-
-    return this.toReportDto(report);
-  }
-
-  @Get('reports')
-  async listUploads(
-    @Req() req: Request,
-    @Query('guestId') guestId?: string,
-    @Query('limit') limitQuery?: string,
-  ): Promise<{ reports: CleanupReportDto[] }> {
-    const parsedLimit = parseInt(limitQuery || '20', 10);
-    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
-      ? Math.min(parsedLimit, 100)
-      : 20;
-
-    const reports = req.headers.authorization?.startsWith('Bearer ')
-      ? await this.cleanupService.listUploadsForUser(
-        await this.resolveUserId(req.headers.authorization, undefined),
-        limit,
-      )
-      : await this.cleanupService.listUploadsForGuest(
-        await this.resolveUserId(undefined, guestId),
-        limit,
-      );
-
-    return {
-      reports: reports.map((report) => this.toReportDto(report)),
-    };
-  }
-
-  @Post('reports/:id/retry')
-  @HttpCode(202)
-  async retryAnalysis(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: Request,
-    @Query('guestId') guestId?: string,
-  ): Promise<{ status: string }> {
-    const userId = await this.resolveUserId(req.headers.authorization, guestId);
-    await this.cleanupService.retryAnalysis(id, userId);
-    return { status: 'queued' };
-  }
-
-  @Get('reports/:id/thumbnail')
-  async getThumbnail(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<StreamableFile> {
-    const result = await this.cleanupService.getThumbnailStream(id);
-    if (!result) throw new NotFoundException('Thumbnail not available');
-    res.set({ 'Content-Type': result.contentType, 'Cache-Control': 'public, max-age=31536000, immutable' });
-    return new StreamableFile(result.body as any);
   }
 }

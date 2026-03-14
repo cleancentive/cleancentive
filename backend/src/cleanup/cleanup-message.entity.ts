@@ -1,14 +1,14 @@
 import { Entity, Column, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { BaseEntity } from '../common/base.entity';
-import { Event } from './event.entity';
+import { Cleanup } from './cleanup.entity';
 import { User } from '../user/user.entity';
 
-@Entity('event_messages')
-@Index('IDX_event_messages_event_id', ['event_id'])
-@Index('IDX_event_messages_created_at', ['created_at'])
-export class EventMessage extends BaseEntity {
+@Entity('cleanup_messages')
+@Index('IDX_cleanup_messages_cleanup_id', ['cleanup_id'])
+@Index('IDX_cleanup_messages_created_at', ['created_at'])
+export class CleanupMessage extends BaseEntity {
   @Column('uuid')
-  event_id: string;
+  cleanup_id: string;
 
   @Column('uuid')
   author_user_id: string;
@@ -22,9 +22,9 @@ export class EventMessage extends BaseEntity {
   @Column('text')
   body: string;
 
-  @ManyToOne(() => Event, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'event_id' })
-  event: Event;
+  @ManyToOne(() => Cleanup, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'cleanup_id' })
+  cleanup: Cleanup;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'author_user_id' })

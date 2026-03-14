@@ -84,7 +84,7 @@ describe('AuthService', () => {
         created_by: null,
         updated_by: null,
         active_team_id: null,
-        active_event_occurrence_id: null,
+        active_cleanup_date_id: null,
         generateId: jest.fn(),
       };
       const mockToken = 'jwt-token-123';

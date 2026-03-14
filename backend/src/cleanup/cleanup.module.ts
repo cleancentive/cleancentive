@@ -1,18 +1,24 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { CleanupController } from './cleanup.controller';
+import { Cleanup } from './cleanup.entity';
+import { CleanupDate } from './cleanup-date.entity';
+import { CleanupParticipant } from './cleanup-participant.entity';
+import { CleanupMessage } from './cleanup-message.entity';
 import { CleanupService } from './cleanup.service';
-import { CleanupReport } from './cleanup-report.entity';
-import { LitterItem } from './litter-item.entity';
-import { AuthModule } from '../auth/auth.module';
-import { UserModule } from '../user/user.module';
-import { TeamModule } from '../team/team.module';
-import { EventModule } from '../event/event.module';
+import { CleanupController } from './cleanup.controller';
+import { User } from '../user/user.entity';
+import { UserEmail } from '../user/user-email.entity';
+import { AdminModule } from '../admin/admin.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([CleanupReport, LitterItem]), AuthModule, UserModule, TeamModule, EventModule],
-  controllers: [CleanupController],
+  imports: [
+    TypeOrmModule.forFeature([Cleanup, CleanupDate, CleanupParticipant, CleanupMessage, User, UserEmail]),
+    AdminModule,
+    EmailModule,
+  ],
   providers: [CleanupService],
+  controllers: [CleanupController],
   exports: [CleanupService, TypeOrmModule],
 })
 export class CleanupModule {}

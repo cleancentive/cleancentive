@@ -47,11 +47,11 @@ export function AppLayout() {
           <div className="auth-content">
             <div className="auth-intro">
               <h2>Welcome to CleanCentive</h2>
-              <p>Track cleanup impact with offline-first photo reporting.</p>
+              <p>Track your litter picks with offline-first photo logging.</p>
               <ul>
-                <li>Capture litter photos with geolocation</li>
-                <li>Create thumbnails and queue uploads offline</li>
-                <li>Auto-sync uploads as soon as you reconnect</li>
+                <li>Log litter picks with geolocation</li>
+                <li>Queue picks offline with thumbnails</li>
+                <li>Auto-sync as soon as you reconnect</li>
               </ul>
             </div>
             <LoginForm />

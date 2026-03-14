@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
-import { getOutboxItems, type OutboxItem } from '../lib/uploadOutbox'
+import { getOutboxItems, type OutboxItem } from '../lib/pendingPicks'
 import { formatTimestamp } from '../utils/formatTimestamp'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'
@@ -13,7 +13,7 @@ interface HistoryItem {
   longitude: number
   accuracyMeters: number
   processingError: string | null
-  analysisCompletedAt: string | null
+  detectionCompletedAt: string | null
   items: {
     id: string
     category: string | null
@@ -37,10 +37,10 @@ function formatCoordinate(value: number): string {
 }
 
 function serverStatusLabel(status: string): string {
-  if (status === 'completed') return 'Completed'
-  if (status === 'processing') return 'Processing'
-  if (status === 'queued') return 'Queued'
-  if (status === 'failed') return 'Processing failed'
+  if (status === 'completed') return 'Complete'
+  if (status === 'processing') return 'Detecting litter...'
+  if (status === 'queued') return 'Waiting for detection'
+  if (status === 'failed') return 'Detection failed'
   return status
 }
 
@@ -53,9 +53,9 @@ function serverStatusClass(status: string): string {
 }
 
 function localStatusLabel(status: OutboxItem['status']): string {
-  if (status === 'pending') return 'Upload pending'
-  if (status === 'uploading') return 'Uploading\u2026'
-  if (status === 'failed') return 'Upload failed'
+  if (status === 'pending') return 'Waiting to sync'
+  if (status === 'uploading') return 'Syncing\u2026'
+  if (status === 'failed') return 'Sync failed'
   return status
 }
 
@@ -88,7 +88,7 @@ export function HistoryPanel() {
       params.set('guestId', guestId)
     }
 
-    return `${API_BASE}/cleanup/reports?${params.toString()}`
+    return `${API_BASE}/spots?${params.toString()}`
   }, [sessionToken, guestId])
 
   const loadHistory = useCallback(async () => {
@@ -112,8 +112,8 @@ export function HistoryPanel() {
         throw new Error(body || `${response.status} ${response.statusText}`)
       }
 
-      const payload = (await response.json()) as { reports?: HistoryItem[] }
-      setReports(payload.reports || [])
+      const payload = (await response.json()) as { spots?: HistoryItem[] }
+      setReports(payload.spots || [])
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : 'Failed to load upload history'
       setError(message)
@@ -134,7 +134,7 @@ export function HistoryPanel() {
     const params = new URLSearchParams()
     if (!sessionToken && guestId) params.set('guestId', guestId)
 
-    await fetch(`${API_BASE}/cleanup/reports/${id}/retry?${params.toString()}`, { method: 'POST', headers })
+    await fetch(`${API_BASE}/spots/${id}/retry?${params.toString()}`, { method: 'POST', headers })
     void loadHistory()
   }, [sessionToken, guestId, loadHistory])
 
@@ -201,7 +201,7 @@ export function HistoryPanel() {
   return (
     <section className="history-panel">
       <header className="history-header">
-        <h2>Upload History</h2>
+        <h2>My Picks</h2>
         <button
           className="secondary-button"
           onClick={() => { void loadHistory(); void loadOutbox() }}
@@ -228,7 +228,7 @@ export function HistoryPanel() {
       {!isLoading && filteredRows.length === 0 && (
         <p className="history-empty">
           {rows.length === 0
-            ? 'No uploads yet. Capture or import a photo to start your history.'
+            ? 'No picks yet. Take or import a photo to log your first pick.'
             : 'No items match this filter.'}
         </p>
       )}
@@ -272,7 +272,7 @@ export function HistoryPanel() {
                   <span>{formatDateTime(item.capturedAt)}</span>
                   <img
                     className="history-thumb"
-                    src={`${API_BASE}/cleanup/reports/${item.id}/thumbnail`}
+                    src={`${API_BASE}/spots/${item.id}/thumbnail`}
                     alt=""
                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                   />
@@ -289,7 +289,7 @@ export function HistoryPanel() {
                     className="secondary-button history-retry-button"
                     onClick={() => { void retryReport(item.id) }}
                   >
-                    Retry analysis
+                    Retry detection
                   </button>
                 )}
 

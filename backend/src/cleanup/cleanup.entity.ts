@@ -1,10 +1,10 @@
 import { Entity, Column, Index } from 'typeorm';
 import { BaseEntity } from '../common/base.entity';
 
-@Entity('events')
-@Index('UQ_events_name_normalized', ['name_normalized'], { unique: true })
-@Index('IDX_events_archived_at', ['archived_at'])
-export class Event extends BaseEntity {
+@Entity('cleanups')
+@Index('UQ_cleanups_name_normalized', ['name_normalized'], { unique: true })
+@Index('IDX_cleanups_archived_at', ['archived_at'])
+export class Cleanup extends BaseEntity {
   @Column('varchar')
   name: string;
 

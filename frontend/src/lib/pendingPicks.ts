@@ -1,8 +1,8 @@
 import { v7 as uuidv7 } from 'uuid'
 
 const DB_NAME = 'cleancentive-offline'
-const DB_VERSION = 1
-const STORE_NAME = 'upload-outbox'
+const DB_VERSION = 2
+const STORE_NAME = 'pending-picks'
 
 export type OutboxStatus = 'pending' | 'uploading' | 'failed'
 
@@ -71,6 +71,9 @@ function openDatabase(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = () => {
       const database = request.result
+      if (database.objectStoreNames.contains('upload-outbox')) {
+        database.deleteObjectStore('upload-outbox')
+      }
       if (!database.objectStoreNames.contains(STORE_NAME)) {
         const store = database.createObjectStore(STORE_NAME, { keyPath: 'id' })
         store.createIndex('status', 'status', { unique: false })
@@ -210,7 +213,7 @@ async function uploadItem(item: OutboxItem, context: FlushContext): Promise<void
     headers.Authorization = `Bearer ${context.sessionToken}`
   }
 
-  const response = await fetch(`${context.apiBase}/cleanup/uploads`, {
+  const response = await fetch(`${context.apiBase}/spots`, {
     method: 'POST',
     headers,
     body: formData,

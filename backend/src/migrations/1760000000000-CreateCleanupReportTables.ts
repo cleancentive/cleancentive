@@ -5,7 +5,7 @@ export class CreateCleanupReportTables1760000000000 implements MigrationInterfac
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
-      CREATE TABLE "cleanup_reports" (
+      CREATE TABLE "spots" (
         "id" uuid NOT NULL,
         "created_at" TIMESTAMP NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP NOT NULL DEFAULT now(),
@@ -21,48 +21,48 @@ export class CreateCleanupReportTables1760000000000 implements MigrationInterfac
         "thumbnail_key" varchar,
         "upload_id" varchar NOT NULL,
         "processing_status" varchar NOT NULL DEFAULT 'queued',
-        "analysis_started_at" TIMESTAMP,
-        "analysis_completed_at" TIMESTAMP,
+        "detection_started_at" TIMESTAMP,
+        "detection_completed_at" TIMESTAMP,
         "processing_error" text,
-        "analysis_raw" jsonb,
-        CONSTRAINT "PK_cleanup_reports_id" PRIMARY KEY ("id"),
-        CONSTRAINT "FK_cleanup_reports_user_id" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+        "detection_raw" jsonb,
+        CONSTRAINT "PK_spots_id" PRIMARY KEY ("id"),
+        CONSTRAINT "FK_spots_user_id" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE NO ACTION
       )
     `);
 
-    await queryRunner.query(`CREATE UNIQUE INDEX "IDX_cleanup_reports_upload_id" ON "cleanup_reports" ("upload_id")`);
-    await queryRunner.query(`CREATE INDEX "IDX_cleanup_reports_user_id" ON "cleanup_reports" ("user_id")`);
-    await queryRunner.query(`CREATE INDEX "IDX_cleanup_reports_processing_status" ON "cleanup_reports" ("processing_status")`);
+    await queryRunner.query(`CREATE UNIQUE INDEX "IDX_spots_upload_id" ON "spots" ("upload_id")`);
+    await queryRunner.query(`CREATE INDEX "IDX_spots_user_id" ON "spots" ("user_id")`);
+    await queryRunner.query(`CREATE INDEX "IDX_spots_processing_status" ON "spots" ("processing_status")`);
 
     await queryRunner.query(`
-      CREATE TABLE "litter_items" (
+      CREATE TABLE "detected_items" (
         "id" uuid NOT NULL,
         "created_at" TIMESTAMP NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP NOT NULL DEFAULT now(),
         "created_by" uuid,
         "updated_by" uuid,
-        "report_id" uuid NOT NULL,
+        "spot_id" uuid NOT NULL,
         "category" varchar,
         "material" varchar,
         "brand" varchar,
         "weight_grams" double precision,
         "confidence" double precision,
         "source_model" varchar,
-        CONSTRAINT "PK_litter_items_id" PRIMARY KEY ("id"),
-        CONSTRAINT "FK_litter_items_report_id" FOREIGN KEY ("report_id") REFERENCES "cleanup_reports"("id") ON DELETE CASCADE ON UPDATE NO ACTION
+        CONSTRAINT "PK_detected_items_id" PRIMARY KEY ("id"),
+        CONSTRAINT "FK_detected_items_spot_id" FOREIGN KEY ("spot_id") REFERENCES "spots"("id") ON DELETE CASCADE ON UPDATE NO ACTION
       )
     `);
 
-    await queryRunner.query(`CREATE INDEX "IDX_litter_items_report_id" ON "litter_items" ("report_id")`);
+    await queryRunner.query(`CREATE INDEX "IDX_detected_items_spot_id" ON "detected_items" ("spot_id")`);
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX "IDX_litter_items_report_id"`);
-    await queryRunner.query(`DROP TABLE "litter_items"`);
+    await queryRunner.query(`DROP INDEX "IDX_detected_items_spot_id"`);
+    await queryRunner.query(`DROP TABLE "detected_items"`);
 
-    await queryRunner.query(`DROP INDEX "IDX_cleanup_reports_processing_status"`);
-    await queryRunner.query(`DROP INDEX "IDX_cleanup_reports_user_id"`);
-    await queryRunner.query(`DROP INDEX "IDX_cleanup_reports_upload_id"`);
-    await queryRunner.query(`DROP TABLE "cleanup_reports"`);
+    await queryRunner.query(`DROP INDEX "IDX_spots_processing_status"`);
+    await queryRunner.query(`DROP INDEX "IDX_spots_user_id"`);
+    await queryRunner.query(`DROP INDEX "IDX_spots_upload_id"`);
+    await queryRunner.query(`DROP TABLE "spots"`);
   }
 }

@@ -18,7 +18,7 @@ export class AdminOpsController {
 
   @Get('overview')
   @ApiOperation({ summary: 'Get lightweight operations overview for dashboards and CLI checks' })
-  @ApiOkResponse({ description: 'Returns lightweight queue, report, worker, and health summary data.' })
+  @ApiOkResponse({ description: 'Returns lightweight queue, spot, worker, and health summary data.' })
   async getOverview() {
     return this.adminOpsService.getOverview();
   }
@@ -36,17 +36,17 @@ export class AdminOpsController {
     return this.adminOpsService.getQueue(this.parseLimit(limit, defaultDetailLimit, maxDetailLimit));
   }
 
-  @Get('reports')
-  @ApiOperation({ summary: 'Get cleanup report processing summary and recent failures' })
+  @Get('spots')
+  @ApiOperation({ summary: 'Get spot processing summary and recent failures' })
   @ApiQuery({
     name: 'limit',
     required: false,
-    description: 'Maximum number of recent failed reports to return. Defaults to 10.',
+    description: 'Maximum number of recent failed spots to return. Defaults to 10.',
     example: defaultDetailLimit,
   })
-  @ApiOkResponse({ description: 'Returns durable report status counts and recent failed report records.' })
-  async getReports(@Query('limit') limit?: string) {
-    return this.adminOpsService.getReports(this.parseLimit(limit, defaultDetailLimit, maxDetailLimit));
+  @ApiOkResponse({ description: 'Returns durable spot status counts and recent failed spot records.' })
+  async getSpots(@Query('limit') limit?: string) {
+    return this.adminOpsService.getSpots(this.parseLimit(limit, defaultDetailLimit, maxDetailLimit));
   }
 
   @Get('worker')
@@ -63,10 +63,10 @@ export class AdminOpsController {
     return this.adminOpsService.getHealth();
   }
 
-  @Post('reports/retry-failed')
-  @ApiOperation({ summary: 'Retry failed cleanup reports in bounded batches' })
+  @Post('spots/retry-failed')
+  @ApiOperation({ summary: 'Retry failed spots in bounded batches' })
   @ApiBody({
-    description: 'Batch size for retrying failed reports. Defaults to 10 and is capped at 100.',
+    description: 'Batch size for retrying failed spots. Defaults to 10 and is capped at 100.',
     schema: {
       type: 'object',
       properties: {
@@ -74,9 +74,9 @@ export class AdminOpsController {
       },
     },
   })
-  @ApiOkResponse({ description: 'Returns a summary of queued and skipped failed reports.' })
-  async retryFailedReports(@Body('limit') limit?: number) {
-    return this.adminOpsService.retryFailedReports(this.parseLimit(String(limit ?? ''), defaultRetryBatchSize, maxRetryBatchSize));
+  @ApiOkResponse({ description: 'Returns a summary of queued and skipped failed spots.' })
+  async retryFailedSpots(@Body('limit') limit?: number) {
+    return this.adminOpsService.retryFailedSpots(this.parseLimit(String(limit ?? ''), defaultRetryBatchSize, maxRetryBatchSize));
   }
 
   private parseLimit(value: string | undefined, defaultValue: number, maxValue: number) {

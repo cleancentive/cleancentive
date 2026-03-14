@@ -16,7 +16,7 @@ export class User extends BaseEntity {
   active_team_id: string | null;
 
   @Column('uuid', { nullable: true })
-  active_event_occurrence_id: string | null;
+  active_cleanup_date_id: string | null;
 
   @OneToMany('UserEmail', (email: any) => email.user)
   emails: any[];

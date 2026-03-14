@@ -298,8 +298,8 @@ async function main(): Promise<void> {
       const reportId = uuidv7();
       const uploadId = uuidv7();
       const fileExt = getFileExtension(mimeType);
-      const imageKey = `reports/${reportId}/original-${uploadId}.${fileExt}`;
-      const thumbnailKey = `reports/${reportId}/thumbnail-${uploadId}.jpg`;
+      const imageKey = `spots/${reportId}/original-${uploadId}.${fileExt}`;
+      const thumbnailKey = `spots/${reportId}/thumbnail-${uploadId}.jpg`;
 
       let imageBuffer: Buffer;
       try {
@@ -313,7 +313,7 @@ async function main(): Promise<void> {
       try {
         await dbClient.query(
           `
-            INSERT INTO cleanup_reports (
+            INSERT INTO spots (
               id,
               user_id,
               latitude,
@@ -325,10 +325,10 @@ async function main(): Promise<void> {
               thumbnail_key,
               upload_id,
               processing_status,
-              analysis_started_at,
-              analysis_completed_at,
+              detection_started_at,
+              detection_completed_at,
               processing_error,
-              analysis_raw,
+              detection_raw,
               created_by,
               updated_by
             )
@@ -392,7 +392,7 @@ async function main(): Promise<void> {
 
         await dbClient.query(
           `
-            UPDATE cleanup_reports
+            UPDATE spots
             SET image_key = $1,
                 thumbnail_key = $2,
                 updated_by = $3,
@@ -411,9 +411,9 @@ async function main(): Promise<void> {
 
           await dbClient.query(
             `
-              INSERT INTO litter_items (
+              INSERT INTO detected_items (
                 id,
-                report_id,
+                spot_id,
                 category,
                 material,
                 brand,
@@ -444,7 +444,7 @@ async function main(): Promise<void> {
         stats.reportsFailed += 1;
         failures.push(`Failed report for user ${nickname}: ${(error as Error).message}`);
         try {
-          await dbClient.query('DELETE FROM cleanup_reports WHERE id = $1', [reportId]);
+          await dbClient.query('DELETE FROM spots WHERE id = $1', [reportId]);
         } catch {
           failures.push(`Cleanup failed for partially created report ${reportId}`);
         }

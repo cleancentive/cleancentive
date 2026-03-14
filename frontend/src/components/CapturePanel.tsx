@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { useAuthStore } from '../stores/authStore'
-import { flushOutbox, getOutboxItems, queueCapture, type OutboxItem } from '../lib/uploadOutbox'
+import { flushOutbox, getOutboxItems, queueCapture, type OutboxItem } from '../lib/pendingPicks'
 import { extractImageMetadata } from '../lib/imageMetadata'
 import { formatTimestamp } from '../utils/formatTimestamp'
 
@@ -497,8 +497,8 @@ export function CapturePanel() {
   return (
     <section className="capture-panel">
       <header className="capture-header">
-        <h2>Capture Cleanup</h2>
-        <p>{isOnline ? 'Online - queued uploads sync automatically.' : 'Offline - captures queue locally until you reconnect.'}</p>
+        <h2>Log a Pick</h2>
+        <p>{isOnline ? 'Online - picks sync automatically.' : 'Offline - picks queue locally until you reconnect.'}</p>
       </header>
 
       <div className="capture-status-grid">
@@ -519,7 +519,7 @@ export function CapturePanel() {
           </strong>
         </div>
         <div className="status-card">
-          <span className="status-label">Outbox</span>
+          <span className="status-label">Pending</span>
           <strong>{outboxItems.length} queued</strong>
         </div>
       </div>
@@ -554,7 +554,7 @@ export function CapturePanel() {
                   onClick={captureAndQueue}
                   disabled={isCapturing || !locationAccepted}
                 >
-                {isCapturing ? 'Capturing...' : 'Capture and Queue'}
+                {isCapturing ? 'Capturing...' : 'Log Pick'}
               </button>
               <button className="secondary-button" onClick={stopCamera}>Stop Camera</button>
             </div>

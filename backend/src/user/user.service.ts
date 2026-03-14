@@ -53,7 +53,7 @@ export class UserService {
       `
         UPDATE users AS target
         SET active_team_id = COALESCE(target.active_team_id, source.active_team_id),
-            active_event_occurrence_id = COALESCE(target.active_event_occurrence_id, source.active_event_occurrence_id),
+            active_cleanup_date_id = COALESCE(target.active_cleanup_date_id, source.active_cleanup_date_id),
             updated_at = NOW()
         FROM users AS source
         WHERE target.id = $1
@@ -64,7 +64,7 @@ export class UserService {
 
     await this.userRepository.query(
       `
-        UPDATE cleanup_reports
+        UPDATE spots
         SET user_id = $1,
             updated_by = $1,
             updated_at = NOW()
@@ -75,7 +75,7 @@ export class UserService {
 
     await this.userRepository.query(
       `
-        UPDATE cleanup_reports
+        UPDATE spots
         SET created_by = $1
         WHERE created_by = $2
       `,
@@ -84,7 +84,7 @@ export class UserService {
 
     await this.userRepository.query(
       `
-        UPDATE cleanup_reports
+        UPDATE spots
         SET updated_by = $1
         WHERE updated_by = $2
       `,
@@ -93,7 +93,7 @@ export class UserService {
 
     await this.userRepository.query(
       `
-        UPDATE litter_items
+        UPDATE detected_items
         SET created_by = $1
         WHERE created_by = $2
       `,
@@ -102,7 +102,7 @@ export class UserService {
 
     await this.userRepository.query(
       `
-        UPDATE litter_items
+        UPDATE detected_items
         SET updated_by = $1
         WHERE updated_by = $2
       `,
@@ -153,15 +153,15 @@ export class UserService {
 
     await this.userRepository.query(
       `
-        UPDATE event_participants source
+        UPDATE cleanup_participants source
         SET user_id = $1,
             updated_by = $1,
             updated_at = NOW()
         WHERE source.user_id = $2
           AND NOT EXISTS (
             SELECT 1
-            FROM event_participants target
-            WHERE target.event_id = source.event_id
+            FROM cleanup_participants target
+            WHERE target.cleanup_id = source.cleanup_id
               AND target.user_id = $1
           )
       `,
@@ -170,14 +170,14 @@ export class UserService {
 
     await this.userRepository.query(
       `
-        UPDATE event_participants
+        UPDATE cleanup_participants
         SET role = 'admin',
             updated_by = $1,
             updated_at = NOW()
         WHERE user_id = $1
-          AND event_id IN (
-            SELECT event_id
-            FROM event_participants
+          AND cleanup_id IN (
+            SELECT cleanup_id
+            FROM cleanup_participants
             WHERE user_id = $2
               AND role = 'admin'
           )
@@ -187,7 +187,7 @@ export class UserService {
 
     await this.userRepository.query(
       `
-        DELETE FROM event_participants
+        DELETE FROM cleanup_participants
         WHERE user_id = $1
       `,
       [sourceUserId],
@@ -206,7 +206,7 @@ export class UserService {
 
     await this.userRepository.query(
       `
-        UPDATE event_messages
+        UPDATE cleanup_messages
         SET author_user_id = $1,
             updated_by = $1,
             updated_at = NOW()
@@ -416,7 +416,7 @@ export class UserService {
     user.nickname = 'guest';
     user.full_name = null;
     user.active_team_id = null;
-    user.active_event_occurrence_id = null;
+    user.active_cleanup_date_id = null;
     user.updated_by = null;
     await this.userRepository.save(user);
   }

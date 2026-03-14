@@ -35,15 +35,15 @@ export function AdminPanel() {
     search,
     isLoading,
     isLoadingOps,
-    isRetryingFailedReports,
+    isRetryingFailedSpots,
     hasMore,
     error,
     opsOverview,
-    retryFailedReportsResult,
+    retryFailedSpotsResult,
     checkAdminStatus,
     fetchUsers,
     fetchOpsOverview,
-    retryFailedReports,
+    retryFailedSpots,
     setSort,
     setOrder,
     setSearch,
@@ -188,13 +188,13 @@ export function AdminPanel() {
             className="ops-refresh-button"
             style={{ '--refresh-progress': isLoadingOps ? 0 : (5 - countdown) / 5 } as React.CSSProperties}
             onClick={() => { fetchOpsOverview(); setCountdown(5) }}
-            disabled={isLoadingOps || isRetryingFailedReports}
+            disabled={isLoadingOps || isRetryingFailedSpots}
           >
             {isLoadingOps ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
 
-        {(opsOverview?.reports.counts.failed ?? 0) > 0 && (
+        {(opsOverview?.spots.counts.failed ?? 0) > 0 && (
           <div className="ops-actions-row">
             <label className="ops-batch-label">
               Retry batch size
@@ -210,12 +210,12 @@ export function AdminPanel() {
             <button
               type="button"
               className="ops-retry-button"
-              onClick={() => retryFailedReports(retryLimit)}
-              disabled={isRetryingFailedReports || isLoadingOps}
+              onClick={() => retryFailedSpots(retryLimit)}
+              disabled={isRetryingFailedSpots || isLoadingOps}
             >
-              {isRetryingFailedReports ? 'Retrying...' : 'Retry failed jobs'}
+              {isRetryingFailedSpots ? 'Retrying...' : 'Retry failed spots'}
             </button>
-            {retryFailedReportsResult && <p className="ops-retry-result">{retryFailedReportsResult}</p>}
+            {retryFailedSpotsResult && <p className="ops-retry-result">{retryFailedSpotsResult}</p>}
           </div>
         )}
 
@@ -241,12 +241,12 @@ export function AdminPanel() {
           </article>
 
           <article className="ops-card">
-            <h3>Reports</h3>
+            <h3>Spots</h3>
             <dl className="ops-key-values">
-              <div><dt>Queued</dt><dd>{opsOverview?.reports.counts.queued ?? '-'}</dd></div>
-              <div><dt>Processing</dt><dd>{opsOverview?.reports.counts.processing ?? '-'}</dd></div>
-              <div><dt>Completed</dt><dd>{opsOverview?.reports.counts.completed ?? '-'}</dd></div>
-              <div><dt>Failed</dt><dd>{opsOverview?.reports.counts.failed ?? '-'}</dd></div>
+              <div><dt>Queued</dt><dd>{opsOverview?.spots.counts.queued ?? '-'}</dd></div>
+              <div><dt>Processing</dt><dd>{opsOverview?.spots.counts.processing ?? '-'}</dd></div>
+              <div><dt>Completed</dt><dd>{opsOverview?.spots.counts.completed ?? '-'}</dd></div>
+              <div><dt>Failed</dt><dd>{opsOverview?.spots.counts.failed ?? '-'}</dd></div>
             </dl>
           </article>
 
@@ -263,12 +263,12 @@ export function AdminPanel() {
 
         <div className="ops-age-grid">
           <div className="ops-age-card">
-            <span>Oldest queued report</span>
-            <strong>{formatAge(opsOverview?.reports.oldestQueuedAgeSeconds ?? null)}</strong>
+            <span>Oldest queued spot</span>
+            <strong>{formatAge(opsOverview?.spots.oldestQueuedAgeSeconds ?? null)}</strong>
           </div>
           <div className="ops-age-card">
-            <span>Oldest processing report</span>
-            <strong>{formatAge(opsOverview?.reports.oldestProcessingAgeSeconds ?? null)}</strong>
+            <span>Oldest processing spot</span>
+            <strong>{formatAge(opsOverview?.spots.oldestProcessingAgeSeconds ?? null)}</strong>
           </div>
         </div>
       </section>

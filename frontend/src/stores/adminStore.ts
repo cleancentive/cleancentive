@@ -34,7 +34,7 @@ interface OpsOverview {
       paused: number
     }
   }
-  reports: {
+  spots: {
     counts: {
       queued: number
       processing: number
@@ -63,16 +63,16 @@ interface AdminState {
   search: string
   isLoading: boolean
   isLoadingOps: boolean
-  isRetryingFailedReports: boolean
+  isRetryingFailedSpots: boolean
   hasMore: boolean
   error: string | null
   opsOverview: OpsOverview | null
-  retryFailedReportsResult: string | null
+  retryFailedSpotsResult: string | null
 
   checkAdminStatus: () => Promise<void>
   fetchUsers: (loadMore?: boolean) => Promise<void>
   fetchOpsOverview: () => Promise<void>
-  retryFailedReports: (limit: number) => Promise<void>
+  retryFailedSpots: (limit: number) => Promise<void>
   setSort: (sort: 'created_at' | 'last_login') => void
   setOrder: (order: 'ASC' | 'DESC') => void
   setSearch: (search: string) => void
@@ -100,11 +100,11 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   search: '',
   isLoading: false,
   isLoadingOps: false,
-  isRetryingFailedReports: false,
+  isRetryingFailedSpots: false,
   hasMore: false,
   error: null,
   opsOverview: null,
-  retryFailedReportsResult: null,
+  retryFailedSpotsResult: null,
 
   checkAdminStatus: async () => {
     const sessionToken = useAuthStore.getState().sessionToken
@@ -176,24 +176,24 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }
   },
 
-  retryFailedReports: async (limit) => {
+  retryFailedSpots: async (limit) => {
     const headers = getHeaders()
     if (!headers.Authorization) return
 
-    set({ isRetryingFailedReports: true, retryFailedReportsResult: null, error: null })
+    set({ isRetryingFailedSpots: true, retryFailedSpotsResult: null, error: null })
 
     try {
-      const response = await axios.post(`${API_BASE}/admin/ops/reports/retry-failed`, { limit }, { headers })
+      const response = await axios.post(`${API_BASE}/admin/ops/spots/retry-failed`, { limit }, { headers })
       const data = response.data
       set({
-        isRetryingFailedReports: false,
-        retryFailedReportsResult: `Queued ${data.retried} failed reports, skipped ${data.skipped}.`,
+        isRetryingFailedSpots: false,
+        retryFailedSpotsResult: `Queued ${data.retried} failed spots, skipped ${data.skipped}.`,
       })
       await get().fetchOpsOverview()
     } catch (error: any) {
       set({
-        error: error.response?.data?.message || 'Failed to retry failed reports',
-        isRetryingFailedReports: false,
+        error: error.response?.data?.message || 'Failed to retry failed spots',
+        isRetryingFailedSpots: false,
       })
     }
   },
@@ -252,8 +252,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     hasMore: false,
     opsOverview: null,
     isLoadingOps: false,
-    isRetryingFailedReports: false,
-    retryFailedReportsResult: null,
+    isRetryingFailedSpots: false,
+    retryFailedSpotsResult: null,
     error: null,
   }),
 }))
