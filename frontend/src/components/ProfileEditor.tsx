@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
+import { Navigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 
 export function ProfileEditor() {
   const {
-    user, updateProfile, addEmail, confirmMerge, removeEmail,
+    user, logout, updateProfile, addEmail, confirmMerge, removeEmail,
     updateEmailSelection, deleteAccount, anonymizeAccount,
     isLoading, error, clearError
   } = useAuthStore()
@@ -121,7 +122,7 @@ export function ProfileEditor() {
     await updateEmailSelection(newSelection)
   }
 
-  if (!user) return null
+  if (!user) return <Navigate to="/" replace />
 
   return (
     <div className="profile-editor">
@@ -332,6 +333,12 @@ export function ProfileEditor() {
           </div>
         </div>
       )}
+
+      <div className="profile-sign-out">
+        <button onClick={logout} className="danger-button">
+          Sign Out
+        </button>
+      </div>
     </div>
   )
 }

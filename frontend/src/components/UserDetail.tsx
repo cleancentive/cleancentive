@@ -81,11 +81,6 @@ export function UserDetail() {
 
   return (
     <div className="user-detail">
-      <header className="detail-header">
-        <h1>User Details</h1>
-        <Link to="/admin" className="back-link">&larr; Back to Admin Panel</Link>
-      </header>
-
       <div className="user-info-section">
         <h2>
           {user.nickname}

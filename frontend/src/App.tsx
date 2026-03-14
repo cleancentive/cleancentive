@@ -1,7 +1,9 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams, useNavigate } from 'react-router-dom'
+import { AppShell } from './components/AppShell'
 import { AppLayout } from './components/AppLayout'
 import { AdminPanel } from './components/AdminPanel'
+import { ProfileEditor } from './components/ProfileEditor'
 import { UserDetail } from './components/UserDetail'
 import { useAuthStore } from './stores/authStore'
 import './App.css'
@@ -37,9 +39,12 @@ function App() {
     <BrowserRouter>
       <AuthHandler />
       <Routes>
-        <Route path="/" element={<AppLayout />} />
-        <Route path="/admin" element={<AdminPanel />} />
-        <Route path="/admin/users/:id" element={<UserDetail />} />
+        <Route element={<AppShell />}>
+          <Route path="/" element={<AppLayout />} />
+          <Route path="/profile" element={<ProfileEditor />} />
+          <Route path="/admin" element={<AdminPanel />} />
+          <Route path="/admin/users/:id" element={<UserDetail />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

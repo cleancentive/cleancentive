@@ -147,10 +147,7 @@ export function AdminPanel() {
 
   return (
     <div className="admin-panel">
-      <header className="admin-header">
-        <h1>Admin Panel</h1>
-        <Link to="/" className="back-link">Back to Dashboard</Link>
-      </header>
+      <h1 className="admin-title">Admin Panel</h1>
 
       <section className="ops-overview-panel">
         <div className="ops-overview-header">

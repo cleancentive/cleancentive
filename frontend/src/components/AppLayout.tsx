@@ -1,19 +1,16 @@
 import { useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
 import { GuestBanner } from './GuestBanner'
 import { LoginForm } from './LoginForm'
-import { ProfileEditor } from './ProfileEditor'
 import { CapturePanel } from './CapturePanel'
 import { HistoryPanel } from './HistoryPanel'
 
 export function AppLayout() {
-  const { user, guestId, initializeGuest, logout, refreshTokenIfNeeded } = useAuthStore()
-  const { isAdmin, checkAdminStatus } = useAdminStore()
+  const { user, guestId, initializeGuest, refreshTokenIfNeeded } = useAuthStore()
+  const { checkAdminStatus } = useAdminStore()
 
   useEffect(() => {
-    // Generate client-side guest ID on app load if not authenticated
     if (!user) {
       initializeGuest()
     }
@@ -22,7 +19,6 @@ export function AppLayout() {
   useEffect(() => {
     if (user) {
       checkAdminStatus()
-      // Refresh session token if expiring within 30 days
       refreshTokenIfNeeded()
     }
   }, [user, checkAdminStatus, refreshTokenIfNeeded])
@@ -44,53 +40,37 @@ export function AppLayout() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [])
 
+  if (!user && !guestId) {
+    return (
+      <>
+        <div className="auth-section">
+          <div className="auth-content">
+            <div className="auth-intro">
+              <h2>Welcome to CleanCentive</h2>
+              <p>Track cleanup impact with offline-first photo reporting.</p>
+              <ul>
+                <li>Capture litter photos with geolocation</li>
+                <li>Create thumbnails and queue uploads offline</li>
+                <li>Auto-sync uploads as soon as you reconnect</li>
+              </ul>
+            </div>
+            <LoginForm />
+          </div>
+        </div>
+        <GuestBanner />
+      </>
+    )
+  }
+
   return (
-    <div className="app">
-      <header className="app-header">
-        <h1>CleanCentive</h1>
-        {(user || guestId) && (
-          <div className="user-menu">
-            <span>Welcome, {user?.nickname || 'Guest'}!</span>
-            {user && isAdmin && (
-              <Link to="/admin" className="admin-link">Admin</Link>
-            )}
-            {user && (
-              <button onClick={logout} className="logout-button">
-                Sign Out
-              </button>
-            )}
-          </div>
-        )}
-      </header>
-
-      <main className="app-main">
-        {!user && !guestId ? (
-          <div className="auth-section">
-            <div className="auth-content">
-              <div className="auth-intro">
-                <h2>Welcome to CleanCentive</h2>
-                <p>Track cleanup impact with offline-first photo reporting.</p>
-                <ul>
-                  <li>Capture litter photos with geolocation</li>
-                  <li>Create thumbnails and queue uploads offline</li>
-                  <li>Auto-sync uploads as soon as you reconnect</li>
-                </ul>
-              </div>
-              <LoginForm />
-            </div>
-          </div>
-        ) : (
-          <div className="dashboard">
-            {user && <ProfileEditor />}
-            <div className="dashboard-content">
-              <CapturePanel />
-              <HistoryPanel />
-            </div>
-          </div>
-        )}
-      </main>
-
+    <>
+      <div className="dashboard">
+        <div className="dashboard-content">
+          <CapturePanel />
+          <HistoryPanel />
+        </div>
+      </div>
       <GuestBanner />
-    </div>
+    </>
   )
 }
