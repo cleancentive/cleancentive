@@ -24,6 +24,9 @@ import { CleanupParticipant } from './cleanup/cleanup-participant.entity';
 import { CleanupMessage } from './cleanup/cleanup-message.entity';
 import { TeamModule } from './team/team.module';
 import { CleanupModule } from './cleanup/cleanup.module';
+import { StorageModule } from './storage/storage.module';
+import { PurgeModule } from './purge/purge.module';
+import { InsightsModule } from './insights/insights.module';
 
 @Module({
   imports: [
@@ -63,6 +66,9 @@ import { CleanupModule } from './cleanup/cleanup.module';
     SpotModule,
     TeamModule,
     CleanupModule,
+    StorageModule,
+    PurgeModule,
+    InsightsModule,
   ],
   providers: [
     {

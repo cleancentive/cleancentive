@@ -162,6 +162,8 @@ export class SpotService {
 
     savedSpot.image_key = imageKey;
     savedSpot.thumbnail_key = thumbnailKey;
+    savedSpot.original_size_bytes = input.imageBuffer.length;
+    savedSpot.thumbnail_size_bytes = input.thumbnailBuffer?.length ?? 0;
     await this.spotRepository.save(savedSpot);
 
     try {

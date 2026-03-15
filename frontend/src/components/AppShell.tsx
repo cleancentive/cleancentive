@@ -38,6 +38,17 @@ function CleanupIcon() {
   )
 }
 
+function ChartIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 17V9" />
+      <path d="M7 17V5" />
+      <path d="M11 17V11" />
+      <path d="M15 17V3" />
+    </svg>
+  )
+}
+
 function ShieldIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -57,6 +68,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { to: '/teams', label: 'Teams', icon: <TeamIcon /> },
   { to: '/cleanups', label: 'Cleanups', icon: <CleanupIcon /> },
+  { to: '/insights', label: 'Insights', icon: <ChartIcon /> },
   { to: '/map', label: 'Map', icon: <MapIcon /> },
   { to: '/admin', label: 'Admin', icon: <ShieldIcon />, adminOnly: true },
 ]

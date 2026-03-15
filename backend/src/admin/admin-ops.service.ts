@@ -2,9 +2,12 @@ import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Spot } from '../spot/spot.entity';
+import { DetectedItem } from '../spot/detected-item.entity';
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
+import { StorageService } from '../storage/storage.service';
+import { PurgeService } from '../purge/purge.service';
 
 type HealthStatus = 'ok' | 'degraded' | 'down';
 
@@ -33,6 +36,10 @@ export class AdminOpsService implements OnModuleDestroy {
   constructor(
     @InjectRepository(Spot)
     private readonly spotRepository: Repository<Spot>,
+    @InjectRepository(DetectedItem)
+    private readonly detectedItemRepository: Repository<DetectedItem>,
+    private readonly storageService: StorageService,
+    private readonly purgeService: PurgeService,
   ) {
     const redisConnection = {
       host: process.env.REDIS_HOST || 'localhost',
@@ -389,6 +396,65 @@ export class AdminOpsService implements OnModuleDestroy {
     }
 
     return 'ok';
+  }
+
+  async getStorageInsights() {
+    const [summary, growthRate] = await Promise.all([
+      this.storageService.getStorageSummary(),
+      this.storageService.getGrowthRate(8),
+    ]);
+
+    return {
+      timestamp: new Date().toISOString(),
+      ...summary,
+      growthRate,
+    };
+  }
+
+  async getPurgeStatus() {
+    const status = await this.purgeService.getPurgeStatus();
+    return {
+      timestamp: new Date().toISOString(),
+      ...status,
+    };
+  }
+
+  async getSpotAggregateStats() {
+    const [countRows, topCategories, topMaterials] = await Promise.all([
+      this.spotRepository.query(
+        `SELECT processing_status, COUNT(*)::int AS count FROM spots GROUP BY processing_status`,
+      ),
+      this.detectedItemRepository.query(
+        `SELECT category, COUNT(*)::int AS count FROM detected_items WHERE category IS NOT NULL GROUP BY category ORDER BY count DESC LIMIT 10`,
+      ),
+      this.detectedItemRepository.query(
+        `SELECT material, COUNT(*)::int AS count FROM detected_items WHERE material IS NOT NULL GROUP BY material ORDER BY count DESC LIMIT 10`,
+      ),
+    ]);
+
+    const byStatus = { queued: 0, processing: 0, completed: 0, failed: 0 };
+    for (const row of countRows as Array<{ processing_status: keyof typeof byStatus; count: number }>) {
+      if (row.processing_status in byStatus) {
+        byStatus[row.processing_status] = Number(row.count);
+      }
+    }
+
+    const total = byStatus.completed + byStatus.failed;
+    const successRate = total > 0 ? byStatus.completed / total : 0;
+
+    return {
+      timestamp: new Date().toISOString(),
+      byStatus,
+      successRate,
+      topCategories: (topCategories as Array<{ category: string; count: number }>).map((r) => ({
+        category: r.category,
+        count: Number(r.count),
+      })),
+      topMaterials: (topMaterials as Array<{ material: string; count: number }>).map((r) => ({
+        material: r.material,
+        count: Number(r.count),
+      })),
+    };
   }
 
   private async retryFailedSpot(spotId: string): Promise<void> {

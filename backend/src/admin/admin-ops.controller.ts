@@ -63,6 +63,27 @@ export class AdminOpsController {
     return this.adminOpsService.getHealth();
   }
 
+  @Get('storage')
+  @ApiOperation({ summary: 'Get storage volume, breakdown, and growth rate' })
+  @ApiOkResponse({ description: 'Returns storage summary, originals vs thumbnails breakdown, and weekly growth.' })
+  async getStorage() {
+    return this.adminOpsService.getStorageInsights();
+  }
+
+  @Get('purge')
+  @ApiOperation({ summary: 'Get image purge status and statistics' })
+  @ApiOkResponse({ description: 'Returns purge enabled/disabled state, retention config, run stats, and next-run estimates.' })
+  async getPurge() {
+    return this.adminOpsService.getPurgeStatus();
+  }
+
+  @Get('spot-stats')
+  @ApiOperation({ summary: 'Get aggregate spot statistics including top categories and materials' })
+  @ApiOkResponse({ description: 'Returns spot status breakdown, success rate, and top detected categories/materials.' })
+  async getSpotStats() {
+    return this.adminOpsService.getSpotAggregateStats();
+  }
+
   @Post('spots/retry-failed')
   @ApiOperation({ summary: 'Retry failed spots in bounded batches' })
   @ApiBody({

@@ -20,6 +20,28 @@ interface AdminUser {
   is_admin: boolean
 }
 
+interface StorageInsights {
+  timestamp: string
+  totalBytes: number
+  totalOriginalBytes: number
+  totalThumbnailBytes: number
+  spotCount: number
+  growthRate: Array<{ week: string; bytes: number }>
+}
+
+interface PurgeStatus {
+  timestamp: string
+  enabled: boolean
+  retentionDays: number | null
+  lastRunAt: string | null
+  totalFreedBytes: number
+  lastFreedBytes: number
+  lastSpotsPurged: number
+  nextRunAt: string | null
+  estimatedPurgeBytes: number
+  estimatedPurgeCount: number
+}
+
 interface OpsOverview {
   timestamp: string
   health: {
@@ -64,15 +86,21 @@ interface AdminState {
   search: string
   isLoading: boolean
   isLoadingOps: boolean
+  isLoadingStorage: boolean
+  isLoadingPurge: boolean
   isRetryingFailedSpots: boolean
   hasMore: boolean
   error: string | null
   opsOverview: OpsOverview | null
+  storageInsights: StorageInsights | null
+  purgeStatus: PurgeStatus | null
   retryFailedSpotsResult: string | null
 
   checkAdminStatus: () => Promise<void>
   fetchUsers: (loadMore?: boolean) => Promise<void>
   fetchOpsOverview: () => Promise<void>
+  fetchStorageInsights: () => Promise<void>
+  fetchPurgeStatus: () => Promise<void>
   retryFailedSpots: (limit: number) => Promise<void>
   setSort: (sort: 'created_at' | 'last_login') => void
   setOrder: (order: 'ASC' | 'DESC') => void
@@ -101,10 +129,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   search: '',
   isLoading: false,
   isLoadingOps: false,
+  isLoadingStorage: false,
+  isLoadingPurge: false,
   isRetryingFailedSpots: false,
   hasMore: false,
   error: null,
   opsOverview: null,
+  storageInsights: null,
+  purgeStatus: null,
   retryFailedSpotsResult: null,
 
   checkAdminStatus: async () => {
@@ -173,6 +205,40 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       set({
         error: error.response?.data?.message || 'Failed to fetch operations overview',
         isLoadingOps: false,
+      })
+    }
+  },
+
+  fetchStorageInsights: async () => {
+    const headers = getHeaders()
+    if (!headers.Authorization) return
+
+    set({ isLoadingStorage: true })
+
+    try {
+      const response = await axios.get(`${API_BASE}/admin/ops/storage`, { headers })
+      set({ storageInsights: response.data, isLoadingStorage: false })
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to fetch storage insights',
+        isLoadingStorage: false,
+      })
+    }
+  },
+
+  fetchPurgeStatus: async () => {
+    const headers = getHeaders()
+    if (!headers.Authorization) return
+
+    set({ isLoadingPurge: true })
+
+    try {
+      const response = await axios.get(`${API_BASE}/admin/ops/purge`, { headers })
+      set({ purgeStatus: response.data, isLoadingPurge: false })
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to fetch purge status',
+        isLoadingPurge: false,
       })
     }
   },
@@ -252,7 +318,11 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     search: '',
     hasMore: false,
     opsOverview: null,
+    storageInsights: null,
+    purgeStatus: null,
     isLoadingOps: false,
+    isLoadingStorage: false,
+    isLoadingPurge: false,
     isRetryingFailedSpots: false,
     retryFailedSpotsResult: null,
     error: null,

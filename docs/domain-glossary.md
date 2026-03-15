@@ -110,6 +110,10 @@ Background process that runs detection jobs on submitted photos.
 
 Internal term for the local IndexedDB queue of pending syncs. The user-facing label for this concept is **Pending**.
 
+### Purge
+
+Automated deletion of data after a retention period. Configured via environment variables and disabled by default. Requires explicit admin opt-in.
+
 ### Processing Status
 
 Server-side pipeline state for a Spot. Values and their user-facing labels:

@@ -27,6 +27,13 @@ function formatAge(seconds: number | null) {
   return `${hours}h ${remainderMinutes}m`
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${bytes} B`
+}
+
 export function AdminPanel() {
   const { user } = useAuthStore()
   const { isOnline } = useConnectivityStore()
@@ -43,10 +50,14 @@ export function AdminPanel() {
     hasMore,
     error,
     opsOverview,
+    storageInsights,
+    purgeStatus,
     retryFailedSpotsResult,
     checkAdminStatus,
     fetchUsers,
     fetchOpsOverview,
+    fetchStorageInsights,
+    fetchPurgeStatus,
     retryFailedSpots,
     setSort,
     setOrder,
@@ -68,8 +79,10 @@ export function AdminPanel() {
     if (checked && isAdmin) {
       fetchUsers()
       fetchOpsOverview()
+      fetchStorageInsights()
+      fetchPurgeStatus()
     }
-  }, [checked, isAdmin, fetchUsers, fetchOpsOverview])
+  }, [checked, isAdmin, fetchUsers, fetchOpsOverview, fetchStorageInsights, fetchPurgeStatus])
 
 
   // Debounced search
@@ -220,6 +233,104 @@ export function AdminPanel() {
             <strong>{formatAge(opsOverview?.spots.oldestProcessingAgeSeconds ?? null)}</strong>
           </div>
         </div>
+      </fieldset>
+
+      <fieldset className="page-card">
+        <legend>Storage Insights</legend>
+        {storageInsights ? (
+          <>
+            <div className="admin-storage-grid">
+              <div className="admin-storage-card">
+                <div className="admin-storage-value">{formatBytes(storageInsights.totalBytes)}</div>
+                <div className="admin-storage-label">Total Volume</div>
+              </div>
+              <div className="admin-storage-card">
+                <div className="admin-storage-value">{formatBytes(storageInsights.totalOriginalBytes)}</div>
+                <div className="admin-storage-label">Originals</div>
+              </div>
+              <div className="admin-storage-card">
+                <div className="admin-storage-value">{formatBytes(storageInsights.totalThumbnailBytes)}</div>
+                <div className="admin-storage-label">Thumbnails</div>
+              </div>
+              <div className="admin-storage-card">
+                <div className="admin-storage-value">{storageInsights.spotCount.toLocaleString()}</div>
+                <div className="admin-storage-label">Total Spots</div>
+              </div>
+            </div>
+            {storageInsights.growthRate.length > 0 && (
+              <table className="admin-growth-table">
+                <thead>
+                  <tr><th>Week</th><th>New Volume</th></tr>
+                </thead>
+                <tbody>
+                  {storageInsights.growthRate.map((entry) => (
+                    <tr key={entry.week}><td>{entry.week}</td><td>{formatBytes(entry.bytes)}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
+        ) : (
+          <p className="loading">Loading storage data...</p>
+        )}
+      </fieldset>
+
+      <fieldset className="page-card">
+        <legend>Image Purge</legend>
+        {purgeStatus ? (
+          <>
+            <div className={`admin-purge-status ${purgeStatus.enabled ? 'admin-purge-status--enabled' : 'admin-purge-status--disabled'}`}>
+              {purgeStatus.enabled ? (
+                <strong>Enabled — originals older than {purgeStatus.retentionDays} days are purged daily</strong>
+              ) : (
+                <>
+                  <strong>Disabled</strong>
+                  <p style={{ margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
+                    Set <code>IMAGE_PURGE_RETENTION_DAYS</code> environment variable to enable automated purge of original images.
+                  </p>
+                </>
+              )}
+            </div>
+            {purgeStatus.enabled && (
+              <div className="admin-purge-grid">
+                <div className="admin-purge-stat">
+                  <strong>{formatBytes(purgeStatus.totalFreedBytes)}</strong>
+                  <span>Total Freed</span>
+                </div>
+                <div className="admin-purge-stat">
+                  <strong>{formatBytes(purgeStatus.lastFreedBytes)}</strong>
+                  <span>Last Run Freed</span>
+                </div>
+                <div className="admin-purge-stat">
+                  <strong>{purgeStatus.lastSpotsPurged}</strong>
+                  <span>Last Run Spots</span>
+                </div>
+                <div className="admin-purge-stat">
+                  <strong>{formatBytes(purgeStatus.estimatedPurgeBytes)}</strong>
+                  <span>Estimated Next Purge</span>
+                </div>
+                <div className="admin-purge-stat">
+                  <strong>{purgeStatus.estimatedPurgeCount.toLocaleString()}</strong>
+                  <span>Eligible Spots</span>
+                </div>
+                {purgeStatus.nextRunAt && (
+                  <div className="admin-purge-stat">
+                    <strong>{new Date(purgeStatus.nextRunAt).toLocaleString()}</strong>
+                    <span>Next Run</span>
+                  </div>
+                )}
+                {purgeStatus.lastRunAt && (
+                  <div className="admin-purge-stat">
+                    <strong>{new Date(purgeStatus.lastRunAt).toLocaleString()}</strong>
+                    <span>Last Run</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="loading">Loading purge status...</p>
+        )}
       </fieldset>
 
       <fieldset className="page-card user-admin-panel">

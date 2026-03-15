@@ -78,6 +78,15 @@ export class Spot extends BaseEntity {
   @Column('jsonb', { nullable: true })
   detection_raw: Record<string, unknown> | null;
 
+  @Column('bigint', { default: 0 })
+  original_size_bytes: number;
+
+  @Column('bigint', { default: 0 })
+  thumbnail_size_bytes: number;
+
+  @Column('timestamp', { nullable: true })
+  original_purged_at: Date | null;
+
   @OneToMany('DetectedItem', (item: any) => item.spot)
   items: any[];
 }
