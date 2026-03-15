@@ -115,6 +115,7 @@ export function AppShell() {
           </Link>
         </h1>
         <nav className="nav-links">
+          <Link to="/" className="nav-cta">Pick now!</Link>
           {visibleItems.map(item => (
             <NavLink key={item.to} to={item.to} end={item.end} className="nav-link">
               {item.label}
@@ -146,6 +147,14 @@ export function AppShell() {
       <GuestBanner />
 
       <nav className="tab-bar">
+        <NavLink to="/" end className="tab-item">
+          <span className="tab-icon">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="10" cy="10" r="8" /><path d="M10 6v4l2.5 2.5" />
+            </svg>
+          </span>
+          <span className="tab-label">Pick now!</span>
+        </NavLink>
         {visibleItems.map(item => (
           <NavLink key={item.to} to={item.to} end={item.end} className="tab-item">
             <span className="tab-icon">{item.icon}</span>
