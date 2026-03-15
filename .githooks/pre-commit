@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+changed_files=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if printf '%s\n' "$changed_files" | grep -qx 'infrastructure/docker-compose.prod.yml'; then
+  echo "Validating infrastructure/docker-compose.prod.yml"
+  ./infrastructure/scripts/validate-prod-compose.sh infrastructure/docker-compose.prod.yml
+fi

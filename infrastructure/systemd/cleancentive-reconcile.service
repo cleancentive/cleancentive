@@ -1,0 +1,12 @@
+[Unit]
+Description=Reconcile Cleancentive production deployment
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/cleancentive/deploy
+Environment=DEPLOY_ROOT=/opt/cleancentive
+EnvironmentFile=/etc/cleancentive/reconcile.env
+ExecStart=/opt/cleancentive/deploy/scripts/reconcile.sh

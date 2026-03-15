@@ -1,0 +1,175 @@
+name: Production Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend_changed: ${{ steps.detect.outputs.backend_changed }}
+      frontend_changed: ${{ steps.detect.outputs.frontend_changed }}
+      worker_changed: ${{ steps.detect.outputs.worker_changed }}
+      deploy_bundle_changed: ${{ steps.detect.outputs.deploy_bundle_changed }}
+      docs_only: ${{ steps.detect.outputs.docs_only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="${{ github.event.before }}"
+          after="${{ github.sha }}"
+
+          if [[ "$before" == "0000000000000000000000000000000000000000" ]]; then
+            before="$(git rev-list --max-parents=0 "$after")"
+          fi
+
+          mapfile -t files < <(git diff --name-only "$before" "$after")
+
+          backend=false
+          frontend=false
+          worker=false
+          deploy=false
+
+          for file in "${files[@]}"; do
+            case "$file" in
+              backend/README.md|worker/README.md)
+                ;;
+              backend/*|backend/Dockerfile)
+                backend=true
+                ;;
+              frontend/*|frontend/Dockerfile)
+                frontend=true
+                ;;
+              worker/*|worker/Dockerfile)
+                worker=true
+                ;;
+              package.json|bun.lock|.dockerignore)
+                backend=true
+                frontend=true
+                worker=true
+                ;;
+              infrastructure/docker-compose.prod.yml|infrastructure/caddy/Caddyfile)
+                deploy=true
+                ;;
+            esac
+          done
+
+          docs_only=true
+          for file in "${files[@]}"; do
+            case "$file" in
+              docs/*|README.md|backend/README.md|worker/README.md|infrastructure/README.md|LICENSE|.github/prompts/*|.github/copilot-instructions.md)
+                ;;
+              infrastructure/docker-compose.dev.yml|infrastructure/setup-umami.ts|infrastructure/init-umami-db.sql)
+                ;;
+              '')
+                ;;
+              *)
+                docs_only=false
+                break
+                ;;
+            esac
+          done
+
+          {
+            echo "backend_changed=$backend"
+            echo "frontend_changed=$frontend"
+            echo "worker_changed=$worker"
+            echo "deploy_bundle_changed=$deploy"
+            echo "docs_only=$docs_only"
+          } >> "$GITHUB_OUTPUT"
+
+  build-images:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    steps:
+      - uses: actions/checkout@v4
+        if: needs.detect-changes.outputs.backend_changed == 'true' || needs.detect-changes.outputs.frontend_changed == 'true' || needs.detect-changes.outputs.worker_changed == 'true'
+      - uses: docker/setup-buildx-action@v3
+        if: needs.detect-changes.outputs.backend_changed == 'true' || needs.detect-changes.outputs.frontend_changed == 'true' || needs.detect-changes.outputs.worker_changed == 'true'
+      - uses: docker/login-action@v3
+        if: needs.detect-changes.outputs.backend_changed == 'true' || needs.detect-changes.outputs.frontend_changed == 'true' || needs.detect-changes.outputs.worker_changed == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build backend image
+        if: needs.detect-changes.outputs.backend_changed == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          tags: ghcr.io/cleancentive/cleancentive-backend:${{ github.sha }}
+          build-args: |
+            SOURCE_COMMIT=${{ github.sha }}
+
+      - name: Build frontend image
+        if: needs.detect-changes.outputs.frontend_changed == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: true
+          tags: ghcr.io/cleancentive/cleancentive-frontend:${{ github.sha }}
+          build-args: |
+            SOURCE_COMMIT=${{ github.sha }}
+
+      - name: Build worker image
+        if: needs.detect-changes.outputs.worker_changed == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: worker/Dockerfile
+          push: true
+          tags: ghcr.io/cleancentive/cleancentive-worker:${{ github.sha }}
+          build-args: |
+            SOURCE_COMMIT=${{ github.sha }}
+
+  validate-prod-bundle:
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - build-images
+    if: needs.detect-changes.outputs.deploy_bundle_changed == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate production compose file
+        run: ./infrastructure/scripts/validate-prod-compose.sh infrastructure/docker-compose.prod.yml
+
+  reconcile-production:
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - build-images
+      - validate-prod-bundle
+    if: needs.detect-changes.outputs.deploy_bundle_changed == 'true'
+    steps:
+      - name: Prepare SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.PROD_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.PROD_HOST }}" >> ~/.ssh/known_hosts
+      - name: Trigger remote reconcile
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" 'sudo systemctl start cleancentive-reconcile.service'
