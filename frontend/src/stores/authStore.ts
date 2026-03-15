@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import axios from 'axios'
 import { v7 as uuidv7 } from 'uuid'
 import { useUiStore } from './uiStore'
+import { trackEvent } from '../lib/analytics'
 
 interface UserEmail {
   id: string
@@ -187,6 +188,7 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false
           })
 
+          trackEvent('sign-in-completed')
           localStorage.removeItem('guestId')
         } catch (error: any) {
           set({

@@ -9,7 +9,7 @@ const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
   { value: '7d', label: '7d' },
   { value: '30d', label: '30d' },
   { value: '1y', label: '1y' },
-  { value: 'all', label: 'All time' },
+  { value: 'all', label: 'All' },
 ]
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000

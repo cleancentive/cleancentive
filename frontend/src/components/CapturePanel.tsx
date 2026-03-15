@@ -4,6 +4,7 @@ import { useConnectivityStore } from '../stores/connectivityStore'
 import { useCleanupStore } from '../stores/cleanupStore'
 import { flushOutbox, queueCapture } from '../lib/pendingPicks'
 import { extractImageMetadata } from '../lib/imageMetadata'
+import { trackEvent } from '../lib/analytics'
 
 const DEFAULT_MAX_LOCATION_ACCURACY_METERS = import.meta.env.DEV ? 5000 : 200
 const MAX_LOCATION_ACCURACY_METERS = Number(
@@ -383,6 +384,7 @@ export function CapturePanel() {
         thumbnailBlob,
       })
 
+      trackEvent('spot-logged', { source: 'camera' })
       notifyPicksChanged()
 
       if (isOnline) {
@@ -426,6 +428,7 @@ export function CapturePanel() {
         thumbnailBlob,
       })
 
+      trackEvent('spot-logged', { source: 'import' })
       notifyPicksChanged()
 
       if (isOnline) {

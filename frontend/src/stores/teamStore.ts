@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import axios from 'axios'
 import { useAuthStore } from './authStore'
+import { trackEvent } from '../lib/analytics'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
@@ -134,6 +135,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
     try {
       const response = await axios.post(`${API_BASE}/teams/${id}/join`, {}, { headers: getHeaders() })
       if (response.data.joined) {
+        trackEvent('team-joined', { team_id: id })
         await get().fetchTeam(id)
       }
       return response.data.joined

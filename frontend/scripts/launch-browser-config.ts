@@ -1,13 +1,14 @@
 export type BrowserToolTarget = {
   name: string;
   url: string;
-  login: 'minio' | 'none';
+  login: 'minio' | 'umami' | 'none';
 };
 
 export const MINIO_URL = 'http://localhost:9001';
 export const POSTGRES_BROWSER_URL = 'http://localhost:8081';
 export const SWAGGER_URL = 'http://localhost:3000/api/v1/docs';
 export const MAILPIT_URL = 'http://localhost:8025';
+export const UMAMI_URL = 'http://localhost:3001';
 
 export function buildBrowserToolTargets(env: NodeJS.ProcessEnv): BrowserToolTarget[] {
   return [
@@ -16,6 +17,7 @@ export function buildBrowserToolTargets(env: NodeJS.ProcessEnv): BrowserToolTarg
     { name: 'Mailpit', url: MAILPIT_URL, login: 'none' },
     { name: 'Postgres browser', url: POSTGRES_BROWSER_URL, login: 'none' },
     { name: 'MinIO', url: MINIO_URL, login: 'minio' },
+    { name: 'Umami Analytics', url: UMAMI_URL, login: 'umami' },
   ];
 }
 

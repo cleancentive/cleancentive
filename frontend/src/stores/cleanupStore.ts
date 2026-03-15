@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import axios from 'axios'
 import { useAuthStore } from './authStore'
+import { trackEvent } from '../lib/analytics'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
@@ -154,6 +155,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
           locationName: date.locationName,
         },
       }, { headers: getHeaders() })
+      trackEvent('cleanup-created')
       set({ isLoading: false })
       return response.data.cleanup
     } catch (err: any) {
@@ -177,6 +179,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
     try {
       const response = await axios.post(`${API_BASE}/cleanups/${id}/join`, {}, { headers: getHeaders() })
       if (response.data.joined) {
+        trackEvent('cleanup-joined', { cleanup_id: id })
         await get().fetchCleanup(id)
       }
       return response.data.joined

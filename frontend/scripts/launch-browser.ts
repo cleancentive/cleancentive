@@ -21,6 +21,7 @@ import path from 'node:path';
 
 import {
   MINIO_URL,
+  UMAMI_URL,
   buildBrowserToolTargets,
   randomGeoInRadius,
 } from './launch-browser-config';
@@ -30,6 +31,8 @@ const CDP_PORT = Number(process.env.BROWSER_CDP_PORT ?? 9222);
 const PROFILE_DIR = process.env.BROWSER_PROFILE_DIR ?? path.resolve(import.meta.dir, '..', '.browser-profile');
 const MINIO_USERNAME = process.env.MINIO_USERNAME ?? 'minioadmin';
 const MINIO_PASSWORD = process.env.MINIO_PASSWORD ?? 'minioadmin';
+const UMAMI_USERNAME = process.env.UMAMI_USERNAME ?? 'admin';
+const UMAMI_PASSWORD = process.env.UMAMI_PASSWORD ?? 'umami';
 
 const BASE_LAT = Number(process.env.BROWSER_LAT ?? 47.5596);
 const BASE_LNG = Number(process.env.BROWSER_LNG ?? 7.5886);
@@ -69,22 +72,34 @@ async function loginToMinio(page: Page) {
   }
 }
 
+async function loginToUmami(page: Page) {
+  try {
+    await page.waitForSelector('input[name="username"]', { timeout: 10000 });
+    await page.fill('input[name="username"]', UMAMI_USERNAME);
+    await page.fill('input[name="password"]', UMAMI_PASSWORD);
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
+    console.log(`  - ${UMAMI_URL} (logged in)`);
+  } catch {
+    console.log(`  - ${UMAMI_URL} (opened, login not completed automatically)`);
+  }
+}
+
 console.log('Launching shared Chromium browser...');
 console.log(`Using browser profile: ${PROFILE_DIR}`);
 console.log(`Mock geolocation:      ${mockLocation.latitude.toFixed(4)}, ${mockLocation.longitude.toFixed(4)} (5km around ${BASE_LAT}, ${BASE_LNG})`);
 
+// Try to add missing tabs to an existing browser via CDP HTTP API (no WebSocket needed).
 const existingBrowserWSEndpoint = await getExistingBrowserWSEndpoint(CDP_PORT);
 
 if (existingBrowserWSEndpoint) {
-  console.log(`Shared Chromium session already running on port ${CDP_PORT}.`);
-  console.log('Checking for missing tabs...');
+  try {
+    // GET /json/list returns all open tabs with their URLs
+    const listRes = await fetch(`http://127.0.0.1:${CDP_PORT}/json/list`);
+    if (!listRes.ok) throw new Error('failed to list tabs');
+    const tabs = (await listRes.json()) as Array<{ url: string }>;
+    const existingUrls = tabs.map((t) => t.url);
 
-  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
-  const contexts = browser.contexts();
-  const context = contexts[0];
-
-  if (context) {
-    const existingUrls = context.pages().map((p) => p.url());
     const missingTargets = browserToolTargets.filter(
       (t) => !existingUrls.some((url) => url.startsWith(t.url)),
     );
@@ -92,20 +107,22 @@ if (existingBrowserWSEndpoint) {
     if (missingTargets.length === 0) {
       console.log('All tabs already open.');
     } else {
+      console.log(`Opening ${missingTargets.length} missing tab(s)...`);
       for (const target of missingTargets) {
-        const result = await openUrl(context, target);
-        if (result.opened) {
-          console.log(`  + opened ${target.name}: ${target.url}`);
-          if (target.login === 'minio') {
-            loginToMinio(result.page);
-          }
+        // PUT /json/new?<url> opens a new tab (no login — sessions persist in the browser profile)
+        const res = await fetch(`http://127.0.0.1:${CDP_PORT}/json/new?${target.url}`, { method: 'PUT' });
+        if (res.ok) {
+          console.log(`  + ${target.name}: ${target.url}`);
+        } else {
+          console.log(`  - ${target.name}: ${target.url} (failed)`);
         }
       }
     }
-  }
 
-  await browser.close();
-  process.exit(0);
+    process.exit(0);
+  } catch {
+    console.log('Existing browser session is unresponsive, launching a new one...');
+  }
 }
 
 const context = await chromium.launchPersistentContext(PROFILE_DIR, {
@@ -136,6 +153,8 @@ for (const target of browserToolTargets) {
   if (target.login === 'minio') {
     // Run login in background so it doesn't block other tabs from opening
     pendingLogins.push(loginToMinio(result.page));
+  } else if (target.login === 'umami') {
+    pendingLogins.push(loginToUmami(result.page));
   }
 }
 
@@ -144,7 +163,7 @@ await Promise.allSettled(pendingLogins);
 
 console.log(`\nBrowser ready with tabs:`);
 for (const target of openedTargets) {
-  if (target.url !== MINIO_URL) {
+  if (target.url !== MINIO_URL && target.url !== UMAMI_URL) {
     console.log(`  - ${target.url}`);
   }
 }
