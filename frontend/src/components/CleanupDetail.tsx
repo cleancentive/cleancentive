@@ -185,7 +185,7 @@ export function CleanupDetail() {
   const { cleanup, participants, userRole } = currentCleanup
   const dates = [...currentCleanup.dates].sort((a, b) => a.start_at.localeCompare(b.start_at))
   const isParticipant = userRole !== null
-  const isAdmin = userRole === 'admin'
+  const isOrganizer = userRole === 'organizer'
   const activeCleanupDateId = (user as any)?.active_cleanup_date_id
 
   // Build recurrence color map
@@ -434,7 +434,7 @@ export function CleanupDetail() {
           <>
             <legend>
               {cleanup.name}
-              {isAdmin && <button className="link-button legend-edit-button" onClick={() => { setEditName(cleanup.name); setEditDescription(cleanup.description); setEditing(true) }}>Edit</button>}
+              {isOrganizer && <button className="link-button legend-edit-button" onClick={() => { setEditName(cleanup.name); setEditDescription(cleanup.description); setEditing(true) }}>Edit</button>}
             </legend>
             {cleanup.description && <p>{cleanup.description}</p>}
           </>
@@ -468,9 +468,9 @@ export function CleanupDetail() {
           </div>
         )}
 
-        {isAdmin && (
+        {isOrganizer && (
           <div className="community-admin-actions">
-            <h3>Admin Actions</h3>
+            <h3>Organizer Actions</h3>
             <button
               className="danger-button"
               onClick={() => setShowArchiveConfirm(true)}
@@ -487,7 +487,7 @@ export function CleanupDetail() {
         <legend>Dates ({dates.length})</legend>
         {dates.length === 0 && <p className="end-of-list">No dates scheduled</p>}
 
-        {isAdmin && selectedDateIds.size > 0 && (
+        {isOrganizer && selectedDateIds.size > 0 && (
           <div className="bulk-actions">
             {hasSelectedWithRecurrence && (
               <button className="secondary-button" onClick={selectRelated}>Select related dates</button>
@@ -532,7 +532,7 @@ export function CleanupDetail() {
               onMouseEnter={() => { if (d.recurrence_id) setHoveredRecurrenceId(d.recurrence_id) }}
               onMouseLeave={() => { if (d.recurrence_id === hoveredRecurrenceId) setHoveredRecurrenceId(null) }}
               onDoubleClick={() => {
-                if (!isAdmin) return
+                if (!isOrganizer) return
                 if (d.recurrence_id) {
                   const relatedIds = dates.filter((x) => x.recurrence_id === d.recurrence_id).map((x) => x.id)
                   const allSelected = relatedIds.every((rid) => selectedDateIds.has(rid))
@@ -546,7 +546,7 @@ export function CleanupDetail() {
                 }
               }}
             >
-              {isAdmin && (
+              {isOrganizer && (
                 <input
                   type="checkbox"
                   className="date-select-checkbox"
@@ -571,7 +571,7 @@ export function CleanupDetail() {
                     Deactivate
                   </button>
                 )}
-                {isAdmin && (
+                {isOrganizer && (
                   <>
                     <button className="link-button" onClick={() => startEdit(d)}>Edit</button>
                     <button className="link-button danger-text" onClick={() => setDeleteDateId(d.id)}>Delete</button>
@@ -582,7 +582,7 @@ export function CleanupDetail() {
           )
         })}
 
-        {isAdmin && (
+        {isOrganizer && (
           <>
             <button className="link-button" onClick={() => { setShowAddDate(!showAddDate); setEditDateId(null); if (!showAddDate) resetForm() }}>
               {showAddDate ? 'Cancel' : '+ Add date'}
@@ -596,7 +596,7 @@ export function CleanupDetail() {
         <legend>Participants ({participants.length})</legend>
         <MemberList
           members={participants}
-          canPromote={isAdmin}
+          canPromote={isOrganizer}
           onPromote={(userId) => id && promoteParticipant(id, userId)}
           entityLabel="Participant"
         />
@@ -609,7 +609,7 @@ export function CleanupDetail() {
             messages={messages}
             onPost={(audience, subject, body) => postMessage(id!, audience, subject, body)}
             canPost={isParticipant}
-            isAdmin={isAdmin}
+            isOrganizer={isOrganizer}
             isLoading={isLoadingMessages}
           />
         </fieldset>

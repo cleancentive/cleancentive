@@ -13,6 +13,14 @@ function UserIcon({ size = 16 }: { size?: number }) {
   )
 }
 
+function FeedbackIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 4a2 2 0 012-2h12a2 2 0 012 2v9a2 2 0 01-2 2H7l-4 3v-3a1 1 0 01-1-1V4z" />
+    </svg>
+  )
+}
+
 function LogoutIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -85,6 +93,13 @@ export function UserMenuButton() {
           >
             <UserIcon />
             Profile
+          </button>
+          <button
+            className="user-menu-dropdown-item"
+            onClick={() => { setOpen(false); navigate('/feedback') }}
+          >
+            <FeedbackIcon />
+            My Feedback
           </button>
           {(user.active_team_name || user.active_cleanup_name) && (
             <>

@@ -63,6 +63,16 @@ export function AdminPanel() {
     setOrder,
     setSearch,
     clearError,
+    feedbackItems,
+    feedbackTotal,
+    feedbackStatusFilter,
+    isLoadingFeedback,
+    activeFeedbackItem,
+    fetchFeedback,
+    fetchFeedbackDetail,
+    updateFeedbackStatus,
+    addAdminResponse,
+    setFeedbackStatusFilter,
   } = useAdminStore()
 
   const [searchInput, setSearchInput] = useState(search)
@@ -70,6 +80,9 @@ export function AdminPanel() {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const [checked, setChecked] = useState(false)
   const [retryBatchSize, setRetryBatchSize] = useState('10')
+  const [expandedFeedbackId, setExpandedFeedbackId] = useState<string | null>(null)
+  const [adminReply, setAdminReply] = useState('')
+  const [feedbackStatus, setFeedbackStatus] = useState('')
 
   useEffect(() => {
     checkAdminStatus().then(() => setChecked(true))
@@ -81,6 +94,7 @@ export function AdminPanel() {
       fetchOpsOverview()
       fetchStorageInsights()
       fetchPurgeStatus()
+      fetchFeedback()
     }
   }, [checked, isAdmin, fetchUsers, fetchOpsOverview, fetchStorageInsights, fetchPurgeStatus])
 
@@ -126,7 +140,7 @@ export function AdminPanel() {
       <div className="admin-panel">
         <div className="access-denied">
           <h2>Access Denied</h2>
-          <p>You do not have admin privileges.</p>
+          <p>You do not have steward privileges.</p>
           <Link to="/">Go Home</Link>
         </div>
       </div>
@@ -145,7 +159,7 @@ export function AdminPanel() {
             <p>
               {opsOverview
                 ? `Updated ${new Date(opsOverview.timestamp).toLocaleTimeString()}`
-                : 'Live processing status for admins'}
+                : 'Live processing status for stewards'}
             </p>
           </div>
           <CountdownButton
@@ -378,7 +392,7 @@ export function AdminPanel() {
 
         <div className="user-list">
           {users.map((u) => (
-            <Link key={u.id} to={`/admin/users/${u.id}`} className="user-card">
+            <Link key={u.id} to={`/steward/users/${u.id}`} className="user-card">
               <div className="user-info">
                 <h3>
                   {u.nickname}
@@ -409,6 +423,129 @@ export function AdminPanel() {
           {!isLoading && !hasMore && users.length > 0 && (
             <p className="end-of-list">All users loaded</p>
           )}
+        </div>
+      </fieldset>
+      <fieldset className="page-card">
+        <legend>Feedback ({feedbackTotal})</legend>
+        <div className="feedback-admin-filters">
+          {['', 'new', 'acknowledged', 'in_progress', 'resolved'].map((s) => (
+            <button
+              key={s}
+              className={`filter-tab${feedbackStatusFilter === s ? ' filter-tab--active' : ''}`}
+              onClick={() => setFeedbackStatusFilter(s)}
+            >
+              {s || 'All'}
+            </button>
+          ))}
+        </div>
+
+        {isLoadingFeedback && <p className="loading">Loading...</p>}
+
+        {!isLoadingFeedback && feedbackItems.length === 0 && (
+          <p className="end-of-list">No feedback found.</p>
+        )}
+
+        <div className="feedback-admin-list">
+          {feedbackItems.map((f) => (
+            <div key={f.id} className="feedback-admin-item">
+              <div
+                className="feedback-admin-item-header"
+                onClick={async () => {
+                  if (expandedFeedbackId === f.id) {
+                    setExpandedFeedbackId(null)
+                  } else {
+                    await fetchFeedbackDetail(f.id)
+                    setExpandedFeedbackId(f.id)
+                    setFeedbackStatus(f.status)
+                    setAdminReply('')
+                  }
+                }}
+              >
+                <span className="badge">{f.category}</span>
+                <span className="badge" style={{ backgroundColor: f.status === 'resolved' ? '#22c55e' : f.status === 'in_progress' ? '#f59e0b' : f.status === 'acknowledged' ? '#3b82f6' : '#888', color: '#fff' }}>
+                  {f.status.replace('_', ' ')}
+                </span>
+                <span className="feedback-admin-description">{f.description.slice(0, 80)}{f.description.length > 80 ? '...' : ''}</span>
+                <span className="feedback-admin-meta">
+                  {f.submitter_nickname || 'Anonymous'} &middot; {formatTimestamp(f.created_at)}
+                  {f.responses.length > 0 && ` \u00b7 ${f.responses.length} response${f.responses.length !== 1 ? 's' : ''}`}
+                </span>
+              </div>
+
+              {expandedFeedbackId === f.id && activeFeedbackItem && (
+                <div className="feedback-admin-detail">
+                  <p className="feedback-detail-description">{activeFeedbackItem.description}</p>
+
+                  {activeFeedbackItem.error_context && (
+                    <details>
+                      <summary>Error context</summary>
+                      <pre className="feedback-error-details">{JSON.stringify(activeFeedbackItem.error_context, null, 2)}</pre>
+                    </details>
+                  )}
+
+                  {activeFeedbackItem.contact_email && (
+                    <p><strong>Contact:</strong> {activeFeedbackItem.contact_email}</p>
+                  )}
+
+                  <div className="feedback-thread">
+                    {activeFeedbackItem.responses.map((r) => (
+                      <div key={r.id} className={`feedback-thread-message ${r.is_from_steward ? 'feedback-thread-message--steward' : 'feedback-thread-message--user'}`}>
+                        <div className="feedback-thread-header">
+                          <strong>
+                            {r.is_from_steward
+                              ? <>{r.author_nickname || 'Steward'} <span className="badge steward-badge">Steward</span></>
+                              : activeFeedbackItem.submitter_nickname || 'User'
+                            }
+                          </strong>
+                          <span className="feedback-thread-date">{formatTimestamp(r.created_at)}</span>
+                        </div>
+                        <p>{r.message}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="feedback-admin-actions">
+                    <label>
+                      Status:
+                      <select value={feedbackStatus} onChange={(e) => setFeedbackStatus(e.target.value)}>
+                        <option value="new">New</option>
+                        <option value="acknowledged">Acknowledged</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="resolved">Resolved</option>
+                      </select>
+                    </label>
+                    <button
+                      className="primary-button"
+                      onClick={() => updateFeedbackStatus(f.id, feedbackStatus)}
+                      disabled={feedbackStatus === f.status}
+                    >
+                      Update Status
+                    </button>
+                  </div>
+
+                  <form
+                    className="feedback-reply-form"
+                    onSubmit={async (e) => {
+                      e.preventDefault()
+                      if (!adminReply.trim()) return
+                      await addAdminResponse(f.id, adminReply.trim())
+                      setAdminReply('')
+                    }}
+                  >
+                    <textarea
+                      value={adminReply}
+                      onChange={(e) => setAdminReply(e.target.value)}
+                      placeholder="Reply to this feedback..."
+                      rows={2}
+                    />
+                    <button type="submit" className="primary-button" disabled={!adminReply.trim()}>
+                      Send Reply
+                    </button>
+                  </form>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </fieldset>
     </div>

@@ -32,7 +32,7 @@ interface CreateTeamInput {
 interface CreateTeamMessageInput {
   teamId: string;
   authorUserId: string;
-  audience: 'members' | 'admins';
+  audience: 'members' | 'organizers';
   subject: string;
   body: string;
 }
@@ -97,10 +97,10 @@ export class TeamService {
     }
   }
 
-  private async ensureAdmin(teamId: string, userId: string): Promise<TeamMembership> {
+  private async ensureOrganizer(teamId: string, userId: string): Promise<TeamMembership> {
     const membership = await this.getMembershipOrThrow(teamId, userId);
-    if (membership.role !== 'admin') {
-      throw new ForbiddenException('Team admin permissions required');
+    if (membership.role !== 'organizer') {
+      throw new ForbiddenException('Team organizer permissions required');
     }
     return membership;
   }
@@ -121,7 +121,7 @@ export class TeamService {
 
     if (input.includeArchived) {
       if (!input.currentUserIsPlatformAdmin) {
-        throw new ForbiddenException('Only platform admins can include archived teams');
+        throw new ForbiddenException('Only stewards can include archived teams');
       }
     } else {
       qb.andWhere('team.archived_at IS NULL');
@@ -180,7 +180,7 @@ export class TeamService {
     const membership = this.teamMembershipRepository.create({
       team_id: savedTeam.id,
       user_id: userId,
-      role: 'admin',
+      role: 'organizer',
     });
     await this.teamMembershipRepository.save(membership);
 
@@ -249,7 +249,7 @@ export class TeamService {
     await this.ensureRegisteredUser(actorUserId);
     const team = await this.getTeamOrThrow(teamId);
     await this.ensureTeamNotArchived(team);
-    await this.ensureAdmin(teamId, actorUserId);
+    await this.ensureOrganizer(teamId, actorUserId);
 
     if (input.name !== undefined) {
       const trimmedName = input.name.trim();
@@ -302,13 +302,13 @@ export class TeamService {
       return { left: false };
     }
 
-    if (membership.role === 'admin') {
-      const remainingAdminCount = await this.teamMembershipRepository.count({
-        where: { team_id: teamId, role: 'admin' },
+    if (membership.role === 'organizer') {
+      const remainingOrganizerCount = await this.teamMembershipRepository.count({
+        where: { team_id: teamId, role: 'organizer' },
       });
 
-      if (remainingAdminCount <= 1) {
-        await this.promotePlatformAdmins(teamId, userId);
+      if (remainingOrganizerCount <= 1) {
+        await this.promoteStewards(teamId, userId);
       }
     }
 
@@ -317,37 +317,36 @@ export class TeamService {
     return { left: true };
   }
 
-  private async promotePlatformAdmins(teamId: string, leavingUserId: string): Promise<void> {
-    const allPlatformAdminIds = await this.adminService.getAdminUserIds();
-    // Exclude the leaving user — they're about to be removed
-    const platformAdminIds = allPlatformAdminIds.filter((id) => id !== leavingUserId);
-    if (platformAdminIds.length === 0) {
-      throw new BadRequestException('Cannot leave team because no other platform admins are available for fallback promotion');
+  private async promoteStewards(teamId: string, leavingUserId: string): Promise<void> {
+    const allStewardIds = await this.adminService.getAdminUserIds();
+    const stewardIds = allStewardIds.filter((id) => id !== leavingUserId);
+    if (stewardIds.length === 0) {
+      throw new BadRequestException('Cannot leave team because no stewards are available for fallback promotion');
     }
 
     const existingMemberships = await this.teamMembershipRepository.find({
       where: {
         team_id: teamId,
-        user_id: In(platformAdminIds),
+        user_id: In(stewardIds),
       },
     });
 
     const membershipByUserId = new Map(existingMemberships.map((membership) => [membership.user_id, membership]));
 
-    for (const adminUserId of platformAdminIds) {
-      const existingMembership = membershipByUserId.get(adminUserId);
+    for (const stewardUserId of stewardIds) {
+      const existingMembership = membershipByUserId.get(stewardUserId);
       if (!existingMembership) {
         const membership = this.teamMembershipRepository.create({
           team_id: teamId,
-          user_id: adminUserId,
-          role: 'admin',
+          user_id: stewardUserId,
+          role: 'organizer',
         });
         await this.teamMembershipRepository.save(membership);
         continue;
       }
 
-      if (existingMembership.role !== 'admin') {
-        existingMembership.role = 'admin';
+      if (existingMembership.role !== 'organizer') {
+        existingMembership.role = 'organizer';
         await this.teamMembershipRepository.save(existingMembership);
       }
     }
@@ -389,25 +388,25 @@ export class TeamService {
     await this.ensureRegisteredUser(actorUserId);
     const team = await this.getTeamOrThrow(teamId);
     await this.ensureTeamNotArchived(team);
-    await this.ensureAdmin(teamId, actorUserId);
+    await this.ensureOrganizer(teamId, actorUserId);
 
     const membership = await this.getMembership(teamId, targetUserId);
     if (!membership) {
       throw new NotFoundException('Target user is not a team member');
     }
 
-    if (membership.role === 'admin') {
+    if (membership.role === 'organizer') {
       return;
     }
 
-    membership.role = 'admin';
+    membership.role = 'organizer';
     await this.teamMembershipRepository.save(membership);
   }
 
   async archiveTeam(teamId: string, actorUserId: string): Promise<void> {
     await this.ensureRegisteredUser(actorUserId);
     const team = await this.getTeamOrThrow(teamId);
-    await this.ensureAdmin(teamId, actorUserId);
+    await this.ensureOrganizer(teamId, actorUserId);
     if (team.archived_at) {
       return;
     }
@@ -465,8 +464,8 @@ export class TeamService {
       throw new BadRequestException('body is required');
     }
 
-    if (membership.role !== 'admin' && input.audience !== 'admins') {
-      throw new ForbiddenException('Team members can only message team admins');
+    if (membership.role !== 'organizer' && input.audience !== 'organizers') {
+      throw new ForbiddenException('Team members can only message team organizers');
     }
 
     const message = this.teamMessageRepository.create({
@@ -712,7 +711,7 @@ export class TeamService {
       }
     }
 
-    // Platform admins are always admins of partner teams
+    // Stewards are always organizers of partner teams
     const platformAdminIds = await this.adminService.getAdminUserIds();
     for (const id of platformAdminIds) {
       matchedUserIds.add(id);
@@ -735,12 +734,12 @@ export class TeamService {
         const membership = this.teamMembershipRepository.create({
           team_id: teamId,
           user_id: userId,
-          role: shouldBeAdmin ? 'admin' : 'member',
+          role: shouldBeAdmin ? 'organizer' : 'member',
         });
         await this.teamMembershipRepository.save(membership);
         added++;
-      } else if (shouldBeAdmin && existing.role !== 'admin') {
-        existing.role = 'admin';
+      } else if (shouldBeAdmin && existing.role !== 'organizer') {
+        existing.role = 'organizer';
         await this.teamMembershipRepository.save(existing);
       }
     }
@@ -807,11 +806,11 @@ export class TeamService {
         const membership = this.teamMembershipRepository.create({
           team_id: teamId,
           user_id: userId,
-          role: isPlatformAdmin ? 'admin' : 'member',
+          role: isPlatformAdmin ? 'organizer' : 'member',
         });
         await this.teamMembershipRepository.save(membership);
-      } else if (isPlatformAdmin && existing.role !== 'admin') {
-        existing.role = 'admin';
+      } else if (isPlatformAdmin && existing.role !== 'organizer') {
+        existing.role = 'organizer';
         await this.teamMembershipRepository.save(existing);
       }
     }
@@ -917,9 +916,9 @@ export class TeamService {
   }
 
   private async sendTeamMessageEmailFanout(teamName: string, message: TeamMessage, authorUserId: string): Promise<void> {
-    // 'members' audience → all members and admins; 'admins' audience → admins only
-    const recipients = message.audience === 'admins'
-      ? await this.teamMembershipRepository.find({ where: { team_id: message.team_id, role: 'admin' } })
+    // 'members' audience → all members and organizers; 'organizers' audience → organizers only
+    const recipients = message.audience === 'organizers'
+      ? await this.teamMembershipRepository.find({ where: { team_id: message.team_id, role: 'organizer' } })
       : await this.teamMembershipRepository.find({ where: { team_id: message.team_id } });
 
     const recipientIds = recipients.map((r) => r.user_id).filter((id) => id !== authorUserId);
@@ -938,7 +937,7 @@ export class TeamService {
       preheader: 'New team message in Cleancentive',
       title: teamName,
       body: message.body,
-      disclosure: 'Platform admins can read team and event messages for moderation purposes.',
+      disclosure: 'Stewards can read team and cleanup messages for moderation purposes.',
     });
   }
 }

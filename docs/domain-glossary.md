@@ -76,6 +76,29 @@ A user who joined a Cleanup.
 
 - **Code entity:** `CleanupParticipant` (was `EventParticipant`)
 
+### Organizer
+
+A volunteer who leads a Team or Cleanup. The user-facing label for the elevated community role within a team or cleanup. Replaces "admin" in all community contexts.
+
+- **UI examples:** "Organizer" badge on member lists, "Organizer Actions" section
+- **DB value:** `'organizer'` in `team_memberships.role` and `cleanup_participants.role`
+- **Distinct from:** Steward (platform-level), Admin (internal/technical only)
+
+### Steward
+
+A volunteer who maintains the CleanCentive platform and responds to user feedback. The user-facing label for people with platform-level access.
+
+- **UI examples:** "Steward" nav link, "Steward" badge in feedback conversations
+- **Route:** `/steward`
+- **Distinct from:** Organizer (community role within teams/cleanups), Admin (internal code concept — `AdminGuard`, `adminStore`)
+
+### Feedback
+
+A user-submitted bug report, suggestion, or question. Creates a private conversation between the user and a Steward. Avoid "report" (banned term), "ticket" (too corporate), and "issue" (too technical for user-facing text).
+
+- **UI examples:** "Send Feedback", "My Feedback", "Feedback" button
+- **Code entity:** `Feedback`, `FeedbackResponse`
+
 ---
 
 ## User Lifecycle
@@ -171,6 +194,9 @@ Programs where groups commit to regularly cleaning stretches of road. Common in 
 6. Never use **"report"** for Spots or Picks. "Report" is ambiguous with ops/monitoring/alerting concepts and is banned from the vocabulary.
 7. **"Spot"** is the data model term; **"Pick"** is the default UI term. Both are correct in their respective contexts.
 8. Technical terms (worker, queue, outbox) are for admin UI and developer docs only.
+9. Use **"organizer"** for the elevated role within a team or cleanup — not "admin". The DB value is `'organizer'`.
+10. Use **"steward"** for platform-level volunteers who respond to feedback and maintain the app — not "admin" in user-facing text.
+11. Use **"feedback"** for user-submitted bug reports, suggestions, or questions — not "report", "ticket", or "issue".
 
 ---
 

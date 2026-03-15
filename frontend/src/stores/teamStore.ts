@@ -36,7 +36,7 @@ interface TeamMessage {
   id: string
   subject: string
   body: string
-  audience: 'members' | 'admins'
+  audience: 'members' | 'organizers'
   created_at: string
   author_user_id: string
   author?: { nickname: string; avatarEmailId: string | null }
@@ -67,7 +67,7 @@ interface TeamState {
   promoteMember: (teamId: string, userId: string) => Promise<void>
   archiveTeam: (id: string) => Promise<void>
   fetchMessages: (id: string) => Promise<void>
-  postMessage: (id: string, audience: 'members' | 'admins', subject: string, body: string) => Promise<void>
+  postMessage: (id: string, audience: 'members' | 'organizers', subject: string, body: string) => Promise<void>
   updateEmailPatterns: (teamId: string, patterns: string[]) => Promise<void>
   updateCustomCss: (teamId: string, customCss: string | null) => Promise<void>
   importPartnerUrl: (url: string) => Promise<{ domain: string; favicon_url: string | null; colors: { primary: string | null; accent: string | null } } | null>
@@ -208,7 +208,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
     }
   },
 
-  postMessage: async (id: string, audience: 'members' | 'admins', subject: string, body: string) => {
+  postMessage: async (id: string, audience: 'members' | 'organizers', subject: string, body: string) => {
     set({ error: null })
     try {
       await axios.post(`${API_BASE}/teams/${id}/messages`, { audience, subject, body }, { headers: getHeaders() })

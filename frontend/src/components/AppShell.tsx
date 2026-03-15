@@ -6,7 +6,10 @@ import { useConnectivityStore } from '../stores/connectivityStore'
 import { UserMenuButton } from './UserMenuButton'
 import { GuestBanner } from './GuestBanner'
 import { SignInModal } from './SignInModal'
+import { FeedbackModal } from './FeedbackModal'
+import { ErrorBoundary } from './ErrorBoundary'
 import { ContextBar } from './ContextBar'
+import { useFeedbackStore } from '../stores/feedbackStore'
 import '../stores/partnerBrandingStore'
 
 function MapIcon() {
@@ -72,7 +75,7 @@ const navItems: NavItem[] = [
   { to: '/cleanups', label: 'Cleanups', icon: <CleanupIcon /> },
   { to: '/insights', label: 'Insights', icon: <ChartIcon /> },
   { to: '/map', label: 'Map', icon: <MapIcon /> },
-  { to: '/admin', label: 'Admin', icon: <ShieldIcon />, adminOnly: true },
+  { to: '/steward', label: 'Steward', icon: <ShieldIcon />, adminOnly: true },
 ]
 
 function WifiIcon() {
@@ -91,10 +94,19 @@ function WifiOffIcon() {
   )
 }
 
+function FeedbackIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 4a2 2 0 012-2h12a2 2 0 012 2v9a2 2 0 01-2 2H7l-4 3v-3a1 1 0 01-1-1V4z" />
+    </svg>
+  )
+}
+
 export function AppShell() {
   const { user, guestId } = useAuthStore()
   const { isAdmin, checkAdminStatus } = useAdminStore()
   const { isOnline, browserOnline, isForceOffline, setForceOffline } = useConnectivityStore()
+  const openFeedbackModal = useFeedbackStore((s) => s.openFeedbackModal)
 
   useEffect(() => {
     if (user) {
@@ -141,7 +153,9 @@ export function AppShell() {
       <ContextBar />
 
       <main className="app-main">
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       <GuestBanner />
@@ -163,7 +177,12 @@ export function AppShell() {
         ))}
       </nav>
 
+      <button className="feedback-pill" onClick={() => openFeedbackModal()}>
+        <FeedbackIcon /> Feedback
+      </button>
+
       <SignInModal />
+      <FeedbackModal />
     </div>
   )
 }

@@ -14,7 +14,7 @@ export class TeamMessage extends BaseEntity {
   author_user_id: string;
 
   @Column('varchar')
-  audience: 'members' | 'admins';
+  audience: 'members' | 'organizers';
 
   @Column('varchar')
   subject: string;

@@ -29,6 +29,9 @@ import { CleanupModule } from './cleanup/cleanup.module';
 import { StorageModule } from './storage/storage.module';
 import { PurgeModule } from './purge/purge.module';
 import { InsightsModule } from './insights/insights.module';
+import { Feedback } from './feedback/feedback.entity';
+import { FeedbackResponse } from './feedback/feedback-response.entity';
+import { FeedbackModule } from './feedback/feedback.module';
 
 @Module({
   imports: [
@@ -58,6 +61,8 @@ import { InsightsModule } from './insights/insights.module';
         CleanupDate,
         CleanupParticipant,
         CleanupMessage,
+        Feedback,
+        FeedbackResponse,
       ],
       subscribers: [AuditSubscriber],
       synchronize: process.env.NODE_ENV !== 'production',
@@ -73,6 +78,7 @@ import { InsightsModule } from './insights/insights.module';
     StorageModule,
     PurgeModule,
     InsightsModule,
+    FeedbackModule,
   ],
   providers: [
     {

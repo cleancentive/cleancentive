@@ -76,6 +76,26 @@ interface OpsOverview {
   }
 }
 
+interface FeedbackItem {
+  id: string
+  category: 'bug' | 'suggestion' | 'question'
+  status: 'new' | 'acknowledged' | 'in_progress' | 'resolved'
+  description: string
+  contact_email: string | null
+  user_id: string | null
+  guest_id: string | null
+  error_context: Record<string, unknown> | null
+  submitter_nickname?: string | null
+  created_at: string
+  responses: Array<{
+    id: string
+    message: string
+    is_from_steward: boolean
+    created_at: string
+    author_nickname?: string | null
+  }>
+}
+
 interface AdminState {
   isAdmin: boolean
   users: AdminUser[]
@@ -95,6 +115,11 @@ interface AdminState {
   storageInsights: StorageInsights | null
   purgeStatus: PurgeStatus | null
   retryFailedSpotsResult: string | null
+  feedbackItems: FeedbackItem[]
+  feedbackTotal: number
+  feedbackStatusFilter: string
+  isLoadingFeedback: boolean
+  activeFeedbackItem: FeedbackItem | null
 
   checkAdminStatus: () => Promise<void>
   fetchUsers: (loadMore?: boolean) => Promise<void>
@@ -107,6 +132,11 @@ interface AdminState {
   setSearch: (search: string) => void
   promoteUser: (userId: string) => Promise<void>
   demoteUser: (userId: string) => Promise<void>
+  fetchFeedback: (statusFilter?: string) => Promise<void>
+  fetchFeedbackDetail: (id: string) => Promise<void>
+  updateFeedbackStatus: (id: string, status: string) => Promise<void>
+  addAdminResponse: (id: string, message: string) => Promise<void>
+  setFeedbackStatusFilter: (status: string) => void
   clearError: () => void
   reset: () => void
 }
@@ -138,6 +168,11 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   storageInsights: null,
   purgeStatus: null,
   retryFailedSpotsResult: null,
+  feedbackItems: [],
+  feedbackTotal: 0,
+  feedbackStatusFilter: '',
+  isLoadingFeedback: false,
+  activeFeedbackItem: null,
 
   checkAdminStatus: async () => {
     const sessionToken = useAuthStore.getState().sessionToken
@@ -307,6 +342,64 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     } catch (error: any) {
       set({ error: error.response?.data?.message || 'Failed to demote user' })
     }
+  },
+
+  fetchFeedback: async (statusFilter) => {
+    const headers = getHeaders()
+    if (!headers.Authorization) return
+
+    const filter = statusFilter !== undefined ? statusFilter : get().feedbackStatusFilter
+    set({ isLoadingFeedback: true })
+
+    try {
+      const params = new URLSearchParams()
+      if (filter) params.set('status', filter)
+      const response = await axios.get(`${API_BASE}/feedback?${params}`, { headers })
+      set({ feedbackItems: response.data.items, feedbackTotal: response.data.total, isLoadingFeedback: false, feedbackStatusFilter: filter })
+    } catch (error: any) {
+      set({ error: error.response?.data?.message || 'Failed to fetch feedback', isLoadingFeedback: false })
+    }
+  },
+
+  fetchFeedbackDetail: async (id) => {
+    const headers = getHeaders()
+    if (!headers.Authorization) return
+
+    try {
+      const response = await axios.get(`${API_BASE}/feedback/${id}`, { headers })
+      set({ activeFeedbackItem: response.data })
+    } catch (error: any) {
+      set({ error: error.response?.data?.message || 'Failed to fetch feedback detail' })
+    }
+  },
+
+  updateFeedbackStatus: async (id, status) => {
+    const headers = getHeaders()
+    if (!headers.Authorization) return
+
+    try {
+      await axios.patch(`${API_BASE}/feedback/${id}/status`, { status }, { headers })
+      await get().fetchFeedback()
+    } catch (error: any) {
+      set({ error: error.response?.data?.message || 'Failed to update feedback status' })
+    }
+  },
+
+  addAdminResponse: async (id, message) => {
+    const headers = getHeaders()
+    if (!headers.Authorization) return
+
+    try {
+      await axios.post(`${API_BASE}/feedback/${id}/responses`, { message }, { headers })
+      await get().fetchFeedbackDetail(id)
+      await get().fetchFeedback()
+    } catch (error: any) {
+      set({ error: error.response?.data?.message || 'Failed to send response' })
+    }
+  },
+
+  setFeedbackStatusFilter: (status) => {
+    get().fetchFeedback(status)
   },
 
   clearError: () => set({ error: null }),

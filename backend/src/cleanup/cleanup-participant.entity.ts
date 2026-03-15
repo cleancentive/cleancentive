@@ -15,7 +15,7 @@ export class CleanupParticipant extends BaseEntity {
   user_id: string;
 
   @Column('varchar', { default: 'member' })
-  role: 'member' | 'admin';
+  role: 'member' | 'organizer';
 
   @ManyToOne(() => Cleanup, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'cleanup_id' })

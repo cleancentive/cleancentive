@@ -10,6 +10,7 @@ import { TeamDetail } from './components/TeamDetail'
 import { CleanupList } from './components/CleanupList'
 import { CleanupDetail } from './components/CleanupDetail'
 import { InsightsPage } from './components/InsightsPage'
+import { FeedbackPage } from './components/FeedbackPage'
 import { useAuthStore } from './stores/authStore'
 import './App.css'
 
@@ -51,9 +52,11 @@ function App() {
           <Route path="/cleanups" element={<CleanupList />} />
           <Route path="/cleanups/:id" element={<CleanupDetail />} />
           <Route path="/insights" element={<InsightsPage />} />
+          <Route path="/feedback" element={<FeedbackPage />} />
+          <Route path="/feedback/:id" element={<FeedbackPage />} />
           <Route path="/profile" element={<ProfileEditor />} />
-          <Route path="/admin" element={<AdminPanel />} />
-          <Route path="/admin/users/:id" element={<UserDetail />} />
+          <Route path="/steward" element={<AdminPanel />} />
+          <Route path="/steward/users/:id" element={<UserDetail />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

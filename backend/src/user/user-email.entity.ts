@@ -7,7 +7,7 @@ export class UserEmail extends BaseEntity {
   @Column('varchar')
   email: string;
 
-  @Column({ default: false })
+  @Column('boolean', { default: false })
   is_selected_for_login: boolean;
 
   @ManyToOne('User', { onDelete: 'CASCADE' })

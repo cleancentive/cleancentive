@@ -6,7 +6,7 @@ interface Message {
   id: string
   subject: string
   body: string
-  audience: 'members' | 'admins'
+  audience: 'members' | 'organizers'
   created_at: string
   author_user_id: string
   author?: { nickname: string; avatarEmailId: string | null }
@@ -14,23 +14,23 @@ interface Message {
 
 interface MessageBoardProps {
   messages: Message[]
-  onPost: (audience: 'members' | 'admins', subject: string, body: string) => Promise<void>
+  onPost: (audience: 'members' | 'organizers', subject: string, body: string) => Promise<void>
   canPost: boolean
-  isAdmin: boolean
+  isOrganizer: boolean
   isLoading: boolean
 }
 
-function getDisclosure(audience: 'members' | 'admins'): string {
+function getDisclosure(audience: 'members' | 'organizers'): string {
   if (audience === 'members') {
     return 'All current and future team members will see this message in the history. An email will be sent to all current members.'
   }
-  return 'All current and future admins will see this message in the history. An email will be sent to all current admins.'
+  return 'All current and future organizers will see this message in the history. An email will be sent to all current organizers.'
 }
 
-export function MessageBoard({ messages, onPost, canPost, isAdmin, isLoading }: MessageBoardProps) {
+export function MessageBoard({ messages, onPost, canPost, isOrganizer, isLoading }: MessageBoardProps) {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
-  const [audience, setAudience] = useState<'members' | 'admins'>('admins')
+  const [audience, setAudience] = useState<'members' | 'organizers'>('organizers')
   const [isSending, setIsSending] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,8 +46,8 @@ export function MessageBoard({ messages, onPost, canPost, isAdmin, isLoading }: 
     }
   }
 
-  // Members can only write to admins — single option, no dropdown needed
-  const hasMultipleAudienceOptions = isAdmin
+  // Members can only write to organizers — single option, no dropdown needed
+  const hasMultipleAudienceOptions = isOrganizer
 
   return (
     <div className="message-board">
@@ -74,12 +74,12 @@ export function MessageBoard({ messages, onPost, canPost, isAdmin, isLoading }: 
             <label>
               To:
               {hasMultipleAudienceOptions ? (
-                <select value={audience} onChange={(e) => setAudience(e.target.value as 'members' | 'admins')}>
+                <select value={audience} onChange={(e) => setAudience(e.target.value as 'members' | 'organizers')}>
                   <option value="members">All members</option>
-                  <option value="admins">Admins</option>
+                  <option value="organizers">Organizers</option>
                 </select>
               ) : (
-                <span className="message-audience-fixed">Admins</span>
+                <span className="message-audience-fixed">Organizers</span>
               )}
             </label>
             <button type="submit" className="primary-button" disabled={isSending || !subject.trim() || !body.trim()}>
@@ -107,7 +107,7 @@ export function MessageBoard({ messages, onPost, canPost, isAdmin, isLoading }: 
                 showAvatar={!!msg.author}
               />
               <span className="message-date">{formatTimestamp(msg.created_at)}</span>
-              <span className="badge">{msg.audience === 'admins' ? 'To admins' : 'To members'}</span>
+              <span className="badge">{msg.audience === 'organizers' ? 'To organizers' : 'To members'}</span>
             </div>
             <h4 className="message-subject">{msg.subject}</h4>
             <p className="message-body">{msg.body}</p>

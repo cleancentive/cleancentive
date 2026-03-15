@@ -127,7 +127,7 @@ export class TeamController {
   async createMessage(
     @Request() req: any,
     @Param('id', ParseUUIDPipe) teamId: string,
-    @Body() body: { audience?: 'members' | 'admins'; subject?: string; body?: string },
+    @Body() body: { audience?: 'members' | 'organizers'; subject?: string; body?: string },
   ) {
     const message = await this.teamService.createMessage({
       teamId,
@@ -139,7 +139,7 @@ export class TeamController {
 
     return {
       message,
-      disclosure: 'Platform admins can read team and event messages.',
+      disclosure: 'Stewards can read team and cleanup messages.',
     };
   }
 

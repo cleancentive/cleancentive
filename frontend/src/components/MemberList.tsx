@@ -24,8 +24,8 @@ export function MemberList({ members, canPromote, onPromote, entityLabel = 'Memb
       {members.map((member) => (
         <div key={member.userId} className="member-item">
           <UserDisplay userId={member.userId} avatarEmailId={member.avatarEmailId} nickname={member.nickname} size={28} />
-          {member.role === 'admin' && <span className="badge admin-badge">Admin</span>}
-          {canPromote && member.role !== 'admin' && onPromote && (
+          {member.role === 'organizer' && <span className="badge admin-badge">Organizer</span>}
+          {canPromote && member.role !== 'organizer' && onPromote && (
             <button className="link-button" onClick={() => onPromote(member.userId)}>
               Promote
             </button>

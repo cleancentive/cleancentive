@@ -261,7 +261,7 @@ export class CleanupController {
   async createMessage(
     @Request() req: any,
     @Param('id', ParseUUIDPipe) cleanupId: string,
-    @Body() body: { audience?: 'members' | 'admins'; subject?: string; body?: string },
+    @Body() body: { audience?: 'members' | 'organizers'; subject?: string; body?: string },
   ) {
     const message = await this.cleanupService.createMessage({
       cleanupId,
@@ -273,7 +273,7 @@ export class CleanupController {
 
     return {
       message,
-      disclosure: 'Platform admins can read team and cleanup messages.',
+      disclosure: 'Stewards can read team and cleanup messages.',
     };
   }
 }

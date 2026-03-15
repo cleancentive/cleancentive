@@ -77,7 +77,7 @@ export function TeamDetail() {
 
   const { team, members, userRole, isPartner } = currentTeam
   const isMember = userRole !== null
-  const isAdmin = userRole === 'admin'
+  const isOrganizer = userRole === 'organizer'
   const activeTeamId = user?.active_team_id
 
   const handleJoin = () => { if (id) joinTeam(id) }
@@ -119,7 +119,7 @@ export function TeamDetail() {
           <>
             <legend>
               {team.name}
-              {isAdmin && <button className="link-button legend-edit-button" onClick={() => { setEditName(team.name); setEditDescription(team.description); setEditing(true) }}>Edit</button>}
+              {isOrganizer && <button className="link-button legend-edit-button" onClick={() => { setEditName(team.name); setEditDescription(team.description); setEditing(true) }}>Edit</button>}
             </legend>
             {team.description && <p>{team.description}</p>}
           </>
@@ -171,9 +171,9 @@ export function TeamDetail() {
           </div>
         )}
 
-        {isAdmin && (
+        {isOrganizer && (
           <div className="community-admin-actions">
-            <h3>Admin Actions</h3>
+            <h3>Organizer Actions</h3>
             <button
               className="danger-button"
               onClick={() => setShowArchiveConfirm(true)}
@@ -189,7 +189,7 @@ export function TeamDetail() {
       {isPlatformAdmin && (
         <fieldset className="page-card">
           <details className="partner-settings-collapsible" open={isPartner}>
-            <summary><legend style={{ display: 'inline' }}>Partner Settings (Admin)</legend></summary>
+            <summary><legend style={{ display: 'inline' }}>Partner Settings (Steward)</legend></summary>
             <div className="partner-settings-body">
               <PartnerSettingsFields
                 patterns={editPatterns}
@@ -219,7 +219,7 @@ export function TeamDetail() {
         <legend>Members ({members.length})</legend>
         <MemberList
           members={members}
-          canPromote={isAdmin}
+          canPromote={isOrganizer}
           onPromote={(userId) => id && promoteMember(id, userId)}
         />
       </fieldset>
@@ -231,7 +231,7 @@ export function TeamDetail() {
             messages={messages}
             onPost={(audience, subject, body) => postMessage(id!, audience, subject, body)}
             canPost={isMember}
-            isAdmin={isAdmin}
+            isOrganizer={isOrganizer}
             isLoading={isLoadingMessages}
           />
         </fieldset>

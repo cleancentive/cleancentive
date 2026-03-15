@@ -15,7 +15,7 @@ export class TeamMembership extends BaseEntity {
   user_id: string;
 
   @Column('varchar', { default: 'member' })
-  role: 'member' | 'admin';
+  role: 'member' | 'organizer';
 
   @ManyToOne(() => Team, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'team_id' })

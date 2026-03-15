@@ -51,7 +51,7 @@ interface CleanupMessage {
   id: string
   subject: string
   body: string
-  audience: 'members' | 'admins'
+  audience: 'members' | 'organizers'
   created_at: string
   author_user_id: string
   author?: { nickname: string; avatarEmailId: string | null }
@@ -102,7 +102,7 @@ interface CleanupState {
   promoteParticipant: (cleanupId: string, userId: string) => Promise<void>
   archiveCleanup: (id: string) => Promise<void>
   fetchMessages: (id: string) => Promise<void>
-  postMessage: (id: string, audience: 'members' | 'admins', subject: string, body: string) => Promise<void>
+  postMessage: (id: string, audience: 'members' | 'organizers', subject: string, body: string) => Promise<void>
   setStatusFilter: (status: 'past' | 'ongoing' | 'future' | null) => void
   clearError: () => void
 }
@@ -316,7 +316,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
     }
   },
 
-  postMessage: async (id: string, audience: 'members' | 'admins', subject: string, body: string) => {
+  postMessage: async (id: string, audience: 'members' | 'organizers', subject: string, body: string) => {
     set({ error: null })
     try {
       await axios.post(`${API_BASE}/cleanups/${id}/messages`, { audience, subject, body }, { headers: getHeaders() })
