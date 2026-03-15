@@ -74,6 +74,7 @@ docker compose -f infrastructure/docker-compose.dev.yml ps
 
 Services available:
 - **PostgreSQL**: localhost:5432 (database)
+- **Postgres Browser**: http://localhost:8081 (schema, rows, SQL)
 - **Redis**: localhost:6379 (queue/cache)
 - **MinIO**: localhost:9002 (API, mapped to container 9000) and localhost:9001 (console)
 - **Mailpit**: localhost:8025 (web UI) and localhost:1025 (SMTP)
@@ -90,8 +91,21 @@ bun run dev
 - **Backend API**: http://localhost:3000/api/v1
 - **Swagger UI**: http://localhost:3000/api/v1/docs
 - **Frontend**: http://localhost:5173
+- **Postgres Browser**: http://localhost:8081
 - **Mailpit (Email Testing)**: http://localhost:8025
 - **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
+
+#### Shared Browser Workspace
+
+Run `bun browse` to open the local development tabs together in one shared Chromium session:
+
+- **MinIO Console**
+- **Postgres Browser**
+- **Swagger UI**
+- **Mailpit**
+- **Frontend app**
+
+The Postgres browser is wired to the local Docker Postgres instance automatically and stays localhost-only.
 
 #### Email Testing with Mailpit
 

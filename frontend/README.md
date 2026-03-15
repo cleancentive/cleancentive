@@ -92,6 +92,18 @@ During test development, you can access Mailpit web UI at:
 
 This lets you inspect emails sent during tests manually.
 
+## Shared Browser Workspace
+
+Run `bun browse` from the repository root to launch the shared Chromium session used by both humans and agents. It opens:
+
+- http://localhost:9001 (MinIO)
+- http://localhost:8081 (Postgres browser)
+- http://localhost:3000/api/v1/docs (Swagger UI)
+- http://localhost:8025 (Mailpit)
+- http://localhost:5173 (frontend app by default)
+
+The Postgres browser is prewired to the local development database and remains localhost-only.
+
 ### Troubleshooting
 
 **Tests fail with "No email received"**
@@ -106,4 +118,4 @@ This lets you inspect emails sent during tests manually.
 
 **Tests fail with connection errors**
 - Ensure all services are running (see Prerequisites above)
-- Check port conflicts (5173, 3000, 8025)
+- Check port conflicts (5173, 3000, 8025, 8081)

@@ -65,6 +65,17 @@ services:
       timeout: 3s
       retries: 5
 
+  postgres-browser:
+    image: sosedoff/pgweb:0.16.2
+    container_name: cleancentive-postgres-browser
+    environment:
+      PGWEB_DATABASE_URL: postgres://cleancentive:cleancentive_dev_password@postgres:5432/cleancentive?sslmode=disable
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:
