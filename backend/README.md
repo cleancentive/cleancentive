@@ -25,6 +25,7 @@ docker compose -f docker-compose.dev.yml up -d
 
 This provides:
 - **PostgreSQL** (localhost:5432) - Database
+- **Postgres Browser** (localhost:8081) - Schema, rows, SQL
 - **Redis** (localhost:6379) - Queue/Cache
 - **MinIO** (localhost:9002 for API, localhost:9001 for console) - S3-compatible storage
 - **Mailpit** (localhost:8025) - Email testing UI & SMTP server
@@ -58,6 +59,10 @@ All emails sent during development are captured by Mailpit:
 3. View the email in Mailpit and click the magic link
 
 No emails are actually sent externally during development.
+
+### Development Browser Tools
+
+Run `bun browse` from the repo root to open the local shared browser workspace, including the frontend app, Swagger UI, Mailpit, MinIO, and the Postgres browser at http://localhost:8081.
 
 ### Production Email Service
 

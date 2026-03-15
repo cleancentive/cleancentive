@@ -18,7 +18,7 @@
     "test": "bun run --filter '*' test",
     "lint": "bun run --filter '*' lint",
     "install:all": "bun install && bun install --cwd backend && bun install --cwd frontend && bun install --cwd worker",
-    "browse": "bun run --filter '@cleancentive/frontend' browse &"
+    "browse": "bun run dev:infra:start && bun run --filter '@cleancentive/frontend' browse &"
   },
   "devDependencies": {
     "@types/bun": "latest"
