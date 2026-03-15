@@ -20,6 +20,11 @@
   font-size: 1.5rem;
 }
 
+.app-title-link {
+  color: inherit;
+  text-decoration: none;
+}
+
 .user-menu {
   display: flex;
   align-items: center;

@@ -1,20 +1,11 @@
 import { useEffect } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { UserMenuButton } from './UserMenuButton'
 import { GuestBanner } from './GuestBanner'
 import { SignInModal } from './SignInModal'
-
-function HomeIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 10L10 3l7 7" />
-      <path d="M5 8.5V16a1 1 0 001 1h3v-4h2v4h3a1 1 0 001-1V8.5" />
-    </svg>
-  )
-}
 
 function MapIcon() {
   return (
@@ -64,7 +55,6 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { to: '/', label: 'Dashboard', icon: <HomeIcon />, end: true },
   { to: '/teams', label: 'Teams', icon: <TeamIcon /> },
   { to: '/cleanups', label: 'Cleanups', icon: <CleanupIcon /> },
   { to: '/map', label: 'Map', icon: <MapIcon /> },
@@ -103,7 +93,7 @@ export function AppShell() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>CleanCentive</h1>
+        <h1><Link to="/" className="app-title-link">CleanCentive</Link></h1>
         <nav className="nav-links">
           {visibleItems.map(item => (
             <NavLink key={item.to} to={item.to} end={item.end} className="nav-link">
