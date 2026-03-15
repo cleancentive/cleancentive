@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { RequestContextInterceptor } from './common/request-context.interceptor';
+import { AuditSubscriber } from './common/audit.subscriber';
 import { User } from './user/user.entity';
 import { UserEmail } from './user/user-email.entity';
 import { Admin } from './admin/admin.entity';
@@ -49,6 +52,7 @@ import { CleanupModule } from './cleanup/cleanup.module';
         CleanupParticipant,
         CleanupMessage,
       ],
+      subscribers: [AuditSubscriber],
       synchronize: process.env.NODE_ENV !== 'production',
       migrations: ['dist/migrations/*.js'],
     }),
@@ -59,6 +63,12 @@ import { CleanupModule } from './cleanup/cleanup.module';
     SpotModule,
     TeamModule,
     CleanupModule,
+  ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestContextInterceptor,
+    },
   ],
 })
 export class AppModule {}

@@ -37,6 +37,27 @@ function MapIcon() {
   )
 }
 
+function TeamIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="7" cy="6" r="2.5" />
+      <circle cx="13" cy="6" r="2.5" />
+      <path d="M2 16c0-2.8 2.2-5 5-5s5 2.2 5 5" />
+      <path d="M10.5 12.5c.7-1 1.8-1.5 3-1.5 2.5 0 4.5 2 4.5 4.5" />
+    </svg>
+  )
+}
+
+function CleanupIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 2c1 2 3 3 3 6a3 3 0 01-6 0c0-3 2-4 3-6z" />
+      <path d="M10 11v7" />
+      <path d="M7 15l3-2 3 2" />
+    </svg>
+  )
+}
+
 function ShieldIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -55,6 +76,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: <HomeIcon />, end: true },
+  { to: '/teams', label: 'Teams', icon: <TeamIcon /> },
+  { to: '/cleanups', label: 'Cleanups', icon: <CleanupIcon /> },
   { to: '/profile', label: 'Profile', icon: <UserIcon /> },
   { to: '/map', label: 'Map', icon: <MapIcon /> },
   { to: '/admin', label: 'Admin', icon: <ShieldIcon />, adminOnly: true },

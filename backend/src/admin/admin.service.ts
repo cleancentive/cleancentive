@@ -29,8 +29,6 @@ export class AdminService {
 
     const admin = this.adminRepository.create({
       user_id: userId,
-      created_by: promotedBy,
-      updated_by: promotedBy,
     });
     return this.adminRepository.save(admin);
   }

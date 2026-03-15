@@ -119,8 +119,6 @@ export class SpotService {
       thumbnail_key: null,
       upload_id: input.uploadId,
       processing_status: 'queued',
-      created_by: input.userId,
-      updated_by: input.userId,
     });
 
     const savedSpot = await this.spotRepository.save(spot);
@@ -189,7 +187,6 @@ export class SpotService {
     } catch {
       savedSpot.processing_status = 'failed';
       savedSpot.processing_error = 'Failed to enqueue litter detection job';
-      savedSpot.updated_by = savedSpot.user_id;
       await this.spotRepository.save(savedSpot);
 
       throw new ServiceUnavailableException('Spot accepted but detection queue is unavailable');
@@ -285,7 +282,6 @@ export class SpotService {
     spot.processing_status = 'queued';
     spot.processing_error = null;
     spot.detection_started_at = null;
-    spot.updated_by = updatedBy;
     await this.spotRepository.save(spot);
 
     const existingJob = await this.detectionQueue.getJob(spot.id);

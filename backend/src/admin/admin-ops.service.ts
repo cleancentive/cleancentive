@@ -404,7 +404,6 @@ export class AdminOpsService implements OnModuleDestroy {
     spot.processing_status = 'queued';
     spot.processing_error = null;
     spot.detection_started_at = null;
-    spot.updated_by = spot.user_id;
     await this.spotRepository.save(spot);
 
     const existingJob = await this.detectionQueue.getJob(spot.id);

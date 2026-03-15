@@ -18,6 +18,7 @@ interface SearchTeamsInput {
   query?: string;
   includeArchived?: boolean;
   currentUserIsPlatformAdmin: boolean;
+  userId?: string;
 }
 
 interface CreateTeamInput {
@@ -95,7 +96,7 @@ export class TeamService {
     }
   }
 
-  async searchTeams(input: SearchTeamsInput): Promise<Team[]> {
+  async searchTeams(input: SearchTeamsInput): Promise<Array<{ team: Team; userRole: string | null }>> {
     const qb = this.teamRepository.createQueryBuilder('team').orderBy('team.created_at', 'DESC');
     if (input.query?.trim()) {
       const query = `%${input.query.trim()}%`;
@@ -110,7 +111,20 @@ export class TeamService {
       qb.andWhere('team.archived_at IS NULL');
     }
 
-    return qb.getMany();
+    const teams = await qb.getMany();
+
+    let membershipMap = new Map<string, string>();
+    if (input.userId && teams.length > 0) {
+      const memberships = await this.teamMembershipRepository.find({
+        where: { user_id: input.userId, team_id: In(teams.map((t) => t.id)) },
+      });
+      membershipMap = new Map(memberships.map((m) => [m.team_id, m.role]));
+    }
+
+    return teams.map((team) => ({
+      team,
+      userRole: membershipMap.get(team.id) || null,
+    }));
   }
 
   async createTeam(userId: string, input: CreateTeamInput): Promise<Team> {
@@ -120,10 +134,6 @@ export class TeamService {
     if (!trimmedName) {
       throw new BadRequestException('name is required');
     }
-    if (!trimmedDescription) {
-      throw new BadRequestException('description is required');
-    }
-
     const nameNormalized = this.normalizeName(trimmedName);
     const existing = await this.teamRepository.findOne({ where: { name_normalized: nameNormalized } });
     if (existing) {
@@ -133,9 +143,7 @@ export class TeamService {
     const team = this.teamRepository.create({
       name: trimmedName,
       name_normalized: nameNormalized,
-      description: trimmedDescription,
-      created_by: userId,
-      updated_by: userId,
+      description: trimmedDescription || '',
       archived_at: null,
       archived_by: null,
     });
@@ -145,8 +153,6 @@ export class TeamService {
       team_id: savedTeam.id,
       user_id: userId,
       role: 'admin',
-      created_by: userId,
-      updated_by: userId,
     });
     await this.teamMembershipRepository.save(membership);
 
@@ -160,6 +166,65 @@ export class TeamService {
       throw new NotFoundException('Team not found');
     }
     return team;
+  }
+
+  async getTeamDetail(teamId: string, userId?: string): Promise<{
+    team: Team;
+    members: Array<{ userId: string; nickname: string; role: string; avatarEmailId: string | null }>;
+    userRole: string | null;
+  }> {
+    const team = await this.getTeam(teamId);
+
+    const memberships = await this.teamMembershipRepository.find({
+      where: { team_id: teamId },
+      order: { created_at: 'ASC' },
+    });
+
+    const userIds = memberships.map((m) => m.user_id);
+    const users = userIds.length > 0
+      ? await this.userRepository.find({ where: { id: In(userIds) } })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const members = memberships.map((m) => {
+      const u = userMap.get(m.user_id);
+      return {
+        userId: m.user_id,
+        nickname: u?.nickname || 'Unknown',
+        role: m.role,
+        avatarEmailId: u?.avatar_email_id || null,
+      };
+    });
+
+    let userRole: string | null = null;
+    if (userId) {
+      const membership = memberships.find((m) => m.user_id === userId);
+      userRole = membership?.role || null;
+    }
+
+    return { team, members, userRole };
+  }
+
+  async updateTeam(teamId: string, actorUserId: string, input: { name?: string; description?: string }): Promise<Team> {
+    await this.ensureRegisteredUser(actorUserId);
+    const team = await this.getTeamOrThrow(teamId);
+    await this.ensureTeamNotArchived(team);
+    await this.ensureAdmin(teamId, actorUserId);
+
+    if (input.name !== undefined) {
+      const trimmedName = input.name.trim();
+      if (!trimmedName) throw new BadRequestException('name is required');
+      const nameNormalized = this.normalizeName(trimmedName);
+      const existing = await this.teamRepository.findOne({ where: { name_normalized: nameNormalized } });
+      if (existing && existing.id !== teamId) throw new BadRequestException('Team name already exists');
+      team.name = trimmedName;
+      team.name_normalized = nameNormalized;
+    }
+    if (input.description !== undefined) {
+      team.description = input.description.trim();
+    }
+
+    return this.teamRepository.save(team);
   }
 
   async joinTeam(teamId: string, userId: string): Promise<{ joined: boolean }> {
@@ -176,8 +241,6 @@ export class TeamService {
       team_id: teamId,
       user_id: userId,
       role: 'member',
-      created_by: userId,
-      updated_by: userId,
     });
     await this.teamMembershipRepository.save(membership);
     return { joined: true };
@@ -205,10 +268,12 @@ export class TeamService {
     return { left: true };
   }
 
-  private async promotePlatformAdmins(teamId: string, updatedBy: string): Promise<void> {
-    const platformAdminIds = await this.adminService.getAdminUserIds();
+  private async promotePlatformAdmins(teamId: string, leavingUserId: string): Promise<void> {
+    const allPlatformAdminIds = await this.adminService.getAdminUserIds();
+    // Exclude the leaving user — they're about to be removed
+    const platformAdminIds = allPlatformAdminIds.filter((id) => id !== leavingUserId);
     if (platformAdminIds.length === 0) {
-      throw new BadRequestException('Cannot leave team because no platform admins are available for fallback promotion');
+      throw new BadRequestException('Cannot leave team because no other platform admins are available for fallback promotion');
     }
 
     const existingMemberships = await this.teamMembershipRepository.find({
@@ -227,8 +292,6 @@ export class TeamService {
           team_id: teamId,
           user_id: adminUserId,
           role: 'admin',
-          created_by: updatedBy,
-          updated_by: updatedBy,
         });
         await this.teamMembershipRepository.save(membership);
         continue;
@@ -236,7 +299,6 @@ export class TeamService {
 
       if (existingMembership.role !== 'admin') {
         existingMembership.role = 'admin';
-        existingMembership.updated_by = updatedBy;
         await this.teamMembershipRepository.save(existingMembership);
       }
     }
@@ -290,7 +352,6 @@ export class TeamService {
     }
 
     membership.role = 'admin';
-    membership.updated_by = actorUserId;
     await this.teamMembershipRepository.save(membership);
   }
 
@@ -303,13 +364,12 @@ export class TeamService {
     }
     team.archived_at = new Date();
     team.archived_by = actorUserId;
-    team.updated_by = actorUserId;
     await this.teamRepository.save(team);
 
     await this.userRepository.update({ active_team_id: teamId }, { active_team_id: null });
   }
 
-  async listMessages(teamId: string, userId: string): Promise<TeamMessage[]> {
+  async listMessages(teamId: string, userId: string): Promise<Array<TeamMessage & { author?: { nickname: string; avatarEmailId: string | null } }>> {
     await this.ensureRegisteredUser(userId);
     const membership = await this.getMembership(teamId, userId);
     if (!membership) {
@@ -318,10 +378,26 @@ export class TeamService {
         throw new ForbiddenException('You are not allowed to view team messages');
       }
     }
-    return this.teamMessageRepository.find({
+    const messages = await this.teamMessageRepository.find({
       where: { team_id: teamId },
       order: { created_at: 'DESC' },
       take: 100,
+    });
+
+    const authorIds = [...new Set(messages.map((m) => m.author_user_id))];
+    const authors = authorIds.length > 0
+      ? await this.userRepository.find({ where: { id: In(authorIds) } })
+      : [];
+    const authorMap = new Map(authors.map((a) => [a.id, a]));
+
+    return messages.map((m) => {
+      const author = authorMap.get(m.author_user_id);
+      return {
+        ...m,
+        author: author
+          ? { nickname: author.nickname, avatarEmailId: author.avatar_email_id }
+          : undefined,
+      };
     });
   }
 
@@ -350,8 +426,6 @@ export class TeamService {
       audience: input.audience,
       subject,
       body,
-      created_by: input.authorUserId,
-      updated_by: input.authorUserId,
     });
     const saved = await this.teamMessageRepository.save(message);
 
@@ -360,24 +434,23 @@ export class TeamService {
   }
 
   private async sendTeamMessageEmailFanout(teamName: string, message: TeamMessage, authorUserId: string): Promise<void> {
-    const recipientRole = message.audience === 'admins' ? 'admin' : 'member';
-    const recipients = await this.teamMembershipRepository.find({
-      where: { team_id: message.team_id, role: recipientRole },
-    });
-    const recipientIds = recipients.map((recipient) => recipient.user_id).filter((id) => id !== authorUserId);
-    if (recipientIds.length === 0) {
-      return;
-    }
+    // 'members' audience → all members and admins; 'admins' audience → admins only
+    const recipients = message.audience === 'admins'
+      ? await this.teamMembershipRepository.find({ where: { team_id: message.team_id, role: 'admin' } })
+      : await this.teamMembershipRepository.find({ where: { team_id: message.team_id } });
 
-    const recipientEmails = await this.userEmailRepository.find({
-      where: {
-        user_id: In(recipientIds),
-        is_selected_for_login: true,
-      },
-    });
+    const recipientIds = recipients.map((r) => r.user_id).filter((id) => id !== authorUserId);
 
-    const uniqueEmails = [...new Set(recipientEmails.map((recipientEmail) => recipientEmail.email))];
-    await this.emailService.sendCommunityMessage(uniqueEmails, {
+    const recipientEmails = recipientIds.length > 0
+      ? await this.userEmailRepository.find({ where: { user_id: In(recipientIds), is_selected_for_login: true } })
+      : [];
+
+    // CC the sender so they get a copy
+    const senderEmails = await this.userEmailRepository.find({ where: { user_id: authorUserId, is_selected_for_login: true } });
+    const senderEmail = senderEmails[0]?.email || null;
+
+    const uniqueRecipientEmails = [...new Set(recipientEmails.map((e) => e.email))];
+    await this.emailService.sendCommunityMessage(uniqueRecipientEmails, senderEmail, {
       subject: `[Team: ${teamName}] ${message.subject}`,
       preheader: 'New team message in Cleancentive',
       title: teamName,

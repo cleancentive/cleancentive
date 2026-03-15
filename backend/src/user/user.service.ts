@@ -424,7 +424,6 @@ export class UserService {
     user.avatar_email_id = null;
     user.active_team_id = null;
     user.active_cleanup_date_id = null;
-    user.updated_by = null;
     await this.userRepository.save(user);
   }
 
@@ -452,9 +451,6 @@ export class UserService {
       user.full_name = updates.fullName;
     }
 
-    // Set updated_by to the current user
-    user.updated_by = userId;
-
     return this.userRepository.save(user);
   }
 
@@ -474,7 +470,6 @@ export class UserService {
     }
 
     user.avatar_email_id = emailId;
-    user.updated_by = userId;
     return this.userRepository.save(user);
   }
 

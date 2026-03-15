@@ -90,28 +90,33 @@ export class EmailService {
   }
 
   async sendCommunityMessage(
-    emails: string[],
+    recipients: string[],
+    senderEmail: string | null,
     payload: { subject: string; preheader: string; title: string; body: string; disclosure: string },
   ): Promise<void> {
     const fromAddress = this.configService.get<string>('SMTP_FROM', 'noreply@cleancentive.local');
-    const uniqueEmails = [...new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean))];
+    const uniqueRecipients = [...new Set(recipients.map((e) => e.trim().toLowerCase()).filter(Boolean))];
 
-    if (uniqueEmails.length === 0) {
+    if (uniqueRecipients.length === 0 && !senderEmail) {
       return;
     }
 
-    for (const email of uniqueEmails) {
-      try {
-        await this.transporter.sendMail({
-          from: fromAddress,
-          to: email,
-          subject: payload.subject,
-          text: this.generateCommunityPlainText(payload),
-          html: this.generateCommunityHtml(payload),
-        });
-      } catch (error) {
-        this.logger.error(`Failed to send community message to ${email}`, error.stack);
-      }
+    const text = this.generateCommunityPlainText(payload);
+    const html = this.generateCommunityHtml(payload);
+
+    // Send one email: CC the sender, BCC all other recipients to keep addresses private
+    try {
+      await this.transporter.sendMail({
+        from: fromAddress,
+        to: fromAddress,
+        cc: senderEmail || undefined,
+        bcc: uniqueRecipients.length > 0 ? uniqueRecipients.join(', ') : undefined,
+        subject: payload.subject,
+        text,
+        html,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to send community message`, error.stack);
     }
   }
 

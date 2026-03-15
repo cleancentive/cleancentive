@@ -33,6 +33,7 @@ interface SearchCleanupsInput {
   date?: Date;
   includeArchived?: boolean;
   currentUserIsPlatformAdmin: boolean;
+  userId?: string;
 }
 
 interface CreateCleanupMessageInput {
@@ -153,10 +154,6 @@ export class CleanupService {
     if (!trimmedName) {
       throw new BadRequestException('name is required');
     }
-    if (!trimmedDescription) {
-      throw new BadRequestException('description is required');
-    }
-
     const nameNormalized = this.normalizeName(trimmedName);
     const existing = await this.cleanupRepository.findOne({ where: { name_normalized: nameNormalized } });
     if (existing) {
@@ -169,9 +166,7 @@ export class CleanupService {
     const cleanup = this.cleanupRepository.create({
       name: trimmedName,
       name_normalized: nameNormalized,
-      description: trimmedDescription,
-      created_by: userId,
-      updated_by: userId,
+      description: trimmedDescription || '',
       archived_at: null,
       archived_by: null,
     });
@@ -184,8 +179,6 @@ export class CleanupService {
       latitude: input.date.latitude,
       longitude: input.date.longitude,
       location_name: input.date.locationName?.trim() || null,
-      created_by: userId,
-      updated_by: userId,
     });
     const savedCleanupDate = await this.cleanupDateRepository.save(cleanupDate);
 
@@ -193,8 +186,6 @@ export class CleanupService {
       cleanup_id: savedCleanup.id,
       user_id: userId,
       role: 'admin',
-      created_by: userId,
-      updated_by: userId,
     });
     await this.cleanupParticipantRepository.save(participant);
 
@@ -218,6 +209,66 @@ export class CleanupService {
     return { cleanup, dates };
   }
 
+  async updateCleanup(cleanupId: string, actorUserId: string, input: { name?: string; description?: string }): Promise<Cleanup> {
+    await this.ensureRegisteredUser(actorUserId);
+    const cleanup = await this.getCleanupOrThrow(cleanupId);
+    await this.ensureCleanupNotArchived(cleanup);
+    await this.ensureAdmin(cleanupId, actorUserId);
+
+    if (input.name !== undefined) {
+      const trimmedName = input.name.trim();
+      if (!trimmedName) throw new BadRequestException('name is required');
+      const nameNormalized = this.normalizeName(trimmedName);
+      const existing = await this.cleanupRepository.findOne({ where: { name_normalized: nameNormalized } });
+      if (existing && existing.id !== cleanupId) throw new BadRequestException('Cleanup name already exists');
+      cleanup.name = trimmedName;
+      cleanup.name_normalized = nameNormalized;
+    }
+    if (input.description !== undefined) {
+      cleanup.description = input.description.trim();
+    }
+
+    return this.cleanupRepository.save(cleanup);
+  }
+
+  async getCleanupDetail(cleanupId: string, userId?: string): Promise<{
+    cleanup: Cleanup;
+    dates: CleanupDate[];
+    participants: Array<{ userId: string; nickname: string; role: string; avatarEmailId: string | null }>;
+    userRole: string | null;
+  }> {
+    const { cleanup, dates } = await this.getCleanup(cleanupId);
+
+    const participantRows = await this.cleanupParticipantRepository.find({
+      where: { cleanup_id: cleanupId },
+      order: { created_at: 'ASC' },
+    });
+
+    const userIds = participantRows.map((p) => p.user_id);
+    const users = userIds.length > 0
+      ? await this.userRepository.find({ where: { id: In(userIds) } })
+      : [];
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const participants = participantRows.map((p) => {
+      const u = userMap.get(p.user_id);
+      return {
+        userId: p.user_id,
+        nickname: u?.nickname || 'Unknown',
+        role: p.role,
+        avatarEmailId: u?.avatar_email_id || null,
+      };
+    });
+
+    let userRole: string | null = null;
+    if (userId) {
+      const participant = participantRows.find((p) => p.user_id === userId);
+      userRole = participant?.role || null;
+    }
+
+    return { cleanup, dates, participants, userRole };
+  }
+
   async searchCleanups(input: SearchCleanupsInput): Promise<Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null }>> {
     const qb = this.cleanupRepository.createQueryBuilder('cleanup');
     qb.orderBy('cleanup.created_at', 'DESC');
@@ -239,7 +290,15 @@ export class CleanupService {
     const now = new Date();
     const date = input.date;
 
-    const result: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null }> = [];
+    let participantMap = new Map<string, string>();
+    if (input.userId && cleanups.length > 0) {
+      const participations = await this.cleanupParticipantRepository.find({
+        where: { user_id: input.userId, cleanup_id: In(cleanups.map((c) => c.id)) },
+      });
+      participantMap = new Map(participations.map((p) => [p.cleanup_id, p.role]));
+    }
+
+    const result: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null; userRole: string | null }> = [];
     for (const cleanup of cleanups) {
       const dates = await this.cleanupDateRepository.find({
         where: { cleanup_id: cleanup.id },
@@ -274,7 +333,7 @@ export class CleanupService {
       }
 
       const nearestDate = dates[0] || null;
-      result.push({ cleanup, nearestDate });
+      result.push({ cleanup, nearestDate, userRole: participantMap.get(cleanup.id) || null });
     }
 
     return result;
@@ -363,8 +422,6 @@ export class CleanupService {
       cleanup_id: cleanupId,
       user_id: userId,
       role: 'member',
-      created_by: userId,
-      updated_by: userId,
     });
     await this.cleanupParticipantRepository.save(participant);
     return { joined: true };
@@ -402,10 +459,12 @@ export class CleanupService {
     return { left: true };
   }
 
-  private async promotePlatformAdmins(cleanupId: string, updatedBy: string): Promise<void> {
-    const platformAdminIds = await this.adminService.getAdminUserIds();
+  private async promotePlatformAdmins(cleanupId: string, leavingUserId: string): Promise<void> {
+    const allPlatformAdminIds = await this.adminService.getAdminUserIds();
+    // Exclude the leaving user — they're about to be removed
+    const platformAdminIds = allPlatformAdminIds.filter((id) => id !== leavingUserId);
     if (platformAdminIds.length === 0) {
-      throw new BadRequestException('Cannot leave cleanup because no platform admins are available for fallback promotion');
+      throw new BadRequestException('Cannot leave cleanup because no other platform admins are available for fallback promotion');
     }
 
     const existingParticipants = await this.cleanupParticipantRepository.find({
@@ -423,8 +482,6 @@ export class CleanupService {
           cleanup_id: cleanupId,
           user_id: platformAdminId,
           role: 'admin',
-          created_by: updatedBy,
-          updated_by: updatedBy,
         });
         await this.cleanupParticipantRepository.save(participant);
         continue;
@@ -432,7 +489,6 @@ export class CleanupService {
 
       if (existing.role !== 'admin') {
         existing.role = 'admin';
-        existing.updated_by = updatedBy;
         await this.cleanupParticipantRepository.save(existing);
       }
     }
@@ -464,11 +520,116 @@ export class CleanupService {
       latitude: payload.latitude,
       longitude: payload.longitude,
       location_name: payload.locationName?.trim() || null,
-      created_by: actorUserId,
-      updated_by: actorUserId,
     });
 
     return this.cleanupDateRepository.save(cleanupDate);
+  }
+
+  async addDatesBulk(
+    cleanupId: string,
+    actorUserId: string,
+    payload: {
+      recurrenceId: string;
+      dates: Array<{
+        startAt: Date;
+        endAt: Date;
+        latitude: number;
+        longitude: number;
+        locationName?: string;
+      }>;
+    },
+  ): Promise<CleanupDate[]> {
+    await this.ensureRegisteredUser(actorUserId);
+    const cleanup = await this.getCleanupOrThrow(cleanupId);
+    await this.ensureCleanupNotArchived(cleanup);
+    await this.ensureAdmin(cleanupId, actorUserId);
+
+    const entities: CleanupDate[] = [];
+    for (const d of payload.dates) {
+      this.assertDateWindow(d.startAt, d.endAt);
+      this.assertCoordinates(d.latitude, d.longitude);
+      entities.push(this.cleanupDateRepository.create({
+        cleanup_id: cleanupId,
+        start_at: d.startAt,
+        end_at: d.endAt,
+        latitude: d.latitude,
+        longitude: d.longitude,
+        location_name: d.locationName?.trim() || null,
+        recurrence_id: payload.recurrenceId,
+      }));
+    }
+
+    return this.cleanupDateRepository.save(entities);
+  }
+
+  async deleteDatesBulk(cleanupId: string, actorUserId: string, dateIds: string[]): Promise<void> {
+    await this.ensureRegisteredUser(actorUserId);
+    await this.getCleanupOrThrow(cleanupId);
+    await this.ensureAdmin(cleanupId, actorUserId);
+
+    if (dateIds.length === 0) return;
+
+    // Verify all dates belong to this cleanup
+    const dates = await this.cleanupDateRepository.find({ where: { cleanup_id: cleanupId, id: In(dateIds) } });
+    if (dates.length !== dateIds.length) {
+      throw new BadRequestException('Some date IDs do not belong to this cleanup');
+    }
+
+    // Clear active_cleanup_date_id for affected users
+    await this.userRepository
+      .createQueryBuilder()
+      .update()
+      .set({ active_cleanup_date_id: null })
+      .where('active_cleanup_date_id IN (:...dateIds)', { dateIds })
+      .execute();
+
+    await this.cleanupDateRepository.delete(dateIds);
+  }
+
+  async updateDate(
+    cleanupDateId: string,
+    actorUserId: string,
+    payload: {
+      startAt: Date;
+      endAt: Date;
+      latitude: number;
+      longitude: number;
+      locationName?: string;
+    },
+  ): Promise<CleanupDate> {
+    await this.ensureRegisteredUser(actorUserId);
+    const cleanupDate = await this.cleanupDateRepository.findOne({ where: { id: cleanupDateId }, relations: ['cleanup'] });
+    if (!cleanupDate) {
+      throw new NotFoundException('Cleanup date not found');
+    }
+    await this.ensureCleanupNotArchived(cleanupDate.cleanup);
+    await this.ensureAdmin(cleanupDate.cleanup_id, actorUserId);
+
+    this.assertDateWindow(payload.startAt, payload.endAt);
+    this.assertCoordinates(payload.latitude, payload.longitude);
+
+    cleanupDate.start_at = payload.startAt;
+    cleanupDate.end_at = payload.endAt;
+    cleanupDate.latitude = payload.latitude;
+    cleanupDate.longitude = payload.longitude;
+    cleanupDate.location_name = payload.locationName?.trim() || null;
+
+    return this.cleanupDateRepository.save(cleanupDate);
+  }
+
+  async deleteDate(cleanupDateId: string, actorUserId: string): Promise<void> {
+    await this.ensureRegisteredUser(actorUserId);
+    const cleanupDate = await this.cleanupDateRepository.findOne({ where: { id: cleanupDateId }, relations: ['cleanup'] });
+    if (!cleanupDate) {
+      throw new NotFoundException('Cleanup date not found');
+    }
+    await this.ensureCleanupNotArchived(cleanupDate.cleanup);
+    await this.ensureAdmin(cleanupDate.cleanup_id, actorUserId);
+
+    // Clear active_cleanup_date_id for any user who has this date active
+    await this.userRepository.update({ active_cleanup_date_id: cleanupDateId }, { active_cleanup_date_id: null });
+
+    await this.cleanupDateRepository.delete({ id: cleanupDateId });
   }
 
   async activateDate(cleanupDateId: string, userId: string): Promise<{ activeCleanupDateId: string }> {
@@ -510,7 +671,6 @@ export class CleanupService {
       return;
     }
     participant.role = 'admin';
-    participant.updated_by = actorUserId;
     await this.cleanupParticipantRepository.save(participant);
   }
 
@@ -523,7 +683,6 @@ export class CleanupService {
     }
     cleanup.archived_at = new Date();
     cleanup.archived_by = actorUserId;
-    cleanup.updated_by = actorUserId;
     await this.cleanupRepository.save(cleanup);
 
     await this.userRepository.query(
@@ -540,7 +699,7 @@ export class CleanupService {
     );
   }
 
-  async listMessages(cleanupId: string, userId: string): Promise<CleanupMessage[]> {
+  async listMessages(cleanupId: string, userId: string): Promise<Array<CleanupMessage & { author?: { nickname: string; avatarEmailId: string | null } }>> {
     await this.ensureRegisteredUser(userId);
     const participant = await this.getParticipant(cleanupId, userId);
     if (!participant) {
@@ -549,10 +708,26 @@ export class CleanupService {
         throw new ForbiddenException('You are not allowed to view cleanup messages');
       }
     }
-    return this.cleanupMessageRepository.find({
+    const messages = await this.cleanupMessageRepository.find({
       where: { cleanup_id: cleanupId },
       order: { created_at: 'DESC' },
       take: 100,
+    });
+
+    const authorIds = [...new Set(messages.map((m) => m.author_user_id))];
+    const authors = authorIds.length > 0
+      ? await this.userRepository.find({ where: { id: In(authorIds) } })
+      : [];
+    const authorMap = new Map(authors.map((a) => [a.id, a]));
+
+    return messages.map((m) => {
+      const author = authorMap.get(m.author_user_id);
+      return {
+        ...m,
+        author: author
+          ? { nickname: author.nickname, avatarEmailId: author.avatar_email_id }
+          : undefined,
+      };
     });
   }
 
@@ -581,8 +756,6 @@ export class CleanupService {
       audience: input.audience,
       subject,
       body,
-      created_by: input.authorUserId,
-      updated_by: input.authorUserId,
     });
     const saved = await this.cleanupMessageRepository.save(message);
     await this.sendCleanupMessageEmailFanout(cleanup.name, saved, input.authorUserId);
@@ -590,24 +763,23 @@ export class CleanupService {
   }
 
   private async sendCleanupMessageEmailFanout(cleanupName: string, message: CleanupMessage, authorUserId: string): Promise<void> {
-    const recipientRole = message.audience === 'admins' ? 'admin' : 'member';
-    const recipients = await this.cleanupParticipantRepository.find({
-      where: { cleanup_id: message.cleanup_id, role: recipientRole },
-    });
-    const recipientIds = recipients.map((recipient) => recipient.user_id).filter((id) => id !== authorUserId);
-    if (recipientIds.length === 0) {
-      return;
-    }
+    // 'members' audience → all participants (member + admin); 'admins' audience → admins only
+    const recipients = message.audience === 'admins'
+      ? await this.cleanupParticipantRepository.find({ where: { cleanup_id: message.cleanup_id, role: 'admin' } })
+      : await this.cleanupParticipantRepository.find({ where: { cleanup_id: message.cleanup_id } });
 
-    const recipientEmails = await this.userEmailRepository.find({
-      where: {
-        user_id: In(recipientIds),
-        is_selected_for_login: true,
-      },
-    });
-    const uniqueEmails = [...new Set(recipientEmails.map((recipientEmail) => recipientEmail.email))];
+    const recipientIds = recipients.map((r) => r.user_id).filter((id) => id !== authorUserId);
 
-    await this.emailService.sendCommunityMessage(uniqueEmails, {
+    const recipientEmails = recipientIds.length > 0
+      ? await this.userEmailRepository.find({ where: { user_id: In(recipientIds), is_selected_for_login: true } })
+      : [];
+
+    // CC the sender so they get a copy
+    const senderEmails = await this.userEmailRepository.find({ where: { user_id: authorUserId, is_selected_for_login: true } });
+    const senderEmail = senderEmails[0]?.email || null;
+
+    const uniqueRecipientEmails = [...new Set(recipientEmails.map((e) => e.email))];
+    await this.emailService.sendCommunityMessage(uniqueRecipientEmails, senderEmail, {
       subject: `[Cleanup: ${cleanupName}] ${message.subject}`,
       preheader: 'New cleanup message in Cleancentive',
       title: cleanupName,

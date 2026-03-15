@@ -5,6 +5,10 @@ import { AppLayout } from './components/AppLayout'
 import { AdminPanel } from './components/AdminPanel'
 import { ProfileEditor } from './components/ProfileEditor'
 import { UserDetail } from './components/UserDetail'
+import { TeamList } from './components/TeamList'
+import { TeamDetail } from './components/TeamDetail'
+import { CleanupList } from './components/CleanupList'
+import { CleanupDetail } from './components/CleanupDetail'
 import { useAuthStore } from './stores/authStore'
 import './App.css'
 
@@ -41,6 +45,10 @@ function App() {
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/" element={<AppLayout />} />
+          <Route path="/teams" element={<TeamList />} />
+          <Route path="/teams/:id" element={<TeamDetail />} />
+          <Route path="/cleanups" element={<CleanupList />} />
+          <Route path="/cleanups/:id" element={<CleanupDetail />} />
           <Route path="/profile" element={<ProfileEditor />} />
           <Route path="/admin" element={<AdminPanel />} />
           <Route path="/admin/users/:id" element={<UserDetail />} />

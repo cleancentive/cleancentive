@@ -25,6 +25,9 @@ export class CleanupDate extends BaseEntity {
   @Column('varchar', { nullable: true })
   location_name: string | null;
 
+  @Column('uuid', { nullable: true })
+  recurrence_id: string | null;
+
   @ManyToOne(() => Cleanup, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'cleanup_id' })
   cleanup: Cleanup;
