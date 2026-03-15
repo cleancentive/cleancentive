@@ -2,16 +2,19 @@ import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useTeamStore } from '../stores/teamStore'
 import { useAuthStore } from '../stores/authStore'
+import { useAdminStore } from '../stores/adminStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { MemberList } from './MemberList'
 import { MessageBoard } from './MessageBoard'
 import { useUiStore } from '../stores/uiStore'
 import { ConfirmDialog } from './ConfirmDialog'
+import { PartnerSettingsFields } from './PartnerSettingsFields'
 
 export function TeamDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const { isAdmin: isPlatformAdmin } = useAdminStore()
   const { isOnline } = useConnectivityStore()
   const { openSignInModal } = useUiStore()
   const {
@@ -30,6 +33,8 @@ export function TeamDetail() {
     archiveTeam,
     fetchMessages,
     postMessage,
+    updateEmailPatterns,
+    updateCustomCss,
     clearError,
   } = useTeamStore()
 
@@ -37,6 +42,8 @@ export function TeamDetail() {
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [editPatterns, setEditPatterns] = useState('')
+  const [editCss, setEditCss] = useState('')
 
   useEffect(() => {
     if (id) fetchTeam(id)
@@ -47,6 +54,13 @@ export function TeamDetail() {
       fetchMessages(id)
     }
   }, [id, currentTeam?.userRole, fetchMessages])
+
+  useEffect(() => {
+    if (currentTeam) {
+      setEditPatterns(currentTeam.emailPatterns?.map(p => p.email_pattern).join('\n') || '')
+      setEditCss(currentTeam.team.custom_css || '')
+    }
+  }, [currentTeam?.team.id])
 
   if (isLoading) {
     return <div className="community-detail"><p className="loading">Loading...</p></div>
@@ -61,10 +75,10 @@ export function TeamDetail() {
     )
   }
 
-  const { team, members, userRole } = currentTeam
+  const { team, members, userRole, isPartner } = currentTeam
   const isMember = userRole !== null
   const isAdmin = userRole === 'admin'
-  const activeTeamId = (user as any)?.active_team_id
+  const activeTeamId = user?.active_team_id
 
   const handleJoin = () => { if (id) joinTeam(id) }
   const handleLeave = () => { if (id) leaveTeam(id) }
@@ -125,7 +139,14 @@ export function TeamDetail() {
           </div>
         )}
 
-        {user && !isMember && (
+        {isPartner && (
+          <p className="partner-notice">
+            <span className="badge" style={{ background: '#7c3aed' }}>Partner</span>
+            {' '}Membership is managed automatically based on your email domain.
+          </p>
+        )}
+
+        {user && !isMember && !isPartner && (
           <button className="primary-button" onClick={handleJoin} disabled={!isOnline}>
             Join Team
           </button>
@@ -142,9 +163,11 @@ export function TeamDetail() {
                 Set as Active Team
               </button>
             )}
-            <button className="danger-button" onClick={handleLeave} disabled={!isOnline}>
-              Leave Team
-            </button>
+            {!isPartner && (
+              <button className="danger-button" onClick={handleLeave} disabled={!isOnline}>
+                Leave Team
+              </button>
+            )}
           </div>
         )}
 
@@ -162,6 +185,35 @@ export function TeamDetail() {
           </div>
         )}
       </fieldset>
+
+      {isPlatformAdmin && (
+        <fieldset className="page-card">
+          <details className="partner-settings-collapsible" open={isPartner}>
+            <summary><legend style={{ display: 'inline' }}>Partner Settings (Admin)</legend></summary>
+            <div className="partner-settings-body">
+              <PartnerSettingsFields
+                patterns={editPatterns}
+                onPatternsChange={setEditPatterns}
+                customCss={editCss}
+                onCustomCssChange={setEditCss}
+              />
+
+              <button
+                className="primary-button"
+                disabled={!isOnline}
+                onClick={async () => {
+                  if (!id) return
+                  const patterns = editPatterns.split('\n').map(l => l.trim()).filter(Boolean)
+                  await updateEmailPatterns(id, patterns)
+                  await updateCustomCss(id, editCss || null)
+                }}
+              >
+                Save Partner Settings
+              </button>
+            </div>
+          </details>
+        </fieldset>
+      )}
 
       <fieldset className="page-card">
         <legend>Members ({members.length})</legend>

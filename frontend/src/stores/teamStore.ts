@@ -24,9 +24,11 @@ interface TeamMember {
 }
 
 interface TeamDetail {
-  team: TeamSummary
+  team: TeamSummary & { custom_css?: string | null }
   members: TeamMember[]
   userRole: string | null
+  isPartner: boolean
+  emailPatterns?: Array<{ id: string; email_pattern: string }>
 }
 
 interface TeamMessage {
@@ -42,6 +44,7 @@ interface TeamMessage {
 interface TeamSearchResult {
   team: TeamSummary
   userRole: string | null
+  isPartner: boolean
 }
 
 interface TeamState {
@@ -64,6 +67,9 @@ interface TeamState {
   archiveTeam: (id: string) => Promise<void>
   fetchMessages: (id: string) => Promise<void>
   postMessage: (id: string, audience: 'members' | 'admins', subject: string, body: string) => Promise<void>
+  updateEmailPatterns: (teamId: string, patterns: string[]) => Promise<void>
+  updateCustomCss: (teamId: string, customCss: string | null) => Promise<void>
+  importPartnerUrl: (url: string) => Promise<{ domain: string; favicon_url: string | null; colors: { primary: string | null; accent: string | null } } | null>
   clearError: () => void
 }
 
@@ -116,6 +122,8 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
     try {
       await axios.put(`${API_BASE}/teams/${id}`, data, { headers: getHeaders() })
       await get().fetchTeam(id)
+      await get().searchTeams()
+      await useAuthStore.getState().refreshProfile()
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to update team' })
     }
@@ -205,6 +213,38 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
       await get().fetchMessages(id)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to send message' })
+    }
+  },
+
+  updateEmailPatterns: async (teamId: string, patterns: string[]) => {
+    set({ error: null })
+    try {
+      await axios.put(`${API_BASE}/teams/${teamId}/email-patterns`, { patterns }, { headers: getHeaders() })
+      await get().fetchTeam(teamId)
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to update email patterns' })
+    }
+  },
+
+  updateCustomCss: async (teamId: string, customCss: string | null) => {
+    set({ error: null })
+    try {
+      await axios.put(`${API_BASE}/teams/${teamId}/custom-css`, { custom_css: customCss }, { headers: getHeaders() })
+      await get().fetchTeam(teamId)
+      await useAuthStore.getState().refreshProfile()
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to update custom CSS' })
+    }
+  },
+
+  importPartnerUrl: async (url: string) => {
+    set({ error: null })
+    try {
+      const response = await axios.post(`${API_BASE}/teams/import-partner-url`, { url }, { headers: getHeaders() })
+      return response.data
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to import from URL' })
+      return null
     }
   },
 

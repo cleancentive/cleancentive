@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { UserService } from '../src/user/user.service';
 import { User } from '../src/user/user.entity';
@@ -21,6 +22,10 @@ describe('UserService', () => {
         {
           provide: getRepositoryToken(UserEmail),
           useClass: Repository,
+        },
+        {
+          provide: EventEmitter2,
+          useValue: { emit: jest.fn() },
         },
       ],
     }).compile();

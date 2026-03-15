@@ -11,11 +11,11 @@ export const MAILPIT_URL = 'http://localhost:8025';
 
 export function buildBrowserToolTargets(env: NodeJS.ProcessEnv): BrowserToolTarget[] {
   return [
-    { name: 'MinIO', url: MINIO_URL, login: 'minio' },
-    { name: 'Postgres browser', url: POSTGRES_BROWSER_URL, login: 'none' },
+    { name: 'App', url: env.BROWSER_URL ?? 'http://localhost:5173', login: 'none' },
     { name: 'Swagger UI', url: SWAGGER_URL, login: 'none' },
     { name: 'Mailpit', url: MAILPIT_URL, login: 'none' },
-    { name: 'App', url: env.BROWSER_URL ?? 'http://localhost:5173', login: 'none' },
+    { name: 'Postgres browser', url: POSTGRES_BROWSER_URL, login: 'none' },
+    { name: 'MinIO', url: MINIO_URL, login: 'minio' },
   ];
 }
 

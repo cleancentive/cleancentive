@@ -16,6 +16,15 @@ interface User {
   full_name?: string
   avatar_email_id?: string | null
   emails: UserEmail[]
+  active_team_id?: string | null
+  active_cleanup_date_id?: string | null
+  active_team_name?: string | null
+  active_team_is_partner?: boolean
+  active_team_custom_css?: string | null
+  active_cleanup_name?: string | null
+  active_cleanup_location?: string | null
+  active_cleanup_start_at?: string | null
+  active_cleanup_end_at?: string | null
 }
 
 interface AuthState {

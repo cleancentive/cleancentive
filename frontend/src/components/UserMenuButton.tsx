@@ -86,6 +86,21 @@ export function UserMenuButton() {
             <UserIcon />
             Profile
           </button>
+          {(user.active_team_name || user.active_cleanup_name) && (
+            <>
+              <div className="user-menu-dropdown-divider" />
+              {user.active_team_name && (
+                <div className="user-menu-dropdown-context">
+                  <span className="user-menu-context-label">Team:</span> {user.active_team_name}
+                </div>
+              )}
+              {user.active_cleanup_name && (
+                <div className="user-menu-dropdown-context">
+                  <span className="user-menu-context-label">Cleanup:</span> {user.active_cleanup_name}
+                </div>
+              )}
+            </>
+          )}
           <div className="user-menu-dropdown-divider" />
           <button
             className="user-menu-dropdown-item"

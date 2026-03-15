@@ -14,6 +14,7 @@ import {
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
+import { AdminGuard } from '../admin/admin.guard';
 import { TeamService } from './team.service';
 import { AdminService } from '../admin/admin.service';
 
@@ -57,7 +58,9 @@ export class TeamController {
     @Request() req: any,
     @Param('id', ParseUUIDPipe) teamId: string,
   ) {
-    return this.teamService.getTeamDetail(teamId, req.user?.userId);
+    const userId = req.user?.userId;
+    const isPlatformAdmin = userId ? await this.adminService.isAdmin(userId) : false;
+    return this.teamService.getTeamDetail(teamId, userId, isPlatformAdmin);
   }
 
   @Put(':id')
@@ -138,5 +141,37 @@ export class TeamController {
       message,
       disclosure: 'Platform admins can read team and event messages.',
     };
+  }
+
+  // ── Partner team admin endpoints ──
+
+  @Get(':id/email-patterns')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async getEmailPatterns(@Param('id', ParseUUIDPipe) teamId: string) {
+    return this.teamService.getEmailPatterns(teamId);
+  }
+
+  @Put(':id/email-patterns')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async setEmailPatterns(
+    @Param('id', ParseUUIDPipe) teamId: string,
+    @Body() body: { patterns: string[] },
+  ) {
+    return this.teamService.setEmailPatterns(teamId, body.patterns || []);
+  }
+
+  @Put(':id/custom-css')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async updateCustomCss(
+    @Param('id', ParseUUIDPipe) teamId: string,
+    @Body() body: { custom_css: string | null },
+  ) {
+    return this.teamService.updateCustomCss(teamId, body.custom_css);
+  }
+
+  @Post('import-partner-url')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async importPartnerFromUrl(@Body() body: { url: string }) {
+    return this.teamService.importPartnerFromUrl(body.url);
   }
 }

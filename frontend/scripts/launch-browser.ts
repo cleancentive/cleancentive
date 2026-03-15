@@ -77,7 +77,34 @@ const existingBrowserWSEndpoint = await getExistingBrowserWSEndpoint(CDP_PORT);
 
 if (existingBrowserWSEndpoint) {
   console.log(`Shared Chromium session already running on port ${CDP_PORT}.`);
-  console.log('Reusing the existing browser window instead of launching a second instance.');
+  console.log('Checking for missing tabs...');
+
+  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`);
+  const contexts = browser.contexts();
+  const context = contexts[0];
+
+  if (context) {
+    const existingUrls = context.pages().map((p) => p.url());
+    const missingTargets = browserToolTargets.filter(
+      (t) => !existingUrls.some((url) => url.startsWith(t.url)),
+    );
+
+    if (missingTargets.length === 0) {
+      console.log('All tabs already open.');
+    } else {
+      for (const target of missingTargets) {
+        const result = await openUrl(context, target);
+        if (result.opened) {
+          console.log(`  + opened ${target.name}: ${target.url}`);
+          if (target.login === 'minio') {
+            loginToMinio(result.page);
+          }
+        }
+      }
+    }
+  }
+
+  await browser.close();
   process.exit(0);
 }
 
@@ -95,6 +122,7 @@ const context = await chromium.launchPersistentContext(PROFILE_DIR, {
 // Open tabs sequentially so only the first URL claims the about:blank tab
 const pages: Page[] = [];
 const openedTargets: typeof browserToolTargets = [];
+const pendingLogins: Promise<void>[] = [];
 for (const target of browserToolTargets) {
   const result = await openUrl(context, target);
   pages.push(result.page);
@@ -106,9 +134,13 @@ for (const target of browserToolTargets) {
   openedTargets.push(target);
 
   if (target.login === 'minio') {
-    await loginToMinio(result.page);
+    // Run login in background so it doesn't block other tabs from opening
+    pendingLogins.push(loginToMinio(result.page));
   }
 }
+
+// Wait for any background logins to finish before printing status
+await Promise.allSettled(pendingLogins);
 
 console.log(`\nBrowser ready with tabs:`);
 for (const target of openedTargets) {

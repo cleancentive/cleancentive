@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { AuthService } from '../src/auth/auth.service';
 import { EmailService } from '../src/email/email.service';
 import { UserService } from '../src/user/user.service';
@@ -49,6 +50,10 @@ describe('AuthService', () => {
           },
         },
         {
+          provide: EventEmitter2,
+          useValue: { emit: jest.fn() },
+        },
+        {
           provide: getRepositoryToken(PendingAuthRequest),
           useValue: {
             save: jest.fn(),
@@ -85,6 +90,7 @@ describe('AuthService', () => {
         updated_by: null,
         active_team_id: null,
         active_cleanup_date_id: null,
+        avatar_email_id: null,
         generateId: jest.fn(),
       };
       const mockToken = 'jwt-token-123';

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { EmailService } from '../email/email.service';
@@ -15,6 +16,7 @@ export class AuthService {
     private emailService: EmailService,
     private userService: UserService,
     private adminService: AdminService,
+    private eventEmitter: EventEmitter2,
     @InjectRepository(PendingAuthRequest)
     private pendingAuthRepo: Repository<PendingAuthRequest>,
   ) {}
@@ -83,6 +85,8 @@ export class AuthService {
         await this.adminService.promoteToAdmin(userId, null);
       }
 
+      this.eventEmitter.emit('user-email.changed', { userId });
+
       return { userId, email: payload.email, requestId };
     } catch (error) {
       throw new Error('Invalid or expired magic link');
@@ -144,6 +148,8 @@ export class AuthService {
       if (this.adminService.isAdminEmail(payload.email)) {
         await this.adminService.promoteToAdmin(payload.sub, null);
       }
+
+      this.eventEmitter.emit('user-email.changed', { userId: payload.sub });
 
       return { userId: payload.sub, email: payload.email };
     } catch (error) {
@@ -211,6 +217,8 @@ export class AuthService {
 
       // Transfer data from source to target, then delete source
       await this.userService.mergeAccounts(sourceUserId, targetUserId);
+
+      this.eventEmitter.emit('user-email.changed', { userId: targetUserId });
 
       return { mergedIntoUserId: targetUserId };
     } catch (error) {

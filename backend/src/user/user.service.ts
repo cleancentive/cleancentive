@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
@@ -17,6 +18,7 @@ export class UserService {
     private userRepository: Repository<User>,
     @InjectRepository(UserEmail)
     private userEmailRepository: Repository<UserEmail>,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   async createGuestAccount(): Promise<User> {
@@ -346,6 +348,7 @@ export class UserService {
 
     await this.userRepository.remove(guestUser);
 
+    this.eventEmitter.emit('user-email.changed', { userId: existingUserId });
     return this.findById(existingUserId);
   }
 
@@ -370,6 +373,7 @@ export class UserService {
 
     await this.userRepository.remove(sourceUser);
 
+    this.eventEmitter.emit('user-email.changed', { userId: targetUserId });
     return this.findById(targetUserId);
   }
 
@@ -385,6 +389,7 @@ export class UserService {
     }
 
     await this.userEmailRepository.remove(emailToRemove);
+    this.eventEmitter.emit('user-email.changed', { userId });
 
     // If removed email was selected for login and no others are, select the first remaining
     if (emailToRemove.is_selected_for_login) {
@@ -417,6 +422,7 @@ export class UserService {
 
     // Delete all emails
     await this.userEmailRepository.delete({ user_id: userId });
+    this.eventEmitter.emit('user-email.changed', { userId });
 
     // Reset to guest state
     user.nickname = 'guest';
@@ -425,6 +431,47 @@ export class UserService {
     user.active_team_id = null;
     user.active_cleanup_date_id = null;
     await this.userRepository.save(user);
+  }
+
+  async getProfileWithContext(userId: string): Promise<any> {
+    const user = await this.findById(userId);
+    if (!user) return null;
+
+    const result: any = { ...user };
+
+    // Resolve active team context
+    if (user.active_team_id) {
+      const [teamRow] = await this.userRepository.query(
+        `SELECT t.name, t.custom_css,
+                EXISTS(SELECT 1 FROM team_email_patterns WHERE team_id = t.id) AS is_partner
+         FROM teams t WHERE t.id = $1`,
+        [user.active_team_id],
+      );
+      if (teamRow) {
+        result.active_team_name = teamRow.name;
+        result.active_team_is_partner = teamRow.is_partner === true || teamRow.is_partner === 'true';
+        result.active_team_custom_css = teamRow.is_partner ? teamRow.custom_css : null;
+      }
+    }
+
+    // Resolve active cleanup context
+    if (user.active_cleanup_date_id) {
+      const [cleanupRow] = await this.userRepository.query(
+        `SELECT c.name AS cleanup_name, cd.start_at, cd.end_at, cd.location_name
+         FROM cleanup_dates cd
+         JOIN cleanups c ON c.id = cd.cleanup_id
+         WHERE cd.id = $1`,
+        [user.active_cleanup_date_id],
+      );
+      if (cleanupRow) {
+        result.active_cleanup_name = cleanupRow.cleanup_name;
+        result.active_cleanup_location = cleanupRow.location_name;
+        result.active_cleanup_start_at = cleanupRow.start_at;
+        result.active_cleanup_end_at = cleanupRow.end_at;
+      }
+    }
+
+    return result;
   }
 
   async updateLastLogin(userId: string): Promise<void> {

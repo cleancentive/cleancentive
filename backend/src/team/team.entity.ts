@@ -19,4 +19,7 @@ export class Team extends BaseEntity {
 
   @Column('uuid', { nullable: true })
   archived_by: string | null;
+
+  @Column('text', { nullable: true })
+  custom_css: string | null;
 }

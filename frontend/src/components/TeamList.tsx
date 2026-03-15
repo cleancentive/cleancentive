@@ -2,20 +2,26 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTeamStore } from '../stores/teamStore'
 import { useAuthStore } from '../stores/authStore'
+import { useAdminStore } from '../stores/adminStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { CommunityList } from './CommunityList'
 import { CommunityCard } from './CommunityCard'
+import { PartnerSettingsFields } from './PartnerSettingsFields'
 
 export function TeamList() {
   const { user } = useAuthStore()
+  const { isAdmin: isPlatformAdmin } = useAdminStore()
   const { isOnline } = useConnectivityStore()
-  const { teams, isLoading, error, searchTeams, createTeam, clearError } = useTeamStore()
+  const { teams, isLoading, error, searchTeams, createTeam, updateEmailPatterns, updateCustomCss, clearError } = useTeamStore()
   const navigate = useNavigate()
 
   const [showCreate, setShowCreate] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [patterns, setPatterns] = useState('')
+  const [customCss, setCustomCss] = useState('')
+  const [partnerOpen, setPartnerOpen] = useState(false)
 
   useEffect(() => {
     searchTeams()
@@ -37,9 +43,19 @@ export function TeamList() {
     e.preventDefault()
     const team = await createTeam(name.trim(), description.trim())
     if (team) {
+      const patternLines = patterns.split('\n').map(l => l.trim()).filter(Boolean)
+      if (patternLines.length > 0) {
+        await updateEmailPatterns(team.id, patternLines)
+      }
+      if (customCss.trim()) {
+        await updateCustomCss(team.id, customCss.trim())
+      }
       setShowCreate(false)
       setName('')
       setDescription('')
+      setPatterns('')
+      setCustomCss('')
+      setPartnerOpen(false)
       navigate(`/teams/${team.id}`)
     }
   }
@@ -86,14 +102,29 @@ export function TeamList() {
               rows={10}
             />
           </div>
+
+          {isPlatformAdmin && (
+            <details className="partner-settings-collapsible" open={partnerOpen} onToggle={(e) => setPartnerOpen((e.target as HTMLDetailsElement).open)}>
+              <summary>Partner Settings</summary>
+              <div className="partner-settings-body">
+                <PartnerSettingsFields
+                  patterns={patterns}
+                  onPatternsChange={setPatterns}
+                  customCss={customCss}
+                  onCustomCssChange={setCustomCss}
+                />
+              </div>
+            </details>
+          )}
+
           <button type="submit" className="primary-button" disabled={isLoading || !isOnline}>
             {isLoading ? 'Creating...' : 'Create'}
           </button>
         </form>
       )}
 
-      {teams.map(({ team, userRole }) => {
-        const activeTeamId = (user as any)?.active_team_id
+      {teams.map(({ team, userRole, isPartner }) => {
+        const activeTeamId = user?.active_team_id
         return (
           <CommunityCard
             key={team.id}
@@ -102,6 +133,7 @@ export function TeamList() {
             description={team.description}
             tags={
               <>
+                {isPartner && <span className="badge" style={{ background: '#7c3aed' }}>Partner</span>}
                 {userRole && <span className={`badge ${userRole === 'admin' ? 'admin-badge' : ''}`}>{userRole}</span>}
                 {activeTeamId === team.id && <span className="badge" style={{ background: '#16a34a' }}>Active</span>}
               </>

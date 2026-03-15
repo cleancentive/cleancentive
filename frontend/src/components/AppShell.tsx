@@ -6,6 +6,8 @@ import { useConnectivityStore } from '../stores/connectivityStore'
 import { UserMenuButton } from './UserMenuButton'
 import { GuestBanner } from './GuestBanner'
 import { SignInModal } from './SignInModal'
+import { ContextBar } from './ContextBar'
+import '../stores/partnerBrandingStore'
 
 function MapIcon() {
   return (
@@ -102,10 +104,16 @@ export function AppShell() {
 
   const visibleItems = navItems.filter(item => !item.adminOnly || isAdmin)
 
+  const partnerTeamName = user?.active_team_is_partner ? user.active_team_name : null
+
   return (
     <div className="app">
       <header className="app-header">
-        <h1><Link to="/" className="app-title-link">CleanCentive</Link></h1>
+        <h1>
+          <Link to="/" className="app-title-link">
+            CleanCentive{partnerTeamName ? ` | ${partnerTeamName}` : ''}
+          </Link>
+        </h1>
         <nav className="nav-links">
           {visibleItems.map(item => (
             <NavLink key={item.to} to={item.to} end={item.end} className="nav-link">
@@ -128,6 +136,8 @@ export function AppShell() {
           </div>
         )}
       </header>
+
+      <ContextBar />
 
       <main className="app-main">
         <Outlet />

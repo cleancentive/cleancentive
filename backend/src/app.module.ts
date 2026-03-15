@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RequestContextInterceptor } from './common/request-context.interceptor';
 import { AuditSubscriber } from './common/audit.subscriber';
 import { User } from './user/user.entity';
@@ -22,6 +23,7 @@ import { Cleanup } from './cleanup/cleanup.entity';
 import { CleanupDate } from './cleanup/cleanup-date.entity';
 import { CleanupParticipant } from './cleanup/cleanup-participant.entity';
 import { CleanupMessage } from './cleanup/cleanup-message.entity';
+import { TeamEmailPattern } from './team/team-email-pattern.entity';
 import { TeamModule } from './team/team.module';
 import { CleanupModule } from './cleanup/cleanup.module';
 import { StorageModule } from './storage/storage.module';
@@ -33,6 +35,7 @@ import { InsightsModule } from './insights/insights.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    EventEmitterModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',
       host: process.env.DB_HOST || 'localhost',
@@ -50,6 +53,7 @@ import { InsightsModule } from './insights/insights.module';
         Team,
         TeamMembership,
         TeamMessage,
+        TeamEmailPattern,
         Cleanup,
         CleanupDate,
         CleanupParticipant,

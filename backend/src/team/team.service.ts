@@ -2,13 +2,16 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { OnEvent } from '@nestjs/event-emitter';
 import { Repository, In } from 'typeorm';
 import { Team } from './team.entity';
 import { TeamMembership } from './team-membership.entity';
 import { TeamMessage } from './team-message.entity';
+import { TeamEmailPattern } from './team-email-pattern.entity';
 import { User } from '../user/user.entity';
 import { AdminService } from '../admin/admin.service';
 import { UserEmail } from '../user/user-email.entity';
@@ -34,8 +37,19 @@ interface CreateTeamMessageInput {
   body: string;
 }
 
+const REGEX_INDICATORS = /[*+\\()^$\[]/;
+
+function isRegexPattern(pattern: string): boolean {
+  if (REGEX_INDICATORS.test(pattern)) return true;
+  // '|' with an '@' somewhere signals regex (e.g. "google.com|user@gmail.com")
+  if (pattern.includes('|') && pattern.includes('@')) return true;
+  return false;
+}
+
 @Injectable()
 export class TeamService {
+  private readonly logger = new Logger(TeamService.name);
+
   constructor(
     @InjectRepository(Team)
     private readonly teamRepository: Repository<Team>,
@@ -43,6 +57,8 @@ export class TeamService {
     private readonly teamMembershipRepository: Repository<TeamMembership>,
     @InjectRepository(TeamMessage)
     private readonly teamMessageRepository: Repository<TeamMessage>,
+    @InjectRepository(TeamEmailPattern)
+    private readonly teamEmailPatternRepository: Repository<TeamEmailPattern>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     @InjectRepository(UserEmail)
@@ -96,7 +112,7 @@ export class TeamService {
     }
   }
 
-  async searchTeams(input: SearchTeamsInput): Promise<Array<{ team: Team; userRole: string | null }>> {
+  async searchTeams(input: SearchTeamsInput): Promise<Array<{ team: Team; userRole: string | null; isPartner: boolean }>> {
     const qb = this.teamRepository.createQueryBuilder('team').orderBy('team.created_at', 'DESC');
     if (input.query?.trim()) {
       const query = `%${input.query.trim()}%`;
@@ -112,18 +128,30 @@ export class TeamService {
     }
 
     const teams = await qb.getMany();
+    if (teams.length === 0) return [];
+
+    const teamIds = teams.map((t) => t.id);
 
     let membershipMap = new Map<string, string>();
-    if (input.userId && teams.length > 0) {
+    if (input.userId) {
       const memberships = await this.teamMembershipRepository.find({
-        where: { user_id: input.userId, team_id: In(teams.map((t) => t.id)) },
+        where: { user_id: input.userId, team_id: In(teamIds) },
       });
       membershipMap = new Map(memberships.map((m) => [m.team_id, m.role]));
     }
 
+    // Determine which teams are partner teams (have email patterns)
+    const partnerPatterns = await this.teamEmailPatternRepository
+      .createQueryBuilder('p')
+      .select('DISTINCT p.team_id', 'team_id')
+      .where('p.team_id IN (:...teamIds)', { teamIds })
+      .getRawMany();
+    const partnerTeamIds = new Set(partnerPatterns.map((r) => r.team_id));
+
     return teams.map((team) => ({
       team,
       userRole: membershipMap.get(team.id) || null,
+      isPartner: partnerTeamIds.has(team.id),
     }));
   }
 
@@ -168,10 +196,12 @@ export class TeamService {
     return team;
   }
 
-  async getTeamDetail(teamId: string, userId?: string): Promise<{
+  async getTeamDetail(teamId: string, userId?: string, isPlatformAdmin?: boolean): Promise<{
     team: Team;
     members: Array<{ userId: string; nickname: string; role: string; avatarEmailId: string | null }>;
     userRole: string | null;
+    isPartner: boolean;
+    emailPatterns?: Array<{ id: string; email_pattern: string }>;
   }> {
     const team = await this.getTeam(teamId);
 
@@ -202,7 +232,17 @@ export class TeamService {
       userRole = membership?.role || null;
     }
 
-    return { team, members, userRole };
+    const isPartner = await this.isPartnerTeam(teamId);
+
+    const result: any = { team, members, userRole, isPartner };
+
+    // Only expose email patterns and custom_css to platform admins
+    if (isPlatformAdmin && isPartner) {
+      const patterns = await this.getEmailPatterns(teamId);
+      result.emailPatterns = patterns.map((p) => ({ id: p.id, email_pattern: p.email_pattern }));
+    }
+
+    return result;
   }
 
   async updateTeam(teamId: string, actorUserId: string, input: { name?: string; description?: string }): Promise<Team> {
@@ -232,6 +272,10 @@ export class TeamService {
     const team = await this.getTeamOrThrow(teamId);
     await this.ensureTeamNotArchived(team);
 
+    if (await this.isPartnerTeam(teamId)) {
+      throw new BadRequestException('Partner teams are managed automatically based on email domains');
+    }
+
     const existing = await this.getMembership(teamId, userId);
     if (existing) {
       return { joined: false };
@@ -248,6 +292,11 @@ export class TeamService {
 
   async leaveTeam(teamId: string, userId: string): Promise<{ left: boolean }> {
     await this.ensureRegisteredUser(userId);
+
+    if (await this.isPartnerTeam(teamId)) {
+      throw new BadRequestException('Partner teams are managed automatically based on email domains');
+    }
+
     const membership = await this.getMembership(teamId, userId);
     if (!membership) {
       return { left: false };
@@ -431,6 +480,440 @@ export class TeamService {
 
     await this.sendTeamMessageEmailFanout(team.name, saved, input.authorUserId);
     return saved;
+  }
+
+  // ── Partner Team (email pattern) methods ──
+
+  async isPartnerTeam(teamId: string): Promise<boolean> {
+    const count = await this.teamEmailPatternRepository.count({ where: { team_id: teamId } });
+    return count > 0;
+  }
+
+  async getEmailPatterns(teamId: string): Promise<TeamEmailPattern[]> {
+    return this.teamEmailPatternRepository.find({ where: { team_id: teamId }, order: { created_at: 'ASC' } });
+  }
+
+  async setEmailPatterns(teamId: string, patterns: string[]): Promise<TeamEmailPattern[]> {
+    await this.getTeamOrThrow(teamId);
+
+    // Replace all patterns for this team
+    await this.teamEmailPatternRepository.delete({ team_id: teamId });
+
+    const entities: TeamEmailPattern[] = [];
+    for (const raw of patterns) {
+      const trimmed = raw.trim();
+      if (!trimmed) continue;
+      const entity = this.teamEmailPatternRepository.create({
+        team_id: teamId,
+        email_pattern: trimmed,
+      });
+      entities.push(await this.teamEmailPatternRepository.save(entity));
+    }
+
+    await this.reconcileTeamMemberships(teamId);
+    return entities;
+  }
+
+  async updateCustomCss(teamId: string, customCss: string | null): Promise<Team> {
+    const team = await this.getTeamOrThrow(teamId);
+    team.custom_css = customCss || null;
+    return this.teamRepository.save(team);
+  }
+
+  async importPartnerFromUrl(url: string): Promise<{
+    domain: string;
+    favicon_url: string | null;
+    colors: { primary: string | null; accent: string | null };
+  }> {
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new BadRequestException('Invalid URL');
+    }
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new BadRequestException('URL must be HTTP or HTTPS');
+    }
+
+    let html: string;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CleanCentive/1.0)' },
+        redirect: 'follow',
+      });
+      clearTimeout(timeout);
+      html = await res.text();
+    } catch (err: any) {
+      throw new BadRequestException(`Failed to fetch URL: ${err.message}`);
+    }
+
+    const domain = parsed.hostname.replace(/^www\./, '');
+    const origin = parsed.origin;
+
+    // Extract favicon
+    const favicon_url = this.extractFavicon(html, origin);
+
+    // Extract colors — try meta tags first, then CSS custom properties, then inline style hex
+    const colors = await this.extractColors(html, origin);
+
+    return { domain, favicon_url, colors };
+  }
+
+  private extractFavicon(html: string, origin: string): string | null {
+    // Priority: rel="icon", rel="shortcut icon", rel="apple-touch-icon"
+    const patterns = [
+      /<link[^>]*rel=["'](?:shortcut )?icon["'][^>]*href=["']([^"']+)["']/i,
+      /<link[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:shortcut )?icon["']/i,
+      /<link[^>]*rel=["']apple-touch-icon["'][^>]*href=["']([^"']+)["']/i,
+      /<link[^>]*href=["']([^"']+)["'][^>]*rel=["']apple-touch-icon["']/i,
+    ];
+    for (const pattern of patterns) {
+      const match = html.match(pattern);
+      if (match?.[1]) {
+        return this.resolveUrl(match[1], origin);
+      }
+    }
+    return `${origin}/favicon.ico`;
+  }
+
+  private async extractColors(html: string, origin: string): Promise<{ primary: string | null; accent: string | null }> {
+    let primary: string | null = null;
+    let accent: string | null = null;
+
+    // 1. Check meta theme-color
+    const themeColor = html.match(/<meta[^>]*name=["']theme-color["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']theme-color["']/i);
+    if (themeColor?.[1] && !this.isNeutralColor(themeColor[1])) {
+      primary = themeColor[1];
+    }
+
+    // 2. Check msapplication-TileColor
+    const tileColor = html.match(/<meta[^>]*name=["']msapplication-TileColor["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']msapplication-TileColor["']/i);
+    if (tileColor?.[1] && !this.isNeutralColor(tileColor[1])) {
+      accent = tileColor[1];
+    }
+
+    // 3. Look for CSS custom properties with "primary" or "brand" in linked stylesheets and inline styles
+    if (!primary || !accent) {
+      const cssColors = await this.extractColorsFromCss(html, origin);
+      if (!primary && cssColors.primary) primary = cssColors.primary;
+      if (!accent && cssColors.accent) accent = cssColors.accent;
+    }
+
+    // 4. Fall back to most common non-neutral hex colors in inline <style> blocks
+    if (!primary) {
+      const inlineStyles = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)]
+        .map(m => m[1]).join('\n');
+      const hexColors = [...inlineStyles.matchAll(/#[0-9a-fA-F]{6}/g)]
+        .map(m => m[0].toLowerCase())
+        .filter(c => !this.isNeutralColor(c));
+      const freq = new Map<string, number>();
+      for (const c of hexColors) freq.set(c, (freq.get(c) || 0) + 1);
+      const sorted = [...freq.entries()].sort((a, b) => b[1] - a[1]);
+      if (sorted[0]) primary = sorted[0][0];
+      if (sorted[1]) accent = accent || sorted[1][0];
+    }
+
+    return { primary, accent };
+  }
+
+  private async extractColorsFromCss(html: string, origin: string): Promise<{ primary: string | null; accent: string | null }> {
+    // Find linked stylesheet URLs
+    const linkMatches = [...html.matchAll(/<link[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["']/gi)];
+    const hrefMatches = [...html.matchAll(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["']stylesheet["']/gi)];
+    // Also match preloaded stylesheets
+    const preloadMatches = [...html.matchAll(/<link[^>]*rel=["']preload["'][^>]*href=["']([^"']+\.css)["']/gi)];
+    const allHrefs = [...linkMatches, ...hrefMatches, ...preloadMatches].map(m => this.resolveUrl(m[1], origin));
+    // Deduplicate
+    const cssUrls = [...new Set(allHrefs)].slice(0, 3); // Limit to 3 stylesheets
+
+    let primary: string | null = null;
+    let accent: string | null = null;
+
+    for (const cssUrl of cssUrls) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5_000);
+        const res = await fetch(cssUrl, {
+          signal: controller.signal,
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CleanCentive/1.0)' },
+        });
+        clearTimeout(timeout);
+        const css = await res.text();
+
+        // Look for custom properties with "primary" in name
+        const primaryMatch = css.match(/--[a-z0-9-]*primary(?:-5)?:\s*(#[0-9a-fA-F]{3,8})/i);
+        if (primaryMatch?.[1] && !this.isNeutralColor(primaryMatch[1])) {
+          primary = primaryMatch[1];
+        }
+
+        // Look for custom properties with "accent" or "secondary" or "brand"
+        const accentMatch = css.match(/--[a-z0-9-]*(?:accent|secondary|brand)(?:-5)?:\s*(#[0-9a-fA-F]{3,8})/i);
+        if (accentMatch?.[1] && !this.isNeutralColor(accentMatch[1])) {
+          accent = accentMatch[1];
+        }
+
+        // If we found primary but not accent, pick a lighter variant
+        if (primary && !accent) {
+          const lightMatch = css.match(/--[a-z0-9-]*(?:light|blue|highlight)(?:-[0-9])?:\s*(#[0-9a-fA-F]{3,8})/i);
+          if (lightMatch?.[1] && !this.isNeutralColor(lightMatch[1])) {
+            accent = lightMatch[1];
+          }
+        }
+
+        if (primary && accent) break;
+      } catch {
+        // Skip inaccessible stylesheets
+      }
+    }
+
+    return { primary, accent };
+  }
+
+  private isNeutralColor(hex: string): boolean {
+    const h = hex.replace('#', '').toLowerCase();
+    if (h.length < 6) return false;
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    // Consider it neutral if all channels are close (grayscale) or very light/dark
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const spread = max - min;
+    if (spread < 30 && (max > 200 || min < 40)) return true;
+    return false;
+  }
+
+  private resolveUrl(href: string, origin: string): string {
+    if (href.startsWith('http://') || href.startsWith('https://')) return href;
+    if (href.startsWith('//')) return `https:${href}`;
+    if (href.startsWith('/')) return `${origin}${href}`;
+    return `${origin}/${href}`;
+  }
+
+  async reconcileTeamMemberships(teamId: string): Promise<{ added: number; removed: number }> {
+    const patterns = await this.teamEmailPatternRepository.find({ where: { team_id: teamId } });
+    if (patterns.length === 0) {
+      // No patterns — remove all memberships that were auto-managed
+      // (but since partner teams are fully pattern-driven, we remove all non-admin platform memberships)
+      return { added: 0, removed: 0 };
+    }
+
+    // Find all user IDs whose emails match any pattern
+    const matchedUserIds = new Set<string>();
+    for (const pattern of patterns) {
+      const userEmails = await this.findEmailsMatchingPattern(pattern.email_pattern);
+      for (const ue of userEmails) {
+        matchedUserIds.add(ue.user_id);
+      }
+    }
+
+    // Platform admins are always admins of partner teams
+    const platformAdminIds = await this.adminService.getAdminUserIds();
+    for (const id of platformAdminIds) {
+      matchedUserIds.add(id);
+    }
+    const platformAdminSet = new Set(platformAdminIds);
+
+    // Current memberships
+    const currentMemberships = await this.teamMembershipRepository.find({ where: { team_id: teamId } });
+    const currentByUserId = new Map(currentMemberships.map((m) => [m.user_id, m]));
+
+    let added = 0;
+    let removed = 0;
+
+    // Add missing members
+    for (const userId of matchedUserIds) {
+      const existing = currentByUserId.get(userId);
+      const shouldBeAdmin = platformAdminSet.has(userId);
+
+      if (!existing) {
+        const membership = this.teamMembershipRepository.create({
+          team_id: teamId,
+          user_id: userId,
+          role: shouldBeAdmin ? 'admin' : 'member',
+        });
+        await this.teamMembershipRepository.save(membership);
+        added++;
+      } else if (shouldBeAdmin && existing.role !== 'admin') {
+        existing.role = 'admin';
+        await this.teamMembershipRepository.save(existing);
+      }
+    }
+
+    // Remove members who no longer match
+    for (const membership of currentMemberships) {
+      if (!matchedUserIds.has(membership.user_id)) {
+        await this.teamMembershipRepository.delete({ id: membership.id });
+        await this.userRepository.update(
+          { id: membership.user_id, active_team_id: teamId },
+          { active_team_id: null },
+        );
+        removed++;
+      }
+    }
+
+    // Check for multi-match conflicts
+    await this.detectMultiMatchConflicts(teamId, matchedUserIds);
+
+    this.logger.log(`Reconciled team ${teamId}: +${added} -${removed}`);
+    return { added, removed };
+  }
+
+  @OnEvent('user-email.changed')
+  async reconcileUserPartnerMemberships(payload: { userId: string }): Promise<void> {
+    const { userId } = payload;
+    const userEmails = await this.userEmailRepository.find({ where: { user_id: userId } });
+    const allPatterns = await this.teamEmailPatternRepository.find();
+
+    // Group patterns by team
+    const patternsByTeam = new Map<string, TeamEmailPattern[]>();
+    for (const pattern of allPatterns) {
+      const list = patternsByTeam.get(pattern.team_id) || [];
+      list.push(pattern);
+      patternsByTeam.set(pattern.team_id, list);
+    }
+
+    const platformAdminIds = await this.adminService.getAdminUserIds();
+    const isPlatformAdmin = platformAdminIds.includes(userId);
+
+    const matchedTeamIds = new Set<string>();
+
+    for (const [teamId, patterns] of patternsByTeam) {
+      const matches = patterns.some((p) =>
+        userEmails.some((ue) => this.emailMatchesPattern(ue.email, p.email_pattern)),
+      );
+      if (matches || isPlatformAdmin) {
+        matchedTeamIds.add(teamId);
+      }
+    }
+
+    // Get current partner team memberships for this user
+    const partnerTeamIds = [...patternsByTeam.keys()];
+    const currentMemberships = partnerTeamIds.length > 0
+      ? await this.teamMembershipRepository.find({
+          where: { user_id: userId, team_id: In(partnerTeamIds) },
+        })
+      : [];
+
+    // Add missing
+    for (const teamId of matchedTeamIds) {
+      const existing = currentMemberships.find((m) => m.team_id === teamId);
+      if (!existing) {
+        const membership = this.teamMembershipRepository.create({
+          team_id: teamId,
+          user_id: userId,
+          role: isPlatformAdmin ? 'admin' : 'member',
+        });
+        await this.teamMembershipRepository.save(membership);
+      } else if (isPlatformAdmin && existing.role !== 'admin') {
+        existing.role = 'admin';
+        await this.teamMembershipRepository.save(existing);
+      }
+    }
+
+    // Remove from partner teams user no longer matches
+    for (const membership of currentMemberships) {
+      if (!matchedTeamIds.has(membership.team_id)) {
+        await this.teamMembershipRepository.delete({ id: membership.id });
+        await this.userRepository.update(
+          { id: userId, active_team_id: membership.team_id },
+          { active_team_id: null },
+        );
+      }
+    }
+
+    // Multi-match alerting
+    if (matchedTeamIds.size > 1) {
+      const teamNames = await this.teamRepository.find({
+        where: { id: In([...matchedTeamIds]) },
+        select: ['id', 'name'],
+      });
+      const names = teamNames.map((t) => t.name).join(', ');
+      const email = userEmails[0]?.email || userId;
+      this.logger.warn(`User ${email} matches multiple partner teams: ${names}`);
+      await this.alertAdminsMultiMatch(email, teamNames.map((t) => t.name));
+    }
+  }
+
+  private async findEmailsMatchingPattern(pattern: string): Promise<UserEmail[]> {
+    if (isRegexPattern(pattern)) {
+      return this.userEmailRepository
+        .createQueryBuilder('ue')
+        .where('ue.email ~ :pattern', { pattern })
+        .getMany();
+    }
+    // Plain domain match: email ends with @domain
+    return this.userEmailRepository
+      .createQueryBuilder('ue')
+      .where('ue.email ILIKE :suffix', { suffix: `%@${pattern}` })
+      .getMany();
+  }
+
+  private emailMatchesPattern(email: string, pattern: string): boolean {
+    if (isRegexPattern(pattern)) {
+      try {
+        return new RegExp(pattern).test(email);
+      } catch {
+        return false;
+      }
+    }
+    return email.toLowerCase().endsWith(`@${pattern.toLowerCase()}`);
+  }
+
+  private async detectMultiMatchConflicts(teamId: string, matchedUserIds: Set<string>): Promise<void> {
+    if (matchedUserIds.size === 0) return;
+
+    // Check if any of these users are also matched by other partner teams
+    const otherPatterns = await this.teamEmailPatternRepository
+      .createQueryBuilder('p')
+      .where('p.team_id != :teamId', { teamId })
+      .getMany();
+
+    if (otherPatterns.length === 0) return;
+
+    const otherTeamIds = [...new Set(otherPatterns.map((p) => p.team_id))];
+    const otherMemberships = await this.teamMembershipRepository.find({
+      where: { team_id: In(otherTeamIds), user_id: In([...matchedUserIds]) },
+    });
+
+    if (otherMemberships.length > 0) {
+      const conflictUserIds = [...new Set(otherMemberships.map((m) => m.user_id))];
+      const conflictEmails = await this.userEmailRepository.find({
+        where: { user_id: In(conflictUserIds) },
+      });
+      const emailList = [...new Set(conflictEmails.map((e) => e.email))].slice(0, 10);
+
+      const allTeamIds = [teamId, ...otherTeamIds];
+      const teams = await this.teamRepository.find({ where: { id: In(allTeamIds) }, select: ['id', 'name'] });
+      const teamNames = teams.map((t) => t.name);
+
+      this.logger.warn(`Multi-match conflict: ${emailList.join(', ')} match teams: ${teamNames.join(', ')}`);
+      await this.alertAdminsMultiMatch(emailList.join(', '), teamNames);
+    }
+  }
+
+  private async alertAdminsMultiMatch(emails: string, teamNames: string[]): Promise<void> {
+    const adminIds = await this.adminService.getAdminUserIds();
+    if (adminIds.length === 0) return;
+
+    const adminEmails = await this.userEmailRepository.find({
+      where: { user_id: In(adminIds), is_selected_for_login: true },
+    });
+    const uniqueAdminEmails = [...new Set(adminEmails.map((e) => e.email))];
+    if (uniqueAdminEmails.length === 0) return;
+
+    await this.emailService.sendCommunityMessage(uniqueAdminEmails, null, {
+      subject: '[CleanCentive Admin] Partner team multi-match conflict',
+      preheader: 'Email(s) match multiple partner teams',
+      title: 'Partner Team Conflict',
+      body: `The following email(s) match multiple partner teams:\n\n${emails}\n\nAffected teams: ${teamNames.join(', ')}\n\nPlease review the email patterns to resolve the overlap.`,
+      disclosure: 'This is an automated admin notification from CleanCentive.',
+    });
   }
 
   private async sendTeamMessageEmailFanout(teamName: string, message: TeamMessage, authorUserId: string): Promise<void> {
