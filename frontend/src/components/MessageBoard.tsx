@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Avatar } from './Avatar'
+import { UserDisplay } from './UserDisplay'
 import { formatTimestamp } from '../utils/formatTimestamp'
 
 interface Message {
@@ -99,10 +99,13 @@ export function MessageBoard({ messages, onPost, canPost, isAdmin, isLoading }: 
         {messages.map((msg) => (
           <div key={msg.id} className="message-item">
             <div className="message-header">
-              {msg.author && (
-                <Avatar userId={msg.author_user_id} avatarEmailId={msg.author.avatarEmailId} nickname={msg.author.nickname} size={24} />
-              )}
-              <strong>{msg.author?.nickname || 'Unknown'}</strong>
+              <UserDisplay
+                userId={msg.author_user_id}
+                avatarEmailId={msg.author?.avatarEmailId}
+                nickname={msg.author?.nickname || 'Unknown'}
+                size={24}
+                showAvatar={!!msg.author}
+              />
               <span className="message-date">{formatTimestamp(msg.created_at)}</span>
               <span className="badge">{msg.audience === 'admins' ? 'To admins' : 'To members'}</span>
             </div>

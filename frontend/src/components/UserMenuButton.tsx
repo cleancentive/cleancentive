@@ -48,8 +48,6 @@ export function UserMenuButton() {
     }
   }, [open])
 
-  const hasAvatar = !!user?.avatar_email_id
-
   // Guest (with or without guestId): click opens sign-in modal
   if (!user) {
     return (
@@ -63,25 +61,21 @@ export function UserMenuButton() {
     )
   }
 
-  // Logged in: click toggles dropdown
+  // Logged in: click toggles dropdown — Avatar handles both gravatar and no-picture states
   return (
     <div className="user-menu-wrapper" ref={ref}>
       <button
-        className={`user-menu-button${hasAvatar ? '' : ' user-menu-button--icon'}`}
+        className="user-menu-button"
         onClick={() => setOpen(!open)}
         aria-label="User menu"
         aria-expanded={open}
       >
-        {hasAvatar ? (
-          <Avatar
-            userId={user.id}
-            avatarEmailId={user.avatar_email_id}
-            nickname={user.nickname}
-            size={32}
-          />
-        ) : (
-          <UserIcon size={20} />
-        )}
+        <Avatar
+          userId={user.id}
+          avatarEmailId={user.avatar_email_id}
+          nickname={user.nickname}
+          size={32}
+        />
       </button>
       {open && (
         <div className="user-menu-dropdown">

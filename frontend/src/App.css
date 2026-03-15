@@ -1843,6 +1843,25 @@
   padding: 0.5rem 0;
 }
 
+/* UserDisplay */
+.user-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.user-display-nickname {
+  white-space: nowrap;
+}
+
+.member-item .user-display {
+  flex: 1;
+}
+
+.message-header .user-display-nickname {
+  font-weight: 700;
+}
+
 .member-nickname {
   flex: 1;
   color: #1f2937;

@@ -1,4 +1,4 @@
-import { Avatar } from './Avatar'
+import { UserDisplay } from './UserDisplay'
 
 interface Member {
   userId: string
@@ -23,8 +23,7 @@ export function MemberList({ members, canPromote, onPromote, entityLabel = 'Memb
     <div className="member-list">
       {members.map((member) => (
         <div key={member.userId} className="member-item">
-          <Avatar userId={member.userId} avatarEmailId={member.avatarEmailId} nickname={member.nickname} size={28} />
-          <span className="member-nickname">{member.nickname}</span>
+          <UserDisplay userId={member.userId} avatarEmailId={member.avatarEmailId} nickname={member.nickname} size={28} />
           {member.role === 'admin' && <span className="badge admin-badge">Admin</span>}
           {canPromote && member.role !== 'admin' && onPromote && (
             <button className="link-button" onClick={() => onPromote(member.userId)}>
