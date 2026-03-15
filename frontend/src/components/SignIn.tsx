@@ -9,7 +9,7 @@ export function SignIn() {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isRecovery, setIsRecovery] = useState(false)
   const [recoverySent, setRecoverySent] = useState(false)
-  const { login, recoverAccount, isLoading, error, clearError, guestReady } = useAuthStore()
+  const { login, recoverAccount, isLoading, error, clearError } = useAuthStore()
   const { isOnline } = useConnectivityStore()
 
   useEffect(() => {
@@ -144,7 +144,8 @@ export function SignIn() {
 
   return (
     <div className="login-form">
-      <h2>Sign in to CleanCentive</h2>
+      <h2>Welcome to CleanCentive!</h2>
+      <p className="form-description">We're excited to have you join the community. Enter your email to get started.</p>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
             <label htmlFor="email">Email address</label>
@@ -169,7 +170,7 @@ export function SignIn() {
 
         <button
           type="submit"
-          disabled={!isOnline || isLoading || !email || !guestReady}
+          disabled={!isOnline || isLoading || !email}
           className="primary-button"
         >
           {isLoading ? 'Sending...' : 'Send magic link'}
@@ -177,7 +178,7 @@ export function SignIn() {
       </form>
 
       <div className="form-footer">
-        <p>No password required. We'll email you a secure link to sign in.</p>
+        <p>No password needed — we'll send you a secure link.</p>
         <button
           onClick={() => { setIsRecovery(true); clearError() }}
           className="link-button"

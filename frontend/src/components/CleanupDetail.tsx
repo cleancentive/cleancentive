@@ -7,7 +7,7 @@ import { useConnectivityStore } from '../stores/connectivityStore'
 import { LocationPicker } from './LocationPicker'
 import { MemberList } from './MemberList'
 import { MessageBoard } from './MessageBoard'
-import { AuthButton } from './AuthButton'
+import { useUiStore } from '../stores/uiStore'
 import { ConfirmDialog } from './ConfirmDialog'
 
 function formatDate(iso: string): string {
@@ -102,6 +102,7 @@ export function CleanupDetail() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { isOnline } = useConnectivityStore()
+  const { openSignInModal } = useUiStore()
   const {
     currentCleanup,
     messages,
@@ -449,7 +450,7 @@ export function CleanupDetail() {
         {!user && (
           <div className="community-guest-cta">
             <span>Sign in to join this cleanup</span>
-            <AuthButton className="sign-in-button" />
+            <button className="sign-in-cta-button" onClick={openSignInModal}>Sign In</button>
           </div>
         )}
 

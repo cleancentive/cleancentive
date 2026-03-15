@@ -137,7 +137,13 @@ export const useAuthStore = create<AuthState>()(
         clearPolling()
 
         try {
-          const response = await axios.post(`${API_BASE}/auth/magic-link`, { email, guestId: get().guestId })
+          let { guestId } = get()
+          if (!guestId) {
+            guestId = uuidv7()
+            localStorage.setItem('guestId', guestId)
+            set({ guestId, guestReady: true })
+          }
+          const response = await axios.post(`${API_BASE}/auth/magic-link`, { email, guestId })
           set({ isLoading: false })
 
           const requestId = response.data.requestId as string | undefined
@@ -383,15 +389,17 @@ export const useAuthStore = create<AuthState>()(
         try {
           await axios.delete(`${API_BASE}/user/guest/${guestId}?mode=${mode}`)
           clearPolling()
+          localStorage.removeItem('guestId')
+          const newGuestId = uuidv7()
+          localStorage.setItem('guestId', newGuestId)
           set({
             user: null,
             sessionToken: null,
-            guestId: null,
-            guestReady: false,
+            guestId: newGuestId,
+            guestReady: true,
             isLoading: false,
             error: null
           })
-          localStorage.removeItem('guestId')
           useUiStore.getState().setPickCount(0)
         } catch (error: any) {
           set({

@@ -5,7 +5,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { MemberList } from './MemberList'
 import { MessageBoard } from './MessageBoard'
-import { AuthButton } from './AuthButton'
+import { useUiStore } from '../stores/uiStore'
 import { ConfirmDialog } from './ConfirmDialog'
 
 export function TeamDetail() {
@@ -13,6 +13,7 @@ export function TeamDetail() {
   const navigate = useNavigate()
   const { user } = useAuthStore()
   const { isOnline } = useConnectivityStore()
+  const { openSignInModal } = useUiStore()
   const {
     currentTeam,
     messages,
@@ -120,7 +121,7 @@ export function TeamDetail() {
         {!user && (
           <div className="community-guest-cta">
             <span>Sign in to join this team</span>
-            <AuthButton className="sign-in-button" />
+            <button className="sign-in-cta-button" onClick={openSignInModal}>Sign In</button>
           </div>
         )}
 

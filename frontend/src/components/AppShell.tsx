@@ -3,9 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
-import { useUiStore } from '../stores/uiStore'
-import { Avatar } from './Avatar'
-import { AuthButton } from './AuthButton'
+import { UserMenuButton } from './UserMenuButton'
 import { GuestBanner } from './GuestBanner'
 import { SignInModal } from './SignInModal'
 
@@ -14,15 +12,6 @@ function HomeIcon() {
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 10L10 3l7 7" />
       <path d="M5 8.5V16a1 1 0 001 1h3v-4h2v4h3a1 1 0 001-1V8.5" />
-    </svg>
-  )
-}
-
-function UserIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="10" cy="7" r="3" />
-      <path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" />
     </svg>
   )
 }
@@ -78,7 +67,6 @@ const navItems: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: <HomeIcon />, end: true },
   { to: '/teams', label: 'Teams', icon: <TeamIcon /> },
   { to: '/cleanups', label: 'Cleanups', icon: <CleanupIcon /> },
-  { to: '/profile', label: 'Profile', icon: <UserIcon /> },
   { to: '/map', label: 'Map', icon: <MapIcon /> },
   { to: '/admin', label: 'Admin', icon: <ShieldIcon />, adminOnly: true },
 ]
@@ -110,7 +98,6 @@ export function AppShell() {
     }
   }, [user, checkAdminStatus])
 
-  const pickCount = useUiStore((s) => s.pickCount)
   const visibleItems = navItems.filter(item => !item.adminOnly || isAdmin)
 
   return (
@@ -135,16 +122,7 @@ export function AppShell() {
               {isOnline ? <WifiIcon /> : <WifiOffIcon />}
               {!browserOnline ? 'No network' : isForceOffline ? 'Offline' : 'Online'}
             </button>
-            {user && (
-              <Avatar
-                userId={user.id}
-                avatarEmailId={user.avatar_email_id}
-                nickname={user.nickname}
-                size={32}
-              />
-            )}
-            <span>Welcome, {user?.nickname || 'Guest'}!</span>
-            <AuthButton className={!user && pickCount > 0 ? 'sign-in-button' : 'logout-button'} />
+            <UserMenuButton />
           </div>
         )}
       </header>
