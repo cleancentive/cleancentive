@@ -33,11 +33,17 @@ interface PublicStats {
   }
 }
 
+export interface StatsFilterParams {
+  team_id?: string
+  cleanup_date_id?: string
+  since?: string
+}
+
 interface InsightsState {
   stats: PublicStats | null
   isLoading: boolean
   error: string | null
-  fetchStats: () => Promise<void>
+  fetchStats: (params?: StatsFilterParams) => Promise<void>
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
@@ -47,10 +53,15 @@ export const useInsightsStore = create<InsightsState>((set) => ({
   isLoading: false,
   error: null,
 
-  fetchStats: async () => {
+  fetchStats: async (params?: StatsFilterParams) => {
     set({ isLoading: true, error: null })
     try {
-      const response = await axios.get(`${API_BASE}/insights/stats`)
+      const searchParams = new URLSearchParams()
+      if (params?.team_id) searchParams.set('team_id', params.team_id)
+      if (params?.cleanup_date_id) searchParams.set('cleanup_date_id', params.cleanup_date_id)
+      if (params?.since) searchParams.set('since', params.since)
+      const qs = searchParams.toString()
+      const response = await axios.get(`${API_BASE}/insights/stats${qs ? '?' + qs : ''}`)
       set({ stats: response.data, isLoading: false })
     } catch (error: any) {
       set({

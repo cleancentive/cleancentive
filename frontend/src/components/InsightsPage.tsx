@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
 import { useInsightsStore } from '../stores/insightsStore'
+import { useAuthStore } from '../stores/authStore'
+import { useInsightsFilterStore, presetToSince } from '../stores/insightsFilterStore'
 
 function formatWeight(grams: number): string {
   if (grams >= 1000000) return `${(grams / 1000000).toFixed(1)} t`
@@ -56,10 +58,23 @@ function RankTable({ rows, labelKey, countKey, emptyText }: { rows: Array<Record
 
 export function InsightsPage() {
   const { stats, isLoading, error, fetchStats } = useInsightsStore()
+  const { user } = useAuthStore()
+  const { datePreset } = useInsightsFilterStore()
+
+  const teamId = user?.active_team_id ?? undefined
+  const cleanupDateId = user?.active_cleanup_date_id ?? undefined
 
   useEffect(() => {
-    fetchStats()
-  }, [fetchStats])
+    fetchStats({
+      team_id: teamId,
+      cleanup_date_id: cleanupDateId,
+      since: presetToSince(datePreset),
+    })
+  }, [fetchStats, teamId, cleanupDateId, datePreset])
+
+  const scopeLabel = user?.active_team_name
+    ? `${user.active_team_name} Insights`
+    : 'Community Overview'
 
   if (isLoading && !stats) {
     return <div className="insights-page"><p className="loading">Loading insights...</p></div>
@@ -76,7 +91,7 @@ export function InsightsPage() {
   return (
     <div className="insights-page">
       <fieldset className="page-card">
-        <legend>Community Overview</legend>
+        <legend>{scopeLabel}</legend>
         <div className="insights-summary-grid">
           <article className="insights-stat-card">
             <span className="insights-stat-value">{formatNumber(summary.totalCleanups)}</span>

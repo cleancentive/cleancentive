@@ -209,6 +209,13 @@ export class CleanupController {
     });
   }
 
+  @Delete('dates/active')
+  @UseGuards(JwtAuthGuard)
+  async deactivateDate(@Request() req: any): Promise<{ success: boolean }> {
+    await this.cleanupService.deactivateDate(req.user.userId);
+    return { success: true };
+  }
+
   @Delete('dates/:id')
   @UseGuards(JwtAuthGuard)
   async deleteDate(
@@ -223,13 +230,6 @@ export class CleanupController {
   @UseGuards(JwtAuthGuard)
   async activateDate(@Request() req: any, @Param('id', ParseUUIDPipe) cleanupDateId: string) {
     return this.cleanupService.activateDate(cleanupDateId, req.user.userId);
-  }
-
-  @Delete('dates/active')
-  @UseGuards(JwtAuthGuard)
-  async deactivateDate(@Request() req: any): Promise<{ success: boolean }> {
-    await this.cleanupService.deactivateDate(req.user.userId);
-    return { success: true };
   }
 
   @Post(':id/participants/:userId/promote')

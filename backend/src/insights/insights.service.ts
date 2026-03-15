@@ -40,10 +40,15 @@ interface PublicStats {
   };
 }
 
+export interface StatsFilter {
+  teamId?: string;
+  cleanupDateId?: string;
+  since?: string;
+}
+
 @Injectable()
 export class InsightsService {
   private readonly redis: Redis;
-  private readonly cacheKey = 'insights:public-stats';
   private readonly cacheTtlSeconds = 300; // 5 minutes
 
   constructor(
@@ -64,18 +69,83 @@ export class InsightsService {
     });
   }
 
-  async getPublicStats(): Promise<PublicStats> {
-    const cached = await this.redis.get(this.cacheKey);
+  async getPublicStats(filter: StatsFilter = {}): Promise<PublicStats> {
+    const cacheKey = this.buildCacheKey(filter);
+    const cached = await this.redis.get(cacheKey);
     if (cached) {
       return JSON.parse(cached);
     }
 
-    const stats = await this.computeStats();
-    await this.redis.set(this.cacheKey, JSON.stringify(stats), 'EX', this.cacheTtlSeconds);
+    const stats = await this.computeStats(filter);
+    await this.redis.set(cacheKey, JSON.stringify(stats), 'EX', this.cacheTtlSeconds);
     return stats;
   }
 
-  private async computeStats(): Promise<PublicStats> {
+  private buildCacheKey(filter: StatsFilter): string {
+    const parts = ['insights:stats'];
+    if (filter.teamId) parts.push(`t:${filter.teamId}`);
+    if (filter.cleanupDateId) parts.push(`cd:${filter.cleanupDateId}`);
+    if (filter.since) parts.push(`s:${filter.since}`);
+    return parts.join(':');
+  }
+
+  private buildSpotWhere(filter: StatsFilter, alias = 's'): { where: string; params: any[] } {
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+    if (filter.teamId) {
+      conditions.push(`${alias}.team_id = $${idx++}`);
+      params.push(filter.teamId);
+    }
+    if (filter.cleanupDateId) {
+      conditions.push(`${alias}.cleanup_date_id = $${idx++}`);
+      params.push(filter.cleanupDateId);
+    }
+    if (filter.since) {
+      conditions.push(`${alias}.captured_at >= $${idx++}`);
+      params.push(filter.since);
+    }
+    return {
+      where: conditions.length ? 'WHERE ' + conditions.join(' AND ') : '',
+      params,
+    };
+  }
+
+  private buildSpotAnd(filter: StatsFilter, alias = 's'): { and: string; params: any[]; nextIdx: number } {
+    const conditions: string[] = [];
+    const params: any[] = [];
+    let idx = 1;
+    if (filter.teamId) {
+      conditions.push(`${alias}.team_id = $${idx++}`);
+      params.push(filter.teamId);
+    }
+    if (filter.cleanupDateId) {
+      conditions.push(`${alias}.cleanup_date_id = $${idx++}`);
+      params.push(filter.cleanupDateId);
+    }
+    if (filter.since) {
+      conditions.push(`${alias}.captured_at >= $${idx++}`);
+      params.push(filter.since);
+    }
+    return {
+      and: conditions.length ? 'AND ' + conditions.join(' AND ') : '',
+      params,
+      nextIdx: idx,
+    };
+  }
+
+  private hasFilter(filter: StatsFilter): boolean {
+    return !!(filter.teamId || filter.cleanupDateId || filter.since);
+  }
+
+  private async computeStats(filter: StatsFilter = {}): Promise<PublicStats> {
+    if (!this.hasFilter(filter)) {
+      return this.computeGlobalStats();
+    }
+    return this.computeFilteredStats(filter);
+  }
+
+  private async computeGlobalStats(): Promise<PublicStats> {
     const [
       totalCleanups,
       totalUsers,
@@ -92,7 +162,6 @@ export class InsightsService {
       topMaterials,
     ] = await Promise.all([
       this.cleanupRepository.count({ where: { archived_at: undefined } }).then((c) =>
-        // TypeORM count with undefined where treats it as "no filter" — use query instead
         this.cleanupRepository.query(`SELECT COUNT(*)::int AS count FROM cleanups WHERE archived_at IS NULL`),
       ),
       this.userRepository.query(`SELECT COUNT(*)::int AS count FROM users WHERE last_login IS NOT NULL`),
@@ -130,6 +199,117 @@ export class InsightsService {
       ),
     ]);
 
+    return this.formatStats(
+      totalCleanups, totalUsers, totalTeams, totalSpots, totalItems, weightResult,
+      spotsTimeSeries, itemsTimeSeries, cleanupsTimeSeries, weightTimeSeries,
+      statusCounts, topCategories, topMaterials,
+    );
+  }
+
+  private async computeFilteredStats(filter: StatsFilter): Promise<PublicStats> {
+    const { where, params } = this.buildSpotWhere(filter);
+    const { and, params: andParams } = this.buildSpotAnd(filter);
+
+    const [
+      totalCleanups,
+      totalUsers,
+      totalTeams,
+      totalSpots,
+      totalItems,
+      weightResult,
+      spotsTimeSeries,
+      itemsTimeSeries,
+      cleanupsTimeSeries,
+      weightTimeSeries,
+      statusCounts,
+      topCategories,
+      topMaterials,
+    ] = await Promise.all([
+      // When filtered, derive counts from spots table
+      this.spotRepository.query(
+        `SELECT COUNT(DISTINCT cd.cleanup_id)::int AS count
+         FROM spots s JOIN cleanup_dates cd ON cd.id = s.cleanup_date_id ${where}`,
+        params,
+      ),
+      this.spotRepository.query(
+        `SELECT COUNT(DISTINCT s.user_id)::int AS count FROM spots s ${where}`,
+        params,
+      ),
+      this.spotRepository.query(
+        `SELECT COUNT(DISTINCT s.team_id)::int AS count FROM spots s ${where}`,
+        params,
+      ),
+      this.spotRepository.query(
+        `SELECT COUNT(*)::int AS count FROM spots s ${where}`,
+        params,
+      ),
+      this.spotRepository.query(
+        `SELECT COUNT(*)::int AS count FROM detected_items di JOIN spots s ON di.spot_id = s.id ${where}`,
+        params,
+      ),
+      this.spotRepository.query(
+        `SELECT COALESCE(SUM(di.weight_grams), 0) AS total FROM detected_items di JOIN spots s ON di.spot_id = s.id ${where}`,
+        params,
+      ),
+      this.spotRepository.query(
+        `SELECT TO_CHAR(date_trunc('week', s.captured_at), 'YYYY-MM-DD') AS week, COUNT(*)::int AS count
+         FROM spots s ${where}
+         GROUP BY date_trunc('week', s.captured_at) ORDER BY date_trunc('week', s.captured_at)`,
+        params,
+      ),
+      this.spotRepository.query(
+        `SELECT TO_CHAR(date_trunc('week', s.captured_at), 'YYYY-MM-DD') AS week, COUNT(*)::int AS count
+         FROM detected_items di JOIN spots s ON di.spot_id = s.id ${where}
+         GROUP BY date_trunc('week', s.captured_at) ORDER BY date_trunc('week', s.captured_at)`,
+        params,
+      ),
+      // Cleanups time series: derive from spots when filtered
+      this.spotRepository.query(
+        `SELECT TO_CHAR(date_trunc('week', s.captured_at), 'YYYY-MM-DD') AS week,
+                COUNT(DISTINCT cd.cleanup_id)::int AS count
+         FROM spots s JOIN cleanup_dates cd ON cd.id = s.cleanup_date_id ${where}
+         GROUP BY date_trunc('week', s.captured_at) ORDER BY date_trunc('week', s.captured_at)`,
+        params,
+      ),
+      this.spotRepository.query(
+        `SELECT TO_CHAR(date_trunc('week', s.captured_at), 'YYYY-MM-DD') AS week, COALESCE(SUM(di.weight_grams), 0) AS total
+         FROM detected_items di JOIN spots s ON di.spot_id = s.id ${where}
+         GROUP BY date_trunc('week', s.captured_at) ORDER BY date_trunc('week', s.captured_at)`,
+        params,
+      ),
+      this.spotRepository.query(
+        `SELECT s.processing_status, COUNT(*)::int AS count FROM spots s ${where} GROUP BY s.processing_status`,
+        params,
+      ),
+      this.spotRepository.query(
+        `SELECT di.category, COUNT(*)::int AS count
+         FROM detected_items di JOIN spots s ON di.spot_id = s.id
+         ${where ? where + ' AND di.category IS NOT NULL' : 'WHERE di.category IS NOT NULL'}
+         GROUP BY di.category ORDER BY count DESC LIMIT 10`,
+        params,
+      ),
+      this.spotRepository.query(
+        `SELECT di.material, COUNT(*)::int AS count
+         FROM detected_items di JOIN spots s ON di.spot_id = s.id
+         ${where ? where + ' AND di.material IS NOT NULL' : 'WHERE di.material IS NOT NULL'}
+         GROUP BY di.material ORDER BY count DESC LIMIT 10`,
+        params,
+      ),
+    ]);
+
+    return this.formatStats(
+      totalCleanups, totalUsers, totalTeams, totalSpots, totalItems, weightResult,
+      spotsTimeSeries, itemsTimeSeries, cleanupsTimeSeries, weightTimeSeries,
+      statusCounts, topCategories, topMaterials,
+    );
+  }
+
+  private formatStats(
+    totalCleanups: any[], totalUsers: any[], totalTeams: any[],
+    totalSpots: any[], totalItems: any[], weightResult: any[],
+    spotsTimeSeries: any[], itemsTimeSeries: any[], cleanupsTimeSeries: any[],
+    weightTimeSeries: any[], statusCounts: any[], topCategories: any[], topMaterials: any[],
+  ): PublicStats {
     const byStatus = { queued: 0, processing: 0, completed: 0, failed: 0 };
     for (const row of statusCounts as Array<{ processing_status: keyof typeof byStatus; count: number }>) {
       if (row.processing_status in byStatus) {

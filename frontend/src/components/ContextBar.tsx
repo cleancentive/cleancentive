@@ -3,6 +3,14 @@ import { useAuthStore } from '../stores/authStore'
 import { useTeamStore } from '../stores/teamStore'
 import { useCleanupStore } from '../stores/cleanupStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
+import { useInsightsFilterStore, type DatePreset } from '../stores/insightsFilterStore'
+
+const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
+  { value: '7d', label: '7d' },
+  { value: '30d', label: '30d' },
+  { value: '1y', label: '1y' },
+  { value: 'all', label: 'All time' },
+]
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000
 
@@ -82,7 +90,8 @@ export function ContextBar() {
   const { teams, searchTeams, activateTeam, deactivateTeam } = useTeamStore()
   const { cleanups, searchCleanups, activateDate, deactivateDate } = useCleanupStore()
   const { isOnline } = useConnectivityStore()
-  const autoActivatedRef = useRef<string | null>(null)
+  const { datePreset, setDatePreset } = useInsightsFilterStore()
+  const autoActivatedRef = useRef(false)
 
   const refreshData = useCallback(() => {
     if (!user) return
@@ -112,17 +121,17 @@ export function ContextBar() {
     })
     .map(c => ({ id: c.nearestDate!.id, name: c.cleanup.name }))
 
-  // Auto-activate if exactly one ongoing cleanup and none currently active
+  // Auto-activate once on load if exactly one ongoing cleanup and none currently active
   useEffect(() => {
+    if (autoActivatedRef.current) return
     if (!user || !isOnline) return
     if (myCleanups.length === 1 && !user.active_cleanup_date_id) {
-      const candidate = myCleanups[0].id
-      if (autoActivatedRef.current !== candidate) {
-        autoActivatedRef.current = candidate
-        activateDate(candidate)
-      }
+      autoActivatedRef.current = true
+      activateDate(myCleanups[0].id)
     }
-  }, [myCleanups.length, myCleanups[0]?.id, user?.active_cleanup_date_id, isOnline, activateDate, user])
+    // Only attempt on initial data load, not on every change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myCleanups.length])
 
   if (!user) return null
 
@@ -147,6 +156,17 @@ export function ContextBar() {
         onClear={() => deactivateDate()}
         label="Cleanup"
       />
+      <div className="context-date-chips">
+        {DATE_PRESETS.map(({ value, label }) => (
+          <button
+            key={value}
+            className={`context-date-chip${datePreset === value ? ' context-date-chip--active' : ''}`}
+            onClick={() => setDatePreset(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

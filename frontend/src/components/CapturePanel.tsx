@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
+import { useCleanupStore } from '../stores/cleanupStore'
 import { flushOutbox, queueCapture } from '../lib/pendingPicks'
 import { extractImageMetadata } from '../lib/imageMetadata'
 
@@ -112,6 +113,19 @@ function notifyPicksChanged() {
 export function CapturePanel() {
   const { user, sessionToken, guestId } = useAuthStore()
   const { isOnline } = useConnectivityStore()
+  const { cleanups, activateDate: activateCleanupDate } = useCleanupStore()
+
+  const ongoingCleanup = useMemo(() => {
+    if (!user || user.active_cleanup_date_id) return null
+    const now = Date.now()
+    const ongoing = cleanups.find(c =>
+      c.userRole !== null &&
+      c.nearestDate &&
+      new Date(c.nearestDate.start_at).getTime() <= now &&
+      new Date(c.nearestDate.end_at).getTime() >= now,
+    )
+    return ongoing ? { name: ongoing.cleanup.name, dateId: ongoing.nearestDate!.id } : null
+  }, [cleanups, user, user?.active_cleanup_date_id])
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -504,6 +518,14 @@ export function CapturePanel() {
         <canvas ref={captureCanvasRef} className="capture-canvas" />
       </div>
 
+      {ongoingCleanup && (
+        <p className="warning-message">
+          "{ongoingCleanup.name}" is ongoing.{' '}
+          <button className="link-button" onClick={() => activateCleanupDate(ongoingCleanup.dateId)}>
+            Join now! :-)
+          </button>
+        </p>
+      )}
       {locationError && <p className="error-message">Location error: {locationError}</p>}
       {captureError && <p className="error-message">{captureError}</p>}
     </fieldset>

@@ -2600,6 +2600,34 @@
   color: var(--partner-primary, #2563eb);
 }
 
+.context-date-chips {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  margin-left: auto;
+}
+
+.context-date-chip {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--partner-border, #cbd5e1);
+  border-radius: 999px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.context-date-chip:hover {
+  background: #f8fafc;
+}
+
+.context-date-chip--active {
+  background: var(--partner-primary, #2563eb);
+  color: white;
+  border-color: var(--partner-primary, #2563eb);
+}
+
 /* User Menu Context */
 .user-menu-dropdown-context {
   padding: 0.4rem 0.75rem;
