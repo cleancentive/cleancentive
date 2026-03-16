@@ -52,7 +52,7 @@ function Dropdown({ items, activeId, onSelect, onClear, label }: {
 
   return (
     <div className="context-dropdown" ref={ref}>
-      <button className="context-dropdown-trigger" onClick={() => setOpen(!open)}>
+      <button className="context-dropdown-trigger" onClick={() => setOpen(!open)} disabled={items.length === 0}>
         <span className="context-dropdown-label">{label}:</span>
         <span className="context-dropdown-value">{activeName || 'None'}</span>
         <ChevronDown />

@@ -2565,8 +2565,13 @@
   font-size: 0.85rem;
 }
 
-.context-dropdown-trigger:hover {
+.context-dropdown-trigger:hover:not(:disabled) {
   background: #f8fafc;
+}
+
+.context-dropdown-trigger:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .context-dropdown-label {

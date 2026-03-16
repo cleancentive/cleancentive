@@ -557,8 +557,8 @@ export function CleanupDetail() {
               <div className="cleanup-date-info">
                 <strong>{formatDateRange(d.start_at, d.end_at)}</strong>
                 {d.location_name && <span className="cleanup-date-location"> · {d.location_name}</span>}
-                {ongoing && <span className="badge">Ongoing</span>}
-                {isActive && <span className="badge admin-badge">Active</span>}
+                {ongoing && <span className="badge" style={{ marginLeft: '0.5rem' }}>Ongoing</span>}
+                {isActive && <span className="badge admin-badge" style={{ marginLeft: '0.25rem' }}>Active</span>}
               </div>
               <div className="cleanup-date-actions">
                 {isParticipant && ongoing && !isActive && (

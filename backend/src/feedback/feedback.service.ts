@@ -63,9 +63,9 @@ export class FeedbackService {
     const saved = await this.responseRepository.save(response);
 
     if (isFromSteward && feedback.contact_email) {
-      await this.notifyUser(feedback, message);
+      await this.notifyUser(feedback, message, saved.id);
     } else if (!isFromSteward) {
-      await this.notifyStewards(feedback, message);
+      await this.notifyStewards(feedback, message, saved.id);
     }
 
     return saved;
@@ -185,18 +185,26 @@ export class FeedbackService {
     throw new ForbiddenException('You do not have access to this feedback');
   }
 
-  private async notifyStewards(feedback: Feedback, followUpMessage?: string): Promise<void> {
+  private feedbackUrl(feedbackId: string, responseId?: string): string {
+    const base = this.configService.get<string>('FRONTEND_URL') || '';
+    const path = `${base}/feedback/${feedbackId}`;
+    return responseId ? `${path}#response-${responseId}` : path;
+  }
+
+  private async notifyStewards(feedback: Feedback, followUpMessage?: string, responseId?: string): Promise<void> {
     const notifyEmail = this.configService.get<string>('FEEDBACK_NOTIFY_EMAIL');
-    if (!notifyEmail) return;
+    const recipients = notifyEmail ? [notifyEmail] : this.adminService.getAdminEmails();
+    if (recipients.length === 0) return;
 
     const subject = followUpMessage
       ? `[Feedback] Follow-up on ${feedback.category}: ${feedback.description.slice(0, 50)}...`
       : `[Feedback] New ${feedback.category}: ${feedback.description.slice(0, 50)}...`;
 
-    const body = followUpMessage || feedback.description;
+    const link = this.feedbackUrl(feedback.id, responseId);
+    const body = `${followUpMessage || feedback.description}\n\nView feedback: ${link}`;
 
     try {
-      await this.emailService.sendCommunityMessage([notifyEmail], null, {
+      await this.emailService.sendCommunityMessage(recipients, null, {
         subject,
         preheader: 'New feedback on CleanCentive',
         title: `Feedback: ${feedback.category}`,
@@ -208,15 +216,18 @@ export class FeedbackService {
     }
   }
 
-  private async notifyUser(feedback: Feedback, message: string): Promise<void> {
+  private async notifyUser(feedback: Feedback, message: string, responseId?: string): Promise<void> {
     if (!feedback.contact_email) return;
+
+    const link = this.feedbackUrl(feedback.id, responseId);
+    const body = `${message}\n\nView conversation: ${link}`;
 
     try {
       await this.emailService.sendCommunityMessage([feedback.contact_email], null, {
         subject: `[CleanCentive] Update on your feedback`,
         preheader: 'A steward responded to your feedback',
         title: 'Feedback Update',
-        body: message,
+        body,
         disclosure: 'You received this because you provided your email when submitting feedback on CleanCentive.',
       });
     } catch (err) {

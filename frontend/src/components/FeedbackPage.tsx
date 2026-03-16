@@ -121,7 +121,7 @@ function FeedbackDetail() {
 
         <div className="feedback-thread">
           {activeFeedback.responses.map((r) => (
-            <div key={r.id} className={`feedback-thread-message ${r.is_from_steward ? 'feedback-thread-message--steward' : 'feedback-thread-message--user'}`}>
+            <div key={r.id} id={`response-${r.id}`} className={`feedback-thread-message ${r.is_from_steward ? 'feedback-thread-message--steward' : 'feedback-thread-message--user'}`}>
               <div className="feedback-thread-header">
                 <strong>
                   {r.is_from_steward
