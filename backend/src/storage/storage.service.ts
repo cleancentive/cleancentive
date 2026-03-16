@@ -13,7 +13,7 @@ interface StorageSummary {
   spotCount: number;
 }
 
-interface GrowthEntry {
+export interface GrowthEntry {
   week: string;
   bytes: number;
 }

@@ -32,6 +32,10 @@ import { InsightsModule } from './insights/insights.module';
 import { Feedback } from './feedback/feedback.entity';
 import { FeedbackResponse } from './feedback/feedback-response.entity';
 import { FeedbackModule } from './feedback/feedback.module';
+import { Label } from './label/label.entity';
+import { LabelTranslation } from './label/label-translation.entity';
+import { DetectedItemEdit } from './spot/detected-item-edit.entity';
+import { LabelModule } from './label/label.module';
 
 @Module({
   imports: [
@@ -63,6 +67,9 @@ import { FeedbackModule } from './feedback/feedback.module';
         CleanupMessage,
         Feedback,
         FeedbackResponse,
+        Label,
+        LabelTranslation,
+        DetectedItemEdit,
       ],
       subscribers: [AuditSubscriber],
       synchronize: process.env.NODE_ENV !== 'production',
@@ -79,6 +86,7 @@ import { FeedbackModule } from './feedback/feedback.module';
     PurgeModule,
     InsightsModule,
     FeedbackModule,
+    LabelModule,
   ],
   providers: [
     {

@@ -721,12 +721,11 @@ export class CleanupService {
 
     return messages.map((m) => {
       const author = authorMap.get(m.author_user_id);
-      return {
-        ...m,
+      return Object.assign(m, {
         author: author
           ? { nickname: author.nickname, avatarEmailId: author.avatar_email_id }
           : undefined,
-      };
+      });
     });
   }
 

@@ -18,7 +18,7 @@ interface WeightTimeSeriesEntry {
   total: number;
 }
 
-interface PublicStats {
+export interface PublicStats {
   summary: {
     totalCleanups: number;
     totalUsers: number;

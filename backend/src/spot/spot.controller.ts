@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   HttpCode,
   NotFoundException,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -13,6 +15,7 @@ import {
   StreamableFile,
   UnauthorizedException,
   UploadedFiles,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
@@ -20,6 +23,7 @@ import type { Request, Response } from 'express';
 import { SpotService } from './spot.service';
 import { AuthService } from '../auth/auth.service';
 import { UserService } from '../user/user.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 type UploadFiles = {
   image?: Array<{ buffer: Buffer; mimetype: string; size: number }>;
@@ -31,6 +35,11 @@ interface DetectedItemDto {
   category: string | null;
   material: string | null;
   brand: string | null;
+  objectLabelId: string | null;
+  materialLabelId: string | null;
+  brandLabelId: string | null;
+  matchConfidence: number | null;
+  humanVerified: boolean;
   weightGrams: number | null;
   confidence: number | null;
 }
@@ -98,6 +107,11 @@ export class SpotController {
         category: item.category,
         material: item.material,
         brand: item.brand,
+        objectLabelId: item.object_label_id,
+        materialLabelId: item.material_label_id,
+        brandLabelId: item.brand_label_id,
+        matchConfidence: item.match_confidence,
+        humanVerified: item.human_verified,
         weightGrams: item.weight_grams,
         confidence: item.confidence,
       })),
@@ -266,6 +280,24 @@ export class SpotController {
     const userId = await this.resolveUserId(req.headers.authorization, guestId);
     await this.spotService.retryDetection(id, userId);
     return { status: 'queued' };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':spotId/items/:itemId')
+  async updateDetectedItem(
+    @Param('spotId', ParseUUIDPipe) spotId: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @Body() body: { objectLabelId?: string; materialLabelId?: string; brandLabelId?: string },
+    @Req() req: any,
+  ) {
+    const item = await this.spotService.updateDetectedItem(itemId, spotId, req.user.userId, body);
+    return {
+      id: item.id,
+      objectLabelId: item.object_label_id,
+      materialLabelId: item.material_label_id,
+      brandLabelId: item.brand_label_id,
+      humanVerified: item.human_verified,
+    };
   }
 
   @Get(':id/thumbnail')

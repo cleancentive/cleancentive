@@ -1,11 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Queue } from 'bullmq';
 import { S3Client, PutObjectCommand, HeadBucketCommand, CreateBucketCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Spot } from './spot.entity';
+import { DetectedItem } from './detected-item.entity';
+import { DetectedItemEdit } from './detected-item-edit.entity';
 import { TeamService } from '../team/team.service';
 import { CleanupService } from '../cleanup/cleanup.service';
+import { LabelService } from '../label/label.service';
 
 interface CreateSpotInput {
   userId: string;
@@ -35,8 +38,14 @@ export class SpotService {
   constructor(
     @InjectRepository(Spot)
     private readonly spotRepository: Repository<Spot>,
+    @InjectRepository(DetectedItem)
+    private readonly detectedItemRepository: Repository<DetectedItem>,
+    @InjectRepository(DetectedItemEdit)
+    private readonly detectedItemEditRepository: Repository<DetectedItemEdit>,
+    private readonly dataSource: DataSource,
     private readonly teamService: TeamService,
     private readonly cleanupService: CleanupService,
+    private readonly labelService: LabelService,
   ) {
     this.detectionQueue = new Queue(this.queueName, {
       connection: {
@@ -272,6 +281,50 @@ export class SpotService {
     const spot = await this.spotRepository.findOne({ where: { id: spotId } });
     if (!spot) throw new NotFoundException('Spot not found');
     await this.retryFailedSpot(spot, spot.user_id);
+  }
+
+  async updateDetectedItem(
+    itemId: string,
+    spotId: string,
+    userId: string,
+    updates: { objectLabelId?: string; materialLabelId?: string; brandLabelId?: string },
+  ): Promise<DetectedItem> {
+    const item = await this.detectedItemRepository.findOne({ where: { id: itemId, spot_id: spotId } });
+    if (!item) throw new NotFoundException('Detected item not found');
+
+    const labelFields: Array<{ field: string; labelId?: string; type: string }> = [
+      { field: 'object_label_id', labelId: updates.objectLabelId, type: 'object' },
+      { field: 'material_label_id', labelId: updates.materialLabelId, type: 'material' },
+      { field: 'brand_label_id', labelId: updates.brandLabelId, type: 'brand' },
+    ];
+
+    for (const { labelId, type } of labelFields) {
+      if (labelId === undefined) continue;
+      const label = await this.labelService.findByIdAndType(labelId, type);
+      if (!label) throw new BadRequestException(`Invalid ${type} label ID`);
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      for (const { field, labelId, type } of labelFields) {
+        if (labelId === undefined) continue;
+
+        const oldValue = (item as any)[field];
+        if (oldValue === labelId) continue;
+
+        const edit = this.detectedItemEditRepository.create({
+          detected_item_id: itemId,
+          field_changed: field,
+          old_value: oldValue,
+          new_value: labelId,
+          created_by: userId,
+        });
+        await manager.save(edit);
+        (item as any)[field] = labelId;
+      }
+
+      item.human_verified = true;
+      return manager.save(item);
+    });
   }
 
   async close(): Promise<void> {
