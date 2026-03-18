@@ -160,6 +160,12 @@ jobs:
       - validate-prod-bundle
     if: needs.detect-changes.outputs.deploy_bundle_changed == 'true'
     steps:
+      - name: Check out private secrets repository
+        uses: actions/checkout@v6
+        with:
+          repository: cleancentive/cleancentive-private
+          token: ${{ secrets.PRIVATE_REPO_READ_TOKEN }}
+          path: private-secrets
       - name: Prepare SSH key
         shell: bash
         run: |
@@ -168,6 +174,12 @@ jobs:
           printf '%s\n' "${{ secrets.PROD_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${{ secrets.PROD_HOST }}" >> ~/.ssh/known_hosts
+      - name: Ship production env file
+        shell: bash
+        run: |
+          set -euo pipefail
+          scp private-secrets/.env "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}:/tmp/cleancentive.env"
+          ssh "${{ secrets.PROD_USER }}@${{ secrets.PROD_HOST }}" 'install -d -m 0750 -o deploy -g deploy /opt/cleancentive/private && install -m 0640 -o deploy -g deploy /tmp/cleancentive.env /opt/cleancentive/private/.env && rm -f /tmp/cleancentive.env'
       - name: Trigger remote reconcile
         shell: bash
         run: |
