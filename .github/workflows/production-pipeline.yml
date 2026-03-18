@@ -105,7 +105,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build backend image
         if: needs.detect-changes.outputs.backend_changed == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: backend/Dockerfile
@@ -116,7 +116,7 @@ jobs:
 
       - name: Build frontend image
         if: needs.detect-changes.outputs.frontend_changed == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: frontend/Dockerfile
@@ -127,7 +127,7 @@ jobs:
 
       - name: Build worker image
         if: needs.detect-changes.outputs.worker_changed == 'true'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: worker/Dockerfile
