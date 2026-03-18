@@ -37,7 +37,8 @@ This directory contains the production deployment bundle, bootstrap guidance, va
 
 - Production `.env` stored in the private repository at `cleancentive/cleancentive-private`
 - Public repo never stores production secrets
-- The production server fetches the current private `.env` during reconciliation
+- GitHub Actions ships the current private `.env` to `/opt/cleancentive/private/.env` before reconciliation
+- Secret-only changes are propagated by the private repo workflow in `cleancentive-private/.github/workflows/ship-production-env.yml`
 
 ## Branch and versioning model
 
@@ -61,7 +62,7 @@ The production server does not need to clone the whole repository. It only needs
 - `infrastructure/caddy/Caddyfile`
 - the private `.env`
 
-These files are downloaded into a runtime directory and applied with Docker Compose.
+The production server downloads the public deploy bundle itself and receives the private `.env` from GitHub Actions.
 
 ## Production flow
 
@@ -69,8 +70,8 @@ These files are downloaded into a runtime directory and applied with Docker Comp
 2. GitHub Actions inspects all changed files in the push (`before..after`)
 3. CI builds and publishes only the affected component images
 4. If the deploy bundle changed, CI validates the production compose file
-5. If validation passes, CI triggers reconciliation on the VPS over SSH
-6. The VPS downloads the sparse deploy bundle and private `.env`
+5. If validation passes, CI checks out `cleancentive-private` and securely copies `.env` to the VPS
+6. CI triggers reconciliation on the VPS over SSH
 7. The VPS validates desired state, skips if already applied, or runs `docker compose pull && docker compose up -d`
 
 ## Monorepo change detection rules
@@ -155,9 +156,6 @@ Recommended paths:
 - `/opt/cleancentive/deploy/caddy/Caddyfile`
 - `/opt/cleancentive/private/.env`
 - `/opt/cleancentive/state/` for applied checksums and reconcile markers
-- `/etc/cleancentive/reconcile.env` for `PRIVATE_ENV_URL`, `PRIVATE_ENV_TOKEN`, and optional overrides
-
-See `infrastructure/env/reconcile.env.example` for the expected host-level reconcile variables.
 
 ## Bootstrap responsibilities
 
@@ -167,6 +165,25 @@ Bootstrap should install and configure only the host baseline:
 - runtime directories under `/opt/cleancentive`
 - systemd service and timer units
 - optional backup timer
+
+`infrastructure/scripts/idempotato` also manages the dedicated deploy SSH key lifecycle:
+
+- Managed local key path defaults to `~/.ssh/cleancentive_deploy` (with `.pub`)
+- In apply mode, missing local keypair is generated automatically
+- Existing server keys are never removed; the managed key is only added if missing
+- `--no-fry` checks local key state, server key presence, and deploy-key login viability
+- `--reconcile` manually starts the reconcile service for smoke testing
+
+`infrastructure/scripts/secretato` manages GitHub Actions secrets for both repositories:
+
+- Main repo (`cleancentive/cleancentive`): `PROD_HOST`, `PROD_USER`, `PROD_SSH_PRIVATE_KEY`, `PRIVATE_REPO_READ_TOKEN`
+- Private repo (`cleancentive/cleancentive-private`): `PROD_HOST`, `PROD_USER`, `PROD_SSH_PRIVATE_KEY`
+- `--spy` runs read-only gap analysis for dependencies, auth, and missing secret names
+- Default mode syncs the managed secret set idempotently via `gh secret set`
+- Token source order for `PRIVATE_REPO_READ_TOKEN`:
+  1. `PRIVATE_REPO_READ_TOKEN_VALUE` env var
+  2. `~/.config/cleancentive/secretato.env`
+  3. `gh auth token` (preferred automatic fallback to avoid UI setup)
 
 Bootstrap should not perform ongoing application deploys. Steady-state deployment is done by the reconcile script.
 
@@ -186,5 +203,6 @@ Rollback is a normal git change:
 - `caddy/Caddyfile`: production edge proxy configuration
 - `scripts/validate-prod-compose.sh`: production image-tag validation
 - `scripts/reconcile.sh`: sparse-download and reconcile entrypoint for the VPS
-- `env/reconcile.env.example`: example systemd environment file for reconciliation
+- `scripts/idempotato`: idempotent server bootstrap/check/reconcile helper
+- `scripts/secretato`: idempotent GitHub Actions secret bootstrap/check helper
 - `systemd/*.service` and `systemd/*.timer`: host-managed automation units

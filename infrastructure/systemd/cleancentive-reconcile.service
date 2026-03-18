@@ -8,5 +8,4 @@ Requires=docker.service
 Type=oneshot
 WorkingDirectory=/opt/cleancentive/deploy
 Environment=DEPLOY_ROOT=/opt/cleancentive
-EnvironmentFile=/etc/cleancentive/reconcile.env
 ExecStart=/opt/cleancentive/deploy/scripts/reconcile.sh

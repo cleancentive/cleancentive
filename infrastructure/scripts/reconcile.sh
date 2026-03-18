@@ -7,8 +7,6 @@ STATE_DIR="$DEPLOY_ROOT/state"
 PRIVATE_DIR="$DEPLOY_ROOT/private"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PUBLIC_REPO_RAW_BASE="${PUBLIC_REPO_RAW_BASE:-https://raw.githubusercontent.com/cleancentive/cleancentive/main}"
-PRIVATE_ENV_URL="${PRIVATE_ENV_URL:?PRIVATE_ENV_URL is required}"
-PRIVATE_ENV_TOKEN="${PRIVATE_ENV_TOKEN:-}"
 
 mkdir -p "$DEPLOY_DIR/caddy" "$STATE_DIR" "$PRIVATE_DIR"
 
@@ -18,27 +16,13 @@ fetch() {
   curl --fail --silent --show-error --location "$url" --output "$destination"
 }
 
-fetch_private() {
-  local url="$1"
-  local destination="$2"
-  if [[ -z "$PRIVATE_ENV_TOKEN" ]]; then
-    echo "PRIVATE_ENV_TOKEN is required to download the private env file" >&2
-    exit 1
-  fi
-
-  curl \
-    --fail \
-    --silent \
-    --show-error \
-    --location \
-    -H "Authorization: Bearer $PRIVATE_ENV_TOKEN" \
-    "$url" \
-    --output "$destination"
-}
-
 fetch "$PUBLIC_REPO_RAW_BASE/infrastructure/docker-compose.prod.yml" "$DEPLOY_DIR/docker-compose.prod.yml"
 fetch "$PUBLIC_REPO_RAW_BASE/infrastructure/caddy/Caddyfile" "$DEPLOY_DIR/caddy/Caddyfile"
-fetch_private "$PRIVATE_ENV_URL" "$PRIVATE_DIR/.env"
+
+if [[ ! -f "$PRIVATE_DIR/.env" ]]; then
+  echo "Private env file is missing: $PRIVATE_DIR/.env" >&2
+  exit 1
+fi
 
 "$SCRIPT_DIR/validate-prod-compose.sh" "$DEPLOY_DIR/docker-compose.prod.yml"
 

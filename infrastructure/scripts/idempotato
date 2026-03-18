@@ -1,0 +1,630 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+MODE="apply"
+SSH_USER="root"
+DEPLOY_USER="deploy"
+IDENTITY_FILE=""
+DEPLOY_KEY_FILE="${HOME}/.ssh/cleancentive_deploy"
+PUBLIC_KEY_FILE="${DEPLOY_KEY_FILE}.pub"
+TARGET_HOST=""
+LOCAL_GAP_COUNT=0
+
+usage() {
+  cat <<'EOF'
+Usage:
+  infrastructure/scripts/idempotato [--no-fry|--reconcile] [--user <ssh-user>] [--deploy-user <name>] [--identity <key>] [--deploy-key <key>] [--pubkey <key.pub>] <host>
+
+Examples:
+  infrastructure/scripts/idempotato cleancentive
+  infrastructure/scripts/idempotato --no-fry 46.225.228.123
+  infrastructure/scripts/idempotato --reconcile cleancentive
+EOF
+}
+
+print_noarg_status() {
+  usage
+  if command -v ssh >/dev/null 2>&1; then
+    echo "Status: ssh available"
+  else
+    echo "Status: missing ssh (install OpenSSH client)"
+  fi
+
+  if command -v ssh-keygen >/dev/null 2>&1; then
+    echo "Status: ssh-keygen available"
+  else
+    echo "Status: missing ssh-keygen (install OpenSSH tools)"
+  fi
+
+  echo "Status: requires target host argument, e.g. idempotato --no-fry cleancentive"
+}
+
+parse_args() {
+  MODE="apply"
+  SSH_USER="root"
+  DEPLOY_USER="deploy"
+  IDENTITY_FILE=""
+  DEPLOY_KEY_FILE="${HOME}/.ssh/cleancentive_deploy"
+  PUBLIC_KEY_FILE="${DEPLOY_KEY_FILE}.pub"
+  TARGET_HOST=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --no-fry|--dry-fry)
+        MODE="check"
+        shift
+        ;;
+      --reconcile)
+        MODE="reconcile"
+        shift
+        ;;
+      --user)
+        SSH_USER="$2"
+        shift 2
+        ;;
+      --deploy-user)
+        DEPLOY_USER="$2"
+        shift 2
+        ;;
+      --identity)
+        IDENTITY_FILE="$2"
+        shift 2
+        ;;
+      --deploy-key)
+        DEPLOY_KEY_FILE="$2"
+        PUBLIC_KEY_FILE="${DEPLOY_KEY_FILE}.pub"
+        shift 2
+        ;;
+      --pubkey)
+        PUBLIC_KEY_FILE="$2"
+        shift 2
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      --*)
+        echo "Unknown option: $1" >&2
+        return 1
+        ;;
+      *)
+        if [[ -n "$TARGET_HOST" ]]; then
+          echo "Only one host argument is supported" >&2
+          return 1
+        fi
+        TARGET_HOST="$1"
+        shift
+        ;;
+    esac
+  done
+
+  if [[ -z "$TARGET_HOST" ]]; then
+    echo "Target host is required" >&2
+    return 1
+  fi
+}
+
+local_ok() {
+  printf 'OK %s\n' "$1"
+}
+
+local_gap() {
+  LOCAL_GAP_COUNT=$((LOCAL_GAP_COUNT + 1))
+  printf '%s %s\n' "$1" "$2"
+}
+
+ssh_args_base() {
+  SSH_ARGS=(-o BatchMode=yes -o IdentitiesOnly=yes)
+  if [[ -n "$IDENTITY_FILE" ]]; then
+    SSH_ARGS+=(-i "$IDENTITY_FILE")
+  fi
+}
+
+fetch_server_authorized_keys() {
+  ssh "${SSH_ARGS[@]}" "$SSH_USER@$TARGET_HOST" "DEPLOY_USER='$DEPLOY_USER' bash -s" <<'EOF'
+set -euo pipefail
+
+if ! id -u "$DEPLOY_USER" >/dev/null 2>&1; then
+  exit 0
+fi
+
+home_dir="$(getent passwd "$DEPLOY_USER" | cut -d: -f6 || true)"
+if [[ -z "$home_dir" ]]; then
+  exit 0
+fi
+
+auth_keys="$home_dir/.ssh/authorized_keys"
+if [[ -f "$auth_keys" ]]; then
+  cat "$auth_keys"
+fi
+EOF
+}
+
+write_server_key_snapshot() {
+  local server_keys="$1"
+  local snapshot_file="${PUBLIC_KEY_FILE}.server.pub"
+  if [[ -z "$server_keys" ]]; then
+    return
+  fi
+  printf '%s\n' "$server_keys" > "$snapshot_file"
+  local_ok "downloaded existing server public key(s) to $snapshot_file"
+}
+
+generate_local_deploy_key() {
+  local reason="$1"
+  if [[ "$MODE" == "check" ]]; then
+    local_gap MISSING "$reason"
+    return
+  fi
+
+  if [[ -f "$PUBLIC_KEY_FILE" && ! -f "$DEPLOY_KEY_FILE" ]]; then
+    mv "$PUBLIC_KEY_FILE" "${PUBLIC_KEY_FILE}.orphan.$(date +%s)"
+  fi
+
+  install -d -m 700 "$(dirname "$DEPLOY_KEY_FILE")"
+  ssh-keygen -t ed25519 -f "$DEPLOY_KEY_FILE" -C "cleancentive-deploy" -N "" >/dev/null
+  chmod 600 "$DEPLOY_KEY_FILE"
+  chmod 644 "$PUBLIC_KEY_FILE"
+  local_ok "generated managed deploy key at $DEPLOY_KEY_FILE"
+}
+
+ensure_local_managed_key() {
+  local server_keys="$1"
+  local private_exists=0
+  local public_exists=0
+
+  [[ -f "$DEPLOY_KEY_FILE" ]] && private_exists=1
+  [[ -f "$PUBLIC_KEY_FILE" ]] && public_exists=1
+
+  if [[ $private_exists -eq 1 && $public_exists -eq 1 ]]; then
+    local_ok "managed deploy keypair exists locally"
+    return
+  fi
+
+  if [[ $private_exists -eq 1 && $public_exists -eq 0 ]]; then
+    if [[ "$MODE" == "check" ]]; then
+      local_gap MISSING "managed deploy public key missing at $PUBLIC_KEY_FILE"
+      return
+    fi
+    ssh-keygen -y -f "$DEPLOY_KEY_FILE" > "$PUBLIC_KEY_FILE"
+    chmod 644 "$PUBLIC_KEY_FILE"
+    local_ok "generated missing managed deploy public key at $PUBLIC_KEY_FILE"
+    return
+  fi
+
+  if [[ -n "$server_keys" ]]; then
+    write_server_key_snapshot "$server_keys"
+  fi
+
+  if [[ $private_exists -eq 0 && $public_exists -eq 1 ]]; then
+    generate_local_deploy_key "managed deploy private key missing at $DEPLOY_KEY_FILE"
+    return
+  fi
+
+  if [[ $private_exists -eq 0 && $public_exists -eq 0 ]]; then
+    generate_local_deploy_key "managed deploy keypair missing at $DEPLOY_KEY_FILE"
+  fi
+}
+
+verify_deploy_key_connection() {
+  if [[ ! -f "$DEPLOY_KEY_FILE" ]]; then
+    local_gap MISSING "cannot verify deploy SSH login; missing private key at $DEPLOY_KEY_FILE"
+    return 1
+  fi
+
+  if ssh -i "$DEPLOY_KEY_FILE" -o BatchMode=yes -o IdentitiesOnly=yes "$DEPLOY_USER@$TARGET_HOST" true >/dev/null 2>&1; then
+    local_ok "deploy SSH login works with managed key"
+    return 0
+  fi
+
+  local_gap INVALID "deploy SSH login failed with managed key"
+  return 1
+}
+
+get_managed_files() {
+  cat <<EOF
+$SCRIPT_DIR/reconcile.sh|/opt/cleancentive/deploy/scripts/reconcile.sh|0755|replace
+$SCRIPT_DIR/validate-prod-compose.sh|/opt/cleancentive/deploy/scripts/validate-prod-compose.sh|0755|replace
+$REPO_ROOT/infrastructure/systemd/cleancentive-reconcile.service|/etc/systemd/system/cleancentive-reconcile.service|0644|replace
+$REPO_ROOT/infrastructure/systemd/cleancentive-reconcile.timer|/etc/systemd/system/cleancentive-reconcile.timer|0644|replace
+EOF
+}
+
+build_remote_script() {
+  local public_key="$1"
+  local public_key_b64
+  public_key_b64="$(printf '%s' "$public_key" | base64 | tr -d '\n')"
+
+  if [[ "$MODE" == "reconcile" ]]; then
+    cat <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+MODE="reconcile"
+systemctl start cleancentive-reconcile.service
+systemctl status --no-pager cleancentive-reconcile.service
+EOF
+    return
+  fi
+
+  cat <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+MODE="$MODE"
+DEPLOY_USER="$DEPLOY_USER"
+PUBLIC_KEY_B64="$public_key_b64"
+GAP_COUNT=0
+CHANGES=0
+
+report_ok() {
+  printf 'OK %s\n' "\$1"
+}
+
+report_gap() {
+  GAP_COUNT=\$((GAP_COUNT + 1))
+  printf '%s %s\n' "\$1" "\$2"
+}
+
+report_change() {
+  CHANGES=\$((CHANGES + 1))
+  printf 'FIXED %s\n' "\$1"
+}
+
+ensure_directory() {
+  local path="\$1"
+  local owner="\$2"
+  local group="\$3"
+  local mode="\$4"
+  if [[ -d "\$path" ]]; then
+    report_ok "directory \$path exists"
+    return
+  fi
+
+  if [[ "\$MODE" == "check" ]]; then
+    report_gap MISSING "directory \$path"
+    return
+  fi
+
+  install -d -m "\$mode" -o "\$owner" -g "\$group" "\$path"
+  report_change "directory \$path"
+}
+
+ensure_package() {
+  local command_name="\$1"
+  shift
+  local packages=("\$@")
+
+  if command -v "\$command_name" >/dev/null 2>&1; then
+    report_ok "command \$command_name available"
+    return
+  fi
+
+  if [[ "\$MODE" == "check" ]]; then
+    report_gap MISSING "command \$command_name (packages: \${packages[*]})"
+    return
+  fi
+
+  DEBIAN_FRONTEND=noninteractive apt-get update -y >/dev/null
+  DEBIAN_FRONTEND=noninteractive apt-get install -y "\${packages[@]}" >/dev/null
+  report_change "installed packages for \$command_name"
+}
+
+ensure_docker_service() {
+  if systemctl is-active --quiet docker; then
+    report_ok "docker service active"
+    return
+  fi
+
+  if [[ "\$MODE" == "check" ]]; then
+    report_gap INVALID "docker service inactive"
+    return
+  fi
+
+  systemctl enable --now docker >/dev/null
+  report_change "docker service active"
+}
+
+ensure_deploy_user() {
+  if id -u "\$DEPLOY_USER" >/dev/null 2>&1; then
+    report_ok "user \$DEPLOY_USER exists"
+    return
+  fi
+
+  if [[ "\$MODE" == "check" ]]; then
+    report_gap MISSING "user \$DEPLOY_USER"
+    return
+  fi
+
+  useradd --create-home --shell /bin/bash "\$DEPLOY_USER"
+  report_change "user \$DEPLOY_USER"
+}
+
+ensure_deploy_key() {
+  local home_dir
+  home_dir="\$(getent passwd "\$DEPLOY_USER" | cut -d: -f6 || true)"
+  if [[ -z "\$home_dir" ]]; then
+    report_gap MISSING "home directory for \$DEPLOY_USER"
+    return
+  fi
+
+  local ssh_dir="\$home_dir/.ssh"
+  local auth_keys="\$ssh_dir/authorized_keys"
+  local public_key
+  public_key="\$(printf '%s' "\$PUBLIC_KEY_B64" | base64 -d)"
+
+  if [[ ! -d "\$ssh_dir" ]]; then
+    if [[ "\$MODE" == "check" ]]; then
+      report_gap MISSING "directory \$ssh_dir"
+    else
+      install -d -m 700 -o "\$DEPLOY_USER" -g "\$DEPLOY_USER" "\$ssh_dir"
+      report_change "directory \$ssh_dir"
+    fi
+  else
+    report_ok "directory \$ssh_dir exists"
+  fi
+
+  if [[ -f "\$auth_keys" ]] && grep -Fxq "\$public_key" "\$auth_keys"; then
+    report_ok "deploy key installed for \$DEPLOY_USER"
+    return
+  fi
+
+  if [[ "\$MODE" == "check" ]]; then
+    report_gap MISSING "deploy key for \$DEPLOY_USER"
+    return
+  fi
+
+  touch "\$auth_keys"
+  chmod 600 "\$auth_keys"
+  chown "\$DEPLOY_USER:\$DEPLOY_USER" "\$auth_keys"
+  printf '%s\n' "\$public_key" >> "\$auth_keys"
+  sort -u "\$auth_keys" -o "\$auth_keys"
+  chown "\$DEPLOY_USER:\$DEPLOY_USER" "\$auth_keys"
+  report_change "deploy key for \$DEPLOY_USER"
+}
+
+manage_file() {
+  local destination="\$1"
+  local mode="\$2"
+  local strategy="\$3"
+
+  local tmpfile
+  tmpfile="\$(mktemp)"
+  trap 'rm -f "\$tmpfile"' RETURN
+  base64 -d > "\$tmpfile"
+
+  if [[ -f "\$destination" ]] && cmp -s "\$tmpfile" "\$destination"; then
+    report_ok "file \$destination matches"
+    trap - RETURN
+    rm -f "\$tmpfile"
+    return
+  fi
+
+  if [[ "\$strategy" == "create-only" && -f "\$destination" ]]; then
+    report_ok "file \$destination retained"
+    trap - RETURN
+    rm -f "\$tmpfile"
+    return
+  fi
+
+  if [[ "\$MODE" == "check" ]]; then
+    if [[ -f "\$destination" ]]; then
+      report_gap MISMATCH "file \$destination"
+    else
+      report_gap MISSING "file \$destination"
+    fi
+    trap - RETURN
+    rm -f "\$tmpfile"
+    return
+  fi
+
+  install -D -m "\$mode" "\$tmpfile" "\$destination"
+  report_change "file \$destination"
+  trap - RETURN
+  rm -f "\$tmpfile"
+}
+
+ensure_sudoers() {
+  local sudoers_path="/etc/sudoers.d/cleancentive-deploy"
+  local tmpfile
+  tmpfile="\$(mktemp)"
+  cat > "\$tmpfile" <<SUDOERS
+\$DEPLOY_USER ALL=(root) NOPASSWD: /bin/systemctl start cleancentive-reconcile.service
+\$DEPLOY_USER ALL=(root) NOPASSWD: /bin/systemctl status cleancentive-reconcile.service
+\$DEPLOY_USER ALL=(root) NOPASSWD: /bin/systemctl is-active cleancentive-reconcile.service
+\$DEPLOY_USER ALL=(root) NOPASSWD: /bin/journalctl -u cleancentive-reconcile.service -n 100 --no-pager
+SUDOERS
+
+  if [[ -f "\$sudoers_path" ]] && cmp -s "\$tmpfile" "\$sudoers_path"; then
+    report_ok "sudoers policy installed"
+  elif [[ "\$MODE" == "check" ]]; then
+    if [[ -f "\$sudoers_path" ]]; then
+      report_gap MISMATCH "sudoers policy \$sudoers_path"
+    else
+      report_gap MISSING "sudoers policy \$sudoers_path"
+    fi
+  else
+    install -m 0440 "\$tmpfile" "\$sudoers_path"
+    visudo -cf "\$sudoers_path" >/dev/null
+    report_change "sudoers policy \$sudoers_path"
+  fi
+
+  rm -f "\$tmpfile"
+}
+
+ensure_systemd() {
+  if [[ "\$MODE" == "apply" ]]; then
+    systemctl daemon-reload
+    systemctl enable cleancentive-reconcile.timer >/dev/null
+    report_change "systemd daemon reloaded and timer enabled"
+  fi
+
+  if systemctl is-enabled --quiet cleancentive-reconcile.timer; then
+    report_ok "cleancentive-reconcile.timer enabled"
+  else
+    report_gap INVALID "cleancentive-reconcile.timer not enabled"
+  fi
+}
+
+check_deploy_privileges() {
+  if ! id -u "\$DEPLOY_USER" >/dev/null 2>&1; then
+    report_gap MISSING "user \$DEPLOY_USER for sudo privilege check"
+    return
+  fi
+
+  local listing
+  listing="\$(sudo -l -U "\$DEPLOY_USER" 2>/dev/null || true)"
+  local expected=(
+    "/bin/systemctl start cleancentive-reconcile.service"
+    "/bin/systemctl status cleancentive-reconcile.service"
+    "/bin/systemctl is-active cleancentive-reconcile.service"
+  )
+  local missing=0
+  local command
+  for command in "\${expected[@]}"; do
+    if ! grep -Fq "\$command" <<<"\$listing"; then
+      missing=1
+      report_gap INVALID "sudo permission missing for \$command"
+    fi
+  done
+  if [[ \$missing -eq 0 ]]; then
+    report_ok "deploy sudo privileges configured"
+  fi
+}
+
+ensure_directory /opt/cleancentive root root 0755
+ensure_directory /opt/cleancentive/deploy root root 0755
+ensure_directory /opt/cleancentive/deploy/scripts root root 0755
+ensure_directory /opt/cleancentive/deploy/caddy root root 0755
+ensure_directory /opt/cleancentive/state root root 0755
+
+ensure_deploy_user
+ensure_deploy_key
+ensure_directory /opt/cleancentive/private "$DEPLOY_USER" "$DEPLOY_USER" 0750
+
+ensure_package docker docker.io
+if docker compose version >/dev/null 2>&1; then
+  report_ok "docker compose plugin available"
+elif [[ "\$MODE" == "check" ]]; then
+  report_gap MISSING "docker compose plugin"
+else
+  DEBIAN_FRONTEND=noninteractive apt-get update -y >/dev/null
+  DEBIAN_FRONTEND=noninteractive apt-get install -y docker-compose-v2 >/dev/null
+  report_change "docker compose plugin"
+fi
+ensure_package curl curl
+ensure_docker_service
+
+EOF
+
+  while IFS='|' read -r source destination mode strategy; do
+    [[ -n "$source" ]] || continue
+    local content_b64
+    content_b64="$(base64 < "$source" | tr -d '\n')"
+    cat <<EOF
+manage_file "$destination" "$mode" "$strategy" <<'IDEMPOTATO_FILE'
+$content_b64
+IDEMPOTATO_FILE
+
+EOF
+  done < <(get_managed_files)
+
+  cat <<'EOF'
+ensure_sudoers
+ensure_systemd
+check_deploy_privileges
+
+if [[ "$MODE" == "check" ]]; then
+  if [[ "$GAP_COUNT" -gt 0 ]]; then
+    printf 'SUMMARY %s gaps found\n' "$GAP_COUNT"
+    exit 1
+  fi
+  echo "SUMMARY server ready"
+  exit 0
+fi
+
+if [[ "$GAP_COUNT" -gt 0 ]]; then
+  printf 'SUMMARY applied changes, but %s gaps remain\n' "$GAP_COUNT"
+  exit 1
+fi
+
+printf 'SUMMARY apply complete with %s changes\n' "$CHANGES"
+EOF
+}
+
+run_remote() {
+  local public_key="$1"
+  local remote_script
+  remote_script="$(build_remote_script "$public_key")"
+  ssh "${SSH_ARGS[@]}" "$SSH_USER@$TARGET_HOST" 'bash -s' <<<"$remote_script"
+}
+
+main() {
+  if [[ $# -eq 0 ]]; then
+    print_noarg_status
+    exit 1
+  fi
+
+  parse_args "$@"
+  ssh_args_base
+
+  local server_keys=""
+  if [[ "$MODE" != "reconcile" ]]; then
+    server_keys="$(fetch_server_authorized_keys || true)"
+    ensure_local_managed_key "$server_keys"
+  fi
+
+  if [[ "$MODE" == "check" && $LOCAL_GAP_COUNT -gt 0 ]]; then
+    printf 'SUMMARY local checks found %s gaps\n' "$LOCAL_GAP_COUNT"
+    exit 1
+  fi
+
+  if [[ "$MODE" == "reconcile" ]]; then
+    run_remote ""
+    return
+  fi
+
+  if [[ ! -f "$PUBLIC_KEY_FILE" ]]; then
+    echo "Public key file not found: $PUBLIC_KEY_FILE" >&2
+    exit 1
+  fi
+
+  local public_key
+  public_key="$(tr -d '\n' < "$PUBLIC_KEY_FILE")"
+  if [[ -z "$public_key" ]]; then
+    echo "Public key file is empty: $PUBLIC_KEY_FILE" >&2
+    exit 1
+  fi
+
+  local remote_status=0
+  if ! run_remote "$public_key"; then
+    remote_status=$?
+  fi
+
+  local login_status=0
+  if ! verify_deploy_key_connection; then
+    login_status=1
+  fi
+
+  if [[ "$MODE" == "check" ]]; then
+    if [[ $remote_status -ne 0 || $login_status -ne 0 ]]; then
+      exit 1
+    fi
+    return
+  fi
+
+  if [[ $remote_status -ne 0 ]]; then
+    exit "$remote_status"
+  fi
+
+  if [[ $login_status -ne 0 ]]; then
+    exit 1
+  fi
+}
+
+if [[ "${IDEMPOTATO_SOURCE_ONLY:-0}" != "1" ]]; then
+  main "$@"
+fi

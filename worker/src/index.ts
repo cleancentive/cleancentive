@@ -57,11 +57,11 @@ const redisConnection = {
 const redisClient = new Redis(redisConnection);
 
 const dbPool = new Pool({
-  host: process.env.DATABASE_HOST || 'localhost',
-  port: parseInt(process.env.DATABASE_PORT || '5432', 10),
-  user: process.env.DATABASE_USER || 'cleancentive',
-  password: process.env.DATABASE_PASSWORD || 'cleancentive_dev_password',
-  database: process.env.DATABASE_NAME || 'cleancentive',
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  user: process.env.DB_USERNAME || 'cleancentive',
+  password: process.env.DB_PASSWORD || 'cleancentive_dev_password',
+  database: process.env.DB_DATABASE || 'cleancentive',
 });
 
 const s3Client = new S3Client({
