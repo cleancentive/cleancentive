@@ -18,7 +18,7 @@ services:
       - caddy_config:/config
 
   frontend:
-    image: ghcr.io/cleancentive/cleancentive-frontend:c4b7ce7234def65c1e96a016bea4baa79a3d3563
+    image: ghcr.io/cleancentive/cleancentive-frontend:13654cbe7b7ddf59836a3e49a9f627ec0e00f218
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "test -f /usr/share/nginx/html/index.html"]
@@ -27,7 +27,7 @@ services:
       retries: 3
 
   backend:
-    image: ghcr.io/cleancentive/cleancentive-backend:c4b7ce7234def65c1e96a016bea4baa79a3d3563
+    image: ghcr.io/cleancentive/cleancentive-backend:13654cbe7b7ddf59836a3e49a9f627ec0e00f218
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
@@ -43,7 +43,7 @@ services:
       retries: 5
 
   worker:
-    image: ghcr.io/cleancentive/cleancentive-worker:c4b7ce7234def65c1e96a016bea4baa79a3d3563
+    image: ghcr.io/cleancentive/cleancentive-worker:13654cbe7b7ddf59836a3e49a9f627ec0e00f218
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
