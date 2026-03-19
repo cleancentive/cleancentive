@@ -39,6 +39,13 @@ You are working on Cleancentive, an environmental cleanup and litter tracking ap
 - One logical change per commit. Do not bundle unrelated changes.
 - Keep PRs focused. If you discover something unrelated that needs fixing, note it separately.
 
+## Database Migrations
+
+- Production uses `migrationsRun: true` — it does **not** use `synchronize`. Every schema change must have a migration.
+- When adding or modifying an entity, create a corresponding migration in `backend/src/migrations/`.
+- Follow the existing naming convention: `<timestamp>-<Description>.ts` (e.g. `1767000000000-AddPendingAuthAndFeedback.ts`).
+- `synchronize: true` only runs in dev. Never rely on it to verify that production will work.
+
 ## Infrastructure and Deployment
 
 - Never make ad-hoc changes on the production server via SSH. All server state must be reproducible.
