@@ -10,3 +10,7 @@
     reverse_proxy frontend:80
   }
 }
+
+{$DOMAIN_REDIRECT} {
+  redir https://{$DOMAIN}{uri} permanent
+}
