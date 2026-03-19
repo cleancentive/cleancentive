@@ -14,10 +14,10 @@ export class EmailService {
 
   private initializeTransporter() {
     const host = this.configService.get<string>('SMTP_HOST', 'localhost');
-    const port = this.configService.get<number>('SMTP_PORT', 1025);
+    const port = parseInt(this.configService.get<string>('SMTP_PORT', '1025'), 10);
     const user = this.configService.get<string>('SMTP_USER');
     const pass = this.configService.get<string>('SMTP_PASS');
-    const secure = this.configService.get<boolean>('SMTP_SECURE', false);
+    const secure = this.configService.get<string>('SMTP_SECURE', 'false') === 'true';
 
     this.transporter = nodemailer.createTransport({
       host,
