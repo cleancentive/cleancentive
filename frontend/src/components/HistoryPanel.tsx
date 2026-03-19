@@ -6,7 +6,7 @@ import { flushOutbox, getOutboxItems, type OutboxItem } from '../lib/pendingPick
 import { formatTimestamp } from '../utils/formatTimestamp'
 import { CountdownButton } from './CountdownButton'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 interface HistoryItem {
   id: string

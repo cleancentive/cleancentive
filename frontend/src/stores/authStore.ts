@@ -57,7 +57,7 @@ interface AuthState {
   clearError: () => void
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 // Module-level polling handles (not in Zustand state — not serializable)
 let pollIntervalId: ReturnType<typeof setInterval> | null = null

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import axios from 'axios'
 import { useAuthStore } from './authStore'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 function getHeaders() {
   const token = useAuthStore.getState().sessionToken

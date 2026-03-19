@@ -24,7 +24,7 @@ export function AppLayout() {
   }, [user, checkAdminStatus, refreshTokenIfNeeded])
 
   useEffect(() => {
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+    const API_BASE = import.meta.env.VITE_API_URL || ''
     const handleBeforeUnload = () => {
       const { sessionToken } = useAuthStore.getState()
       if (!sessionToken) return

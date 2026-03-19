@@ -7,7 +7,7 @@ import { formatTimestamp } from '../utils/formatTimestamp'
 import axios from 'axios'
 import { Avatar } from './Avatar'
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 interface UserEmail {
   id: string
