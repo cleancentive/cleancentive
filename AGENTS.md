@@ -39,6 +39,14 @@ You are working on Cleancentive, an environmental cleanup and litter tracking ap
 - One logical change per commit. Do not bundle unrelated changes.
 - Keep PRs focused. If you discover something unrelated that needs fixing, note it separately.
 
+## Infrastructure and Deployment
+
+- Never make ad-hoc changes on the production server via SSH. All server state must be reproducible.
+- Scripts, systemd units, and server configuration are managed by `infrastructure/scripts/idempotato`. To change server state, update the source files and run idempotato in apply mode.
+- Production secrets and runtime env vars live in the `cleancentive-private` repo. Push changes there to trigger the ship-production-env workflow.
+- Use `idempotato --no-fry <host>` to verify server state matches desired state without making changes.
+- Image tags in `infrastructure/docker-compose.prod.yml` must use full 40-character git commit SHAs. Only promote tags for commits that actually built images (check CI).
+
 ## Browser Tools (MCP)
 
 Coding agents can interact with the shared development browser via the Playwright MCP server.
