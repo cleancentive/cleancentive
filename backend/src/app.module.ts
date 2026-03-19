@@ -73,6 +73,7 @@ import { LabelModule } from './label/label.module';
       ],
       subscribers: [AuditSubscriber],
       synchronize: process.env.NODE_ENV !== 'production',
+      migrationsRun: process.env.NODE_ENV === 'production',
       migrations: ['dist/migrations/*.js'],
     }),
     UserModule,
