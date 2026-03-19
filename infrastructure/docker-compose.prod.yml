@@ -58,6 +58,10 @@ services:
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME:-cleancentive}
+      POSTGRES_DB: ${DB_DATABASE:-cleancentive}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
