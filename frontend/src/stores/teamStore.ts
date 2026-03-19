@@ -3,7 +3,7 @@ import axios from 'axios'
 import { useAuthStore } from './authStore'
 import { trackEvent } from '../lib/analytics'
 
-const API_BASE = import.meta.env.VITE_API_URL || ''
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 
 function getHeaders() {
   const sessionToken = useAuthStore.getState().sessionToken

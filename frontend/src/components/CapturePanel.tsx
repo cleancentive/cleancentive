@@ -17,7 +17,7 @@ const DISABLE_LOCATION_ACCURACY_CHECK =
   IS_LOCALHOST ||
   (import.meta.env.DEV &&
     String(import.meta.env.VITE_DISABLE_LOCATION_ACCURACY_CHECK || 'false').toLowerCase() === 'true')
-const API_BASE = import.meta.env.VITE_API_URL || ''
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 const IMPORT_DEFAULT_ACCURACY_METERS = Number(import.meta.env.VITE_IMPORT_DEFAULT_ACCURACY_METERS || '200')
 
 interface LocationSnapshot {

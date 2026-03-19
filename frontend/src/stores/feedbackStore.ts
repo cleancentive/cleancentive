@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import axios from 'axios'
 import { useAuthStore } from './authStore'
 
-const API_BASE = import.meta.env.VITE_API_URL || ''
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 
 function getHeaders() {
   const token = useAuthStore.getState().sessionToken
