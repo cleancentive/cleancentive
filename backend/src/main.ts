@@ -4,7 +4,7 @@ import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AdminService } from './admin/admin.service';
-const pkg = require('../package.json');
+const pkg = require(require('path').join(process.cwd(), 'package.json'));
 
 const logger = new Logger('Bootstrap');
 const swaggerAuthSchemeName = 'Bearer';

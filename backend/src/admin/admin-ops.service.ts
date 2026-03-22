@@ -9,7 +9,7 @@ import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { StorageService } from '../storage/storage.service';
 import { PurgeService } from '../purge/purge.service';
 
-const pkg = require('../../package.json');
+const pkg = require(require('path').join(process.cwd(), 'package.json'));
 
 type HealthStatus = 'ok' | 'degraded' | 'down';
 
