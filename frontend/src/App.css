@@ -3107,3 +3107,62 @@ textarea.mono {
   border-radius: 4px;
   font-size: 0.85rem;
 }
+
+/* ── Map Page ── */
+
+.map-page {
+  position: relative;
+  width: 100%;
+  height: calc(100vh - 120px);
+  min-height: 300px;
+}
+
+.map-container {
+  width: 100%;
+  height: 100%;
+}
+
+.map-overlay {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #555;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.map-overlay--error {
+  color: #d32f2f;
+}
+
+.map-popup {
+  display: flex;
+  gap: 0.5rem;
+  max-width: 260px;
+}
+
+.map-popup-thumb {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.map-popup-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.8rem;
+  color: #333;
+}
+
+.map-popup-info strong {
+  text-transform: capitalize;
+  font-size: 0.85rem;
+}

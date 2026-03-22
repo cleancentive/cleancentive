@@ -10,6 +10,7 @@ import { TeamDetail } from './components/TeamDetail'
 import { CleanupList } from './components/CleanupList'
 import { CleanupDetail } from './components/CleanupDetail'
 import { InsightsPage } from './components/InsightsPage'
+import { MapPage } from './components/MapPage'
 import { FeedbackPage } from './components/FeedbackPage'
 import { useAuthStore } from './stores/authStore'
 import './App.css'
@@ -52,6 +53,7 @@ function App() {
           <Route path="/cleanups" element={<CleanupList />} />
           <Route path="/cleanups/:id" element={<CleanupDetail />} />
           <Route path="/insights" element={<InsightsPage />} />
+          <Route path="/map" element={<MapPage />} />
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/feedback/:id" element={<FeedbackPage />} />
           <Route path="/profile" element={<ProfileEditor />} />

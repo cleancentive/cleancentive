@@ -69,6 +69,78 @@ export class InsightsService {
     });
   }
 
+  async getMapData(filter: StatsFilter = {}) {
+    const cacheKey = this.buildMapCacheKey(filter);
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    const { where, params } = this.buildSpotWhere(filter);
+    const { and, params: andParams } = this.buildSpotAnd(filter);
+
+    const [spotRows, cleanupRows] = await Promise.all([
+      this.spotRepository.query(
+        `SELECT s.id, s.longitude, s.latitude, s.captured_at, s.processing_status,
+                COUNT(di.id)::int AS item_count,
+                (SELECT di2.category FROM detected_items di2
+                 WHERE di2.spot_id = s.id ORDER BY di2.weight_grams DESC NULLS LAST LIMIT 1) AS top_category
+         FROM spots s
+         LEFT JOIN detected_items di ON di.spot_id = s.id
+         ${where}
+         GROUP BY s.id
+         ORDER BY s.captured_at DESC
+         LIMIT 5000`,
+        params,
+      ),
+      this.spotRepository.query(
+        `SELECT cd.id, cd.longitude, cd.latitude, cd.location_name,
+                c.name AS cleanup_name, cd.start_at,
+                COUNT(s.id)::int AS spot_count
+         FROM cleanup_dates cd
+         JOIN cleanups c ON c.id = cd.cleanup_id AND c.archived_at IS NULL
+         LEFT JOIN spots s ON s.cleanup_date_id = cd.id ${and}
+         WHERE cd.latitude IS NOT NULL
+         GROUP BY cd.id, cd.longitude, cd.latitude, cd.location_name, c.name, cd.start_at`,
+        andParams,
+      ),
+    ]);
+
+    const spots = {
+      type: 'FeatureCollection',
+      features: spotRows.map((r: any) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [Number(r.longitude), Number(r.latitude)] },
+        properties: {
+          id: r.id,
+          capturedAt: r.captured_at,
+          itemCount: Number(r.item_count),
+          topCategory: r.top_category,
+          status: r.processing_status,
+        },
+      })),
+    };
+
+    const cleanupLocations = {
+      type: 'FeatureCollection',
+      features: cleanupRows.map((r: any) => ({
+        type: 'Feature' as const,
+        geometry: { type: 'Point' as const, coordinates: [Number(r.longitude), Number(r.latitude)] },
+        properties: {
+          id: r.id,
+          cleanupName: r.cleanup_name,
+          locationName: r.location_name,
+          startAt: r.start_at,
+          spotCount: Number(r.spot_count),
+        },
+      })),
+    };
+
+    const result = { spots, cleanupLocations };
+    await this.redis.set(cacheKey, JSON.stringify(result), 'EX', this.cacheTtlSeconds);
+    return result;
+  }
+
   async getPublicStats(filter: StatsFilter = {}): Promise<PublicStats> {
     const cacheKey = this.buildCacheKey(filter);
     const cached = await this.redis.get(cacheKey);
@@ -83,6 +155,14 @@ export class InsightsService {
 
   private buildCacheKey(filter: StatsFilter): string {
     const parts = ['insights:stats'];
+    if (filter.teamId) parts.push(`t:${filter.teamId}`);
+    if (filter.cleanupDateId) parts.push(`cd:${filter.cleanupDateId}`);
+    if (filter.since) parts.push(`s:${filter.since}`);
+    return parts.join(':');
+  }
+
+  private buildMapCacheKey(filter: StatsFilter): string {
+    const parts = ['insights:map'];
     if (filter.teamId) parts.push(`t:${filter.teamId}`);
     if (filter.cleanupDateId) parts.push(`cd:${filter.cleanupDateId}`);
     if (filter.since) parts.push(`s:${filter.since}`);
