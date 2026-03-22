@@ -6,9 +6,9 @@ services:
       - ${PRIVATE_ENV_FILE:-../private/.env}
     depends_on:
       frontend:
-        condition: service_started
+        condition: service_healthy
       backend:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
@@ -27,7 +27,7 @@ services:
       retries: 3
 
   backend:
-    image: ghcr.io/cleancentive/cleancentive-backend:e25f26a067fbbddfdad285f33f33409134619441
+    image: ghcr.io/cleancentive/cleancentive-backend:0d28720148c013e4add79d876a37d764a1fe70ca
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
