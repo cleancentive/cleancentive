@@ -1292,6 +1292,32 @@
   font-size: 1.15rem;
 }
 
+.ops-version-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.ops-version-table th,
+.ops-version-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.ops-version-table th {
+  color: #64748b;
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+.ops-version-hash {
+  font-family: monospace;
+  font-size: 0.8rem;
+  word-break: break-all;
+}
+
 .user-admin-panel {
 }
 

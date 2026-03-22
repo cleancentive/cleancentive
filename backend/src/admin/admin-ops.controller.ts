@@ -16,6 +16,13 @@ const maxRetryBatchSize = 100;
 export class AdminOpsController {
   constructor(private readonly adminOpsService: AdminOpsService) {}
 
+  @Get('version')
+  @ApiOperation({ summary: 'Get deployed version information for backend and worker' })
+  @ApiOkResponse({ description: 'Returns commit hash and build timestamp for each artifact.' })
+  async getVersion() {
+    return this.adminOpsService.getVersion();
+  }
+
   @Get('overview')
   @ApiOperation({ summary: 'Get lightweight operations overview for dashboards and CLI checks' })
   @ApiOkResponse({ description: 'Returns lightweight queue, spot, worker, and health summary data.' })

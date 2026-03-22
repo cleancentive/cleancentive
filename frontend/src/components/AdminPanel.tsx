@@ -73,6 +73,8 @@ export function AdminPanel() {
     updateFeedbackStatus,
     addAdminResponse,
     setFeedbackStatusFilter,
+    versionInfo,
+    fetchVersionInfo,
   } = useAdminStore()
 
   const [searchInput, setSearchInput] = useState(search)
@@ -95,8 +97,9 @@ export function AdminPanel() {
       fetchStorageInsights()
       fetchPurgeStatus()
       fetchFeedback()
+      fetchVersionInfo()
     }
-  }, [checked, isAdmin, fetchUsers, fetchOpsOverview, fetchStorageInsights, fetchPurgeStatus])
+  }, [checked, isAdmin, fetchUsers, fetchOpsOverview, fetchStorageInsights, fetchPurgeStatus, fetchVersionInfo])
 
 
   // Debounced search
@@ -247,6 +250,34 @@ export function AdminPanel() {
             <strong>{formatAge(opsOverview?.spots.oldestProcessingAgeSeconds ?? null)}</strong>
           </div>
         </div>
+
+        <h3>Deployed Versions</h3>
+        <table className="ops-version-table">
+          <thead>
+            <tr>
+              <th>Artifact</th>
+              <th>Version</th>
+              <th>Built</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Backend</td>
+              <td className="ops-version-hash">{versionInfo?.backend.version ?? '-'}</td>
+              <td>{versionInfo?.backend.buildTime ? formatTimestamp(new Date(versionInfo.backend.buildTime * 1000).toISOString()) : '-'}</td>
+            </tr>
+            <tr>
+              <td>Frontend</td>
+              <td className="ops-version-hash">{__APP_VERSION__}</td>
+              <td>{__APP_BUILD_TIME__ ? formatTimestamp(new Date(__APP_BUILD_TIME__ * 1000).toISOString()) : '-'}</td>
+            </tr>
+            <tr>
+              <td>Worker</td>
+              <td className="ops-version-hash">{versionInfo?.worker?.version ?? '-'}</td>
+              <td>{versionInfo?.worker?.buildTime ? formatTimestamp(new Date(versionInfo.worker.buildTime * 1000).toISOString()) : '-'}</td>
+            </tr>
+          </tbody>
+        </table>
       </fieldset>
 
       <fieldset className="page-card">

@@ -4,6 +4,7 @@ import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AdminService } from './admin/admin.service';
+const pkg = require('../package.json');
 
 const logger = new Logger('Bootstrap');
 const swaggerAuthSchemeName = 'Bearer';
@@ -30,7 +31,7 @@ async function bootstrap() {
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Cleancentive API')
       .setDescription('REST API for cleanup tracking, authentication, and image analysis workflows.')
-      .setVersion('0.1.0')
+      .setVersion(pkg.version)
       .addBearerAuth(
         {
           type: 'http',

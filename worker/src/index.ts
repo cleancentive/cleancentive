@@ -37,7 +37,11 @@ interface WorkerOpsState {
   concurrency: number;
   hostname: string;
   pid: number;
+  version: string;
+  buildTime: number;
 }
+
+const pkg = require('../../package.json');
 
 const queueName = process.env.DETECTION_QUEUE_NAME || 'litter-detection';
 const detectionModel = process.env.DETECTION_MODEL || 'gpt-4o-mini';
@@ -176,6 +180,8 @@ async function writeWorkerState(patch: Partial<WorkerOpsState>): Promise<void> {
     concurrency: workerConcurrency,
     hostname: hostname(),
     pid: process.pid,
+    version: pkg.version || 'unknown',
+    buildTime: pkg.buildTime ?? 0,
     ...current,
     ...patch,
   };
