@@ -52,17 +52,4 @@ describe('UserService', () => {
     });
   });
 
-  describe('createGuestAccount', () => {
-    it('should create a guest user with UUID and nickname "guest"', async () => {
-      const mockUser = { id: 'uuid-123', nickname: 'guest' };
-      jest.spyOn(userRepository, 'create').mockReturnValue(mockUser as any);
-      jest.spyOn(userRepository, 'save').mockResolvedValue(mockUser as any);
-
-      const result = await service.createGuestAccount();
-
-      expect(userRepository.create).toHaveBeenCalledWith({ nickname: 'guest' });
-      expect(userRepository.save).toHaveBeenCalledWith(mockUser);
-      expect(result).toEqual(mockUser);
-    });
-  });
 });

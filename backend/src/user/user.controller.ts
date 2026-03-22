@@ -6,11 +6,6 @@ import { User } from './user.entity';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Post('guest')
-  async createGuest(): Promise<User> {
-    return this.userService.createGuestAccount();
-  }
-
   @Get(':id/avatar')
   async getAvatar(
     @Param('id', ParseUUIDPipe) id: string,

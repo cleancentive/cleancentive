@@ -118,26 +118,35 @@ export class SpotController {
     };
   }
 
-  private async resolveUserId(authHeader: string | undefined, guestId: string | undefined): Promise<string> {
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.slice('Bearer '.length).trim();
-      if (!token) {
-        throw new UnauthorizedException('Invalid Authorization header');
-      }
-
-      try {
-        const payload = await this.authService.validateSessionToken(token);
-        return payload.sub;
-      } catch {
-        throw new UnauthorizedException('Invalid session token');
-      }
+  private async resolveAuthUserId(authHeader: string | undefined): Promise<string> {
+    if (!authHeader?.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Authorization header is required');
     }
+    const token = authHeader.slice('Bearer '.length).trim();
+    if (!token) {
+      throw new UnauthorizedException('Invalid Authorization header');
+    }
+    try {
+      const payload = await this.authService.validateSessionToken(token);
+      return payload.sub;
+    } catch {
+      throw new UnauthorizedException('Invalid session token');
+    }
+  }
 
+  private requireGuestId(guestId: string | undefined): string {
     if (!guestId) {
       throw new BadRequestException('guestId is required when not authenticated');
     }
+    return guestId;
+  }
 
-    const guest = await this.userService.findOrCreateGuest(guestId);
+  private async resolveUserIdWithCreate(authHeader: string | undefined, guestId: string | undefined): Promise<string> {
+    if (authHeader?.startsWith('Bearer ')) {
+      return this.resolveAuthUserId(authHeader);
+    }
+    const id = this.requireGuestId(guestId);
+    const guest = await this.userService.findOrCreateGuest(id);
     return guest.id;
   }
 
@@ -202,7 +211,7 @@ export class SpotController {
       throw new BadRequestException('capturedAt must be a valid ISO date');
     }
 
-    const userId = await this.resolveUserId(req.headers.authorization, guestId);
+    const userId = await this.resolveUserIdWithCreate(req.headers.authorization, guestId);
 
     const result = await this.spotService.createSpot({
       userId,
@@ -232,7 +241,7 @@ export class SpotController {
     let spot;
 
     if (req.headers.authorization?.startsWith('Bearer ')) {
-      const userId = await this.resolveUserId(req.headers.authorization, undefined);
+      const userId = await this.resolveAuthUserId(req.headers.authorization);
       spot = await this.spotService.getSpotStatus(spotId, userId);
     } else {
       if (!guestId) {
@@ -257,11 +266,11 @@ export class SpotController {
 
     const spots = req.headers.authorization?.startsWith('Bearer ')
       ? await this.spotService.listSpotsForUser(
-        await this.resolveUserId(req.headers.authorization, undefined),
+        await this.resolveAuthUserId(req.headers.authorization),
         limit,
       )
       : await this.spotService.listSpotsForGuest(
-        await this.resolveUserId(undefined, guestId),
+        this.requireGuestId(guestId),
         limit,
       );
 
@@ -277,7 +286,9 @@ export class SpotController {
     @Req() req: Request,
     @Query('guestId') guestId?: string,
   ): Promise<{ status: string }> {
-    const userId = await this.resolveUserId(req.headers.authorization, guestId);
+    const userId = req.headers.authorization?.startsWith('Bearer ')
+      ? await this.resolveAuthUserId(req.headers.authorization)
+      : this.requireGuestId(guestId);
     await this.spotService.retryDetection(id, userId);
     return { status: 'queued' };
   }

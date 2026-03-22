@@ -21,20 +21,34 @@ export interface UserEmail {
 }
 
 /**
- * Create a guest user account
+ * Create a test user with an email address via the magic-link flow.
+ * This triggers findOrCreateGuest on the backend, which creates the
+ * guest user row lazily (matching production behaviour).
  * @returns The created user object with id
  */
-export async function createGuestUser(): Promise<User> {
-  const response = await fetch(`${API_BASE}/user/guest`, {
+export async function createGuestUser(email?: string): Promise<User> {
+  const guestId = crypto.randomUUID();
+  const testEmail = email || generateTestEmail();
+
+  // Sending a magic link with a guestId creates the guest row and
+  // associates the email on the backend.
+  const mlResponse = await fetch(`${API_BASE}/auth/magic-link`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: testEmail, guestId }),
   });
-  
-  if (!response.ok) {
-    throw new Error(`Failed to create guest user: ${response.statusText}`);
+
+  if (!mlResponse.ok) {
+    throw new Error(`Failed to create guest user via magic-link: ${mlResponse.statusText}`);
   }
-  
-  return response.json();
+
+  // Fetch the created user
+  const userResponse = await fetch(`${API_BASE}/user/${guestId}`);
+  if (!userResponse.ok) {
+    throw new Error(`Failed to fetch created guest user: ${userResponse.statusText}`);
+  }
+
+  return userResponse.json();
 }
 
 /**
@@ -88,7 +102,8 @@ export function generateTestEmail(prefix = 'test'): string {
 
 /**
  * Create a test user with an email address
- * Combines createGuestUser and registerUserEmail
+ * Uses the magic-link flow to create the guest and associate the email,
+ * then fetches the associated email record.
  * @param email - Optional email address (generates unique one if not provided)
  * @returns Object with user and email
  */
@@ -97,9 +112,9 @@ export async function createTestUserWithEmail(email?: string): Promise<{
   email: UserEmail;
 }> {
   const testEmail = email || generateTestEmail();
-  const user = await createGuestUser();
+  const user = await createGuestUser(testEmail);
   const result = await registerUserEmail(user.id, testEmail);
-  
+
   return {
     user: result.user,
     email: result.email,

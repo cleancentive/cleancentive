@@ -21,13 +21,6 @@ export class UserService {
     private eventEmitter: EventEmitter2,
   ) {}
 
-  async createGuestAccount(): Promise<User> {
-    const guestUser = this.userRepository.create({
-      nickname: 'guest',
-    });
-    return this.userRepository.save(guestUser);
-  }
-
   async findOrCreateGuest(guestId: string): Promise<User> {
     const existing = await this.userRepository.findOne({
       where: { id: guestId },
