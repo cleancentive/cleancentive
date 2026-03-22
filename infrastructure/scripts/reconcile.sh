@@ -36,6 +36,19 @@ last_env_checksum=$(cat "$STATE_DIR/env.sha256" 2>/dev/null || true)
 
 mapfile -t desired_images < <(grep -E '^\s*image:\s*ghcr\.io/cleancentive/' "$DEPLOY_DIR/docker-compose.prod.yml" | sed -E 's/^\s*image:\s*//')
 
+print_summary() {
+  local status="$1"
+  echo ""
+  echo "=== Deployment Summary ==="
+  for image in "${desired_images[@]}"; do
+    service="${image##*/cleancentive-}"
+    name="${service%%:*}"
+    tag="${service##*:}"
+    printf '  %-10s version %s %s\n' "$name" "$tag" "$status"
+  done
+  echo "=========================="
+}
+
 already_running=true
 for image in "${desired_images[@]}"; do
   if ! docker ps --format '{{.Image}}' | grep -Fxq "$image"; then
@@ -46,6 +59,7 @@ done
 
 if [[ "$compose_checksum" == "$last_compose_checksum" && "$caddy_checksum" == "$last_caddy_checksum" && "$env_checksum" == "$last_env_checksum" && "$already_running" == true ]]; then
   echo "Desired state already deployed"
+  print_summary "already running"
   exit 0
 fi
 
@@ -58,3 +72,4 @@ printf '%s\n' "$caddy_checksum" > "$STATE_DIR/caddy.sha256"
 printf '%s\n' "$env_checksum" > "$STATE_DIR/env.sha256"
 
 echo "Reconcile complete"
+print_summary "deployed"
