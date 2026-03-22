@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+MODE=""
+SERVICES=(backend frontend worker)
+ORG="cleancentive"
+IMAGE_PREFIX="ghcr.io/cleancentive/cleancentive"
+FILTER_SERVICE=""
+GAP_COUNT=0
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+COMPOSE_FILE="$REPO_ROOT/infrastructure/docker-compose.prod.yml"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  infrastructure/scripts/promoto --status [--service <name>]
+  infrastructure/scripts/promoto --apply  [--service <name>]
+
+Modes:
+  --status    Read-only gap analysis: pinned vs latest GHCR image per service
+  --apply     Update docker-compose.prod.yml with latest GHCR image tags
+
+Options:
+  --service <name>   Limit to a single service (backend, frontend, worker)
+EOF
+}
+
+print_noarg_status() {
+  usage
+
+  local problems=()
+  command -v gh >/dev/null 2>&1 || problems+=("missing gh cli (install: brew install gh)")
+  command -v gh >/dev/null 2>&1 && ! gh auth status >/dev/null 2>&1 && problems+=("gh auth missing (run: gh auth login)")
+  [[ -f "$COMPOSE_FILE" ]] || problems+=("compose file missing at $COMPOSE_FILE")
+
+  if [[ ${#problems[@]} -gt 0 ]]; then
+    echo ""
+    for p in "${problems[@]}"; do
+      echo "Problem: $p"
+    done
+  fi
+}
+
+ok() {
+  echo "OK $1"
+}
+
+gap() {
+  GAP_COUNT=$((GAP_COUNT + 1))
+  echo "$1 $2"
+}
+
+parse_args() {
+  MODE=""
+  FILTER_SERVICE=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --status)
+        MODE="status"
+        shift
+        ;;
+      --apply)
+        MODE="apply"
+        shift
+        ;;
+      --service)
+        FILTER_SERVICE="$2"
+        shift 2
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      --*)
+        echo "Unknown option: $1" >&2
+        return 1
+        ;;
+      *)
+        echo "Unexpected argument: $1" >&2
+        return 1
+        ;;
+    esac
+  done
+
+  if [[ -z "$MODE" ]]; then
+    echo "Mode required: --status or --apply" >&2
+    return 1
+  fi
+}
+
+check_dependencies() {
+  local ok=true
+
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "Missing: gh cli (install: brew install gh)" >&2
+    ok=false
+  elif ! gh auth status >/dev/null 2>&1; then
+    echo "Missing: gh auth (run: gh auth login)" >&2
+    ok=false
+  fi
+
+  if [[ ! -f "$COMPOSE_FILE" ]]; then
+    echo "Missing: compose file at $COMPOSE_FILE" >&2
+    ok=false
+  fi
+
+  if [[ "$ok" != true ]]; then
+    exit 1
+  fi
+}
+
+get_pinned_sha() {
+  local service="$1"
+  grep -E "image:\s*${IMAGE_PREFIX}-${service}:" "$COMPOSE_FILE" \
+    | sed -E 's/.*:([0-9a-f]{40}).*/\1/'
+}
+
+get_latest_sha() {
+  local service="$1"
+  gh api "/orgs/$ORG/packages/container/cleancentive-$service/versions" \
+    --jq '[.[].metadata.container.tags[] | select(test("^[0-9a-f]{40}$"))][0]' 2>/dev/null
+}
+
+get_services() {
+  if [[ -n "$FILTER_SERVICE" ]]; then
+    echo "$FILTER_SERVICE"
+  else
+    printf '%s\n' "${SERVICES[@]}"
+  fi
+}
+
+run_status() {
+  check_dependencies
+
+  local service pinned latest
+  while IFS= read -r service; do
+    pinned="$(get_pinned_sha "$service")"
+    latest="$(get_latest_sha "$service")"
+
+    echo "$service"
+
+    if [[ -z "$latest" ]]; then
+      echo "  pinned:  ${pinned:0:12}"
+      echo "  latest:  (no GHCR images found)"
+      gap "  status:" "ERROR"
+      echo ""
+      continue
+    fi
+
+    echo "  pinned:  ${pinned:0:12}"
+    echo "  latest:  ${latest:0:12}"
+
+    if [[ "$pinned" == "$latest" ]]; then
+      ok "  up to date"
+    else
+      gap "  status:" "BEHIND"
+    fi
+    echo ""
+  done < <(get_services)
+
+  if [[ $GAP_COUNT -gt 0 ]]; then
+    echo "SUMMARY $GAP_COUNT service(s) behind"
+    exit 1
+  fi
+  echo "SUMMARY all services up to date"
+}
+
+run_apply() {
+  check_dependencies
+
+  local service pinned latest promoted=0
+  while IFS= read -r service; do
+    pinned="$(get_pinned_sha "$service")"
+    latest="$(get_latest_sha "$service")"
+
+    if [[ -z "$latest" ]]; then
+      gap "SKIP" "$service — no GHCR images found"
+      continue
+    fi
+
+    if [[ "$pinned" == "$latest" ]]; then
+      ok "$service already at latest (${pinned:0:12})"
+      continue
+    fi
+
+    sed -i.bak "s|cleancentive-${service}:${pinned}|cleancentive-${service}:${latest}|" "$COMPOSE_FILE"
+    rm -f "${COMPOSE_FILE}.bak"
+    echo "PROMOTE $service ${pinned:0:12} -> ${latest:0:12}"
+    promoted=$((promoted + 1))
+  done < <(get_services)
+
+  if [[ $promoted -gt 0 ]]; then
+    echo ""
+    echo -n "VALIDATE running validate-prod-compose.sh... "
+    if "$SCRIPT_DIR/validate-prod-compose.sh" "$COMPOSE_FILE" >/dev/null 2>&1; then
+      echo "passed"
+    else
+      echo "FAILED" >&2
+      exit 1
+    fi
+  fi
+
+  echo "SUMMARY promoted $promoted service(s) in docker-compose.prod.yml"
+}
+
+main() {
+  if [[ $# -eq 0 ]]; then
+    print_noarg_status
+    exit 1
+  fi
+
+  parse_args "$@"
+
+  if [[ "$MODE" == "status" ]]; then
+    run_status
+  else
+    run_apply
+  fi
+}
+
+if [[ "${PROMOTO_SOURCE_ONLY:-0}" != "1" ]]; then
+  main "$@"
+fi
