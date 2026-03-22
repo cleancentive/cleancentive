@@ -28,9 +28,11 @@ fi
 
 compose_checksum=$(shasum -a 256 "$DEPLOY_DIR/docker-compose.prod.yml" | awk '{print $1}')
 caddy_checksum=$(shasum -a 256 "$DEPLOY_DIR/caddy/Caddyfile" | awk '{print $1}')
+env_checksum=$(shasum -a 256 "$PRIVATE_DIR/.env" | awk '{print $1}')
 
 last_compose_checksum=$(cat "$STATE_DIR/compose.sha256" 2>/dev/null || true)
 last_caddy_checksum=$(cat "$STATE_DIR/caddy.sha256" 2>/dev/null || true)
+last_env_checksum=$(cat "$STATE_DIR/env.sha256" 2>/dev/null || true)
 
 mapfile -t desired_images < <(grep -E '^\s*image:\s*ghcr\.io/cleancentive/' "$DEPLOY_DIR/docker-compose.prod.yml" | sed -E 's/^\s*image:\s*//')
 
@@ -42,7 +44,7 @@ for image in "${desired_images[@]}"; do
   fi
 done
 
-if [[ "$compose_checksum" == "$last_compose_checksum" && "$caddy_checksum" == "$last_caddy_checksum" && "$already_running" == true ]]; then
+if [[ "$compose_checksum" == "$last_compose_checksum" && "$caddy_checksum" == "$last_caddy_checksum" && "$env_checksum" == "$last_env_checksum" && "$already_running" == true ]]; then
   echo "Desired state already deployed"
   exit 0
 fi
@@ -53,5 +55,6 @@ docker compose --env-file "$PRIVATE_DIR/.env" -f docker-compose.prod.yml up -d
 
 printf '%s\n' "$compose_checksum" > "$STATE_DIR/compose.sha256"
 printf '%s\n' "$caddy_checksum" > "$STATE_DIR/caddy.sha256"
+printf '%s\n' "$env_checksum" > "$STATE_DIR/env.sha256"
 
 echo "Reconcile complete"

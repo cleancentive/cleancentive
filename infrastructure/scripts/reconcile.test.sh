@@ -28,5 +28,7 @@ assert_contains 'docker compose --env-file "$PRIVATE_DIR/.env" -f docker-compose
 assert_not_contains 'PRIVATE_ENV_URL=' 'reconcile should not require private repo URL'
 assert_not_contains 'PRIVATE_ENV_TOKEN=' 'reconcile should not require private repo token'
 assert_not_contains 'fetch_private()' 'reconcile should not fetch private env itself'
+assert_contains 'env_checksum=' 'reconcile should track env file checksum'
+assert_contains 'env.sha256' 'reconcile should persist env checksum to state directory'
 
 echo "PASS reconcile bash tests"
