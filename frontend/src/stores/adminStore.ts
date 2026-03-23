@@ -92,6 +92,7 @@ interface FeedbackItem {
     message: string
     is_from_steward: boolean
     created_at: string
+    created_by?: string | null
     author_nickname?: string | null
   }>
 }

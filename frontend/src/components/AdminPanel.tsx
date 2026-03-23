@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { useAdminStore } from '../stores/adminStore'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
@@ -35,6 +35,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function AdminPanel() {
+  const { feedbackId: feedbackIdParam } = useParams<{ feedbackId?: string }>()
   const { user } = useAuthStore()
   const { isOnline } = useConnectivityStore()
   const {
@@ -101,6 +102,15 @@ export function AdminPanel() {
     }
   }, [checked, isAdmin, fetchUsers, fetchOpsOverview, fetchStorageInsights, fetchPurgeStatus, fetchVersionInfo])
 
+  // Deep-link to a specific feedback item via /steward/feedback/:feedbackId
+  useEffect(() => {
+    if (checked && isAdmin && feedbackIdParam) {
+      setFeedbackStatusFilter('')
+      fetchFeedbackDetail(feedbackIdParam).then(() => {
+        setExpandedFeedbackId(feedbackIdParam)
+      })
+    }
+  }, [checked, isAdmin, feedbackIdParam, fetchFeedbackDetail, setFeedbackStatusFilter])
 
   // Debounced search
   const handleSearchChange = (value: string) => {
@@ -498,9 +508,13 @@ export function AdminPanel() {
                 </span>
                 <span className="feedback-admin-description">{f.description.slice(0, 80)}{f.description.length > 80 ? '...' : ''}</span>
                 <span className="feedback-admin-meta">
-                  {f.submitter_nickname || 'Anonymous'} &middot; {formatTimestamp(f.created_at)}
+                  {f.user_id
+                    ? <Link to={`/steward/users/${f.user_id}`} onClick={(e) => e.stopPropagation()}>{f.submitter_nickname || 'Anonymous'}</Link>
+                    : (f.submitter_nickname || 'Anonymous')
+                  } &middot; {formatTimestamp(f.created_at)}
                   {f.responses.length > 0 && ` \u00b7 ${f.responses.length} response${f.responses.length !== 1 ? 's' : ''}`}
                 </span>
+                <Link to={`/steward/feedback/${f.id}`} className="feedback-permalink" onClick={(e) => e.stopPropagation()} title="Permalink">🔗</Link>
               </div>
 
               {expandedFeedbackId === f.id && activeFeedbackItem && (
@@ -524,8 +538,8 @@ export function AdminPanel() {
                         <div className="feedback-thread-header">
                           <strong>
                             {r.is_from_steward
-                              ? <>{r.author_nickname || 'Steward'} <span className="badge steward-badge">Steward</span></>
-                              : activeFeedbackItem.submitter_nickname || 'User'
+                              ? <>{r.created_by ? <Link to={`/steward/users/${r.created_by}`}>{r.author_nickname || 'Steward'}</Link> : (r.author_nickname || 'Steward')} <span className="badge steward-badge">Steward</span></>
+                              : activeFeedbackItem.user_id ? <Link to={`/steward/users/${activeFeedbackItem.user_id}`}>{activeFeedbackItem.submitter_nickname || 'User'}</Link> : (activeFeedbackItem.submitter_nickname || 'User')
                             }
                           </strong>
                           <span className="feedback-thread-date">{formatTimestamp(r.created_at)}</span>

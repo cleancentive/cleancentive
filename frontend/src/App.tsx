@@ -58,6 +58,7 @@ function App() {
           <Route path="/feedback/:id" element={<FeedbackPage />} />
           <Route path="/profile" element={<ProfileEditor />} />
           <Route path="/steward" element={<AdminPanel />} />
+          <Route path="/steward/feedback/:feedbackId" element={<AdminPanel />} />
           <Route path="/steward/users/:id" element={<UserDetail />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
