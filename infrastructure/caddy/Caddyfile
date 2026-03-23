@@ -11,6 +11,10 @@
   }
 }
 
+analytics.{$DOMAIN} {
+  reverse_proxy umami:3000
+}
+
 {$DOMAIN_REDIRECT} {
   redir https://{$DOMAIN}{uri} permanent
 }

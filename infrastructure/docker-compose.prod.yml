@@ -9,6 +9,8 @@ services:
         condition: service_healthy
       backend:
         condition: service_healthy
+      umami:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"
@@ -20,6 +22,9 @@ services:
   frontend:
     image: ghcr.io/cleancentive/cleancentive-frontend:eb63a241dceb06c92c791fcdc88f9aae31c11f48
     restart: unless-stopped
+    environment:
+      UMAMI_SCRIPT_URL: https://analytics.${DOMAIN}/script.js
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     healthcheck:
       test: ["CMD-SHELL", "test -f /usr/share/nginx/html/index.html"]
       interval: 30s
@@ -81,6 +86,36 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+  umami-db-init:
+    image: postgis/postgis:15-3.4
+    restart: "no"
+    command: >
+      sh -c "psql -h postgres -U $${DB_USERNAME:-cleancentive} -tc
+      \"SELECT 1 FROM pg_database WHERE datname = 'umami'\" | grep -q 1
+      || psql -h postgres -U $${DB_USERNAME:-cleancentive} -c 'CREATE DATABASE umami;'"
+    environment:
+      PGPASSWORD: ${DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  umami:
+    image: ghcr.io/umami-software/umami:postgresql-latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${DB_USERNAME:-cleancentive}:${DB_PASSWORD}@postgres:5432/umami
+      APP_SECRET: ${UMAMI_APP_SECRET}
+      DISABLE_TELEMETRY: 1
+      DISABLE_UPDATES: 1
+    depends_on:
+      umami-db-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/heartbeat"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 volumes:
   caddy_data:

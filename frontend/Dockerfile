@@ -26,7 +26,10 @@ ARG SOURCE_COMMIT=unknown
 
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
+COPY frontend/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
 
 LABEL org.opencontainers.image.revision=$SOURCE_COMMIT
 
 EXPOSE 80
+ENTRYPOINT ["/docker-entrypoint.sh"]
