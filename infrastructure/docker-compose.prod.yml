@@ -112,7 +112,7 @@ services:
       umami-db-init:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/heartbeat"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/heartbeat"]
       interval: 15s
       timeout: 5s
       retries: 5
