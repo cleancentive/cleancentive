@@ -81,7 +81,6 @@ services:
     environment:
       DATABASE_URL: postgresql://cleancentive:cleancentive_dev_password@postgres:5432/umami
       APP_SECRET: dev-secret-change-in-prod
-      TRACKER_SCRIPT_NAME: data
       DISABLE_TELEMETRY: 1
       DISABLE_UPDATES: 1
     ports:

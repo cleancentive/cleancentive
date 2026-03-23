@@ -1,5 +1,9 @@
-const UMAMI_SCRIPT_URL = (import.meta.env.VITE_UMAMI_SCRIPT_URL || (import.meta.env.DEV ? 'http://localhost:3001/data.js' : undefined)) as string | undefined;
-const UMAMI_WEBSITE_ID = import.meta.env.VITE_UMAMI_WEBSITE_ID as string | undefined;
+const config = window.__CLEANCENTIVE_CONFIG__ ?? {};
+const UMAMI_SCRIPT_URL = config.umamiScriptUrl
+  || import.meta.env.VITE_UMAMI_SCRIPT_URL
+  || (import.meta.env.DEV ? 'http://localhost:3001/script.js' : undefined);
+const UMAMI_WEBSITE_ID = config.umamiWebsiteId
+  || import.meta.env.VITE_UMAMI_WEBSITE_ID;
 
 /** Inject the Umami tracking script if configured via env vars. */
 export function initAnalytics() {

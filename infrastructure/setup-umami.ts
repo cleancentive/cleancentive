@@ -62,7 +62,7 @@ async function getOrCreateWebsite(token: string): Promise<string> {
 }
 
 function writeEnvLocal(websiteId: string) {
-  const scriptUrl = `${UMAMI_URL}/data.js`;
+  const scriptUrl = `${UMAMI_URL}/script.js`;
   const umamiLines = [
     `VITE_UMAMI_SCRIPT_URL=${scriptUrl}`,
     `VITE_UMAMI_WEBSITE_ID=${websiteId}`,
