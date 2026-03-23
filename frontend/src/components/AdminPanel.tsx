@@ -174,6 +174,14 @@ export function AdminPanel() {
               {opsOverview
                 ? `Updated ${new Date(opsOverview.timestamp).toLocaleTimeString()}`
                 : 'Live processing status for stewards'}
+              {UMAMI_SHARE_URL && (
+                <>
+                  {' · '}
+                  <a href={UMAMI_SHARE_URL} target="_blank" rel="noopener noreferrer" className="ops-analytics-link">
+                    Analytics ↗
+                  </a>
+                </>
+              )}
             </p>
           </div>
           <CountdownButton
@@ -182,11 +190,6 @@ export function AdminPanel() {
             disabled={!isOnline || isRetryingFailedSpots}
             onRefresh={fetchOpsOverview}
           />
-          {UMAMI_SHARE_URL && (
-            <a href={UMAMI_SHARE_URL} target="_blank" rel="noopener noreferrer" className="ops-analytics-link">
-              Analytics ↗
-            </a>
-          )}
         </div>
 
         {(opsOverview?.spots.counts.failed ?? 0) > 0 && (
