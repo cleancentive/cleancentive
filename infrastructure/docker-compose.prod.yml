@@ -27,7 +27,7 @@ services:
       retries: 3
 
   backend:
-    image: ghcr.io/cleancentive/cleancentive-backend:eb63a241dceb06c92c791fcdc88f9aae31c11f48
+    image: ghcr.io/cleancentive/cleancentive-backend:03e15084164f947e2c259a82f45f2a8d72a31501
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
