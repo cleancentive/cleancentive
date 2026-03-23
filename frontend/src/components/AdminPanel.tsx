@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { formatTimestamp } from '../utils/formatTimestamp'
 import { CountdownButton } from './CountdownButton'
+import { UMAMI_SHARE_URL } from '../lib/analytics'
 import { Avatar } from './Avatar'
 
 function formatAge(seconds: number | null) {
@@ -181,6 +182,11 @@ export function AdminPanel() {
             disabled={!isOnline || isRetryingFailedSpots}
             onRefresh={fetchOpsOverview}
           />
+          {UMAMI_SHARE_URL && (
+            <a href={UMAMI_SHARE_URL} target="_blank" rel="noopener noreferrer" className="ops-analytics-link">
+              Analytics ↗
+            </a>
+          )}
         </div>
 
         {(opsOverview?.spots.counts.failed ?? 0) > 0 && (

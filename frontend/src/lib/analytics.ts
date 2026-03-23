@@ -5,6 +5,9 @@ const UMAMI_SCRIPT_URL = config.umamiScriptUrl
 const UMAMI_WEBSITE_ID = config.umamiWebsiteId
   || import.meta.env.VITE_UMAMI_WEBSITE_ID;
 
+export const UMAMI_SHARE_URL = config.umamiShareUrl
+  || import.meta.env.VITE_UMAMI_SHARE_URL as string | undefined;
+
 /** Inject the Umami tracking script if configured via env vars. */
 export function initAnalytics() {
   if (!UMAMI_SCRIPT_URL || !UMAMI_WEBSITE_ID) return;

@@ -7,6 +7,7 @@ declare const __APP_BUILD_TIME__: number;
 interface CleancentiveConfig {
   umamiScriptUrl?: string;
   umamiWebsiteId?: string;
+  umamiShareUrl?: string;
 }
 
 interface Window {
