@@ -20,6 +20,7 @@ interface CreateSpotInput {
   latitude: number;
   longitude: number;
   accuracyMeters: number;
+  pickedUp?: boolean;
 }
 
 interface CreateSpotResult {
@@ -128,6 +129,7 @@ export class SpotService {
       thumbnail_key: null,
       upload_id: input.uploadId,
       processing_status: 'queued',
+      picked_up: input.pickedUp ?? true,
     });
 
     const savedSpot = await this.spotRepository.save(spot);

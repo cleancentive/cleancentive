@@ -15,6 +15,7 @@ interface HistoryItem {
   latitude: number
   longitude: number
   accuracyMeters: number
+  pickedUp: boolean
   processingError: string | null
   detectionCompletedAt: string | null
   items: {
@@ -345,7 +346,12 @@ export function HistoryPanel() {
               <li key={row.item.id} className="history-card">
                 <div className="history-card-body">
                   <div className="history-card-info">
-                    <span className="history-timestamp">{formatDateTime(row.item.capturedAt)}</span>
+                    <span className="history-timestamp">
+                      {formatDateTime(row.item.capturedAt)}
+                      {(row.kind === 'server' ? !row.item.pickedUp : row.item.pickedUp === false) && (
+                        <span className="history-spotted-badge">Spotted</span>
+                      )}
+                    </span>
 
                     <LifecycleStepper stages={stages} errorMessage={errorMessage} onRetry={onRetry} />
 

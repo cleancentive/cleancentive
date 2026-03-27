@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useInsightsStore } from '../stores/insightsStore'
 import { useAuthStore } from '../stores/authStore'
-import { useInsightsFilterStore, presetToSince } from '../stores/insightsFilterStore'
+import { useInsightsFilterStore, presetToSince, pickedUpFilterToParam } from '../stores/insightsFilterStore'
 
 function formatWeight(grams: number): string {
   if (grams >= 1000000) return `${(grams / 1000000).toFixed(1)} t`
@@ -59,7 +59,7 @@ function RankTable({ rows, labelKey, countKey, emptyText }: { rows: Array<Record
 export function InsightsPage() {
   const { stats, isLoading, error, fetchStats } = useInsightsStore()
   const { user } = useAuthStore()
-  const { datePreset } = useInsightsFilterStore()
+  const { datePreset, pickedUpFilter } = useInsightsFilterStore()
 
   const teamId = user?.active_team_id ?? undefined
   const cleanupDateId = user?.active_cleanup_date_id ?? undefined
@@ -69,8 +69,9 @@ export function InsightsPage() {
       team_id: teamId,
       cleanup_date_id: cleanupDateId,
       since: presetToSince(datePreset),
+      picked_up: pickedUpFilterToParam(pickedUpFilter),
     })
-  }, [fetchStats, teamId, cleanupDateId, datePreset])
+  }, [fetchStats, teamId, cleanupDateId, datePreset, pickedUpFilter])
 
   const scopeLabel = user?.active_team_name
     ? `${user.active_team_name} Insights`

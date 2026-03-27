@@ -54,6 +54,7 @@ interface SpotDto {
   latitude: number;
   longitude: number;
   accuracyMeters: number;
+  pickedUp: boolean;
   processingError: string | null;
   detectionCompletedAt: Date | null;
   items: DetectedItemDto[];
@@ -100,6 +101,7 @@ export class SpotController {
       latitude: spot.latitude,
       longitude: spot.longitude,
       accuracyMeters: spot.location_accuracy_meters,
+      pickedUp: spot.picked_up,
       processingError: spot.processing_error,
       detectionCompletedAt: spot.detection_completed_at,
       items: spot.items.map((item: any) => ({
@@ -188,6 +190,7 @@ export class SpotController {
     const accuracy = parseFloat(body.accuracyMeters || '');
     const capturedAt = new Date(body.capturedAt || '');
     const guestId = body.guestId?.trim();
+    const pickedUp = body.pickedUp === undefined ? true : body.pickedUp !== 'false';
 
     if (!uploadId) {
       throw new BadRequestException('uploadId is required');
@@ -223,6 +226,7 @@ export class SpotController {
       latitude,
       longitude,
       accuracyMeters: accuracy,
+      pickedUp,
     });
 
     return {

@@ -17,6 +17,7 @@ export interface OutboxItem {
   mimeType: string
   imageBlob: Blob
   thumbnailBlob: Blob | null
+  pickedUp: boolean
   status: OutboxStatus
   attempts: number
   lastError: string | null
@@ -34,6 +35,7 @@ interface QueueCaptureInput {
   mimeType: string
   imageBlob: Blob
   thumbnailBlob: Blob | null
+  pickedUp?: boolean
 }
 
 interface FlushContext {
@@ -111,6 +113,7 @@ export async function queueCapture(input: QueueCaptureInput): Promise<OutboxItem
     mimeType: input.mimeType,
     imageBlob: input.imageBlob,
     thumbnailBlob: input.thumbnailBlob,
+    pickedUp: input.pickedUp ?? true,
     status: 'pending',
     attempts: 0,
     lastError: null,
@@ -203,6 +206,7 @@ async function uploadItem(item: OutboxItem, context: FlushContext): Promise<void
   formData.append('latitude', String(item.latitude))
   formData.append('longitude', String(item.longitude))
   formData.append('accuracyMeters', String(item.accuracyMeters))
+  formData.append('pickedUp', String(item.pickedUp ?? true))
 
   if (!context.sessionToken && item.ownerGuestId) {
     formData.append('guestId', item.ownerGuestId)

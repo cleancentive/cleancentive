@@ -1,10 +1,13 @@
 import { create } from 'zustand'
 
 export type DatePreset = '7d' | '30d' | '1y' | 'all'
+export type PickedUpFilter = 'picked' | 'spotted' | 'all'
 
 interface InsightsFilterState {
   datePreset: DatePreset
   setDatePreset: (preset: DatePreset) => void
+  pickedUpFilter: PickedUpFilter
+  setPickedUpFilter: (filter: PickedUpFilter) => void
 }
 
 export function presetToSince(preset: DatePreset): string | undefined {
@@ -16,7 +19,15 @@ export function presetToSince(preset: DatePreset): string | undefined {
   return now.toISOString()
 }
 
+export function pickedUpFilterToParam(filter: PickedUpFilter): string | undefined {
+  if (filter === 'picked') return 'true'
+  if (filter === 'spotted') return 'false'
+  return undefined
+}
+
 export const useInsightsFilterStore = create<InsightsFilterState>((set) => ({
   datePreset: 'all',
   setDatePreset: (preset) => set({ datePreset: preset }),
+  pickedUpFilter: 'picked',
+  setPickedUpFilter: (filter) => set({ pickedUpFilter: filter }),
 }))

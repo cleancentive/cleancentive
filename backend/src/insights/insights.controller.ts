@@ -13,12 +13,14 @@ export class InsightsController {
   @ApiQuery({ name: 'team_id', required: false, description: 'Filter by team UUID' })
   @ApiQuery({ name: 'cleanup_date_id', required: false, description: 'Filter by cleanup date UUID' })
   @ApiQuery({ name: 'since', required: false, description: 'Filter spots captured on or after this ISO 8601 date' })
+  @ApiQuery({ name: 'picked_up', required: false, description: 'Filter by picked_up status (true or false)' })
   async getMapData(
     @Query('team_id') teamId?: string,
     @Query('cleanup_date_id') cleanupDateId?: string,
     @Query('since') since?: string,
+    @Query('picked_up') pickedUp?: string,
   ) {
-    return this.insightsService.getMapData({ teamId, cleanupDateId, since });
+    return this.insightsService.getMapData({ teamId, cleanupDateId, since, pickedUp: this.parseBooleanParam(pickedUp) });
   }
 
   @Get('stats')
@@ -27,11 +29,19 @@ export class InsightsController {
   @ApiQuery({ name: 'team_id', required: false, description: 'Filter by team UUID' })
   @ApiQuery({ name: 'cleanup_date_id', required: false, description: 'Filter by cleanup date UUID' })
   @ApiQuery({ name: 'since', required: false, description: 'Filter spots captured on or after this ISO 8601 date' })
+  @ApiQuery({ name: 'picked_up', required: false, description: 'Filter by picked_up status (true or false)' })
   async getStats(
     @Query('team_id') teamId?: string,
     @Query('cleanup_date_id') cleanupDateId?: string,
     @Query('since') since?: string,
+    @Query('picked_up') pickedUp?: string,
   ) {
-    return this.insightsService.getPublicStats({ teamId, cleanupDateId, since });
+    return this.insightsService.getPublicStats({ teamId, cleanupDateId, since, pickedUp: this.parseBooleanParam(pickedUp) });
+  }
+
+  private parseBooleanParam(value?: string): boolean | undefined {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return undefined;
   }
 }

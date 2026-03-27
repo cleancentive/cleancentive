@@ -3,7 +3,13 @@ import { useAuthStore } from '../stores/authStore'
 import { useTeamStore } from '../stores/teamStore'
 import { useCleanupStore } from '../stores/cleanupStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
-import { useInsightsFilterStore, type DatePreset } from '../stores/insightsFilterStore'
+import { useInsightsFilterStore, type DatePreset, type PickedUpFilter } from '../stores/insightsFilterStore'
+
+const PICKED_UP_PRESETS: Array<{ value: PickedUpFilter; label: string }> = [
+  { value: 'picked', label: 'Picked' },
+  { value: 'spotted', label: 'Spotted' },
+  { value: 'all', label: 'All' },
+]
 
 const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
   { value: '7d', label: '7d' },
@@ -90,7 +96,7 @@ export function ContextBar() {
   const { teams, searchTeams, activateTeam, deactivateTeam } = useTeamStore()
   const { cleanups, searchCleanups, activateDate, deactivateDate } = useCleanupStore()
   const { isOnline } = useConnectivityStore()
-  const { datePreset, setDatePreset } = useInsightsFilterStore()
+  const { datePreset, setDatePreset, pickedUpFilter, setPickedUpFilter } = useInsightsFilterStore()
   const autoActivatedRef = useRef(false)
 
   const refreshData = useCallback(() => {
@@ -156,6 +162,17 @@ export function ContextBar() {
         onClear={() => deactivateDate()}
         label="Cleanup"
       />
+      <div className="context-date-chips">
+        {PICKED_UP_PRESETS.map(({ value, label }) => (
+          <button
+            key={value}
+            className={`context-date-chip${pickedUpFilter === value ? ' context-date-chip--active' : ''}`}
+            onClick={() => setPickedUpFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="context-date-chips">
         {DATE_PRESETS.map(({ value, label }) => (
           <button

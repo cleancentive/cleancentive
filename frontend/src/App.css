@@ -774,6 +774,13 @@
   display: none;
 }
 
+.capture-picked-up-toggle {
+  margin: 0.25rem 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
 .history-panel {
 }
 
@@ -823,6 +830,17 @@
 .history-timestamp {
   font-size: 0.86rem;
   color: #6b7280;
+}
+
+.history-spotted-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .history-thumb {

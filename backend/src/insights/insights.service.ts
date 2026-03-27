@@ -44,6 +44,7 @@ export interface StatsFilter {
   teamId?: string;
   cleanupDateId?: string;
   since?: string;
+  pickedUp?: boolean;
 }
 
 @Injectable()
@@ -81,7 +82,7 @@ export class InsightsService {
 
     const [spotRows, cleanupRows] = await Promise.all([
       this.spotRepository.query(
-        `SELECT s.id, s.longitude, s.latitude, s.captured_at, s.processing_status,
+        `SELECT s.id, s.longitude, s.latitude, s.captured_at, s.processing_status, s.picked_up,
                 COUNT(di.id)::int AS item_count,
                 (SELECT di2.category FROM detected_items di2
                  WHERE di2.spot_id = s.id ORDER BY di2.weight_grams DESC NULLS LAST LIMIT 1) AS top_category
@@ -117,6 +118,7 @@ export class InsightsService {
           itemCount: Number(r.item_count),
           topCategory: r.top_category,
           status: r.processing_status,
+          pickedUp: r.picked_up,
         },
       })),
     };
@@ -158,6 +160,7 @@ export class InsightsService {
     if (filter.teamId) parts.push(`t:${filter.teamId}`);
     if (filter.cleanupDateId) parts.push(`cd:${filter.cleanupDateId}`);
     if (filter.since) parts.push(`s:${filter.since}`);
+    if (filter.pickedUp !== undefined) parts.push(`pu:${filter.pickedUp}`);
     return parts.join(':');
   }
 
@@ -166,6 +169,7 @@ export class InsightsService {
     if (filter.teamId) parts.push(`t:${filter.teamId}`);
     if (filter.cleanupDateId) parts.push(`cd:${filter.cleanupDateId}`);
     if (filter.since) parts.push(`s:${filter.since}`);
+    if (filter.pickedUp !== undefined) parts.push(`pu:${filter.pickedUp}`);
     return parts.join(':');
   }
 
@@ -184,6 +188,10 @@ export class InsightsService {
     if (filter.since) {
       conditions.push(`${alias}.captured_at >= $${idx++}`);
       params.push(filter.since);
+    }
+    if (filter.pickedUp !== undefined) {
+      conditions.push(`${alias}.picked_up = $${idx++}`);
+      params.push(filter.pickedUp);
     }
     return {
       where: conditions.length ? 'WHERE ' + conditions.join(' AND ') : '',
@@ -207,6 +215,10 @@ export class InsightsService {
       conditions.push(`${alias}.captured_at >= $${idx++}`);
       params.push(filter.since);
     }
+    if (filter.pickedUp !== undefined) {
+      conditions.push(`${alias}.picked_up = $${idx++}`);
+      params.push(filter.pickedUp);
+    }
     return {
       and: conditions.length ? 'AND ' + conditions.join(' AND ') : '',
       params,
@@ -215,7 +227,7 @@ export class InsightsService {
   }
 
   private hasFilter(filter: StatsFilter): boolean {
-    return !!(filter.teamId || filter.cleanupDateId || filter.since);
+    return !!(filter.teamId || filter.cleanupDateId || filter.since || filter.pickedUp !== undefined);
   }
 
   private async computeStats(filter: StatsFilter = {}): Promise<PublicStats> {

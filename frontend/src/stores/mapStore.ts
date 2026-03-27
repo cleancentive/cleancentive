@@ -25,6 +25,7 @@ export const useMapStore = create<MapState>((set) => ({
       if (params?.team_id) searchParams.set('team_id', params.team_id)
       if (params?.cleanup_date_id) searchParams.set('cleanup_date_id', params.cleanup_date_id)
       if (params?.since) searchParams.set('since', params.since)
+      if (params?.picked_up) searchParams.set('picked_up', params.picked_up)
       const qs = searchParams.toString()
       const response = await axios.get(`${API_BASE}/insights/map${qs ? '?' + qs : ''}`)
       set({

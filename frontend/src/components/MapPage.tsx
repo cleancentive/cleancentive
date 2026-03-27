@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useMapStore } from '../stores/mapStore'
 import { useAuthStore } from '../stores/authStore'
-import { useInsightsFilterStore, presetToSince } from '../stores/insightsFilterStore'
+import { useInsightsFilterStore, presetToSince, pickedUpFilterToParam } from '../stores/insightsFilterStore'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -12,7 +12,7 @@ function formatDate(iso: string): string {
 export function MapPage() {
   const { spotGeoJson, cleanupGeoJson, isLoading, error, fetchMapData } = useMapStore()
   const { user } = useAuthStore()
-  const { datePreset } = useInsightsFilterStore()
+  const { datePreset, pickedUpFilter } = useInsightsFilterStore()
 
   const teamId = user?.active_team_id ?? undefined
   const cleanupDateId = user?.active_cleanup_date_id ?? undefined
@@ -28,13 +28,14 @@ export function MapPage() {
       team_id: teamId,
       cleanup_date_id: cleanupDateId,
       since: presetToSince(datePreset),
+      picked_up: pickedUpFilterToParam(pickedUpFilter),
     })
-  }, [fetchMapData, teamId, cleanupDateId, datePreset])
+  }, [fetchMapData, teamId, cleanupDateId, datePreset, pickedUpFilter])
 
   // Reset userInteracted when filters change so auto-fit fires again
   useEffect(() => {
     userInteractedRef.current = false
-  }, [teamId, cleanupDateId, datePreset])
+  }, [teamId, cleanupDateId, datePreset, pickedUpFilter])
 
   // Initialize map once
   useEffect(() => {
@@ -121,11 +122,16 @@ export function MapPage() {
         filter: ['!', ['has', 'point_count']],
         paint: {
           'circle-color': [
-            'match', ['get', 'status'],
-            'completed', '#4caf50',
-            'processing', '#ff9800',
-            'failed', '#f44336',
-            '#9e9e9e',
+            'case',
+            ['==', ['get', 'pickedUp'], false],
+            '#2563eb', // blue for spot-only
+            [
+              'match', ['get', 'status'],
+              'completed', '#4caf50',
+              'processing', '#ff9800',
+              'failed', '#f44336',
+              '#9e9e9e',
+            ],
           ],
           'circle-radius': 7,
           'circle-stroke-width': 2,
@@ -174,7 +180,7 @@ export function MapPage() {
           <div class="map-popup">
             <img src="${import.meta.env.VITE_API_URL || '/api/v1'}/spots/${p.id}/thumbnail" alt="" class="map-popup-thumb" />
             <div class="map-popup-info">
-              <strong>${p.topCategory ? p.topCategory.replace(/_/g, ' ') : 'Pick'}</strong>
+              <strong>${p.topCategory ? p.topCategory.replace(/_/g, ' ') : (p.pickedUp === false ? 'Spot' : 'Pick')}</strong>
               <span>${formatDate(p.capturedAt)}</span>
               <span>${p.itemCount} item${p.itemCount !== 1 ? 's' : ''} detected</span>
             </div>

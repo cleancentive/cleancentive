@@ -87,6 +87,9 @@ export class Spot extends BaseEntity {
   @Column('timestamp', { nullable: true })
   original_purged_at: Date | null;
 
+  @Column('boolean', { default: true })
+  picked_up: boolean;
+
   @OneToMany('DetectedItem', (item: any) => item.spot)
   items: any[];
 }

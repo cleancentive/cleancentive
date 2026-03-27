@@ -139,6 +139,7 @@ export function CapturePanel() {
   const [locationError, setLocationError] = useState<string | null>(null)
   const [captureError, setCaptureError] = useState<string | null>(null)
   const [showLocationDetail, setShowLocationDetail] = useState(false)
+  const [pickedUp, setPickedUp] = useState(true)
 
   const locationWithinAccuracy = Boolean(location && location.accuracy <= MAX_LOCATION_ACCURACY_METERS)
   const locationAccepted = Boolean(location && (DISABLE_LOCATION_ACCURACY_CHECK || locationWithinAccuracy))
@@ -382,9 +383,11 @@ export function CapturePanel() {
         mimeType: imageBlob.type || 'image/jpeg',
         imageBlob,
         thumbnailBlob,
+        pickedUp,
       })
 
-      trackEvent('spot-logged', { source: 'camera' })
+      trackEvent('spot-logged', { source: 'camera', pickedUp })
+      setPickedUp(true)
       notifyPicksChanged()
 
       if (isOnline) {
@@ -426,9 +429,11 @@ export function CapturePanel() {
         mimeType: file.type || 'image/jpeg',
         imageBlob,
         thumbnailBlob,
+        pickedUp,
       })
 
-      trackEvent('spot-logged', { source: 'import' })
+      trackEvent('spot-logged', { source: 'import', pickedUp })
+      setPickedUp(true)
       notifyPicksChanged()
 
       if (isOnline) {
@@ -456,7 +461,7 @@ export function CapturePanel() {
 
   return (
     <fieldset className="page-card capture-panel">
-      <legend>Log a Pick</legend>
+      <legend>{pickedUp ? 'Log a Pick' : 'Log a Spot'}</legend>
       <div className="capture-toolbar">
         <span
           className={`capture-status-pill ${locationAccepted ? 'capture-status-pill--good' : 'capture-status-pill--warning'}`}
@@ -513,13 +518,19 @@ export function CapturePanel() {
                   onClick={captureAndQueue}
                   disabled={isCapturing || !locationAccepted}
                 >
-                {isCapturing ? 'Capturing...' : 'Log Pick'}
+                {isCapturing ? 'Capturing...' : pickedUp ? 'Log Pick' : 'Log Spot'}
               </button>
             </div>
           </>
         )}
         <canvas ref={captureCanvasRef} className="capture-canvas" />
       </div>
+
+      <p className="capture-picked-up-toggle">
+        <button className="link-button" onClick={() => setPickedUp(prev => !prev)}>
+          {pickedUp ? "Didn\u2019t pick it up?" : 'I picked it up'}
+        </button>
+      </p>
 
       {ongoingCleanup && (
         <p className="warning-message">
