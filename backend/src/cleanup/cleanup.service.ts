@@ -335,7 +335,9 @@ export class CleanupService {
 
       const userRole = participantMap.get(cleanup.id) || null;
       if (input.memberOnly && !userRole) continue;
-      const nearestDate = dates[0] || null;
+      const ongoingDate = dates.find((d) => d.start_at <= now && d.end_at >= now);
+      const upcomingDate = dates.find((d) => d.start_at > now);
+      const nearestDate = ongoingDate || upcomingDate || dates[dates.length - 1] || null;
       result.push({ cleanup, nearestDate, userRole });
     }
 
