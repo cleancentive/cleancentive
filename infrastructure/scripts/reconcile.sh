@@ -34,7 +34,10 @@ last_compose_checksum=$(cat "$STATE_DIR/compose.sha256" 2>/dev/null || true)
 last_caddy_checksum=$(cat "$STATE_DIR/caddy.sha256" 2>/dev/null || true)
 last_env_checksum=$(cat "$STATE_DIR/env.sha256" 2>/dev/null || true)
 
-mapfile -t desired_images < <(grep -E '^\s*image:\s*ghcr\.io/cleancentive/' "$DEPLOY_DIR/docker-compose.prod.yml" | sed -E 's/^\s*image:\s*//')
+desired_images=()
+while IFS= read -r line; do
+  desired_images+=("$line")
+done < <(grep -E '^\s*image:\s*ghcr\.io/cleancentive/' "$DEPLOY_DIR/docker-compose.prod.yml" | sed -E 's/^[[:space:]]*image:[[:space:]]*//')
 
 print_summary() {
   local status="$1"

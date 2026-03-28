@@ -13,7 +13,10 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 1
 fi
 
-mapfile -t images < <(grep -E '^\s*image:\s*ghcr\.io/cleancentive/' "$compose_file" | sed -E 's/^\s*image:\s*//')
+images=()
+while IFS= read -r line; do
+  images+=("$line")
+done < <(grep -E '^\s*image:\s*ghcr\.io/cleancentive/' "$compose_file" | sed -E 's/^[[:space:]]*image:[[:space:]]*//')
 
 if [[ ${#images[@]} -eq 0 ]]; then
   echo "No image references found in $compose_file" >&2
