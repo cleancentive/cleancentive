@@ -210,20 +210,6 @@ export function ContextBar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myCleanups.length])
 
-  if (!user) return null
-
-  const myTeams = teamResults
-    .map(t => ({ id: t.team.id, name: t.team.name }))
-
-  const dropdownEmptyLabel = config.dropdownsAreFilters ? 'All' : 'None'
-  const filterMode = config.dropdownsAreFilters
-  const anyFiltersActive = hasActiveFilters(myFilter, pickedUpFilter, datePreset)
-  const anyFilterEnabled = config.myEnabled || config.pickedUpEnabled || config.dateEnabled
-
-  // Compound summary: "My picks in [TeamName]"
-  const teamName = user.active_team_name || null
-  const showCompoundSummary = effectiveMyFilter && teamName && config.dropdownsAreFilters
-
   const barRef = useRef<HTMLDivElement>(null)
   const contextRef = useRef<HTMLDivElement>(null)
   const filterRef = useRef<HTMLDivElement>(null)
@@ -238,6 +224,7 @@ export function ContextBar() {
     let isStacked = false
 
     const update = () => {
+      if (!bar.isConnected) return
       // Temporarily force single-line + auto width to measure natural sizes
       bar.classList.remove('context-bar--stacked')
       const origFlex = flt.style.flex
@@ -272,7 +259,22 @@ export function ContextBar() {
     observer.observe(flt)
     update()
     return () => observer.disconnect()
-  })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
+
+  if (!user) return null
+
+  const myTeams = teamResults
+    .map(t => ({ id: t.team.id, name: t.team.name }))
+
+  const dropdownEmptyLabel = config.dropdownsAreFilters ? 'All' : 'None'
+  const filterMode = config.dropdownsAreFilters
+  const anyFiltersActive = hasActiveFilters(myFilter, pickedUpFilter, datePreset)
+  const anyFilterEnabled = config.myEnabled || config.pickedUpEnabled || config.dateEnabled
+
+  // Compound summary: "My picks in [TeamName]"
+  const teamName = user.active_team_name || null
+  const showCompoundSummary = effectiveMyFilter && teamName && config.dropdownsAreFilters
 
   return (
     <div
