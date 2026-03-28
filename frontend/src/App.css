@@ -2605,7 +2605,7 @@
   background: #c7d2fe;
   clip-path: url(#s-curve-clip);
   transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: width;
+  transform: translateZ(0);
   z-index: 0;
 }
 
