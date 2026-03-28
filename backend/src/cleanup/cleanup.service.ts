@@ -32,6 +32,7 @@ interface SearchCleanupsInput {
   status?: 'past' | 'ongoing' | 'future';
   date?: Date;
   includeArchived?: boolean;
+  memberOnly?: boolean;
   currentUserIsPlatformAdmin: boolean;
   userId?: string;
 }
@@ -332,8 +333,10 @@ export class CleanupService {
         continue;
       }
 
+      const userRole = participantMap.get(cleanup.id) || null;
+      if (input.memberOnly && !userRole) continue;
       const nearestDate = dates[0] || null;
-      result.push({ cleanup, nearestDate, userRole: participantMap.get(cleanup.id) || null });
+      result.push({ cleanup, nearestDate, userRole });
     }
 
     return result;

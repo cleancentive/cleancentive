@@ -20,6 +20,7 @@ import { EmailService } from '../email/email.service';
 interface SearchTeamsInput {
   query?: string;
   includeArchived?: boolean;
+  memberOnly?: boolean;
   currentUserIsPlatformAdmin: boolean;
   userId?: string;
 }
@@ -148,11 +149,17 @@ export class TeamService {
       .getRawMany();
     const partnerTeamIds = new Set(partnerPatterns.map((r) => r.team_id));
 
-    return teams.map((team) => ({
+    const results = teams.map((team) => ({
       team,
       userRole: membershipMap.get(team.id) || null,
       isPartner: partnerTeamIds.has(team.id),
     }));
+
+    if (input.memberOnly) {
+      return results.filter((r) => r.userRole !== null);
+    }
+
+    return results;
   }
 
   async createTeam(userId: string, input: CreateTeamInput): Promise<Team> {

@@ -50,6 +50,7 @@ interface TeamSearchResult {
 
 interface TeamState {
   teams: TeamSearchResult[]
+  myTeams: TeamSearchResult[]
   currentTeam: TeamDetail | null
   messages: TeamMessage[]
   isLoading: boolean
@@ -57,6 +58,7 @@ interface TeamState {
   error: string | null
 
   searchTeams: (query?: string) => Promise<void>
+  fetchMyTeams: () => Promise<void>
   fetchTeam: (id: string) => Promise<void>
   createTeam: (name: string, description: string) => Promise<TeamSummary | null>
   updateTeam: (id: string, data: { name?: string; description?: string }) => Promise<void>
@@ -76,6 +78,7 @@ interface TeamState {
 
 export const useTeamStore = create<TeamState>()((set, get) => ({
   teams: [],
+  myTeams: [],
   currentTeam: null,
   messages: [],
   isLoading: false,
@@ -93,6 +96,16 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
       set({ teams: response.data, isLoading: false })
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to load teams', isLoading: false })
+    }
+  },
+
+  fetchMyTeams: async () => {
+    try {
+      const params = new URLSearchParams({ member_only: 'true' })
+      const response = await axios.get(`${API_BASE}/teams?${params}`, { headers: getHeaders() })
+      set({ myTeams: response.data })
+    } catch {
+      // Silently fail — ContextBar dropdowns will just be empty
     }
   },
 

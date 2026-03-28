@@ -32,12 +32,14 @@ export class TeamController {
     @Request() req: any,
     @Query('q') query?: string,
     @Query('includeArchived') includeArchived?: string,
+    @Query('member_only') memberOnly?: string,
   ) {
     const userId = req.user?.userId;
     const isPlatformAdmin = userId ? await this.adminService.isAdmin(userId) : false;
     return this.teamService.searchTeams({
       query,
       includeArchived: includeArchived === 'true',
+      memberOnly: memberOnly === 'true',
       currentUserIsPlatformAdmin: isPlatformAdmin,
       userId,
     });

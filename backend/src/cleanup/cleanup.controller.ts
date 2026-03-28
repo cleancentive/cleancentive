@@ -63,6 +63,7 @@ export class CleanupController {
     @Query('status') status?: 'past' | 'ongoing' | 'future',
     @Query('date') date?: string,
     @Query('includeArchived') includeArchived?: string,
+    @Query('member_only') memberOnly?: string,
   ) {
     const userId = req.user?.userId;
     const isPlatformAdmin = userId ? await this.adminService.isAdmin(userId) : false;
@@ -71,6 +72,7 @@ export class CleanupController {
       status,
       date: date ? new Date(date) : undefined,
       includeArchived: includeArchived === 'true',
+      memberOnly: memberOnly === 'true',
       currentUserIsPlatformAdmin: isPlatformAdmin,
       userId,
     });

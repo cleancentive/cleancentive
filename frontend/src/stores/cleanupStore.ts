@@ -59,6 +59,7 @@ interface CleanupMessage {
 
 interface CleanupState {
   cleanups: CleanupSearchResult[]
+  myCleanups: CleanupSearchResult[]
   currentCleanup: CleanupDetail | null
   messages: CleanupMessage[]
   statusFilter: 'past' | 'ongoing' | 'future' | null
@@ -67,6 +68,7 @@ interface CleanupState {
   error: string | null
 
   searchCleanups: (query?: string) => Promise<void>
+  fetchMyCleanups: () => Promise<void>
   fetchCleanup: (id: string) => Promise<void>
   createCleanup: (name: string, description: string, date: {
     startAt: string
@@ -109,6 +111,7 @@ interface CleanupState {
 
 export const useCleanupStore = create<CleanupState>()((set, get) => ({
   cleanups: [],
+  myCleanups: [],
   currentCleanup: null,
   messages: [],
   statusFilter: null,
@@ -128,6 +131,16 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
       set({ cleanups: response.data, isLoading: false })
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to load cleanups', isLoading: false })
+    }
+  },
+
+  fetchMyCleanups: async () => {
+    try {
+      const params = new URLSearchParams({ member_only: 'true' })
+      const response = await axios.get(`${API_BASE}/cleanups/search?${params}`, { headers: getHeaders() })
+      set({ myCleanups: response.data })
+    } catch {
+      // Silently fail — ContextBar dropdowns will just be empty
     }
   },
 

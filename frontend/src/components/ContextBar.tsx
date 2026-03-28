@@ -156,8 +156,8 @@ function hasActiveFilters(myFilter: boolean, pickedUpFilter: PickedUpFilter, dat
 
 export function ContextBar() {
   const { user } = useAuthStore()
-  const { teams, searchTeams, activateTeam, deactivateTeam } = useTeamStore()
-  const { cleanups, searchCleanups, activateDate, deactivateDate } = useCleanupStore()
+  const { myTeams: teamResults, fetchMyTeams, activateTeam, deactivateTeam } = useTeamStore()
+  const { myCleanups: cleanupResults, fetchMyCleanups, activateDate, deactivateDate } = useCleanupStore()
   const { isOnline } = useConnectivityStore()
   const {
     datePreset, setDatePreset,
@@ -173,9 +173,9 @@ export function ContextBar() {
 
   const refreshData = useCallback(() => {
     if (!user) return
-    searchTeams()
-    searchCleanups()
-  }, [user, searchTeams, searchCleanups])
+    fetchMyTeams()
+    fetchMyCleanups()
+  }, [user, fetchMyTeams, fetchMyCleanups])
 
   // Initial load
   useEffect(() => {
@@ -189,11 +189,9 @@ export function ContextBar() {
     return () => clearInterval(id)
   }, [user, isOnline, refreshData])
 
-  // Compute eligible cleanups: in filter mode show all, otherwise only user's ongoing
-  const myCleanups = cleanups
-    .filter(c => c.nearestDate && (config.dropdownsAreFilters || c.userRole !== null))
+  const myCleanups = cleanupResults
+    .filter(c => c.nearestDate)
     .filter(c => {
-      if (config.dropdownsAreFilters) return true
       if (!isOnline) return true
       const d = c.nearestDate!
       return isDateOngoing(d.start_at, d.end_at)
@@ -214,8 +212,7 @@ export function ContextBar() {
 
   if (!user) return null
 
-  // In filter mode, show all teams; otherwise only show teams the user is a member of
-  const myTeams = (config.dropdownsAreFilters ? teams : teams.filter(t => t.userRole !== null))
+  const myTeams = teamResults
     .map(t => ({ id: t.team.id, name: t.team.name }))
 
   const dropdownEmptyLabel = config.dropdownsAreFilters ? 'All' : 'None'
