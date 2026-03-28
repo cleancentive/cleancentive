@@ -300,3 +300,34 @@ export async function extractImageMetadata(file: File): Promise<ImageMetadata> {
     accuracyMeters,
   }
 }
+
+const FILENAME_DATE_PATTERNS: Array<{ regex: RegExp; parse: (m: RegExpMatchArray) => Date | null }> = [
+  {
+    // IMG_20240315_143022, PXL_20240315_143022, Screenshot_20240315-143022
+    regex: /(?:IMG|PXL|Screenshot)[_-](\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})/,
+    parse: (m) => new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]),
+  },
+  {
+    // 20240315_143022
+    regex: /(\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})/,
+    parse: (m) => new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]),
+  },
+  {
+    // 2024-03-15_14-30-22 or 2024-03-15 14-30-22
+    regex: /(\d{4})-(\d{2})-(\d{2})[_ ](\d{2})-(\d{2})-(\d{2})/,
+    parse: (m) => new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]),
+  },
+]
+
+export function extractTimestampFromFilename(filename: string): string | null {
+  for (const { regex, parse } of FILENAME_DATE_PATTERNS) {
+    const match = filename.match(regex)
+    if (match) {
+      const date = parse(match)
+      if (date && !isNaN(date.getTime()) && date.getFullYear() >= 2000 && date.getFullYear() <= 2100) {
+        return date.toISOString()
+      }
+    }
+  }
+  return null
+}

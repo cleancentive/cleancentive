@@ -94,6 +94,21 @@ export class CleanupController {
     });
   }
 
+  @Get('my-dates')
+  @UseGuards(JwtAuthGuard)
+  async getMyDates(
+    @Request() req: any,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const fromDate = new Date(from || '');
+    const toDate = new Date(to || '');
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return [];
+    }
+    return this.cleanupService.getParticipatedCleanupDates(req.user.userId, fromDate, toDate);
+  }
+
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
   async getCleanup(

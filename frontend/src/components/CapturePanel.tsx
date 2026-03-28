@@ -5,6 +5,8 @@ import { useCleanupStore } from '../stores/cleanupStore'
 import { flushOutbox, queueCapture } from '../lib/pendingPicks'
 import { extractImageMetadata } from '../lib/imageMetadata'
 import { trackEvent } from '../lib/analytics'
+import { createBlobFromCanvas, createThumbnailFromCanvas, createThumbnailFromBlob } from '../lib/thumbnail'
+import { BatchImportDialog } from './BatchImportDialog'
 
 const DEFAULT_MAX_LOCATION_ACCURACY_METERS = import.meta.env.DEV ? 5000 : 200
 const MAX_LOCATION_ACCURACY_METERS = Number(
@@ -27,85 +29,6 @@ interface LocationSnapshot {
   timestamp: number
 }
 
-function createBlobFromCanvas(canvas: HTMLCanvasElement, mimeType: string, quality: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error('Failed to capture image'))
-        return
-      }
-      resolve(blob)
-    }, mimeType, quality)
-  })
-}
-
-async function createThumbnail(sourceCanvas: HTMLCanvasElement): Promise<Blob> {
-  const maxDimension = 320
-  const width = sourceCanvas.width
-  const height = sourceCanvas.height
-  const scale = Math.min(1, maxDimension / Math.max(width, height))
-
-  const thumbnailCanvas = document.createElement('canvas')
-  thumbnailCanvas.width = Math.max(1, Math.round(width * scale))
-  thumbnailCanvas.height = Math.max(1, Math.round(height * scale))
-
-  const context = thumbnailCanvas.getContext('2d')
-  if (!context) {
-    throw new Error('Failed to create thumbnail context')
-  }
-
-  context.drawImage(sourceCanvas, 0, 0, thumbnailCanvas.width, thumbnailCanvas.height)
-  return createBlobFromCanvas(thumbnailCanvas, 'image/jpeg', 0.8)
-}
-
-function imageBitmapSupported(): boolean {
-  return typeof window !== 'undefined' && typeof window.createImageBitmap === 'function'
-}
-
-async function createCanvasFromBlob(blob: Blob): Promise<HTMLCanvasElement> {
-  const canvas = document.createElement('canvas')
-  const context = canvas.getContext('2d')
-
-  if (!context) {
-    throw new Error('Failed to create canvas context')
-  }
-
-  if (imageBitmapSupported()) {
-    const imageBitmap = await window.createImageBitmap(blob)
-    canvas.width = imageBitmap.width
-    canvas.height = imageBitmap.height
-    context.drawImage(imageBitmap, 0, 0, imageBitmap.width, imageBitmap.height)
-    imageBitmap.close()
-    return canvas
-  }
-
-  const imageElement = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image()
-    const objectUrl = URL.createObjectURL(blob)
-
-    image.onload = () => {
-      URL.revokeObjectURL(objectUrl)
-      resolve(image)
-    }
-
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl)
-      reject(new Error('Failed to decode imported image'))
-    }
-
-    image.src = objectUrl
-  })
-
-  canvas.width = imageElement.naturalWidth
-  canvas.height = imageElement.naturalHeight
-  context.drawImage(imageElement, 0, 0, canvas.width, canvas.height)
-  return canvas
-}
-
-async function createThumbnailFromBlob(blob: Blob): Promise<Blob> {
-  const sourceCanvas = await createCanvasFromBlob(blob)
-  return createThumbnail(sourceCanvas)
-}
 
 function notifyPicksChanged() {
   window.dispatchEvent(new Event('picks-changed'))
@@ -140,6 +63,7 @@ export function CapturePanel() {
   const [captureError, setCaptureError] = useState<string | null>(null)
   const [showLocationDetail, setShowLocationDetail] = useState(false)
   const [pickedUp, setPickedUp] = useState(true)
+  const [batchFiles, setBatchFiles] = useState<File[] | null>(null)
 
   const locationWithinAccuracy = Boolean(location && location.accuracy <= MAX_LOCATION_ACCURACY_METERS)
   const locationAccepted = Boolean(location && (DISABLE_LOCATION_ACCURACY_CHECK || locationWithinAccuracy))
@@ -371,7 +295,7 @@ export function CapturePanel() {
       context.drawImage(video, 0, 0, canvas.width, canvas.height)
 
       const imageBlob = await createBlobFromCanvas(canvas, 'image/jpeg', 0.9)
-      const thumbnailBlob = await createThumbnail(canvas)
+      const thumbnailBlob = await createThumbnailFromCanvas(canvas)
 
       await queueCapture({
         ownerUserId: user?.id || null,
@@ -451,12 +375,16 @@ export function CapturePanel() {
   }
 
   const handleFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = event.target.files?.[0]
-    if (!selectedFile) {
+    const selectedFiles = event.target.files
+    if (!selectedFiles || selectedFiles.length === 0) {
       return
     }
 
-    await queueImportedFile(selectedFile)
+    if (selectedFiles.length === 1) {
+      await queueImportedFile(selectedFiles[0])
+    } else {
+      setBatchFiles(Array.from(selectedFiles))
+    }
   }
 
   return (
@@ -489,6 +417,7 @@ export function CapturePanel() {
           ref={fileInputRef}
           type="file"
           accept="image/*"
+          multiple
           onChange={handleFileInputChange}
           className="file-import-input"
         />
@@ -542,6 +471,24 @@ export function CapturePanel() {
       )}
       {locationError && <p className="error-message">Location error: {locationError}</p>}
       {captureError && <p className="error-message">{captureError}</p>}
+
+      {batchFiles && (
+        <BatchImportDialog
+          files={batchFiles}
+          pickedUp={pickedUp}
+          onDone={() => {
+            setBatchFiles(null)
+            if (fileInputRef.current) fileInputRef.current.value = ''
+            setPickedUp(true)
+            notifyPicksChanged()
+            if (isOnline) runSync()
+          }}
+          onCancel={() => {
+            setBatchFiles(null)
+            if (fileInputRef.current) fileInputRef.current.value = ''
+          }}
+        />
+      )}
     </fieldset>
   )
 }

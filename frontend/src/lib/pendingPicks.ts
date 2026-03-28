@@ -1,7 +1,7 @@
 import { v7 as uuidv7 } from 'uuid'
 
 const DB_NAME = 'cleancentive-offline'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const STORE_NAME = 'pending-picks'
 
 export type OutboxStatus = 'pending' | 'uploading' | 'failed'
@@ -18,6 +18,8 @@ export interface OutboxItem {
   imageBlob: Blob
   thumbnailBlob: Blob | null
   pickedUp: boolean
+  cleanupId: string | null
+  cleanupDateId: string | null
   status: OutboxStatus
   attempts: number
   lastError: string | null
@@ -36,6 +38,8 @@ interface QueueCaptureInput {
   imageBlob: Blob
   thumbnailBlob: Blob | null
   pickedUp?: boolean
+  cleanupId?: string | null
+  cleanupDateId?: string | null
 }
 
 interface FlushContext {
@@ -114,6 +118,8 @@ export async function queueCapture(input: QueueCaptureInput): Promise<OutboxItem
     imageBlob: input.imageBlob,
     thumbnailBlob: input.thumbnailBlob,
     pickedUp: input.pickedUp ?? true,
+    cleanupId: input.cleanupId ?? null,
+    cleanupDateId: input.cleanupDateId ?? null,
     status: 'pending',
     attempts: 0,
     lastError: null,
@@ -207,6 +213,13 @@ async function uploadItem(item: OutboxItem, context: FlushContext): Promise<void
   formData.append('longitude', String(item.longitude))
   formData.append('accuracyMeters', String(item.accuracyMeters))
   formData.append('pickedUp', String(item.pickedUp ?? true))
+
+  if (item.cleanupId) {
+    formData.append('cleanupId', item.cleanupId)
+  }
+  if (item.cleanupDateId) {
+    formData.append('cleanupDateId', item.cleanupDateId)
+  }
 
   if (!context.sessionToken && item.ownerGuestId) {
     formData.append('guestId', item.ownerGuestId)

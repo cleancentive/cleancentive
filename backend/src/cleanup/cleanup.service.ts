@@ -843,6 +843,94 @@ export class CleanupService {
     };
   }
 
+  async getParticipatedCleanupDates(
+    userId: string,
+    from: Date,
+    to: Date,
+  ): Promise<
+    Array<{
+      cleanupDateId: string;
+      cleanupId: string;
+      cleanupName: string;
+      startAt: string;
+      endAt: string;
+      latitude: number;
+      longitude: number;
+      locationName: string | null;
+    }>
+  > {
+    const participations = await this.cleanupParticipantRepository.find({
+      where: { user_id: userId },
+      select: ['cleanup_id'],
+    });
+
+    if (participations.length === 0) {
+      return [];
+    }
+
+    const cleanupIds = participations.map((p) => p.cleanup_id);
+
+    const paddedFrom = new Date(from.getTime() - 24 * 60 * 60 * 1000);
+    const paddedTo = new Date(to.getTime() + 24 * 60 * 60 * 1000);
+
+    const dates = await this.cleanupDateRepository
+      .createQueryBuilder('cd')
+      .innerJoin('cd.cleanup', 'cleanup')
+      .addSelect(['cleanup.id', 'cleanup.name', 'cleanup.archived_at'])
+      .where('cd.cleanup_id IN (:...cleanupIds)', { cleanupIds })
+      .andWhere('cleanup.archived_at IS NULL')
+      .andWhere('cd.start_at <= :paddedTo', { paddedTo })
+      .andWhere('cd.end_at >= :paddedFrom', { paddedFrom })
+      .orderBy('cd.start_at', 'DESC')
+      .getMany();
+
+    return dates.map((d) => ({
+      cleanupDateId: d.id,
+      cleanupId: d.cleanup_id,
+      cleanupName: d.cleanup.name,
+      startAt: d.start_at.toISOString(),
+      endAt: d.end_at.toISOString(),
+      latitude: d.latitude,
+      longitude: d.longitude,
+      locationName: d.location_name,
+    }));
+  }
+
+  async validateExplicitCleanupAssociation(
+    userId: string,
+    cleanupId: string,
+    cleanupDateId: string,
+    capturedAt: Date,
+  ): Promise<{ valid: boolean; warning: string | null }> {
+    const cleanupDate = await this.cleanupDateRepository.findOne({
+      where: { id: cleanupDateId },
+      relations: ['cleanup'],
+    });
+
+    if (!cleanupDate || cleanupDate.cleanup_id !== cleanupId) {
+      return { valid: false, warning: 'Cleanup date not found or does not belong to the specified cleanup.' };
+    }
+
+    if (cleanupDate.cleanup.archived_at) {
+      return { valid: false, warning: 'Cleanup is archived.' };
+    }
+
+    const participant = await this.getParticipant(cleanupId, userId);
+    if (!participant) {
+      return { valid: false, warning: 'You are not a participant of this cleanup.' };
+    }
+
+    const graceMs = 30 * 60 * 1000;
+    const windowStart = new Date(cleanupDate.start_at.getTime() - graceMs);
+    const windowEnd = new Date(cleanupDate.end_at.getTime() + graceMs);
+
+    if (capturedAt < windowStart || capturedAt > windowEnd) {
+      return { valid: false, warning: 'Photo was not taken during this cleanup.' };
+    }
+
+    return { valid: true, warning: null };
+  }
+
   private distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const toRadians = (degrees: number) => degrees * (Math.PI / 180);
     const earthRadiusKm = 6371;

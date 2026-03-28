@@ -21,6 +21,8 @@ interface CreateSpotInput {
   longitude: number;
   accuracyMeters: number;
   pickedUp?: boolean;
+  cleanupId?: string | null;
+  cleanupDateId?: string | null;
 }
 
 interface CreateSpotResult {
@@ -109,17 +111,40 @@ export class SpotService {
     const fileExt = this.getFileExtension(input.mimeType);
 
     const activeTeam = await this.teamService.resolveActiveTeamForUser(input.userId);
-    const activeCleanup = await this.cleanupService.resolveActiveCleanupDateForSpot(
-      input.userId,
-      input.latitude,
-      input.longitude,
-    );
+
+    let resolvedCleanupId: string | null = null;
+    let resolvedCleanupDateId: string | null = null;
+    let warning: string | null = null;
+
+    if (input.cleanupId && input.cleanupDateId) {
+      const validation = await this.cleanupService.validateExplicitCleanupAssociation(
+        input.userId,
+        input.cleanupId,
+        input.cleanupDateId,
+        input.capturedAt,
+      );
+      if (validation.valid) {
+        resolvedCleanupId = input.cleanupId;
+        resolvedCleanupDateId = input.cleanupDateId;
+      } else {
+        warning = validation.warning;
+      }
+    } else {
+      const activeCleanup = await this.cleanupService.resolveActiveCleanupDateForSpot(
+        input.userId,
+        input.latitude,
+        input.longitude,
+      );
+      resolvedCleanupId = activeCleanup.cleanupId;
+      resolvedCleanupDateId = activeCleanup.cleanupDateId;
+      warning = activeCleanup.warning;
+    }
 
     const spot = this.spotRepository.create({
       user_id: input.userId,
       team_id: activeTeam?.id || null,
-      cleanup_id: activeCleanup.cleanupId,
-      cleanup_date_id: activeCleanup.cleanupDateId,
+      cleanup_id: resolvedCleanupId,
+      cleanup_date_id: resolvedCleanupDateId,
       latitude: input.latitude,
       longitude: input.longitude,
       location_accuracy_meters: input.accuracyMeters,
@@ -207,7 +232,7 @@ export class SpotService {
 
     return {
       spot: savedSpot,
-      warning: activeCleanup.warning,
+      warning,
     };
   }
 

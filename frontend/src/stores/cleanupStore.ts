@@ -347,3 +347,25 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
 
   clearError: () => set({ error: null }),
 }))
+
+export interface ParticipatedCleanupDate {
+  cleanupDateId: string
+  cleanupId: string
+  cleanupName: string
+  startAt: string
+  endAt: string
+  latitude: number
+  longitude: number
+  locationName: string | null
+}
+
+export async function fetchParticipatedDates(from: string, to: string): Promise<ParticipatedCleanupDate[]> {
+  const sessionToken = useAuthStore.getState().sessionToken
+  if (!sessionToken) return []
+
+  const params = new URLSearchParams({ from, to })
+  const response = await axios.get(`${API_BASE}/cleanups/my-dates?${params}`, {
+    headers: { Authorization: `Bearer ${sessionToken}` },
+  })
+  return response.data
+}

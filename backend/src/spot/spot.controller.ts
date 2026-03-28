@@ -191,6 +191,8 @@ export class SpotController {
     const capturedAt = new Date(body.capturedAt || '');
     const guestId = body.guestId?.trim();
     const pickedUp = body.pickedUp === undefined ? true : body.pickedUp !== 'false';
+    const cleanupId = body.cleanupId?.trim() || null;
+    const cleanupDateId = body.cleanupDateId?.trim() || null;
 
     if (!uploadId) {
       throw new BadRequestException('uploadId is required');
@@ -227,6 +229,8 @@ export class SpotController {
       longitude,
       accuracyMeters: accuracy,
       pickedUp,
+      cleanupId,
+      cleanupDateId,
     });
 
     return {
