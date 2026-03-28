@@ -388,6 +388,8 @@ export function HistoryPanel() {
                           <li key={detected.id} className="history-item-row">
                             <span>{itemLabel(detected)}</span>
                             <span>
+                              {detected.weightGrams !== null ? `${Math.round(detected.weightGrams)} g` : ''}
+                              {detected.weightGrams !== null && detected.confidence !== null ? ' · ' : ''}
                               {detected.confidence !== null ? `${Math.round(detected.confidence * 100)}%` : 'n/a'}
                             </span>
                           </li>
