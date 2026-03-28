@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useCleanupStore } from '../stores/cleanupStore'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
+import { useInsightsFilterStore } from '../stores/insightsFilterStore'
 import { CommunityList } from './CommunityList'
 import { CommunityCard } from './CommunityCard'
 import { LocationPicker } from './LocationPicker'
@@ -56,7 +57,9 @@ export function CleanupList() {
   const { user } = useAuthStore()
   const { isOnline } = useConnectivityStore()
   const { cleanups, statusFilter, isLoading, error, searchCleanups, createCleanup, setStatusFilter, clearError } = useCleanupStore()
+  const { myFilter } = useInsightsFilterStore()
   const navigate = useNavigate()
+  const activeCleanupDateId = (user as any)?.active_cleanup_date_id as string | null
 
   const [showCreate, setShowCreate] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -120,7 +123,11 @@ export function CleanupList() {
       hideSearch={showCreate}
       onClearError={clearError}
       emptyMessage="No cleanups found"
-      isEmpty={cleanups.length === 0}
+      isEmpty={cleanups.filter(c => {
+        if (myFilter && c.userRole === null) return false
+        if (activeCleanupDateId && c.nearestDate?.id !== activeCleanupDateId) return false
+        return true
+      }).length === 0}
       actions={
         user && (
           <button className="primary-button" onClick={handleToggleCreate}>
@@ -198,8 +205,11 @@ export function CleanupList() {
         </form>
       )}
 
-      {cleanups.map(({ cleanup, nearestDate, userRole }) => {
-        const activeCleanupDateId = (user as any)?.active_cleanup_date_id
+      {cleanups.filter(c => {
+        if (myFilter && c.userRole === null) return false
+        if (activeCleanupDateId && c.nearestDate?.id !== activeCleanupDateId) return false
+        return true
+      }).map(({ cleanup, nearestDate, userRole }) => {
         const isActive = nearestDate && activeCleanupDateId === nearestDate.id
         return (
           <CommunityCard

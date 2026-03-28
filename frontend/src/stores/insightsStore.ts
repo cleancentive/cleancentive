@@ -38,6 +38,7 @@ export interface StatsFilterParams {
   cleanup_date_id?: string
   since?: string
   picked_up?: string
+  user_id?: string
 }
 
 interface InsightsState {
@@ -62,6 +63,7 @@ export const useInsightsStore = create<InsightsState>((set) => ({
       if (params?.cleanup_date_id) searchParams.set('cleanup_date_id', params.cleanup_date_id)
       if (params?.since) searchParams.set('since', params.since)
       if (params?.picked_up) searchParams.set('picked_up', params.picked_up)
+      if (params?.user_id) searchParams.set('user_id', params.user_id)
       const qs = searchParams.toString()
       const response = await axios.get(`${API_BASE}/insights/stats${qs ? '?' + qs : ''}`)
       set({ stats: response.data, isLoading: false })

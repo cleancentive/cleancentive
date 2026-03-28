@@ -4,6 +4,7 @@ import { useTeamStore } from '../stores/teamStore'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
+import { useInsightsFilterStore } from '../stores/insightsFilterStore'
 import { CommunityList } from './CommunityList'
 import { CommunityCard } from './CommunityCard'
 import { PartnerSettingsFields } from './PartnerSettingsFields'
@@ -13,6 +14,7 @@ export function TeamList() {
   const { isAdmin: isPlatformAdmin } = useAdminStore()
   const { isOnline } = useConnectivityStore()
   const { teams, isLoading, error, searchTeams, createTeam, updateEmailPatterns, updateCustomCss, clearError } = useTeamStore()
+  const { myFilter } = useInsightsFilterStore()
   const navigate = useNavigate()
 
   const [showCreate, setShowCreate] = useState(false)
@@ -70,7 +72,11 @@ export function TeamList() {
       hideSearch={showCreate}
       onClearError={clearError}
       emptyMessage="No teams found"
-      isEmpty={teams.length === 0}
+      isEmpty={teams.filter(t => {
+        if (myFilter && t.userRole === null) return false
+        if (user?.active_team_id && t.team.id !== user.active_team_id) return false
+        return true
+      }).length === 0}
       actions={
         user && (
           <button className="primary-button" onClick={handleToggleCreate}>
@@ -123,7 +129,11 @@ export function TeamList() {
         </form>
       )}
 
-      {teams.map(({ team, userRole, isPartner }) => {
+      {teams.filter(t => {
+        if (myFilter && t.userRole === null) return false
+        if (user?.active_team_id && t.team.id !== user.active_team_id) return false
+        return true
+      }).map(({ team, userRole, isPartner }) => {
         const activeTeamId = user?.active_team_id
         return (
           <CommunityCard

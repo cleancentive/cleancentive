@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useUiStore } from '../stores/uiStore'
+import { useInsightsFilterStore, presetToSince, pickedUpFilterToParam } from '../stores/insightsFilterStore'
 import { flushOutbox, getOutboxItems, type OutboxItem } from '../lib/pendingPicks'
 import { formatTimestamp } from '../utils/formatTimestamp'
 import { CountdownButton } from './CountdownButton'
@@ -179,14 +180,20 @@ export function HistoryPanel() {
   const [error, setError] = useState<string | null>(null)
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
 
+  const { pickedUpFilter, datePreset } = useInsightsFilterStore()
+
   const requestUrl = useMemo(() => {
     const params = new URLSearchParams({ limit: '50' })
     if (!sessionToken && guestId) {
       params.set('guestId', guestId)
     }
+    const pu = pickedUpFilterToParam(pickedUpFilter)
+    if (pu) params.set('picked_up', pu)
+    const since = presetToSince(datePreset)
+    if (since) params.set('since', since)
 
     return `${API_BASE}/spots?${params.toString()}`
-  }, [sessionToken, guestId])
+  }, [sessionToken, guestId, pickedUpFilter, datePreset])
 
   const loadHistory = useCallback(async () => {
     if (!sessionToken && !guestId) {
@@ -273,7 +280,15 @@ export function HistoryPanel() {
 
   const rows = useMemo((): Row[] => {
     const serverIds = new Set(reports.map(r => r.id))
-    const localOnly = outboxItems.filter(o => !serverIds.has(o.id))
+    const since = presetToSince(datePreset)
+    const localOnly = outboxItems
+      .filter(o => !serverIds.has(o.id))
+      .filter(o => {
+        if (pickedUpFilter === 'picked' && o.pickedUp === false) return false
+        if (pickedUpFilter === 'spotted' && o.pickedUp !== false) return false
+        if (since && o.capturedAt < since) return false
+        return true
+      })
 
     return [
       ...localOnly.map(item => ({ kind: 'local' as const, item })),
@@ -283,7 +298,7 @@ export function HistoryPanel() {
       const bTime = b.item.capturedAt
       return bTime.localeCompare(aTime)
     })
-  }, [reports, outboxItems])
+  }, [reports, outboxItems, pickedUpFilter, datePreset])
 
   const setPickCount = useUiStore((s) => s.setPickCount)
   useEffect(() => {

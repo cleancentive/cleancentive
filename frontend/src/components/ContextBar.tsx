@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useTeamStore } from '../stores/teamStore'
 import { useCleanupStore } from '../stores/cleanupStore'
@@ -20,6 +21,57 @@ const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000
 
+interface RouteConfig {
+  dropdownsEnabled: boolean
+  dropdownsAreFilters: boolean
+  myEnabled: boolean
+  myForcedOn: boolean
+  pickedUpEnabled: boolean
+  dateEnabled: boolean
+}
+
+function getRouteConfig(pathname: string): RouteConfig {
+  if (pathname === '/') {
+    return {
+      dropdownsEnabled: true,
+      dropdownsAreFilters: false,
+      myEnabled: false,
+      myForcedOn: true,
+      pickedUpEnabled: true,
+      dateEnabled: true,
+    }
+  }
+  if (pathname === '/insights' || pathname === '/map') {
+    return {
+      dropdownsEnabled: true,
+      dropdownsAreFilters: true,
+      myEnabled: true,
+      myForcedOn: false,
+      pickedUpEnabled: true,
+      dateEnabled: true,
+    }
+  }
+  if (pathname === '/teams' || pathname === '/cleanups') {
+    return {
+      dropdownsEnabled: true,
+      dropdownsAreFilters: true,
+      myEnabled: true,
+      myForcedOn: false,
+      pickedUpEnabled: false,
+      dateEnabled: false,
+    }
+  }
+  // Detail pages, feedback, profile, steward, etc.
+  return {
+    dropdownsEnabled: false,
+    dropdownsAreFilters: false,
+    myEnabled: false,
+    myForcedOn: false,
+    pickedUpEnabled: false,
+    dateEnabled: false,
+  }
+}
+
 function ChevronDown() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -28,12 +80,14 @@ function ChevronDown() {
   )
 }
 
-function Dropdown({ items, activeId, onSelect, onClear, label }: {
+function Dropdown({ items, activeId, onSelect, onClear, label, emptyLabel, disabled }: {
   items: Array<{ id: string; name: string }>
   activeId: string | null
   onSelect: (id: string) => void
   onClear: () => void
   label: string
+  emptyLabel: string
+  disabled?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -55,21 +109,26 @@ function Dropdown({ items, activeId, onSelect, onClear, label }: {
   }, [open])
 
   const activeName = items.find(i => i.id === activeId)?.name
+  const isDisabled = disabled || items.length === 0
 
   return (
     <div className="context-dropdown" ref={ref}>
-      <button className="context-dropdown-trigger" onClick={() => setOpen(!open)} disabled={items.length === 0}>
+      <button
+        className="context-dropdown-trigger"
+        onClick={() => !isDisabled && setOpen(!open)}
+        disabled={isDisabled}
+      >
         <span className="context-dropdown-label">{label}:</span>
-        <span className="context-dropdown-value">{activeName || 'None'}</span>
+        <span className="context-dropdown-value">{activeName || emptyLabel}</span>
         <ChevronDown />
       </button>
-      {open && (
+      {open && !isDisabled && (
         <div className="context-dropdown-menu">
           <button
             className={`context-dropdown-item ${!activeId ? 'context-dropdown-item--active' : ''}`}
             onClick={() => { onClear(); setOpen(false) }}
           >
-            None
+            {emptyLabel}
           </button>
           {items.map(item => (
             <button
@@ -91,13 +150,26 @@ function isDateOngoing(startAt: string, endAt: string): boolean {
   return new Date(startAt).getTime() <= now && new Date(endAt).getTime() >= now
 }
 
+function hasActiveFilters(myFilter: boolean, pickedUpFilter: PickedUpFilter, datePreset: DatePreset): boolean {
+  return myFilter || pickedUpFilter !== 'picked' || datePreset !== 'all'
+}
+
 export function ContextBar() {
   const { user } = useAuthStore()
   const { teams, searchTeams, activateTeam, deactivateTeam } = useTeamStore()
   const { cleanups, searchCleanups, activateDate, deactivateDate } = useCleanupStore()
   const { isOnline } = useConnectivityStore()
-  const { datePreset, setDatePreset, pickedUpFilter, setPickedUpFilter } = useInsightsFilterStore()
+  const {
+    datePreset, setDatePreset,
+    pickedUpFilter, setPickedUpFilter,
+    myFilter, setMyFilter,
+    clearFilters,
+  } = useInsightsFilterStore()
   const autoActivatedRef = useRef(false)
+  const { pathname } = useLocation()
+  const config = getRouteConfig(pathname)
+
+  const effectiveMyFilter = config.myForcedOn || myFilter
 
   const refreshData = useCallback(() => {
     if (!user) return
@@ -146,44 +218,102 @@ export function ContextBar() {
     .filter(t => t.userRole !== null)
     .map(t => ({ id: t.team.id, name: t.team.name }))
 
+  const dropdownEmptyLabel = config.dropdownsAreFilters ? 'All' : 'None'
+  const filterMode = config.dropdownsAreFilters
+  const anyFiltersActive = hasActiveFilters(myFilter, pickedUpFilter, datePreset)
+  const anyFilterEnabled = config.myEnabled || config.pickedUpEnabled || config.dateEnabled
+
+  // Compound summary: "My picks in [TeamName]"
+  const teamName = user.active_team_name || null
+  const showCompoundSummary = effectiveMyFilter && teamName && config.dropdownsAreFilters
+
   return (
-    <div className="context-bar">
-      <Dropdown
-        items={myTeams}
-        activeId={user.active_team_id || null}
-        onSelect={(id) => activateTeam(id)}
-        onClear={() => deactivateTeam()}
-        label="Team"
-      />
-      <Dropdown
-        items={myCleanups}
-        activeId={user.active_cleanup_date_id || null}
-        onSelect={(id) => activateDate(id)}
-        onClear={() => deactivateDate()}
-        label="Cleanup"
-      />
-      <div className="context-date-chips">
-        {PICKED_UP_PRESETS.map(({ value, label }) => (
-          <button
-            key={value}
-            className={`context-date-chip${pickedUpFilter === value ? ' context-date-chip--active' : ''}`}
-            onClick={() => setPickedUpFilter(value)}
-          >
-            {label}
-          </button>
-        ))}
+    <div className={`context-bar${filterMode ? ' context-bar--filter-mode' : ''}`}>
+      <svg width="0" height="0" style={{ position: 'absolute' }}>
+        <defs>
+          <clipPath id="s-curve-clip" clipPathUnits="objectBoundingBox">
+            <path d="M0.02,0 C0.01,0.4 0,0.6 0.02,1 L1,1 L1,0 Z" />
+          </clipPath>
+        </defs>
+      </svg>
+      <div
+        className={`context-zone${!config.dropdownsEnabled ? ' context-zone--disabled' : ''}`}
+        title="Controls which team and cleanup your picks join"
+      >
+        <Dropdown
+          items={myTeams}
+          activeId={user.active_team_id || null}
+          onSelect={(id) => activateTeam(id)}
+          onClear={() => deactivateTeam()}
+          label="Team"
+          emptyLabel={dropdownEmptyLabel}
+          disabled={!config.dropdownsEnabled}
+        />
+        <Dropdown
+          items={myCleanups}
+          activeId={user.active_cleanup_date_id || null}
+          onSelect={(id) => activateDate(id)}
+          onClear={() => deactivateDate()}
+          label="Cleanup"
+          emptyLabel={dropdownEmptyLabel}
+          disabled={!config.dropdownsEnabled}
+        />
       </div>
-      <div className="context-date-chips">
-        {DATE_PRESETS.map(({ value, label }) => (
+
+      <div
+        className={`filter-zone${!anyFilterEnabled ? ' filter-zone--disabled' : ''}`}
+        title={anyFilterEnabled ? 'Narrows what data you see on this page' : 'Not applicable on this page'}
+      >
+        <button
+          className={`context-my-chip${effectiveMyFilter ? ' context-my-chip--active' : ''}`}
+          onClick={() => config.myEnabled && setMyFilter(!myFilter)}
+          disabled={!config.myEnabled}
+        >
+          My
+        </button>
+
+        <div className="context-date-chips">
+          {PICKED_UP_PRESETS.map(({ value, label }) => (
+            <button
+              key={value}
+              className={`context-date-chip${pickedUpFilter === value ? ' context-date-chip--active' : ''}`}
+              onClick={() => setPickedUpFilter(value)}
+              disabled={!config.pickedUpEnabled}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="context-date-chips">
+          {DATE_PRESETS.map(({ value, label }) => (
+            <button
+              key={value}
+              className={`context-date-chip${datePreset === value ? ' context-date-chip--active' : ''}`}
+              onClick={() => setDatePreset(value)}
+              disabled={!config.dateEnabled}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {anyFilterEnabled && anyFiltersActive && (
           <button
-            key={value}
-            className={`context-date-chip${datePreset === value ? ' context-date-chip--active' : ''}`}
-            onClick={() => setDatePreset(value)}
+            className="context-clear-button"
+            onClick={clearFilters}
+            title="Clear all filters"
           >
-            {label}
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="3" y1="3" x2="9" y2="9" /><line x1="9" y1="3" x2="3" y2="9" />
+            </svg>
           </button>
-        ))}
+        )}
       </div>
+
+      {showCompoundSummary && (
+        <div className="context-filter-summary">My picks in {teamName}</div>
+      )}
     </div>
   )
 }

@@ -243,22 +243,41 @@ export class SpotService {
     return spot;
   }
 
-  async listSpotsForUser(userId: string, limit: number): Promise<Spot[]> {
-    return this.spotRepository.find({
-      where: { user_id: userId },
-      relations: ['items'],
-      order: { captured_at: 'DESC' },
-      take: limit,
-    });
+  async listSpotsForUser(
+    userId: string,
+    limit: number,
+    filters?: { pickedUp?: boolean; since?: string },
+  ): Promise<Spot[]> {
+    return this.listSpotsWithFilters(userId, limit, filters);
   }
 
-  async listSpotsForGuest(guestId: string, limit: number): Promise<Spot[]> {
-    return this.spotRepository.find({
-      where: { user_id: guestId },
-      relations: ['items'],
-      order: { captured_at: 'DESC' },
-      take: limit,
-    });
+  async listSpotsForGuest(
+    guestId: string,
+    limit: number,
+    filters?: { pickedUp?: boolean; since?: string },
+  ): Promise<Spot[]> {
+    return this.listSpotsWithFilters(guestId, limit, filters);
+  }
+
+  private async listSpotsWithFilters(
+    userId: string,
+    limit: number,
+    filters?: { pickedUp?: boolean; since?: string },
+  ): Promise<Spot[]> {
+    const qb = this.spotRepository.createQueryBuilder('spot')
+      .leftJoinAndSelect('spot.items', 'items')
+      .where('spot.user_id = :userId', { userId })
+      .orderBy('spot.captured_at', 'DESC')
+      .take(limit);
+
+    if (filters?.pickedUp !== undefined) {
+      qb.andWhere('spot.picked_up = :pickedUp', { pickedUp: filters.pickedUp });
+    }
+    if (filters?.since) {
+      qb.andWhere('spot.captured_at >= :since', { since: filters.since });
+    }
+
+    return qb.getMany();
   }
 
   async getThumbnailStream(spotId: string): Promise<{ body: NodeJS.ReadableStream; contentType: string } | null> {

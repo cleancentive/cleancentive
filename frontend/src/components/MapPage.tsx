@@ -12,7 +12,7 @@ function formatDate(iso: string): string {
 export function MapPage() {
   const { spotGeoJson, cleanupGeoJson, isLoading, error, fetchMapData } = useMapStore()
   const { user } = useAuthStore()
-  const { datePreset, pickedUpFilter } = useInsightsFilterStore()
+  const { datePreset, pickedUpFilter, myFilter } = useInsightsFilterStore()
 
   const teamId = user?.active_team_id ?? undefined
   const cleanupDateId = user?.active_cleanup_date_id ?? undefined
@@ -29,13 +29,14 @@ export function MapPage() {
       cleanup_date_id: cleanupDateId,
       since: presetToSince(datePreset),
       picked_up: pickedUpFilterToParam(pickedUpFilter),
+      user_id: myFilter ? user?.id : undefined,
     })
-  }, [fetchMapData, teamId, cleanupDateId, datePreset, pickedUpFilter])
+  }, [fetchMapData, teamId, cleanupDateId, datePreset, pickedUpFilter, myFilter, user?.id])
 
   // Reset userInteracted when filters change so auto-fit fires again
   useEffect(() => {
     userInteractedRef.current = false
-  }, [teamId, cleanupDateId, datePreset, pickedUpFilter])
+  }, [teamId, cleanupDateId, datePreset, pickedUpFilter, myFilter])
 
   // Initialize map once
   useEffect(() => {

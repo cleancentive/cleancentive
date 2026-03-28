@@ -386,7 +386,7 @@ export function CapturePanel() {
         pickedUp,
       })
 
-      trackEvent('spot-logged', { source: 'camera', pickedUp })
+      trackEvent('spot-logged', { source: 'camera', pickedUp: pickedUp ? 'true' : 'false' })
       setPickedUp(true)
       notifyPicksChanged()
 
@@ -432,7 +432,7 @@ export function CapturePanel() {
         pickedUp,
       })
 
-      trackEvent('spot-logged', { source: 'import', pickedUp })
+      trackEvent('spot-logged', { source: 'import', pickedUp: pickedUp ? 'true' : 'false' })
       setPickedUp(true)
       notifyPicksChanged()
 

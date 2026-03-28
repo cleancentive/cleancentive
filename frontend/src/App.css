@@ -690,7 +690,9 @@
 
 /* Dashboard */
 .dashboard {
-  max-width: 800px;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -2584,17 +2586,85 @@
 .context-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.25rem 2rem;
-  background: var(--partner-surface, #f1f5f9);
-  border-bottom: 1px solid var(--partner-border, #e2e8f0);
+  gap: 0;
   font-size: 0.85rem;
   min-height: 32px;
+  position: relative;
+  overflow: hidden;
+  background: #ffffff;
 }
+
+.context-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 28%;
+  right: 0;
+  background: #c7d2fe;
+  clip-path: url(#s-curve-clip);
+  transition: left 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 0;
+}
+
+.context-bar--filter-mode::before {
+  left: -3%;
+}
+
+/* ── Two-zone layout ── */
+
+.context-zone {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem 0.25rem 2rem;
+  background: transparent;
+  position: relative;
+  z-index: 1;
+}
+
+.context-zone--disabled {
+  pointer-events: none;
+}
+
+.filter-zone {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 2rem 0.25rem 0.75rem;
+  background: transparent;
+  flex: 1;
+  align-self: stretch;
+  justify-content: flex-end;
+  position: relative;
+  z-index: 1;
+}
+
+.filter-zone--disabled {
+  pointer-events: none;
+}
+
+/* ── Compound summary ── */
+
+.context-filter-summary {
+  position: absolute;
+  bottom: -18px;
+  right: 2rem;
+  font-size: 0.7rem;
+  color: #6366f1;
+  background: white;
+  padding: 0 0.35rem;
+  border-radius: 0 0 4px 4px;
+  border: 1px solid #e2e8f0;
+  border-top: none;
+  z-index: 1;
+}
+
+/* ── Dropdown ── */
 
 .context-dropdown {
   position: relative;
+  z-index: 1;
 }
 
 .context-dropdown-trigger {
@@ -2614,7 +2684,7 @@
 }
 
 .context-dropdown-trigger:disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: default;
 }
 
@@ -2663,32 +2733,98 @@
   color: var(--partner-primary, #2563eb);
 }
 
-.context-date-chips {
-  display: flex;
-  gap: 0.25rem;
-  align-items: center;
-  margin-left: auto;
-}
+/* ── My toggle chip ── */
 
-.context-date-chip {
-  padding: 0.15rem 0.5rem;
-  border: 1px solid var(--partner-border, #cbd5e1);
+.context-my-chip {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid #a5b4fc;
   border-radius: 999px;
   background: white;
   cursor: pointer;
   font-size: 0.8rem;
-  color: #64748b;
+  color: #6366f1;
+  font-weight: 500;
+  line-height: 1.4;
+  transition: background 0.15s, color 0.15s;
+}
+
+.context-my-chip:hover:not(:disabled) {
+  background: #eef2ff;
+}
+
+.context-my-chip--active {
+  background: #6366f1;
+  color: white;
+  border-color: #6366f1;
+}
+
+.context-my-chip:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.context-my-chip--active:disabled {
+  opacity: 0.6;
+}
+
+/* ── Filter chips ── */
+
+.context-date-chips {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.context-date-chip {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #4b5563;
   line-height: 1.4;
 }
 
-.context-date-chip:hover {
-  background: #f8fafc;
+.context-date-chip:hover:not(:disabled) {
+  background: #f0f0ff;
+}
+
+.context-date-chip:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .context-date-chip--active {
   background: var(--partner-primary, #2563eb);
   color: white;
   border-color: var(--partner-primary, #2563eb);
+}
+
+.context-date-chip--active:disabled {
+  opacity: 0.5;
+}
+
+/* ── Clear button ── */
+
+.context-clear-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  background: white;
+  cursor: pointer;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.context-clear-button:hover {
+  background: #fee2e2;
+  color: #ef4444;
+  border-color: #fca5a5;
 }
 
 /* User Menu Context */
@@ -2785,9 +2921,23 @@ textarea.mono {
 }
 
 @media (max-width: 600px) {
+  .context-zone {
+    padding-left: 1rem;
+  }
+  .filter-zone {
+    padding-right: 1rem;
+  }
   .context-bar {
+    flex-wrap: wrap;
+  }
+  .context-bar::before {
+    display: none;
+  }
+  .context-zone,
+  .filter-zone {
+    width: 100%;
+    justify-content: flex-start;
     padding: 0.25rem 1rem;
-    gap: 0.5rem;
   }
 }
 

@@ -262,25 +262,38 @@ export class SpotController {
     @Req() req: Request,
     @Query('guestId') guestId?: string,
     @Query('limit') limitQuery?: string,
+    @Query('picked_up') pickedUpQuery?: string,
+    @Query('since') sinceQuery?: string,
   ): Promise<{ spots: SpotDto[] }> {
     const parsedLimit = parseInt(limitQuery || '20', 10);
     const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
       ? Math.min(parsedLimit, 100)
       : 20;
 
+    const pickedUp = this.parseBooleanParam(pickedUpQuery);
+    const since = sinceQuery && !Number.isNaN(new Date(sinceQuery).getTime()) ? sinceQuery : undefined;
+
     const spots = req.headers.authorization?.startsWith('Bearer ')
       ? await this.spotService.listSpotsForUser(
         await this.resolveAuthUserId(req.headers.authorization),
         limit,
+        { pickedUp, since },
       )
       : await this.spotService.listSpotsForGuest(
         this.requireGuestId(guestId),
         limit,
+        { pickedUp, since },
       );
 
     return {
       spots: spots.map((spot) => this.toSpotDto(spot)),
     };
+  }
+
+  private parseBooleanParam(value?: string): boolean | undefined {
+    if (value === 'true') return true;
+    if (value === 'false') return false;
+    return undefined;
   }
 
   @Post(':id/retry')

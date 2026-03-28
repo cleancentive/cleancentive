@@ -45,6 +45,7 @@ export interface StatsFilter {
   cleanupDateId?: string;
   since?: string;
   pickedUp?: boolean;
+  userId?: string;
 }
 
 @Injectable()
@@ -161,6 +162,7 @@ export class InsightsService {
     if (filter.cleanupDateId) parts.push(`cd:${filter.cleanupDateId}`);
     if (filter.since) parts.push(`s:${filter.since}`);
     if (filter.pickedUp !== undefined) parts.push(`pu:${filter.pickedUp}`);
+    if (filter.userId) parts.push(`u:${filter.userId}`);
     return parts.join(':');
   }
 
@@ -170,6 +172,7 @@ export class InsightsService {
     if (filter.cleanupDateId) parts.push(`cd:${filter.cleanupDateId}`);
     if (filter.since) parts.push(`s:${filter.since}`);
     if (filter.pickedUp !== undefined) parts.push(`pu:${filter.pickedUp}`);
+    if (filter.userId) parts.push(`u:${filter.userId}`);
     return parts.join(':');
   }
 
@@ -192,6 +195,10 @@ export class InsightsService {
     if (filter.pickedUp !== undefined) {
       conditions.push(`${alias}.picked_up = $${idx++}`);
       params.push(filter.pickedUp);
+    }
+    if (filter.userId) {
+      conditions.push(`${alias}.user_id = $${idx++}`);
+      params.push(filter.userId);
     }
     return {
       where: conditions.length ? 'WHERE ' + conditions.join(' AND ') : '',
@@ -219,6 +226,10 @@ export class InsightsService {
       conditions.push(`${alias}.picked_up = $${idx++}`);
       params.push(filter.pickedUp);
     }
+    if (filter.userId) {
+      conditions.push(`${alias}.user_id = $${idx++}`);
+      params.push(filter.userId);
+    }
     return {
       and: conditions.length ? 'AND ' + conditions.join(' AND ') : '',
       params,
@@ -227,7 +238,7 @@ export class InsightsService {
   }
 
   private hasFilter(filter: StatsFilter): boolean {
-    return !!(filter.teamId || filter.cleanupDateId || filter.since || filter.pickedUp !== undefined);
+    return !!(filter.teamId || filter.cleanupDateId || filter.since || filter.pickedUp !== undefined || filter.userId);
   }
 
   private async computeStats(filter: StatsFilter = {}): Promise<PublicStats> {

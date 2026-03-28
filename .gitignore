@@ -72,3 +72,5 @@ docker-compose.override.yml
 /tmp
 /frontend/.browser-profile
 .worktrees/
+
+.playwright-mcp

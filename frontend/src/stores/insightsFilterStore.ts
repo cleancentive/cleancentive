@@ -8,6 +8,9 @@ interface InsightsFilterState {
   setDatePreset: (preset: DatePreset) => void
   pickedUpFilter: PickedUpFilter
   setPickedUpFilter: (filter: PickedUpFilter) => void
+  myFilter: boolean
+  setMyFilter: (value: boolean) => void
+  clearFilters: () => void
 }
 
 export function presetToSince(preset: DatePreset): string | undefined {
@@ -25,9 +28,16 @@ export function pickedUpFilterToParam(filter: PickedUpFilter): string | undefine
   return undefined
 }
 
+const FILTER_DEFAULTS = {
+  myFilter: false,
+  pickedUpFilter: 'picked' as PickedUpFilter,
+  datePreset: 'all' as DatePreset,
+}
+
 export const useInsightsFilterStore = create<InsightsFilterState>((set) => ({
-  datePreset: 'all',
+  ...FILTER_DEFAULTS,
   setDatePreset: (preset) => set({ datePreset: preset }),
-  pickedUpFilter: 'picked',
   setPickedUpFilter: (filter) => set({ pickedUpFilter: filter }),
+  setMyFilter: (value) => set({ myFilter: value }),
+  clearFilters: () => set(FILTER_DEFAULTS),
 }))
