@@ -150,6 +150,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
       if (response.data.joined) {
         trackEvent('team-joined', { team_id: id })
         await get().fetchTeam(id)
+        await get().fetchMyTeams()
       }
       return response.data.joined
     } catch (err: any) {
@@ -164,6 +165,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
       const response = await axios.post(`${API_BASE}/teams/${id}/leave`, {}, { headers: getHeaders() })
       if (response.data.left) {
         await get().fetchTeam(id)
+        await get().fetchMyTeams()
       }
       return response.data.left
     } catch (err: any) {

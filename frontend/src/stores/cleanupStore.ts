@@ -194,6 +194,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
       if (response.data.joined) {
         trackEvent('cleanup-joined', { cleanup_id: id })
         await get().fetchCleanup(id)
+        await get().fetchMyCleanups()
       }
       return response.data.joined
     } catch (err: any) {
@@ -208,6 +209,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
       const response = await axios.post(`${API_BASE}/cleanups/${id}/leave`, {}, { headers: getHeaders() })
       if (response.data.left) {
         await get().fetchCleanup(id)
+        await get().fetchMyCleanups()
       }
       return response.data.left
     } catch (err: any) {
