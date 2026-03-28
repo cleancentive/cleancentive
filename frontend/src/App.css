@@ -2597,18 +2597,48 @@
 .context-bar::before {
   content: '';
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 28%;
+  top: -1px;
+  bottom: -1px;
   right: 0;
+  width: var(--curve-right, 440px);
   background: #c7d2fe;
   clip-path: url(#s-curve-clip);
-  transition: left 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
   z-index: 0;
 }
 
 .context-bar--filter-mode::before {
-  left: -3%;
+  width: calc(100% + 40px);
+}
+
+/* Stacked layout when not enough horizontal space */
+.context-bar--stacked {
+  flex-wrap: wrap;
+}
+
+.context-bar--stacked::before {
+  display: none;
+}
+
+.context-bar--stacked .context-zone {
+  width: 100%;
+  padding: 0.4rem 1rem;
+  background: #ffffff;
+  border-bottom: 1px solid var(--partner-border, #e2e8f0);
+}
+
+.context-bar--stacked.context-bar--filter-mode .context-zone {
+  background: #c7d2fe;
+  border-bottom-color: #b4befe;
+}
+
+.context-bar--stacked .filter-zone {
+  width: 100%;
+  padding: 0.4rem 1rem;
+  background: #c7d2fe;
+  justify-content: flex-start;
+  flex-wrap: wrap;
 }
 
 /* ── Two-zone layout ── */
@@ -2621,6 +2651,7 @@
   background: transparent;
   position: relative;
   z-index: 1;
+  border-bottom: none;
 }
 
 .context-zone--disabled {
@@ -2921,23 +2952,32 @@ textarea.mono {
 }
 
 @media (max-width: 600px) {
-  .context-zone {
-    padding-left: 1rem;
-  }
-  .filter-zone {
-    padding-right: 1rem;
-  }
   .context-bar {
     flex-wrap: wrap;
   }
   .context-bar::before {
     display: none;
   }
-  .context-zone,
+  .context-zone {
+    width: 100%;
+    padding: 0.4rem 1rem;
+    background: #ffffff;
+    justify-content: flex-start;
+    border-bottom: 1px solid var(--partner-border, #e2e8f0);
+  }
+  .context-bar--filter-mode .context-zone {
+    background: #c7d2fe;
+    border-bottom-color: #b4befe;
+  }
   .filter-zone {
     width: 100%;
+    padding: 0.4rem 1rem;
+    background: #c7d2fe;
     justify-content: flex-start;
-    padding: 0.25rem 1rem;
+    flex-wrap: wrap;
+  }
+  .dashboard {
+    padding: 1rem;
   }
 }
 

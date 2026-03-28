@@ -227,8 +227,61 @@ export function ContextBar() {
   const teamName = user.active_team_name || null
   const showCompoundSummary = effectiveMyFilter && teamName && config.dropdownsAreFilters
 
+  const barRef = useRef<HTMLDivElement>(null)
+  const contextRef = useRef<HTMLDivElement>(null)
+  const filterRef = useRef<HTMLDivElement>(null)
+  const [stacked, setStacked] = useState(false)
+
+  useEffect(() => {
+    const bar = barRef.current
+    const ctx = contextRef.current
+    const flt = filterRef.current
+    if (!bar || !ctx || !flt) return
+
+    let isStacked = false
+
+    const update = () => {
+      // Temporarily force single-line + auto width to measure natural sizes
+      bar.classList.remove('context-bar--stacked')
+      const origFlex = flt.style.flex
+      flt.style.flex = '0 0 auto'
+
+      const barWidth = bar.offsetWidth
+      const ctxWidth = ctx.offsetWidth
+      const fltWidth = flt.offsetWidth
+
+      flt.style.flex = origFlex
+
+      const gap = barWidth - ctxWidth - fltWidth
+      // Hysteresis: stack at < 50px, unstack at > 120px
+      const shouldStack = isStacked ? gap < 120 : gap < 50
+
+      if (shouldStack) {
+        bar.classList.add('context-bar--stacked')
+        isStacked = true
+        setStacked(true)
+      } else {
+        isStacked = false
+        setStacked(false)
+        const curveRight = barWidth - ctxWidth - 30
+        const minRight = fltWidth + 20
+        bar.style.setProperty('--curve-right', `${Math.max(curveRight, minRight)}px`)
+      }
+    }
+
+    const observer = new ResizeObserver(update)
+    observer.observe(bar)
+    observer.observe(ctx)
+    observer.observe(flt)
+    update()
+    return () => observer.disconnect()
+  })
+
   return (
-    <div className={`context-bar${filterMode ? ' context-bar--filter-mode' : ''}`}>
+    <div
+      ref={barRef}
+      className={`context-bar${filterMode ? ' context-bar--filter-mode' : ''}${stacked ? ' context-bar--stacked' : ''}`}
+    >
       <svg width="0" height="0" style={{ position: 'absolute' }}>
         <defs>
           <clipPath id="s-curve-clip" clipPathUnits="objectBoundingBox">
@@ -237,6 +290,7 @@ export function ContextBar() {
         </defs>
       </svg>
       <div
+        ref={contextRef}
         className={`context-zone${!config.dropdownsEnabled ? ' context-zone--disabled' : ''}`}
         title="Controls which team and cleanup your picks join"
       >
@@ -261,6 +315,7 @@ export function ContextBar() {
       </div>
 
       <div
+        ref={filterRef}
         className={`filter-zone${!anyFilterEnabled ? ' filter-zone--disabled' : ''}`}
         title={anyFilterEnabled ? 'Narrows what data you see on this page' : 'Not applicable on this page'}
       >
