@@ -2598,7 +2598,7 @@
 .context-bar::before {
   content: '';
   position: absolute;
-  top: -1px;
+  top: 0;
   bottom: -1px;
   right: 0;
   width: var(--curve-right, 440px);
