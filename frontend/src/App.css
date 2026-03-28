@@ -2590,7 +2590,8 @@
   font-size: 0.85rem;
   min-height: 32px;
   position: relative;
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   background: #ffffff;
 }
 

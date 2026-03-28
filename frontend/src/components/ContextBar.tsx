@@ -189,10 +189,11 @@ export function ContextBar() {
     return () => clearInterval(id)
   }, [user, isOnline, refreshData])
 
-  // Compute eligible cleanups: only ongoing dates when online, all when offline
+  // Compute eligible cleanups: in filter mode show all, otherwise only user's ongoing
   const myCleanups = cleanups
-    .filter(c => c.userRole !== null && c.nearestDate)
+    .filter(c => c.nearestDate && (config.dropdownsAreFilters || c.userRole !== null))
     .filter(c => {
+      if (config.dropdownsAreFilters) return true
       if (!isOnline) return true
       const d = c.nearestDate!
       return isDateOngoing(d.start_at, d.end_at)
@@ -213,9 +214,8 @@ export function ContextBar() {
 
   if (!user) return null
 
-  // Only show teams the user is a member of
-  const myTeams = teams
-    .filter(t => t.userRole !== null)
+  // In filter mode, show all teams; otherwise only show teams the user is a member of
+  const myTeams = (config.dropdownsAreFilters ? teams : teams.filter(t => t.userRole !== null))
     .map(t => ({ id: t.team.id, name: t.team.name }))
 
   const dropdownEmptyLabel = config.dropdownsAreFilters ? 'All' : 'None'
