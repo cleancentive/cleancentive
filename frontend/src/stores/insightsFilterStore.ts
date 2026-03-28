@@ -30,7 +30,7 @@ export function pickedUpFilterToParam(filter: PickedUpFilter): string | undefine
 
 const FILTER_DEFAULTS = {
   myFilter: false,
-  pickedUpFilter: 'picked' as PickedUpFilter,
+  pickedUpFilter: 'all' as PickedUpFilter,
   datePreset: 'all' as DatePreset,
 }
 

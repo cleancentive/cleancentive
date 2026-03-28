@@ -151,7 +151,7 @@ function isDateOngoing(startAt: string, endAt: string): boolean {
 }
 
 function hasActiveFilters(myFilter: boolean, pickedUpFilter: PickedUpFilter, datePreset: DatePreset): boolean {
-  return myFilter || pickedUpFilter !== 'picked' || datePreset !== 'all'
+  return myFilter || pickedUpFilter !== 'all' || datePreset !== 'all'
 }
 
 export function ContextBar() {
