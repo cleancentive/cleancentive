@@ -151,6 +151,11 @@ export function InsightsPage() {
         <legend>Top Materials</legend>
         <RankTable rows={spotStats.topMaterials} labelKey="material" countKey="count" emptyText="No materials detected yet" />
       </fieldset>
+
+      <fieldset className="page-card">
+        <legend>Top Brands</legend>
+        <RankTable rows={spotStats.topBrands} labelKey="brand" countKey="count" emptyText="No brands detected yet" />
+      </fieldset>
     </div>
   )
 }

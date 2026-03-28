@@ -37,6 +37,7 @@ export interface PublicStats {
     byStatus: { queued: number; processing: number; completed: number; failed: number };
     topCategories: Array<{ category: string; count: number }>;
     topMaterials: Array<{ material: string; count: number }>;
+    topBrands: Array<{ brand: string; count: number }>;
   };
 }
 
@@ -263,6 +264,7 @@ export class InsightsService {
       statusCounts,
       topCategories,
       topMaterials,
+      topBrands,
     ] = await Promise.all([
       this.cleanupRepository.count({ where: { archived_at: undefined } }).then((c) =>
         this.cleanupRepository.query(`SELECT COUNT(*)::int AS count FROM cleanups WHERE archived_at IS NULL`),
@@ -300,12 +302,15 @@ export class InsightsService {
       this.detectedItemRepository.query(
         `SELECT material, COUNT(*)::int AS count FROM detected_items WHERE material IS NOT NULL GROUP BY material ORDER BY count DESC LIMIT 10`,
       ),
+      this.detectedItemRepository.query(
+        `SELECT brand, COUNT(*)::int AS count FROM detected_items WHERE brand IS NOT NULL GROUP BY brand ORDER BY count DESC LIMIT 10`,
+      ),
     ]);
 
     return this.formatStats(
       totalCleanups, totalUsers, totalTeams, totalSpots, totalItems, weightResult,
       spotsTimeSeries, itemsTimeSeries, cleanupsTimeSeries, weightTimeSeries,
-      statusCounts, topCategories, topMaterials,
+      statusCounts, topCategories, topMaterials, topBrands,
     );
   }
 
@@ -327,6 +332,7 @@ export class InsightsService {
       statusCounts,
       topCategories,
       topMaterials,
+      topBrands,
     ] = await Promise.all([
       // When filtered, derive counts from spots table
       this.spotRepository.query(
@@ -398,12 +404,19 @@ export class InsightsService {
          GROUP BY di.material ORDER BY count DESC LIMIT 10`,
         params,
       ),
+      this.spotRepository.query(
+        `SELECT di.brand, COUNT(*)::int AS count
+         FROM detected_items di JOIN spots s ON di.spot_id = s.id
+         ${where ? where + ' AND di.brand IS NOT NULL' : 'WHERE di.brand IS NOT NULL'}
+         GROUP BY di.brand ORDER BY count DESC LIMIT 10`,
+        params,
+      ),
     ]);
 
     return this.formatStats(
       totalCleanups, totalUsers, totalTeams, totalSpots, totalItems, weightResult,
       spotsTimeSeries, itemsTimeSeries, cleanupsTimeSeries, weightTimeSeries,
-      statusCounts, topCategories, topMaterials,
+      statusCounts, topCategories, topMaterials, topBrands,
     );
   }
 
@@ -412,6 +425,7 @@ export class InsightsService {
     totalSpots: any[], totalItems: any[], weightResult: any[],
     spotsTimeSeries: any[], itemsTimeSeries: any[], cleanupsTimeSeries: any[],
     weightTimeSeries: any[], statusCounts: any[], topCategories: any[], topMaterials: any[],
+    topBrands: any[],
   ): PublicStats {
     const byStatus = { queued: 0, processing: 0, completed: 0, failed: 0 };
     for (const row of statusCounts as Array<{ processing_status: keyof typeof byStatus; count: number }>) {
@@ -455,6 +469,10 @@ export class InsightsService {
         })),
         topMaterials: (topMaterials as Array<{ material: string; count: number }>).map((r) => ({
           material: r.material,
+          count: Number(r.count),
+        })),
+        topBrands: (topBrands as Array<{ brand: string; count: number }>).map((r) => ({
+          brand: r.brand,
           count: Number(r.count),
         })),
       },
