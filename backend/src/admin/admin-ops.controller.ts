@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from './admin.guard';
 import { AdminOpsService } from './admin-ops.service';
@@ -89,6 +89,14 @@ export class AdminOpsController {
   @ApiOkResponse({ description: 'Returns spot status breakdown, success rate, and top detected categories/materials.' })
   async getSpotStats() {
     return this.adminOpsService.getSpotAggregateStats();
+  }
+
+  @Delete('spots/:id')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Hard delete a spot, its detected items, and S3 images' })
+  @ApiNoContentResponse({ description: 'Spot deleted successfully.' })
+  async deleteSpot(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    await this.adminOpsService.deleteSpot(id);
   }
 
   @Post('spots/retry-failed')

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useUiStore } from '../stores/uiStore'
@@ -6,6 +6,7 @@ import { useInsightsFilterStore, presetToSince, pickedUpFilterToParam } from '..
 import { flushOutbox, getOutboxItems, type OutboxItem } from '../lib/pendingPicks'
 import { formatTimestamp } from '../utils/formatTimestamp'
 import { CountdownButton } from './CountdownButton'
+import { SpotEditor } from './SpotEditor'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 
@@ -179,6 +180,10 @@ export function HistoryPanel() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [editingSpotId, setEditingSpotId] = useState<string | null>(null)
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const { pickedUpFilter, datePreset } = useInsightsFilterStore()
 
@@ -251,6 +256,46 @@ export function HistoryPanel() {
     })
     void loadOutbox()
   }, [sessionToken, user, guestId, loadOutbox])
+
+  const startDelete = useCallback((spotId: string) => {
+    setConfirmDeleteId(null)
+    setPendingDeleteId(spotId)
+    setReports(prev => prev.filter(r => r.id !== spotId))
+
+    if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current)
+    deleteTimerRef.current = setTimeout(async () => {
+      setPendingDeleteId(null)
+      deleteTimerRef.current = null
+
+      const headers: Record<string, string> = {}
+      if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
+
+      const params = new URLSearchParams()
+      if (!sessionToken && guestId) params.set('guestId', guestId)
+
+      try {
+        await fetch(`${API_BASE}/spots/${spotId}?${params.toString()}`, { method: 'DELETE', headers })
+        window.dispatchEvent(new Event('picks-changed'))
+      } catch {
+        void loadHistory()
+      }
+    }, 3000)
+  }, [sessionToken, guestId, loadHistory])
+
+  const undoDelete = useCallback(() => {
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current)
+      deleteTimerRef.current = null
+    }
+    setPendingDeleteId(null)
+    void loadHistory()
+  }, [loadHistory])
+
+  useEffect(() => {
+    return () => {
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     const urls = new Map<string, string>()
@@ -366,6 +411,24 @@ export function HistoryPanel() {
                       {(row.kind === 'server' ? !row.item.pickedUp : row.item.pickedUp === false) && (
                         <span className="history-spotted-badge">Spotted</span>
                       )}
+                      {row.kind === 'server' && (
+                        <>
+                          <button
+                            className="history-edit-btn"
+                            title="Edit"
+                            onClick={() => setEditingSpotId(editingSpotId === row.item.id ? null : row.item.id)}
+                          >
+                            &#9998;
+                          </button>
+                          <button
+                            className="history-delete-btn"
+                            title="Delete"
+                            onClick={() => setConfirmDeleteId(row.item.id)}
+                          >
+                            &#128465;
+                          </button>
+                        </>
+                      )}
                     </span>
 
                     <LifecycleStepper stages={stages} errorMessage={errorMessage} onRetry={onRetry} />
@@ -390,7 +453,7 @@ export function HistoryPanel() {
                             <span>
                               {detected.weightGrams !== null ? `${Math.round(detected.weightGrams)} g` : ''}
                               {detected.weightGrams !== null && detected.confidence !== null ? ' · ' : ''}
-                              {detected.confidence !== null ? `${Math.round(detected.confidence * 100)}%` : 'n/a'}
+                              {detected.confidence !== null ? `${Math.round(detected.confidence * 100)}%` : ''}
                             </span>
                           </li>
                         ))}
@@ -399,10 +462,38 @@ export function HistoryPanel() {
                   </div>
                   {thumbnail}
                 </div>
+                {editingSpotId === row.item.id && row.kind === 'server' && (
+                  <SpotEditor
+                    spotId={row.item.id}
+                    pickedUp={row.item.pickedUp}
+                    items={row.item.items}
+                    onSave={() => { void loadHistory() }}
+                    onCancel={() => setEditingSpotId(null)}
+                  />
+                )}
               </li>
             )
           })}
         </ul>
+      )}
+
+      {confirmDeleteId && (
+        <div className="lightbox-overlay" onClick={() => setConfirmDeleteId(null)}>
+          <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
+            <p>Delete this pick? This cannot be undone.</p>
+            <div className="confirm-dialog-actions">
+              <button className="secondary-button" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
+              <button className="danger-button" onClick={() => startDelete(confirmDeleteId)}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingDeleteId && (
+        <div className="undo-toast">
+          <span>Pick deleted</span>
+          <button className="undo-toast-btn" onClick={undoDelete}>Undo</button>
+        </div>
       )}
 
       {lightboxSrc && (

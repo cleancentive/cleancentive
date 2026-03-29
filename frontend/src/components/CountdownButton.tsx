@@ -63,7 +63,7 @@ export function CountdownButton({
       setCountdown((prev) => {
         if (prev <= 1) {
           if (document.visibilityState === 'visible') {
-            onRefreshRef.current()
+            setTimeout(() => onRefreshRef.current(), 0)
           }
           resetCountdown(intervalSeconds)
           return intervalSeconds
@@ -74,7 +74,7 @@ export function CountdownButton({
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        onRefreshRef.current()
+        setTimeout(() => onRefreshRef.current(), 0)
         resetCountdown(intervalSeconds)
       }
     }

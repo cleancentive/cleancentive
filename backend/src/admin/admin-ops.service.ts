@@ -1,11 +1,11 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Spot } from '../spot/spot.entity';
 import { DetectedItem } from '../spot/detected-item.entity';
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
-import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
+import { S3Client, HeadBucketCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { StorageService } from '../storage/storage.service';
 import { PurgeService } from '../purge/purge.service';
 
@@ -29,6 +29,7 @@ interface WorkerOpsState {
 
 @Injectable()
 export class AdminOpsService implements OnModuleDestroy {
+  private readonly logger = new Logger(AdminOpsService.name);
   private readonly queueName = process.env.DETECTION_QUEUE_NAME || 'litter-detection';
   private readonly workerOpsKey = `ops:worker:${this.queueName}`;
   private readonly workerHeartbeatTtlSeconds = 30;
@@ -489,6 +490,26 @@ export class AdminOpsService implements OnModuleDestroy {
         count: Number(r.count),
       })),
     };
+  }
+
+  async deleteSpot(spotId: string): Promise<void> {
+    const spot = await this.spotRepository.findOne({ where: { id: spotId } });
+    if (!spot) throw new NotFoundException('Spot not found');
+
+    this.logger.log(
+      `Admin deleting spot ${spot.id}: user=${spot.user_id}, captured_at=${spot.captured_at.toISOString()}`,
+    );
+
+    const keysToDelete = [spot.image_key, spot.thumbnail_key].filter(Boolean) as string[];
+    for (const key of keysToDelete) {
+      try {
+        await this.s3Client.send(new DeleteObjectCommand({ Bucket: this.bucketName, Key: key }));
+      } catch (error) {
+        this.logger.warn(`Failed to delete S3 object ${key} for spot ${spot.id}: ${error.message}`);
+      }
+    }
+
+    await this.spotRepository.remove(spot);
   }
 
   private async retryFailedSpot(spotId: string): Promise<void> {

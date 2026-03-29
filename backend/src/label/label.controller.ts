@@ -1,5 +1,6 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { LabelService } from './label.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('labels')
 export class LabelController {
@@ -21,5 +22,14 @@ export class LabelController {
     }
 
     return this.labelService.getAllByType(resolvedLocale);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post()
+  async createLabel(
+    @Body() body: { type: string; translations: Record<string, string> },
+    @Req() req: any,
+  ) {
+    return this.labelService.createLabel(body.type, body.translations, req.user?.userId);
   }
 }

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   NotFoundException,
@@ -319,12 +320,75 @@ export class SpotController {
     return { status: 'queued' };
   }
 
+  @Delete(':id')
+  @HttpCode(204)
+  async deleteSpot(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+    @Query('guestId') guestId?: string,
+  ): Promise<void> {
+    if (req.headers.authorization?.startsWith('Bearer ')) {
+      const userId = await this.resolveAuthUserId(req.headers.authorization);
+      await this.spotService.deleteSpot(id, userId);
+    } else {
+      const guest = this.requireGuestId(guestId);
+      await this.spotService.deleteSpot(id, guest);
+    }
+  }
+
+  @Patch(':id')
+  async updateSpot(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { pickedUp?: boolean; cleanupId?: string; cleanupDateId?: string },
+    @Req() req: Request,
+    @Query('guestId') guestId?: string,
+  ): Promise<SpotDto> {
+    let userId: string;
+    if (req.headers.authorization?.startsWith('Bearer ')) {
+      userId = await this.resolveAuthUserId(req.headers.authorization);
+    } else {
+      userId = this.requireGuestId(guestId);
+    }
+
+    const spot = await this.spotService.updateSpot(id, userId, body);
+    return this.toSpotDto(spot);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':spotId/items')
+  async addDetectedItem(
+    @Param('spotId', ParseUUIDPipe) spotId: string,
+    @Body() body: { objectLabelId?: string; materialLabelId?: string; brandLabelId?: string; weightGrams?: number },
+    @Req() req: any,
+  ) {
+    const item = await this.spotService.addDetectedItem(spotId, req.user.userId, body);
+    return {
+      id: item.id,
+      objectLabelId: item.object_label_id,
+      materialLabelId: item.material_label_id,
+      brandLabelId: item.brand_label_id,
+      weightGrams: item.weight_grams,
+      humanVerified: item.human_verified,
+    };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':spotId/items/:itemId')
+  @HttpCode(204)
+  async deleteDetectedItem(
+    @Param('spotId', ParseUUIDPipe) spotId: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+    @Req() req: any,
+  ): Promise<void> {
+    await this.spotService.deleteDetectedItem(itemId, spotId, req.user.userId);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Patch(':spotId/items/:itemId')
   async updateDetectedItem(
     @Param('spotId', ParseUUIDPipe) spotId: string,
     @Param('itemId', ParseUUIDPipe) itemId: string,
-    @Body() body: { objectLabelId?: string; materialLabelId?: string; brandLabelId?: string },
+    @Body() body: { objectLabelId?: string; materialLabelId?: string; brandLabelId?: string; weightGrams?: number | null },
     @Req() req: any,
   ) {
     const item = await this.spotService.updateDetectedItem(itemId, spotId, req.user.userId, body);
@@ -333,6 +397,7 @@ export class SpotController {
       objectLabelId: item.object_label_id,
       materialLabelId: item.material_label_id,
       brandLabelId: item.brand_label_id,
+      weightGrams: item.weight_grams,
       humanVerified: item.human_verified,
     };
   }

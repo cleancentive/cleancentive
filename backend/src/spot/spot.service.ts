@@ -1,8 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Queue } from 'bullmq';
-import { S3Client, PutObjectCommand, HeadBucketCommand, CreateBucketCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, HeadBucketCommand, CreateBucketCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Spot } from './spot.entity';
 import { DetectedItem } from './detected-item.entity';
 import { DetectedItemEdit } from './detected-item-edit.entity';
@@ -32,6 +32,7 @@ interface CreateSpotResult {
 
 @Injectable()
 export class SpotService {
+  private readonly logger = new Logger(SpotService.name);
   private readonly queueName = process.env.DETECTION_QUEUE_NAME || 'litter-detection';
   private readonly bucketName = process.env.S3_BUCKET || 'cleancentive-images';
   private readonly detectionQueue: Queue;
@@ -342,11 +343,51 @@ export class SpotService {
     await this.retryFailedSpot(spot, spot.user_id);
   }
 
+  async updateSpot(
+    spotId: string,
+    userId: string,
+    updates: { pickedUp?: boolean; cleanupId?: string | null; cleanupDateId?: string | null },
+  ): Promise<Spot> {
+    const spot = await this.spotRepository.findOne({
+      where: { id: spotId, user_id: userId },
+      relations: SpotService.ITEM_LABEL_RELATIONS,
+    });
+    if (!spot) throw new NotFoundException('Spot not found');
+
+    if (updates.pickedUp !== undefined) {
+      spot.picked_up = updates.pickedUp;
+    }
+
+    const cleanupProvided = updates.cleanupId !== undefined || updates.cleanupDateId !== undefined;
+    if (cleanupProvided) {
+      const newCleanupId = updates.cleanupId ?? null;
+      const newCleanupDateId = updates.cleanupDateId ?? null;
+
+      if ((newCleanupId === null) !== (newCleanupDateId === null)) {
+        throw new BadRequestException('cleanupId and cleanupDateId must both be set or both be null');
+      }
+
+      if (newCleanupId && newCleanupDateId) {
+        const validation = await this.cleanupService.validateExplicitCleanupAssociation(
+          userId, newCleanupId, newCleanupDateId, spot.captured_at,
+        );
+        if (!validation.valid) {
+          throw new BadRequestException(validation.warning || 'Invalid cleanup association');
+        }
+      }
+
+      spot.cleanup_id = newCleanupId;
+      spot.cleanup_date_id = newCleanupDateId;
+    }
+
+    return this.spotRepository.save(spot);
+  }
+
   async updateDetectedItem(
     itemId: string,
     spotId: string,
     userId: string,
-    updates: { objectLabelId?: string; materialLabelId?: string; brandLabelId?: string },
+    updates: { objectLabelId?: string; materialLabelId?: string; brandLabelId?: string; weightGrams?: number | null },
   ): Promise<DetectedItem> {
     const item = await this.detectedItemRepository.findOne({ where: { id: itemId, spot_id: spotId } });
     if (!item) throw new NotFoundException('Detected item not found');
@@ -363,7 +404,7 @@ export class SpotService {
       if (!label) throw new BadRequestException(`Invalid ${type} label ID`);
     }
 
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       for (const { field, labelId, type } of labelFields) {
         if (labelId === undefined) continue;
 
@@ -379,11 +420,133 @@ export class SpotService {
         });
         await manager.save(edit);
         (item as any)[field] = labelId;
+        // Clear the eager relation so TypeORM doesn't overwrite the FK from the stale object
+        const relationField = field.replace('_id', '');
+        (item as any)[relationField] = undefined;
+      }
+
+      if (updates.weightGrams !== undefined) {
+        const oldWeight = item.weight_grams;
+        const newWeight = updates.weightGrams;
+        if (oldWeight !== newWeight) {
+          const edit = this.detectedItemEditRepository.create({
+            detected_item_id: itemId,
+            field_changed: 'weight_grams',
+            old_value: oldWeight !== null ? String(oldWeight) : null,
+            new_value: newWeight !== null ? String(newWeight) : null,
+            created_by: userId,
+          });
+          await manager.save(edit);
+          item.weight_grams = newWeight;
+        }
       }
 
       item.human_verified = true;
       return manager.save(item);
     });
+
+    // Clear identity map so subsequent queries fetch fresh data with updated relations
+    this.spotRepository.manager.clear(Spot);
+    this.detectedItemRepository.manager.clear(DetectedItem);
+
+    return result;
+  }
+
+  async addDetectedItem(
+    spotId: string,
+    userId: string,
+    input: { objectLabelId?: string; materialLabelId?: string; brandLabelId?: string; weightGrams?: number },
+  ): Promise<DetectedItem> {
+    const spot = await this.spotRepository.findOne({ where: { id: spotId, user_id: userId } });
+    if (!spot) throw new NotFoundException('Spot not found');
+
+    const labelFields: Array<{ field: string; labelId?: string; type: string }> = [
+      { field: 'object_label_id', labelId: input.objectLabelId, type: 'object' },
+      { field: 'material_label_id', labelId: input.materialLabelId, type: 'material' },
+      { field: 'brand_label_id', labelId: input.brandLabelId, type: 'brand' },
+    ];
+
+    for (const { labelId, type } of labelFields) {
+      if (!labelId) continue;
+      const label = await this.labelService.findByIdAndType(labelId, type);
+      if (!label) throw new BadRequestException(`Invalid ${type} label ID`);
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      const item = this.detectedItemRepository.create({
+        spot_id: spotId,
+        object_label_id: input.objectLabelId ?? null,
+        material_label_id: input.materialLabelId ?? null,
+        brand_label_id: input.brandLabelId ?? null,
+        weight_grams: input.weightGrams ?? null,
+        human_verified: true,
+        source_model: 'manual',
+      });
+      const saved = await manager.save(item);
+
+      for (const { field, labelId } of labelFields) {
+        if (!labelId) continue;
+        const edit = this.detectedItemEditRepository.create({
+          detected_item_id: saved.id,
+          field_changed: field,
+          old_value: null,
+          new_value: labelId,
+          created_by: userId,
+        });
+        await manager.save(edit);
+      }
+
+      if (input.weightGrams !== undefined && input.weightGrams !== null) {
+        const edit = this.detectedItemEditRepository.create({
+          detected_item_id: saved.id,
+          field_changed: 'weight_grams',
+          old_value: null,
+          new_value: String(input.weightGrams),
+          created_by: userId,
+        });
+        await manager.save(edit);
+      }
+
+      return saved;
+    });
+  }
+
+  async deleteDetectedItem(itemId: string, spotId: string, userId: string): Promise<void> {
+    const spot = await this.spotRepository.findOne({ where: { id: spotId, user_id: userId } });
+    if (!spot) throw new NotFoundException('Spot not found');
+
+    const item = await this.detectedItemRepository.findOne({ where: { id: itemId, spot_id: spotId } });
+    if (!item) throw new NotFoundException('Detected item not found');
+
+    await this.detectedItemRepository.remove(item);
+  }
+
+  async deleteSpot(spotId: string, userId: string): Promise<void> {
+    const spot = await this.spotRepository.findOne({
+      where: { id: spotId, user_id: userId },
+      relations: ['items'],
+    });
+    if (!spot) throw new NotFoundException('Spot not found');
+
+    await this.deleteSpotInternal(spot);
+  }
+
+  private async deleteSpotInternal(spot: Spot): Promise<void> {
+    const itemCount = spot.items?.length ?? 0;
+    this.logger.log(
+      `Deleting spot ${spot.id}: user=${spot.user_id}, items=${itemCount}, captured_at=${spot.captured_at.toISOString()}`,
+    );
+
+    const keysToDelete = [spot.image_key, spot.thumbnail_key].filter(Boolean) as string[];
+    for (const key of keysToDelete) {
+      try {
+        await this.s3Client.send(new DeleteObjectCommand({ Bucket: this.bucketName, Key: key }));
+      } catch (error) {
+        this.logger.warn(`Failed to delete S3 object ${key} for spot ${spot.id}: ${error.message}`);
+      }
+    }
+
+    await this.spotRepository.remove(spot);
   }
 
   async close(): Promise<void> {
