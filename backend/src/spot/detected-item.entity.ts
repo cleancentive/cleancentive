@@ -11,15 +11,6 @@ export class DetectedItem extends BaseEntity {
   @JoinColumn({ name: 'spot_id' })
   spot: any;
 
-  @Column('varchar', { nullable: true })
-  category: string | null;
-
-  @Column('varchar', { nullable: true })
-  material: string | null;
-
-  @Column('varchar', { nullable: true })
-  brand: string | null;
-
   @Column('uuid', { nullable: true })
   object_label_id: string | null;
 

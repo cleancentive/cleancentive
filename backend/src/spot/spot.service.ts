@@ -236,13 +236,20 @@ export class SpotService {
     };
   }
 
+  private static readonly ITEM_LABEL_RELATIONS = [
+    'items',
+    'items.object_label', 'items.object_label.translations',
+    'items.material_label', 'items.material_label.translations',
+    'items.brand_label', 'items.brand_label.translations',
+  ];
+
   async getSpotStatus(spotId: string, userId: string): Promise<Spot> {
     const spot = await this.spotRepository.findOne({
       where: {
         id: spotId,
         user_id: userId,
       },
-      relations: ['items'],
+      relations: SpotService.ITEM_LABEL_RELATIONS,
     });
 
     if (!spot) {
@@ -258,7 +265,7 @@ export class SpotService {
         id: spotId,
         user_id: guestId,
       },
-      relations: ['items'],
+      relations: SpotService.ITEM_LABEL_RELATIONS,
     });
 
     if (!spot) {
@@ -291,6 +298,12 @@ export class SpotService {
   ): Promise<Spot[]> {
     const qb = this.spotRepository.createQueryBuilder('spot')
       .leftJoinAndSelect('spot.items', 'items')
+      .leftJoinAndSelect('items.object_label', 'objectLabel')
+      .leftJoinAndSelect('objectLabel.translations', 'objectLabelTranslations')
+      .leftJoinAndSelect('items.material_label', 'materialLabel')
+      .leftJoinAndSelect('materialLabel.translations', 'materialLabelTranslations')
+      .leftJoinAndSelect('items.brand_label', 'brandLabel')
+      .leftJoinAndSelect('brandLabel.translations', 'brandLabelTranslations')
       .where('spot.user_id = :userId', { userId })
       .orderBy('spot.captured_at', 'DESC')
       .take(limit);

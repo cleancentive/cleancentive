@@ -181,7 +181,7 @@ export function MapPage() {
           <div class="map-popup">
             <img src="${import.meta.env.VITE_API_URL || '/api/v1'}/spots/${p.id}/thumbnail" alt="" class="map-popup-thumb" />
             <div class="map-popup-info">
-              <strong>${p.topCategory ? p.topCategory.replace(/_/g, ' ') : (p.pickedUp === false ? 'Spot' : 'Pick')}</strong>
+              <strong>${p.topObject ? p.topObject.replace(/_/g, ' ') : (p.pickedUp === false ? 'Spot' : 'Pick')}</strong>
               <span>${formatDate(p.capturedAt)}</span>
               <span>${p.itemCount} item${p.itemCount !== 1 ? 's' : ''} detected</span>
             </div>

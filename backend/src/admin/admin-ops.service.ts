@@ -446,15 +446,23 @@ export class AdminOpsService implements OnModuleDestroy {
   }
 
   async getSpotAggregateStats() {
-    const [countRows, topCategories, topMaterials] = await Promise.all([
+    const [countRows, topObjects, topMaterials] = await Promise.all([
       this.spotRepository.query(
         `SELECT processing_status, COUNT(*)::int AS count FROM spots GROUP BY processing_status`,
       ),
       this.detectedItemRepository.query(
-        `SELECT category, COUNT(*)::int AS count FROM detected_items WHERE category IS NOT NULL GROUP BY category ORDER BY count DESC LIMIT 10`,
+        `SELECT lt.name AS object, COUNT(*)::int AS count
+         FROM detected_items di
+         JOIN labels l ON l.id = di.object_label_id
+         JOIN label_translations lt ON lt.label_id = l.id AND lt.locale = 'en'
+         GROUP BY lt.name ORDER BY count DESC LIMIT 10`,
       ),
       this.detectedItemRepository.query(
-        `SELECT material, COUNT(*)::int AS count FROM detected_items WHERE material IS NOT NULL GROUP BY material ORDER BY count DESC LIMIT 10`,
+        `SELECT lt.name AS material, COUNT(*)::int AS count
+         FROM detected_items di
+         JOIN labels l ON l.id = di.material_label_id
+         JOIN label_translations lt ON lt.label_id = l.id AND lt.locale = 'en'
+         GROUP BY lt.name ORDER BY count DESC LIMIT 10`,
       ),
     ]);
 
@@ -472,8 +480,8 @@ export class AdminOpsService implements OnModuleDestroy {
       timestamp: new Date().toISOString(),
       byStatus,
       successRate,
-      topCategories: (topCategories as Array<{ category: string; count: number }>).map((r) => ({
-        category: r.category,
+      topObjects: (topObjects as Array<{ object: string; count: number }>).map((r) => ({
+        object: r.object,
         count: Number(r.count),
       })),
       topMaterials: (topMaterials as Array<{ material: string; count: number }>).map((r) => ({

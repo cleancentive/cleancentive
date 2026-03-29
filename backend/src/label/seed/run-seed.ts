@@ -32,7 +32,7 @@ async function seed() {
       const existing = await queryRunner.query(
         `SELECT l.id FROM labels l
          JOIN label_translations lt ON lt.label_id = l.id
-         WHERE l.type = $1 AND lt.locale = 'en' AND lt.name = $2`,
+         WHERE l.type = $1 AND lt.locale = 'en' AND LOWER(lt.name) = LOWER($2)`,
         [entry.type, enName],
       );
 

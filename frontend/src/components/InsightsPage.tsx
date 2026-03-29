@@ -143,8 +143,8 @@ export function InsightsPage() {
       </fieldset>
 
       <fieldset className="page-card">
-        <legend>Top Categories</legend>
-        <RankTable rows={spotStats.topCategories} labelKey="category" countKey="count" emptyText="No categories detected yet" />
+        <legend>Top Objects</legend>
+        <RankTable rows={spotStats.topObjects} labelKey="object" countKey="count" emptyText="No objects detected yet" />
       </fieldset>
 
       <fieldset className="page-card">

@@ -12,7 +12,7 @@ export const UMAMI_URL = 'http://localhost:3001';
 
 export function buildBrowserToolTargets(env: NodeJS.ProcessEnv): BrowserToolTarget[] {
   return [
-    { name: 'App', url: env.BROWSER_URL ?? 'http://localhost:5173', login: 'none' },
+    { name: 'App', url: env.BROWSER_URL ?? 'https://localhost:5173', login: 'none' },
     { name: 'Swagger UI', url: SWAGGER_URL, login: 'none' },
     { name: 'Mailpit', url: MAILPIT_URL, login: 'none' },
     { name: 'Postgres browser', url: POSTGRES_BROWSER_URL, login: 'none' },

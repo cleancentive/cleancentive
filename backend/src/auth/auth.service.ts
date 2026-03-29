@@ -21,7 +21,7 @@ export class AuthService {
     private pendingAuthRepo: Repository<PendingAuthRequest>,
   ) {}
 
-  async sendMagicLink(email: string, guestId?: string): Promise<{ requestId: string } | null> {
+  async sendMagicLink(email: string, guestId?: string, origin?: string): Promise<{ requestId: string } | null> {
     const existingUser = await this.userService.findUserByEmail(email);
 
     let userId: string;
@@ -48,7 +48,8 @@ export class AuthService {
     }
     const token = this.jwtService.sign(payload, { expiresIn: '24h' });
 
-    const magicLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/auth/verify?token=${token}`;
+    const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:5173';
+    const magicLink = `${frontendUrl}/auth/verify?token=${token}`;
 
     // Create pending auth request so the requesting browser can poll for completion
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);

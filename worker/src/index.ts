@@ -86,7 +86,36 @@ const openai = detectionApiKey
     })
   : null;
 
-const SYSTEM_PROMPT = `You detect litter in photos and return JSON only.
+interface LabelTaxonomy {
+  objects: string[];
+  materials: string[];
+  brands: string[];
+}
+
+async function fetchLabelTaxonomy(): Promise<LabelTaxonomy> {
+  const rows = await dbPool.query<{ type: string; name: string }>(
+    `SELECT l.type, lt.name
+     FROM labels l
+     JOIN label_translations lt ON lt.label_id = l.id
+     WHERE lt.locale = 'en'
+     ORDER BY l.type, lt.name`,
+  );
+
+  const taxonomy: LabelTaxonomy = { objects: [], materials: [], brands: [] };
+  for (const row of rows.rows) {
+    if (row.type === 'object') taxonomy.objects.push(row.name);
+    else if (row.type === 'material') taxonomy.materials.push(row.name);
+    else if (row.type === 'brand') taxonomy.brands.push(row.name);
+  }
+  return taxonomy;
+}
+
+function buildSystemPrompt(taxonomy: LabelTaxonomy): string {
+  const objectsList = taxonomy.objects.join(', ') || '(none yet)';
+  const materialsList = taxonomy.materials.join(', ') || '(none yet)';
+  const brandsList = taxonomy.brands.join(', ') || '(none yet)';
+
+  return `You detect litter in photos and return JSON only.
 Return this shape:
 {
   "objects": [
@@ -101,11 +130,53 @@ Return this shape:
   "notes": "optional string or null"
 }
 
+Known labels (use these exact names when they match; if reality requires a new term, use Title Case):
+Objects: ${objectsList}
+Materials: ${materialsList}
+Brands: ${brandsList}
+
 Rules:
 - Be conservative and only return visible litter items.
+- category should be a single object type (e.g. "Bottle", not "plastic bottle"). Use material for the material.
+- material should be a single material (e.g. "Plastic", not "plastic and tobacco").
+- brand should be a recognized product brand name, or null if not identifiable. Do not use generic product names as brands.
+- Use Title Case for all category, material, and brand values.
 - category/material/brand may be null if uncertain.
 - weightGrams should be estimated as a number in grams when possible.
 - confidence is a number in [0,1].`;
+}
+
+async function resolveOrCreateLabel(
+  client: PoolClient,
+  type: string,
+  enName: string,
+): Promise<string> {
+  const existing = await client.query<{ id: string }>(
+    `SELECT l.id FROM labels l
+     JOIN label_translations lt ON lt.label_id = l.id
+     WHERE l.type = $1 AND lt.locale = 'en' AND LOWER(lt.name) = LOWER($2)`,
+    [type, enName],
+  );
+
+  if (existing.rows.length > 0) {
+    return existing.rows[0].id;
+  }
+
+  const labelId = uuidv7();
+  const translationId = uuidv7();
+  const titleCased = enName.replace(/\b\w/g, (c) => c.toUpperCase());
+
+  await client.query(
+    `INSERT INTO labels (id, type) VALUES ($1, $2)`,
+    [labelId, type],
+  );
+  await client.query(
+    `INSERT INTO label_translations (id, label_id, locale, name) VALUES ($1, $2, 'en', $3)`,
+    [translationId, labelId, titleCased],
+  );
+
+  return labelId;
+}
 
 function asOptionalString(value: unknown): string | null {
   if (typeof value !== 'string') {
@@ -236,7 +307,7 @@ async function resizeForDetection(imageBytes: Uint8Array, maxDimension: number):
     .toBuffer();
 }
 
-async function detectLitter(imageBytes: Uint8Array, mimeType: string): Promise<DetectionResult> {
+async function detectLitter(imageBytes: Uint8Array, mimeType: string, systemPrompt: string): Promise<DetectionResult> {
   if (!openai) {
     throw new Error('DETECTION_API_KEY is not configured for the worker');
   }
@@ -250,7 +321,7 @@ async function detectLitter(imageBytes: Uint8Array, mimeType: string): Promise<D
     messages: [
       {
         role: 'system',
-        content: SYSTEM_PROMPT,
+        content: systemPrompt,
       },
       {
         role: 'user',
@@ -338,6 +409,16 @@ async function persistDetection(
     await client.query(`DELETE FROM detected_items WHERE spot_id = $1`, [spotId]);
 
     for (const object of detection.objects) {
+      const objectLabelId = object.category
+        ? await resolveOrCreateLabel(client, 'object', object.category)
+        : null;
+      const materialLabelId = object.material
+        ? await resolveOrCreateLabel(client, 'material', object.material)
+        : null;
+      const brandLabelId = object.brand
+        ? await resolveOrCreateLabel(client, 'brand', object.brand)
+        : null;
+
       await client.query(
         `
           INSERT INTO detected_items (
@@ -347,9 +428,9 @@ async function persistDetection(
             created_by,
             updated_by,
             spot_id,
-            category,
-            material,
-            brand,
+            object_label_id,
+            material_label_id,
+            brand_label_id,
             weight_grams,
             confidence,
             source_model
@@ -360,9 +441,9 @@ async function persistDetection(
           uuidv7(),
           userId,
           spotId,
-          object.category,
-          object.material,
-          object.brand,
+          objectLabelId,
+          materialLabelId,
+          brandLabelId,
           object.weightGrams,
           object.confidence,
           model,
@@ -402,9 +483,12 @@ const litterDetectionWorker = new Worker<LitterDetectionJobData>(
 
     await markSpotProcessing(spotId, userId);
 
+    const taxonomy = await fetchLabelTaxonomy();
+    const systemPrompt = buildSystemPrompt(taxonomy);
+
     const imageBytes = await fetchImageBytes(imageKey);
     const resizedBytes = await resizeForDetection(imageBytes, detectionMaxImageSize);
-    const detection = await detectLitter(resizedBytes, 'image/jpeg');
+    const detection = await detectLitter(resizedBytes, 'image/jpeg', systemPrompt);
     await persistDetection(spotId, userId, detection, detectionModel);
 
     return {

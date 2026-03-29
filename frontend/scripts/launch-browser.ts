@@ -133,6 +133,7 @@ const context = await chromium.launchPersistentContext(PROFILE_DIR, {
     `--remote-debugging-port=${CDP_PORT}`,
     '--disable-session-crashed-bubble',
     '--hide-crash-restore-bubble',
+    '--ignore-certificate-errors',
   ],
 });
 

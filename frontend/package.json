@@ -5,7 +5,7 @@
   "type": "module",
   "description": "PWA frontend for cleancentive",
   "scripts": {
-    "dev": "bunx --bun vite",
+    "dev": "bunx --bun vite --host",
     "dev:stop": "lsof -ti :5173 | xargs kill -9 2>/dev/null || true",
     "build": "bun run tsc && bunx --bun vite build",
     "preview": "bunx --bun vite preview",
@@ -33,6 +33,7 @@
     "@types/uuid": "11.0.0",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
+    "@vitejs/plugin-basic-ssl": "2.3.0",
     "@vitejs/plugin-react": "^4.2.1",
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",

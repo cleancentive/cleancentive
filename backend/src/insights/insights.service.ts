@@ -35,7 +35,7 @@ export interface PublicStats {
   };
   spotStats: {
     byStatus: { queued: number; processing: number; completed: number; failed: number };
-    topCategories: Array<{ category: string; count: number }>;
+    topObjects: Array<{ object: string; count: number }>;
     topMaterials: Array<{ material: string; count: number }>;
     topBrands: Array<{ brand: string; count: number }>;
   };
@@ -86,7 +86,9 @@ export class InsightsService {
       this.spotRepository.query(
         `SELECT s.id, s.longitude, s.latitude, s.captured_at, s.processing_status, s.picked_up,
                 COUNT(di.id)::int AS item_count,
-                (SELECT di2.category FROM detected_items di2
+                (SELECT lt2.name FROM detected_items di2
+                 JOIN labels l2 ON l2.id = di2.object_label_id
+                 JOIN label_translations lt2 ON lt2.label_id = l2.id AND lt2.locale = 'en'
                  WHERE di2.spot_id = s.id ORDER BY di2.weight_grams DESC NULLS LAST LIMIT 1) AS top_category
          FROM spots s
          LEFT JOIN detected_items di ON di.spot_id = s.id
@@ -118,7 +120,7 @@ export class InsightsService {
           id: r.id,
           capturedAt: r.captured_at,
           itemCount: Number(r.item_count),
-          topCategory: r.top_category,
+          topObject: r.top_category,
           status: r.processing_status,
           pickedUp: r.picked_up,
         },
@@ -262,7 +264,7 @@ export class InsightsService {
       cleanupsTimeSeries,
       weightTimeSeries,
       statusCounts,
-      topCategories,
+      topObjects,
       topMaterials,
       topBrands,
     ] = await Promise.all([
@@ -297,20 +299,32 @@ export class InsightsService {
         `SELECT processing_status, COUNT(*)::int AS count FROM spots GROUP BY processing_status`,
       ),
       this.detectedItemRepository.query(
-        `SELECT category, COUNT(*)::int AS count FROM detected_items WHERE category IS NOT NULL GROUP BY category ORDER BY count DESC LIMIT 10`,
+        `SELECT lt.name AS object, COUNT(*)::int AS count
+         FROM detected_items di
+         JOIN labels l ON l.id = di.object_label_id
+         JOIN label_translations lt ON lt.label_id = l.id AND lt.locale = 'en'
+         GROUP BY lt.name ORDER BY count DESC LIMIT 10`,
       ),
       this.detectedItemRepository.query(
-        `SELECT material, COUNT(*)::int AS count FROM detected_items WHERE material IS NOT NULL GROUP BY material ORDER BY count DESC LIMIT 10`,
+        `SELECT lt.name AS material, COUNT(*)::int AS count
+         FROM detected_items di
+         JOIN labels l ON l.id = di.material_label_id
+         JOIN label_translations lt ON lt.label_id = l.id AND lt.locale = 'en'
+         GROUP BY lt.name ORDER BY count DESC LIMIT 10`,
       ),
       this.detectedItemRepository.query(
-        `SELECT brand, COUNT(*)::int AS count FROM detected_items WHERE brand IS NOT NULL GROUP BY brand ORDER BY count DESC LIMIT 10`,
+        `SELECT lt.name AS brand, COUNT(*)::int AS count
+         FROM detected_items di
+         JOIN labels l ON l.id = di.brand_label_id
+         JOIN label_translations lt ON lt.label_id = l.id AND lt.locale = 'en'
+         GROUP BY lt.name ORDER BY count DESC LIMIT 10`,
       ),
     ]);
 
     return this.formatStats(
       totalCleanups, totalUsers, totalTeams, totalSpots, totalItems, weightResult,
       spotsTimeSeries, itemsTimeSeries, cleanupsTimeSeries, weightTimeSeries,
-      statusCounts, topCategories, topMaterials, topBrands,
+      statusCounts, topObjects, topMaterials, topBrands,
     );
   }
 
@@ -330,7 +344,7 @@ export class InsightsService {
       cleanupsTimeSeries,
       weightTimeSeries,
       statusCounts,
-      topCategories,
+      topObjects,
       topMaterials,
       topBrands,
     ] = await Promise.all([
@@ -391,24 +405,33 @@ export class InsightsService {
         params,
       ),
       this.spotRepository.query(
-        `SELECT di.category, COUNT(*)::int AS count
-         FROM detected_items di JOIN spots s ON di.spot_id = s.id
-         ${where ? where + ' AND di.category IS NOT NULL' : 'WHERE di.category IS NOT NULL'}
-         GROUP BY di.category ORDER BY count DESC LIMIT 10`,
+        `SELECT lt.name AS object, COUNT(*)::int AS count
+         FROM detected_items di
+         JOIN spots s ON di.spot_id = s.id
+         JOIN labels l ON l.id = di.object_label_id
+         JOIN label_translations lt ON lt.label_id = l.id AND lt.locale = 'en'
+         ${where}
+         GROUP BY lt.name ORDER BY count DESC LIMIT 10`,
         params,
       ),
       this.spotRepository.query(
-        `SELECT di.material, COUNT(*)::int AS count
-         FROM detected_items di JOIN spots s ON di.spot_id = s.id
-         ${where ? where + ' AND di.material IS NOT NULL' : 'WHERE di.material IS NOT NULL'}
-         GROUP BY di.material ORDER BY count DESC LIMIT 10`,
+        `SELECT lt.name AS material, COUNT(*)::int AS count
+         FROM detected_items di
+         JOIN spots s ON di.spot_id = s.id
+         JOIN labels l ON l.id = di.material_label_id
+         JOIN label_translations lt ON lt.label_id = l.id AND lt.locale = 'en'
+         ${where}
+         GROUP BY lt.name ORDER BY count DESC LIMIT 10`,
         params,
       ),
       this.spotRepository.query(
-        `SELECT di.brand, COUNT(*)::int AS count
-         FROM detected_items di JOIN spots s ON di.spot_id = s.id
-         ${where ? where + ' AND di.brand IS NOT NULL' : 'WHERE di.brand IS NOT NULL'}
-         GROUP BY di.brand ORDER BY count DESC LIMIT 10`,
+        `SELECT lt.name AS brand, COUNT(*)::int AS count
+         FROM detected_items di
+         JOIN spots s ON di.spot_id = s.id
+         JOIN labels l ON l.id = di.brand_label_id
+         JOIN label_translations lt ON lt.label_id = l.id AND lt.locale = 'en'
+         ${where}
+         GROUP BY lt.name ORDER BY count DESC LIMIT 10`,
         params,
       ),
     ]);
@@ -416,7 +439,7 @@ export class InsightsService {
     return this.formatStats(
       totalCleanups, totalUsers, totalTeams, totalSpots, totalItems, weightResult,
       spotsTimeSeries, itemsTimeSeries, cleanupsTimeSeries, weightTimeSeries,
-      statusCounts, topCategories, topMaterials, topBrands,
+      statusCounts, topObjects, topMaterials, topBrands,
     );
   }
 
@@ -424,7 +447,7 @@ export class InsightsService {
     totalCleanups: any[], totalUsers: any[], totalTeams: any[],
     totalSpots: any[], totalItems: any[], weightResult: any[],
     spotsTimeSeries: any[], itemsTimeSeries: any[], cleanupsTimeSeries: any[],
-    weightTimeSeries: any[], statusCounts: any[], topCategories: any[], topMaterials: any[],
+    weightTimeSeries: any[], statusCounts: any[], topObjects: any[], topMaterials: any[],
     topBrands: any[],
   ): PublicStats {
     const byStatus = { queued: 0, processing: 0, completed: 0, failed: 0 };
@@ -463,8 +486,8 @@ export class InsightsService {
       },
       spotStats: {
         byStatus,
-        topCategories: (topCategories as Array<{ category: string; count: number }>).map((r) => ({
-          category: r.category,
+        topObjects: (topObjects as Array<{ object: string; count: number }>).map((r) => ({
+          object: r.object,
           count: Number(r.count),
         })),
         topMaterials: (topMaterials as Array<{ material: string; count: number }>).map((r) => ({

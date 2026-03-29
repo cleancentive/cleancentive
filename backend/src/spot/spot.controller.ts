@@ -30,14 +30,16 @@ type UploadFiles = {
   thumbnail?: Array<{ buffer: Buffer; mimetype: string; size: number }>;
 };
 
+interface LabelRef {
+  id: string;
+  name: string;
+}
+
 interface DetectedItemDto {
   id: string;
-  category: string | null;
-  material: string | null;
-  brand: string | null;
-  objectLabelId: string | null;
-  materialLabelId: string | null;
-  brandLabelId: string | null;
+  objectLabel: LabelRef | null;
+  materialLabel: LabelRef | null;
+  brandLabel: LabelRef | null;
   matchConfidence: number | null;
   humanVerified: boolean;
   weightGrams: number | null;
@@ -90,6 +92,12 @@ export class SpotController {
     private readonly userService: UserService,
   ) {}
 
+  private toLabelRef(label: any): LabelRef | null {
+    if (!label) return null;
+    const enTranslation = label.translations?.find((t: any) => t.locale === 'en');
+    return { id: label.id, name: enTranslation?.name ?? label.id };
+  }
+
   private toSpotDto(spot: any): SpotDto {
     return {
       id: spot.id,
@@ -106,12 +114,9 @@ export class SpotController {
       detectionCompletedAt: spot.detection_completed_at,
       items: spot.items.map((item: any) => ({
         id: item.id,
-        category: item.category,
-        material: item.material,
-        brand: item.brand,
-        objectLabelId: item.object_label_id,
-        materialLabelId: item.material_label_id,
-        brandLabelId: item.brand_label_id,
+        objectLabel: this.toLabelRef(item.object_label),
+        materialLabel: this.toLabelRef(item.material_label),
+        brandLabel: this.toLabelRef(item.brand_label),
         matchConfidence: item.match_confidence,
         humanVerified: item.human_verified,
         weightGrams: item.weight_grams,

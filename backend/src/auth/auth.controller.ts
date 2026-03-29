@@ -10,10 +10,12 @@ export class AuthController {
 
   @Post('magic-link')
   async sendMagicLink(
+    @Request() req,
     @Body('email') email: string,
     @Body('guestId') guestId?: string,
   ): Promise<{ success: boolean; requestId?: string }> {
-    const result = await this.authService.sendMagicLink(email, guestId);
+    const origin = req.headers.origin || req.headers.referer?.replace(/\/$/, '');
+    const result = await this.authService.sendMagicLink(email, guestId, origin);
     return { success: true, requestId: result?.requestId };
   }
 

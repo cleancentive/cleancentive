@@ -28,7 +28,7 @@ interface PublicStats {
   }
   spotStats: {
     byStatus: { queued: number; processing: number; completed: number; failed: number }
-    topCategories: Array<{ category: string; count: number }>
+    topObjects: Array<{ object: string; count: number }>
     topMaterials: Array<{ material: string; count: number }>
     topBrands: Array<{ brand: string; count: number }>
   }

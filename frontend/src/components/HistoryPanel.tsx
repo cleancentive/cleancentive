@@ -21,9 +21,9 @@ interface HistoryItem {
   detectionCompletedAt: string | null
   items: {
     id: string
-    category: string | null
-    material: string | null
-    brand: string | null
+    objectLabel: { id: string; name: string } | null
+    materialLabel: { id: string; name: string } | null
+    brandLabel: { id: string; name: string } | null
     weightGrams: number | null
     confidence: number | null
   }[]
@@ -166,7 +166,7 @@ function formatCoordinate(value: number): string {
 }
 
 function itemLabel(item: HistoryItem['items'][number]): string {
-  const parts = [item.category, item.material, item.brand].filter(Boolean)
+  const parts = [item.objectLabel?.name, item.materialLabel?.name, item.brandLabel?.name].filter(Boolean)
   return parts.length > 0 ? parts.join(' / ') : 'Unspecified item'
 }
 
