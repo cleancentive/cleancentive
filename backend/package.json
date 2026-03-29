@@ -8,6 +8,8 @@
     "dev:nest": "nest start --watch",
     "dev:stop": "lsof -ti :3000 | xargs kill -9 2>/dev/null || true",
     "import:mongo-export": "bun run scripts/import-mongo-export.ts",
+    "db:export": "bun run scripts/db-export.ts",
+    "db:import": "bun run scripts/db-import.ts",
     "build": "nest build",
     "start": "bun run dist/src/main.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
