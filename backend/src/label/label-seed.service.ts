@@ -9,6 +9,10 @@ interface SeedEntry {
   translations: Record<string, string>;
 }
 
+// Resolve the seed file relative to the source tree (process.cwd() is the backend root
+// in both dev and prod; __dirname points to dist/ in prod where the JSON isn't copied)
+const SEED_FILE = join(process.cwd(), 'src', 'label', 'seed', 'labels.json');
+
 @Injectable()
 export class LabelSeedService implements OnApplicationBootstrap {
   private readonly logger = new Logger(LabelSeedService.name);
@@ -17,7 +21,7 @@ export class LabelSeedService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap(): Promise<void> {
     const labels: SeedEntry[] = JSON.parse(
-      readFileSync(join(__dirname, 'seed', 'labels.json'), 'utf-8'),
+      readFileSync(SEED_FILE, 'utf-8'),
     );
 
     const queryRunner = this.dataSource.createQueryRunner();
