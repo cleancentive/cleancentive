@@ -191,7 +191,7 @@ export class TeamService {
     });
     await this.teamMembershipRepository.save(membership);
 
-    await this.userRepository.update({ id: userId }, { active_team_id: savedTeam.id });
+    await this.userRepository.update({ id: userId }, { active_team_id: savedTeam.id, updated_by: userId });
     return savedTeam;
   }
 
@@ -320,7 +320,7 @@ export class TeamService {
     }
 
     await this.teamMembershipRepository.delete({ id: membership.id });
-    await this.userRepository.update({ id: userId, active_team_id: teamId }, { active_team_id: null });
+    await this.userRepository.update({ id: userId, active_team_id: teamId }, { active_team_id: null, updated_by: userId });
     return { left: true };
   }
 
@@ -364,12 +364,12 @@ export class TeamService {
     const team = await this.getTeamOrThrow(teamId);
     await this.ensureTeamNotArchived(team);
     await this.getMembershipOrThrow(teamId, userId);
-    await this.userRepository.update({ id: userId }, { active_team_id: teamId });
+    await this.userRepository.update({ id: userId }, { active_team_id: teamId, updated_by: userId });
     return { activeTeamId: teamId };
   }
 
   async deactivateTeam(userId: string): Promise<void> {
-    await this.userRepository.update({ id: userId }, { active_team_id: null });
+    await this.userRepository.update({ id: userId }, { active_team_id: null, updated_by: userId });
   }
 
   async resolveActiveTeamForUser(userId: string): Promise<Team | null> {
@@ -384,7 +384,7 @@ export class TeamService {
     });
 
     if (!membership || membership.team.archived_at) {
-      await this.userRepository.update({ id: userId }, { active_team_id: null });
+      await this.userRepository.update({ id: userId }, { active_team_id: null, updated_by: userId });
       return null;
     }
 
@@ -421,7 +421,7 @@ export class TeamService {
     team.archived_by = actorUserId;
     await this.teamRepository.save(team);
 
-    await this.userRepository.update({ active_team_id: teamId }, { active_team_id: null });
+    await this.userRepository.update({ active_team_id: teamId }, { active_team_id: null, updated_by: actorUserId });
   }
 
   async listMessages(teamId: string, userId: string): Promise<Array<TeamMessage & { author?: { nickname: string; avatarEmailId: string | null } }>> {
@@ -756,7 +756,7 @@ export class TeamService {
         await this.teamMembershipRepository.delete({ id: membership.id });
         await this.userRepository.update(
           { id: membership.user_id, active_team_id: teamId },
-          { active_team_id: null },
+          { active_team_id: null, updated_by: membership.user_id },
         );
         removed++;
       }
@@ -827,7 +827,7 @@ export class TeamService {
         await this.teamMembershipRepository.delete({ id: membership.id });
         await this.userRepository.update(
           { id: userId, active_team_id: membership.team_id },
-          { active_team_id: null },
+          { active_team_id: null, updated_by: userId },
         );
       }
     }

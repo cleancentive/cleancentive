@@ -150,6 +150,7 @@ async function resolveOrCreateLabel(
   client: PoolClient,
   type: string,
   enName: string,
+  userId: string,
 ): Promise<string> {
   const existing = await client.query<{ id: string }>(
     `SELECT l.id FROM labels l
@@ -167,12 +168,12 @@ async function resolveOrCreateLabel(
   const titleCased = enName.replace(/\b\w/g, (c) => c.toUpperCase());
 
   await client.query(
-    `INSERT INTO labels (id, type) VALUES ($1, $2)`,
-    [labelId, type],
+    `INSERT INTO labels (id, type, created_at, updated_at, created_by, updated_by) VALUES ($1, $2, NOW(), NOW(), $3, $3)`,
+    [labelId, type, userId],
   );
   await client.query(
-    `INSERT INTO label_translations (id, label_id, locale, name) VALUES ($1, $2, 'en', $3)`,
-    [translationId, labelId, titleCased],
+    `INSERT INTO label_translations (id, label_id, locale, name, created_at, updated_at, created_by, updated_by) VALUES ($1, $2, 'en', $3, NOW(), NOW(), $4, $4)`,
+    [translationId, labelId, titleCased, userId],
   );
 
   return labelId;
@@ -410,13 +411,13 @@ async function persistDetection(
 
     for (const object of detection.objects) {
       const objectLabelId = object.category
-        ? await resolveOrCreateLabel(client, 'object', object.category)
+        ? await resolveOrCreateLabel(client, 'object', object.category, userId)
         : null;
       const materialLabelId = object.material
-        ? await resolveOrCreateLabel(client, 'material', object.material)
+        ? await resolveOrCreateLabel(client, 'material', object.material, userId)
         : null;
       const brandLabelId = object.brand
-        ? await resolveOrCreateLabel(client, 'brand', object.brand)
+        ? await resolveOrCreateLabel(client, 'brand', object.brand, userId)
         : null;
 
       await client.query(

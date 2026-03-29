@@ -190,7 +190,7 @@ export class CleanupService {
     });
     await this.cleanupParticipantRepository.save(participant);
 
-    await this.userRepository.update({ id: userId }, { active_cleanup_date_id: savedCleanupDate.id });
+    await this.userRepository.update({ id: userId }, { active_cleanup_date_id: savedCleanupDate.id, updated_by: userId });
 
     return {
       cleanup: savedCleanup,
@@ -457,7 +457,7 @@ export class CleanupService {
         where: { id: activeDate.active_cleanup_date_id },
       });
       if (cleanupDate?.cleanup_id === cleanupId) {
-        await this.userRepository.update({ id: userId }, { active_cleanup_date_id: null });
+        await this.userRepository.update({ id: userId }, { active_cleanup_date_id: null, updated_by: userId });
       }
     }
 
@@ -583,7 +583,7 @@ export class CleanupService {
     await this.userRepository
       .createQueryBuilder()
       .update()
-      .set({ active_cleanup_date_id: null })
+      .set({ active_cleanup_date_id: null, updated_by: actorUserId })
       .where('active_cleanup_date_id IN (:...dateIds)', { dateIds })
       .execute();
 
@@ -631,7 +631,7 @@ export class CleanupService {
     await this.ensureOrganizer(cleanupDate.cleanup_id, actorUserId);
 
     // Clear active_cleanup_date_id for any user who has this date active
-    await this.userRepository.update({ active_cleanup_date_id: cleanupDateId }, { active_cleanup_date_id: null });
+    await this.userRepository.update({ active_cleanup_date_id: cleanupDateId }, { active_cleanup_date_id: null, updated_by: actorUserId });
 
     await this.cleanupDateRepository.delete({ id: cleanupDateId });
   }
@@ -653,12 +653,12 @@ export class CleanupService {
       throw new BadRequestException('Cleanup date can only be activated while ongoing');
     }
 
-    await this.userRepository.update({ id: userId }, { active_cleanup_date_id: cleanupDateId });
+    await this.userRepository.update({ id: userId }, { active_cleanup_date_id: cleanupDateId, updated_by: userId });
     return { activeCleanupDateId: cleanupDateId };
   }
 
   async deactivateDate(userId: string): Promise<void> {
-    await this.userRepository.update({ id: userId }, { active_cleanup_date_id: null });
+    await this.userRepository.update({ id: userId }, { active_cleanup_date_id: null, updated_by: userId });
   }
 
   async promoteParticipant(cleanupId: string, targetUserId: string, actorUserId: string): Promise<void> {
@@ -815,19 +815,19 @@ export class CleanupService {
     });
 
     if (!cleanupDate || cleanupDate.cleanup.archived_at) {
-      await this.userRepository.update({ id: userId }, { active_cleanup_date_id: null });
+      await this.userRepository.update({ id: userId }, { active_cleanup_date_id: null, updated_by: userId });
       return { cleanupId: null, cleanupDateId: null, warning: null };
     }
 
     const participant = await this.getParticipant(cleanupDate.cleanup_id, userId);
     if (!participant) {
-      await this.userRepository.update({ id: userId }, { active_cleanup_date_id: null });
+      await this.userRepository.update({ id: userId }, { active_cleanup_date_id: null, updated_by: userId });
       return { cleanupId: null, cleanupDateId: null, warning: null };
     }
 
     const now = new Date();
     if (now < cleanupDate.start_at || now > cleanupDate.end_at) {
-      await this.userRepository.update({ id: userId }, { active_cleanup_date_id: null });
+      await this.userRepository.update({ id: userId }, { active_cleanup_date_id: null, updated_by: userId });
       return { cleanupId: null, cleanupDateId: null, warning: null };
     }
 

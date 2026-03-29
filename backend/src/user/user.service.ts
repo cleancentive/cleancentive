@@ -288,20 +288,20 @@ export class UserService {
     // First, deselect all emails for this user
     await this.userEmailRepository.update(
       { user_id: userId },
-      { is_selected_for_login: false }
+      { is_selected_for_login: false, updated_by: userId }
     );
 
     // Then select the specified emails
     if (emailIds.length > 0) {
       await this.userEmailRepository.update(
         { id: emailIds[0] },
-        { is_selected_for_login: true }
+        { is_selected_for_login: true, updated_by: userId }
       );
-      
+
       for (let i = 1; i < emailIds.length; i++) {
         await this.userEmailRepository.update(
           { id: emailIds[i] },
-          { is_selected_for_login: true }
+          { is_selected_for_login: true, updated_by: userId }
         );
       }
     }
@@ -334,7 +334,7 @@ export class UserService {
     // Transfer emails from guest to existing user (if any)
     await this.userEmailRepository.update(
       { user_id: guestUserId },
-      { user_id: existingUserId },
+      { user_id: existingUserId, updated_by: existingUserId },
     );
 
     await this.transferCleanupOwnership(guestUserId, existingUserId);
@@ -359,7 +359,7 @@ export class UserService {
     // Transfer emails from source to target
     await this.userEmailRepository.update(
       { user_id: sourceUserId },
-      { user_id: targetUserId },
+      { user_id: targetUserId, updated_by: targetUserId },
     );
 
     await this.transferCleanupOwnership(sourceUserId, targetUserId);
@@ -468,7 +468,7 @@ export class UserService {
   }
 
   async updateLastLogin(userId: string): Promise<void> {
-    await this.userRepository.update({ id: userId }, { last_login: new Date() });
+    await this.userRepository.update({ id: userId }, { last_login: new Date(), updated_by: userId });
   }
 
   async updateProfile(userId: string, updates: { nickname?: string; fullName?: string }): Promise<User> {
