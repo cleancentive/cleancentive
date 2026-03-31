@@ -318,38 +318,44 @@ export function ContextBar() {
         className={`filter-zone${!anyFilterEnabled ? ' filter-zone--disabled' : ''}`}
         title={anyFilterEnabled ? 'Narrows what data you see on this page' : 'Not applicable on this page'}
       >
-        <button
-          className={`context-my-chip${effectiveMyFilter ? ' context-my-chip--active' : ''}`}
-          onClick={() => config.myEnabled && setMyFilter(!myFilter)}
-          disabled={!config.myEnabled}
-        >
-          My
-        </button>
-
-        <div className="context-date-chips">
-          {PICKED_UP_PRESETS.map(({ value, label }) => (
-            <button
-              key={value}
-              className={`context-date-chip${pickedUpFilter === value ? ' context-date-chip--active' : ''}`}
-              onClick={() => setPickedUpFilter(value)}
-              disabled={!config.pickedUpEnabled}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="filter-group">
+          <button
+            className={`context-my-chip${effectiveMyFilter ? ' context-my-chip--active' : ''}`}
+            onClick={() => config.myEnabled && setMyFilter(!myFilter)}
+            disabled={!config.myEnabled}
+          >
+            My
+          </button>
         </div>
 
-        <div className="context-date-chips">
-          {DATE_PRESETS.map(({ value, label }) => (
-            <button
-              key={value}
-              className={`context-date-chip${datePreset === value ? ' context-date-chip--active' : ''}`}
-              onClick={() => setDatePreset(value)}
-              disabled={!config.dateEnabled}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="filter-group filter-group--separated">
+          <div className="context-pickup-chips">
+            {PICKED_UP_PRESETS.map(({ value, label }) => (
+              <button
+                key={value}
+                className={`context-date-chip${pickedUpFilter === value ? ' context-date-chip--active' : ''}`}
+                onClick={() => setPickedUpFilter(value)}
+                disabled={!config.pickedUpEnabled}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="filter-group filter-group--separated">
+          <div className="context-date-chips">
+            {DATE_PRESETS.map(({ value, label }) => (
+              <button
+                key={value}
+                className={`context-date-chip${datePreset === value ? ' context-date-chip--active' : ''}`}
+                onClick={() => setDatePreset(value)}
+                disabled={!config.dateEnabled}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {anyFilterEnabled && anyFiltersActive && (
