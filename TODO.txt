@@ -1,3 +1,0 @@
-- API / ecosystem
-- edit and delete spots
-- spot only ( no pick)
