@@ -124,6 +124,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
     try {
       const response = await axios.post(`${API_BASE}/teams`, { name, description }, { headers: getHeaders() })
       set({ isLoading: false })
+      await get().fetchMyTeams()
       return response.data
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to create team', isLoading: false })
@@ -208,6 +209,8 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
     set({ error: null })
     try {
       await axios.post(`${API_BASE}/teams/${id}/archive`, {}, { headers: getHeaders() })
+      await get().fetchMyTeams()
+      await useAuthStore.getState().refreshProfile()
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to archive team' })
     }
