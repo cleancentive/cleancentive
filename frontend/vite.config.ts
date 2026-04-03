@@ -4,6 +4,24 @@ import { VitePWA } from 'vite-plugin-pwa'
 import basicSsl from '@vitejs/plugin-basic-ssl'
 import pkg from './package.json'
 
+export const pwaConfig = {
+  registerType: 'autoUpdate',
+  includeAssets: ['robots.txt'],
+  manifest: {
+    name: 'Cleancentive',
+    short_name: 'Cleancentive',
+    description: 'Offline-first cleanup tracking with camera uploads',
+    theme_color: '#2563eb',
+    background_color: '#f8fafc',
+    display: 'standalone',
+    start_url: '/',
+  },
+  workbox: {
+    globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+    navigateFallbackDenylist: [/^\/api\//],
+  },
+}
+
 // https://vitejs.dev/config/
 export default defineConfig({
   server: {
@@ -19,21 +37,6 @@ export default defineConfig({
   plugins: [
     basicSsl(),
     react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['robots.txt'],
-      manifest: {
-        name: 'Cleancentive',
-        short_name: 'Cleancentive',
-        description: 'Offline-first cleanup tracking with camera uploads',
-        theme_color: '#2563eb',
-        background_color: '#f8fafc',
-        display: 'standalone',
-        start_url: '/',
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
-      },
-    }),
+    VitePWA(pwaConfig),
   ],
 })
