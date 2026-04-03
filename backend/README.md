@@ -48,7 +48,7 @@ bun run build
 
 The backend will be available at http://localhost:3000/api/v1
 
-Swagger UI will be available at http://localhost:3000/api/v1/docs
+Swagger UI will be available at http://localhost:3000/api/
 
 ### Email Testing
 

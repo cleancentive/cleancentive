@@ -98,7 +98,7 @@ Run `bun browse` from the repository root to launch the shared Chromium session 
 
 - http://localhost:9001 (MinIO)
 - http://localhost:8081 (Postgres browser)
-- http://localhost:3000/api/v1/docs (Swagger UI)
+- http://localhost:3000/api/ (Swagger UI)
 - http://localhost:8025 (Mailpit)
 - http://localhost:5173 (frontend app by default)
 

@@ -6,7 +6,7 @@ export type BrowserToolTarget = {
 
 export const MINIO_URL = 'http://localhost:9001';
 export const POSTGRES_BROWSER_URL = 'http://localhost:8081';
-export const SWAGGER_URL = 'http://localhost:3000/api/v1/docs';
+export const SWAGGER_URL = 'http://localhost:3000/api/';
 export const MAILPIT_URL = 'http://localhost:8025';
 export const UMAMI_URL = 'http://localhost:3001';
 

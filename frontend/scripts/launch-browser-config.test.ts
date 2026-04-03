@@ -5,6 +5,7 @@ import {
   MINIO_URL,
   POSTGRES_BROWSER_URL,
   SWAGGER_URL,
+  UMAMI_URL,
   buildBrowserToolTargets,
   randomGeoInRadius,
 } from './launch-browser-config';
@@ -14,18 +15,19 @@ describe('buildBrowserToolTargets', () => {
     const targets = buildBrowserToolTargets({});
 
     expect(targets.map((target) => target.url)).toEqual([
-      MINIO_URL,
-      POSTGRES_BROWSER_URL,
+      'https://localhost:5173',
       SWAGGER_URL,
       MAILPIT_URL,
-      'http://localhost:5173',
+      POSTGRES_BROWSER_URL,
+      MINIO_URL,
+      UMAMI_URL,
     ]);
   });
 
   test('uses BROWSER_URL when provided', () => {
     const targets = buildBrowserToolTargets({ BROWSER_URL: 'http://localhost:4173' });
 
-    expect(targets.at(-1)).toEqual({ name: 'App', url: 'http://localhost:4173', login: 'none' });
+    expect(targets[0]).toEqual({ name: 'App', url: 'http://localhost:4173', login: 'none' });
   });
 });
 
