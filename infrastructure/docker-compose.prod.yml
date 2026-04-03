@@ -20,7 +20,7 @@ services:
       - caddy_config:/config
 
   frontend:
-    image: ghcr.io/cleancentive/cleancentive-frontend:1a966bba603be79bbf9d86e6df446cc713ae9d67
+    image: ghcr.io/cleancentive/cleancentive-frontend:d9a8c095fc649425eb8a615d817d0577ea24855e
     restart: unless-stopped
     environment:
       UMAMI_SCRIPT_URL: https://analytics.${DOMAIN}/script.js
@@ -33,7 +33,7 @@ services:
       retries: 3
 
   backend:
-    image: ghcr.io/cleancentive/cleancentive-backend:c27314df6c02e78d00e2789447ad22d728431cf3
+    image: ghcr.io/cleancentive/cleancentive-backend:d9a8c095fc649425eb8a615d817d0577ea24855e
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
@@ -43,7 +43,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "bun", "-e", "await fetch('http://127.0.0.1:3000/api/v1/docs').then((response) => { if (!response.ok) process.exit(1); });"]
+      test: ["CMD", "bun", "-e", "await fetch('http://127.0.0.1:3000/api/openapi.json').then((response) => { if (!response.ok) process.exit(1); });"]
       interval: 30s
       timeout: 5s
       retries: 5
