@@ -22,7 +22,7 @@ import { AdminService } from '../admin/admin.service';
 import { FeedbackService } from './feedback.service';
 import {
   FEEDBACK_CATEGORY_QUERY_VALUES,
-  FEEDBACK_STATUS_QUERY_VALUES,
+  FEEDBACK_STATUSES,
   normalizeFeedbackListQuery,
 } from './feedback-query';
 
@@ -106,6 +106,13 @@ export class FeedbackController {
     return [];
   }
 
+  @Get('counts')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiOperation({ summary: 'Count feedback items grouped by status' })
+  async counts(): Promise<Record<string, number>> {
+    return this.feedbackService.countByStatus();
+  }
+
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
   async getOne(
@@ -153,9 +160,8 @@ export class FeedbackController {
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: FEEDBACK_STATUS_QUERY_VALUES,
-    description: 'Defaults to open, which includes new, acknowledged, and in_progress feedback.',
-    example: 'open',
+    description: 'Comma-separated list of statuses (OR logic). Omit to return all. Valid values: new, acknowledged, in_progress, resolved.',
+    example: 'new,acknowledged',
   })
   @ApiQuery({
     name: 'category',

@@ -128,7 +128,8 @@ interface AdminState {
   retryFailedSpotsResult: string | null
   feedbackItems: FeedbackItem[]
   feedbackTotal: number
-  feedbackStatusFilter: string
+  feedbackStatusFilter: Set<string>
+  feedbackCounts: Record<string, number> | null
   isLoadingFeedback: boolean
   activeFeedbackItem: FeedbackItem | null
   versionInfo: VersionInfo | null
@@ -145,11 +146,12 @@ interface AdminState {
   setSearch: (search: string) => void
   promoteUser: (userId: string) => Promise<void>
   demoteUser: (userId: string) => Promise<void>
-  fetchFeedback: (statusFilter?: string) => Promise<void>
+  fetchFeedback: (statusFilter?: Set<string>) => Promise<void>
+  fetchFeedbackCounts: () => Promise<void>
   fetchFeedbackDetail: (id: string) => Promise<void>
   updateFeedbackStatus: (id: string, status: string) => Promise<void>
   addAdminResponse: (id: string, message: string) => Promise<void>
-  setFeedbackStatusFilter: (status: string) => void
+  toggleFeedbackStatus: (status: string) => void
   clearError: () => void
   reset: () => void
 }
@@ -183,7 +185,8 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   retryFailedSpotsResult: null,
   feedbackItems: [],
   feedbackTotal: 0,
-  feedbackStatusFilter: '',
+  feedbackStatusFilter: new Set(['new', 'acknowledged', 'in_progress', 'resolved']),
+  feedbackCounts: null,
   isLoadingFeedback: false,
   activeFeedbackItem: null,
   versionInfo: null,
@@ -375,15 +378,27 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     if (!headers.Authorization) return
 
     const filter = statusFilter !== undefined ? statusFilter : get().feedbackStatusFilter
-    set({ isLoadingFeedback: true })
+    set({ isLoadingFeedback: true, feedbackStatusFilter: filter })
 
     try {
       const params = new URLSearchParams()
-      if (filter) params.set('status', filter)
+      if (filter.size > 0) params.set('status', [...filter].join(','))
       const response = await axios.get(`${API_BASE}/feedback?${params}`, { headers })
-      set({ feedbackItems: response.data.items, feedbackTotal: response.data.total, isLoadingFeedback: false, feedbackStatusFilter: filter })
+      set({ feedbackItems: response.data.items, feedbackTotal: response.data.total, isLoadingFeedback: false })
     } catch (error: any) {
       set({ error: error.response?.data?.message || 'Failed to fetch feedback', isLoadingFeedback: false })
+    }
+  },
+
+  fetchFeedbackCounts: async () => {
+    const headers = getHeaders()
+    if (!headers.Authorization) return
+
+    try {
+      const response = await axios.get(`${API_BASE}/feedback/counts`, { headers })
+      set({ feedbackCounts: response.data })
+    } catch {
+      // non-critical
     }
   },
 
@@ -405,7 +420,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
     try {
       await axios.patch(`${API_BASE}/feedback/${id}/status`, { status }, { headers })
-      await get().fetchFeedback()
+      await Promise.all([get().fetchFeedback(), get().fetchFeedbackCounts()])
     } catch (error: any) {
       set({ error: error.response?.data?.message || 'Failed to update feedback status' })
     }
@@ -424,8 +439,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }
   },
 
-  setFeedbackStatusFilter: (status) => {
-    get().fetchFeedback(status)
+  toggleFeedbackStatus: (status) => {
+    const current = new Set(get().feedbackStatusFilter)
+    if (current.has(status)) {
+      current.delete(status)
+    } else {
+      current.add(status)
+    }
+    get().fetchFeedback(current)
   },
 
   clearError: () => set({ error: null }),

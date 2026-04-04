@@ -117,6 +117,21 @@ export class FeedbackService {
     return { items, total };
   }
 
+  async countByStatus(): Promise<Record<string, number>> {
+    const rows: { status: string; count: string }[] = await this.feedbackRepository
+      .createQueryBuilder('f')
+      .select('f.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('f.status')
+      .getRawMany();
+
+    const counts: Record<string, number> = { new: 0, acknowledged: 0, in_progress: 0, resolved: 0 };
+    for (const row of rows) {
+      counts[row.status] = Number(row.count);
+    }
+    return counts;
+  }
+
   async findByUser(userId: string): Promise<Feedback[]> {
     return this.feedbackRepository.find({
       where: { user_id: userId },

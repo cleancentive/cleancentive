@@ -68,13 +68,15 @@ export function AdminPanel() {
     feedbackItems,
     feedbackTotal,
     feedbackStatusFilter,
+    feedbackCounts,
     isLoadingFeedback,
     activeFeedbackItem,
     fetchFeedback,
+    fetchFeedbackCounts,
     fetchFeedbackDetail,
     updateFeedbackStatus,
     addAdminResponse,
-    setFeedbackStatusFilter,
+    toggleFeedbackStatus,
     versionInfo,
     fetchVersionInfo,
   } = useAdminStore()
@@ -99,19 +101,20 @@ export function AdminPanel() {
       fetchStorageInsights()
       fetchPurgeStatus()
       fetchFeedback()
+      fetchFeedbackCounts()
       fetchVersionInfo()
     }
-  }, [checked, isAdmin, fetchUsers, fetchOpsOverview, fetchStorageInsights, fetchPurgeStatus, fetchVersionInfo])
+  }, [checked, isAdmin, fetchUsers, fetchOpsOverview, fetchStorageInsights, fetchPurgeStatus, fetchFeedbackCounts, fetchVersionInfo])
 
   // Deep-link to a specific feedback item via /steward/feedback/:feedbackId
   useEffect(() => {
     if (checked && isAdmin && feedbackIdParam) {
-      setFeedbackStatusFilter('')
+      fetchFeedback(new Set())
       fetchFeedbackDetail(feedbackIdParam).then(() => {
         setExpandedFeedbackId(feedbackIdParam)
       })
     }
-  }, [checked, isAdmin, feedbackIdParam, fetchFeedbackDetail, setFeedbackStatusFilter])
+  }, [checked, isAdmin, feedbackIdParam, fetchFeedback, fetchFeedbackDetail])
 
   // Debounced search
   const handleSearchChange = (value: string) => {
@@ -478,15 +481,19 @@ export function AdminPanel() {
       <fieldset className="page-card">
         <legend>Feedback ({feedbackTotal})</legend>
         <div className="feedback-admin-filters">
-          {['', 'new', 'acknowledged', 'in_progress', 'resolved'].map((s) => (
-            <button
-              key={s}
-              className={`filter-tab${feedbackStatusFilter === s ? ' filter-tab--active' : ''}`}
-              onClick={() => setFeedbackStatusFilter(s)}
-            >
-              {s || 'All'}
-            </button>
-          ))}
+          {(['new', 'acknowledged', 'in_progress', 'resolved'] as const).map((s) => {
+            const label = s === 'in_progress' ? 'In progress' : s.charAt(0).toUpperCase() + s.slice(1)
+            const count = feedbackCounts?.[s]
+            return (
+              <button
+                key={s}
+                className={`filter-tab${feedbackStatusFilter.has(s) ? ' filter-tab--active' : ''}`}
+                onClick={() => toggleFeedbackStatus(s)}
+              >
+                {label}{count != null ? ` (${count})` : ''}
+              </button>
+            )
+          })}
         </div>
 
         {isLoadingFeedback && <p className="loading">Loading...</p>}
@@ -513,7 +520,7 @@ export function AdminPanel() {
               >
                 <span className="badge">{f.category}</span>
                 <span className="badge" style={{ backgroundColor: f.status === 'resolved' ? '#22c55e' : f.status === 'in_progress' ? '#f59e0b' : f.status === 'acknowledged' ? '#3b82f6' : '#888', color: '#fff' }}>
-                  {f.status.replace('_', ' ')}
+                  {f.status === 'in_progress' ? 'In progress' : f.status.replace('_', ' ')}
                 </span>
                 <span className="feedback-admin-description">{f.description.slice(0, 80)}{f.description.length > 80 ? '...' : ''}</span>
                 <span className="feedback-admin-meta">
@@ -564,7 +571,7 @@ export function AdminPanel() {
                       <select value={feedbackStatus} onChange={(e) => setFeedbackStatus(e.target.value)}>
                         <option value="new">New</option>
                         <option value="acknowledged">Acknowledged</option>
-                        <option value="in_progress">In Progress</option>
+                        <option value="in_progress">In progress</option>
                         <option value="resolved">Resolved</option>
                       </select>
                     </label>
