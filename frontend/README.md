@@ -15,7 +15,7 @@ Progressive Web App (PWA) for cleancentive.
 ## Development
 
 ```bash
-# Start dev server (http://localhost:5173)
+# Start dev server (access via https://localhost:5173/ through Caddy)
 bun run dev
 
 # Build for production
@@ -96,11 +96,11 @@ This lets you inspect emails sent during tests manually.
 
 Run `bun browse` from the repository root to launch the shared Chromium session used by both humans and agents. It opens:
 
-- http://localhost:9001 (MinIO)
-- http://localhost:8081 (Postgres browser)
-- http://localhost:3000/api/ (Swagger UI)
+- https://localhost:5173/ (app via Caddy)
+- https://localhost:5173/api/ (Swagger UI via Caddy)
 - http://localhost:8025 (Mailpit)
-- http://localhost:5173 (frontend app by default)
+- http://localhost:8081 (Postgres browser)
+- http://localhost:9001 (MinIO)
 
 The Postgres browser is prewired to the local development database and remains localhost-only.
 

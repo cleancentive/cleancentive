@@ -8,8 +8,8 @@ Use the Playwright MCP tools to check the current UI state in the shared browser
 
 | Service | URL |
 |---------|-----|
-| Frontend app | http://localhost:5173 |
-| API docs (Swagger) | http://localhost:3000/api/ |
+| App (via Caddy) | https://localhost:5173/ |
+| API docs (Swagger) | https://localhost:5173/api/ |
 | Email testing (Mailpit) | http://localhost:8025 |
 | Object storage (MinIO) | http://localhost:9001 |
 

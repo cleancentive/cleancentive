@@ -1,10 +1,11 @@
 import { Controller, Post, Body, Get, Query, Param, Res, UseGuards, Request, BadRequestException } from '@nestjs/common';
 import type { Response } from 'express';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
+@ApiTags('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 

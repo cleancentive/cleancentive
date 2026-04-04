@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { LabelService } from './label.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('labels')
+@ApiTags('labels')
 export class LabelController {
   constructor(private readonly labelService: LabelService) {}
 

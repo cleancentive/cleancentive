@@ -88,9 +88,14 @@ bun run dev
 
 #### 3. Access Development Tools
 
+All services are available through the Caddy reverse proxy at **https://localhost:5173/** (mirrors the production routing topology):
+
+- **App**: https://localhost:5173/
+- **Swagger UI**: https://localhost:5173/api/
+
+Direct-access ports (for debugging):
 - **Backend API**: http://localhost:3000/api/v1
-- **Swagger UI**: http://localhost:3000/api/
-- **Frontend**: http://localhost:5173
+- **Frontend (Vite)**: http://localhost:5173
 - **Postgres Browser**: http://localhost:8081
 - **Mailpit (Email Testing)**: http://localhost:8025
 - **MinIO Console**: http://localhost:9001 (minioadmin/minioadmin)
@@ -111,7 +116,7 @@ The Postgres browser is wired to the local Docker Postgres instance automaticall
 
 All emails sent during development are captured by Mailpit and viewable in the web UI:
 
-1. Request a magic link from the frontend
+1. Request a magic link from the frontend at https://localhost:5173/
 2. Open Mailpit at http://localhost:8025
 3. View the email and click the magic link
 4. You'll be authenticated in the app

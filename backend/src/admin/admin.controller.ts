@@ -1,11 +1,12 @@
 import { Controller, Get, Post, Delete, Param, Query, UseGuards, Request, ParseIntPipe, ParseUUIDPipe, DefaultValuePipe, NotFoundException } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 
 @Controller('admin')
 @ApiBearerAuth('Bearer')
+@ApiTags('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 

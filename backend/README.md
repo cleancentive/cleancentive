@@ -46,9 +46,7 @@ bun test
 bun run build
 ```
 
-The backend will be available at http://localhost:3000/api/v1
-
-Swagger UI will be available at http://localhost:3000/api/
+The backend and its swagger ui will be available at https://localhost:5173/api/v1 (via Caddy) or http://localhost:3000/api/v1 (direct)
 
 ### Email Testing
 

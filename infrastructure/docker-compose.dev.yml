@@ -1,4 +1,14 @@
 services:
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: cleancentive-caddy
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./caddy/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
   postgres:
     image: postgis/postgis:15-3.4
     container_name: cleancentive-db

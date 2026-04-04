@@ -15,7 +15,7 @@ describe('buildBrowserToolTargets', () => {
     const targets = buildBrowserToolTargets({});
 
     expect(targets.map((target) => target.url)).toEqual([
-      'https://localhost:5173',
+      'https://localhost:5173/api',
       SWAGGER_URL,
       MAILPIT_URL,
       POSTGRES_BROWSER_URL,

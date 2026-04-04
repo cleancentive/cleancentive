@@ -25,6 +25,7 @@ import { SpotService } from './spot.service';
 import { AuthService } from '../auth/auth.service';
 import { UserService } from '../user/user.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ApiTags } from '@nestjs/swagger';
 
 type UploadFiles = {
   image?: Array<{ buffer: Buffer; mimetype: string; size: number }>;
@@ -64,6 +65,7 @@ interface SpotDto {
 }
 
 @Controller('spots')
+@ApiTags('spots')
 export class SpotController {
   private readonly maxUploadSizeBytes = parseInt(process.env.UPLOAD_MAX_SIZE_BYTES || `${15 * 1024 * 1024}`, 10);
   private readonly maxAcceptedAccuracyMeters = parseFloat(

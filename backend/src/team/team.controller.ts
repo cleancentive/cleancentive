@@ -11,7 +11,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { AdminGuard } from '../admin/admin.guard';
@@ -20,6 +20,7 @@ import { AdminService } from '../admin/admin.service';
 
 @Controller('teams')
 @ApiBearerAuth('Bearer')
+@ApiTags('teams')
 export class TeamController {
   constructor(
     private readonly teamService: TeamService,

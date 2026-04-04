@@ -14,12 +14,17 @@ import {
   BadRequestException,
   HttpException,
 } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { AdminGuard } from '../admin/admin.guard';
 import { AdminService } from '../admin/admin.service';
 import { FeedbackService } from './feedback.service';
+import {
+  FEEDBACK_CATEGORY_QUERY_VALUES,
+  FEEDBACK_STATUS_QUERY_VALUES,
+  normalizeFeedbackListQuery,
+} from './feedback-query';
 
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const RATE_LIMIT_MAX = 10;
@@ -46,6 +51,7 @@ type Status = (typeof VALID_STATUSES)[number];
 
 @Controller('feedback')
 @ApiBearerAuth('Bearer')
+@ApiTags('feedback')
 export class FeedbackController {
   constructor(
     private readonly feedbackService: FeedbackService,
@@ -143,16 +149,33 @@ export class FeedbackController {
 
   @Get()
   @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiOperation({ summary: 'List feedback for stewards with sensible defaults for triage' })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: FEEDBACK_STATUS_QUERY_VALUES,
+    description: 'Defaults to open, which includes new, acknowledged, and in_progress feedback.',
+    example: 'open',
+  })
+  @ApiQuery({
+    name: 'category',
+    required: false,
+    enum: FEEDBACK_CATEGORY_QUERY_VALUES,
+    description: 'Defaults to all categories.',
+    example: 'all',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    description: '1-based page number. Defaults to 1.',
+    example: 1,
+  })
   async findAll(
     @Query('status') status?: string,
     @Query('category') category?: string,
     @Query('page') page?: string,
   ) {
-    return this.feedbackService.findAll({
-      status,
-      category,
-      page: page ? parseInt(page, 10) : 1,
-    });
+    return this.feedbackService.findAll(normalizeFeedbackListQuery({ status, category, page }));
   }
 
   @Patch(':id/status')

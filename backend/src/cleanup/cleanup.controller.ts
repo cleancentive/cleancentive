@@ -11,7 +11,7 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { CleanupService } from './cleanup.service';
@@ -19,6 +19,7 @@ import { AdminService } from '../admin/admin.service';
 
 @Controller('cleanups')
 @ApiBearerAuth('Bearer')
+@ApiTags('cleanups')
 export class CleanupController {
   constructor(
     private readonly cleanupService: CleanupService,

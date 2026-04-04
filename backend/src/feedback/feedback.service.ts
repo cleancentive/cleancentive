@@ -71,7 +71,7 @@ export class FeedbackService {
     return saved;
   }
 
-  async findAll(filters: { status?: string; category?: string; page?: number }): Promise<{ items: Feedback[]; total: number }> {
+  async findAll(filters: { statuses?: readonly string[]; category?: string; page?: number }): Promise<{ items: Feedback[]; total: number }> {
     const page = filters.page || 1;
     const take = 20;
     const skip = (page - 1) * take;
@@ -80,8 +80,8 @@ export class FeedbackService {
       .leftJoinAndSelect('f.responses', 'r')
       .orderBy('f.created_at', 'DESC');
 
-    if (filters.status) {
-      qb.andWhere('f.status = :status', { status: filters.status });
+    if (filters.statuses?.length) {
+      qb.andWhere('f.status IN (:...statuses)', { statuses: [...filters.statuses] });
     }
     if (filters.category) {
       qb.andWhere('f.category = :category', { category: filters.category });

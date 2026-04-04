@@ -1,8 +1,10 @@
 import { Controller, Post, Get, Param, Body, Put, Res, ParseUUIDPipe, NotFoundException } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { User } from './user.entity';
 
 @Controller('user')
+@ApiTags('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
