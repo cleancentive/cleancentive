@@ -90,7 +90,7 @@ interface PublicSpotDto {
 For first-party CLI tools (e.g., `triagato`), a device code flow avoids manual token copy-paste:
 
 1. CLI calls `POST /api/v1/auth/device-code` → `{ id, deviceCode, expiresIn }`
-2. User opens `https://app.cleancentive.org/auth/device?code={deviceCode}` in browser
+2. User opens `https://cleancentive.org/auth/device?code={deviceCode}` in browser
 3. User approves (requires active admin session) → `POST /api/v1/auth/device-code/approve`
 4. CLI polls `GET /api/v1/auth/device-code/{id}` → `{ status: 'completed', sessionToken }`
 

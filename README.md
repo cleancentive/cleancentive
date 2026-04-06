@@ -18,9 +18,17 @@ Simply take a photo of the litter you've collected. Cleancentive automatically i
 
 ## Get Started
 
-Visit **app.cleancentive.org** to start tracking your cleanups today.
+Visit **cleancentive.org** to start tracking your cleanups today.
 
 *Currently in early development (v0.1)*
+
+## Feedback
+
+We build Cleancentive for people who care about their environment — and that includes listening to you. If something feels off, if you have an idea, or if you just want to say hi, we'd love to hear from you:
+
+**[Share your feedback](https://cleancentive.org/feedback/new)**
+
+Every piece of feedback helps us make Cleancentive better, just like every piece of litter you pick up makes the world a little cleaner.
 
 ## For Developers
 

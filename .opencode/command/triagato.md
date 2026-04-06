@@ -14,7 +14,7 @@ Default target is production. If the user passes an argument (e.g., `/triagato l
 | `dev`, `development`, `local`, `localhost` | `https://localhost:5173` |
 | Any other value | Use as-is (e.g., `https://staging.example.com`) |
 
-Derive the **environment name** from the hostname of the base URL (e.g., `app.cleancentive.org`, `localhost`). Plans are stored in `docs/feedback-plans/{env}/`.
+Derive the **environment name** from the hostname of the base URL (e.g., `cleancentive.org`, `localhost`). Plans are stored in `docs/feedback-plans/{env}/`.
 
 | Setting | Value |
 |---------|-------|
