@@ -76,6 +76,5 @@ docker-compose.override.yml
 .playwright-mcp
 
 # triagato
-docs/feedback-plans/*.md
-!docs/feedback-plans/README.md
-infrastructure/.feedback-token
+docs/feedback-plans/*/
+infrastructure/.feedback-token.*
