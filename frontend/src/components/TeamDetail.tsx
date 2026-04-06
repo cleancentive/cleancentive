@@ -141,7 +141,7 @@ export function TeamDetail() {
 
         {isPartner && (
           <p className="partner-notice">
-            <span className="badge" style={{ background: '#7c3aed' }}>Partner</span>
+            <span className="badge" style={{ background: 'var(--color-badge-partner)' }}>Partner</span>
             {' '}Membership is managed automatically based on your email domain.
           </p>
         )}

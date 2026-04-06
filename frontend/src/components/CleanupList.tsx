@@ -220,7 +220,7 @@ export function CleanupList() {
             tags={
               <>
                 {userRole && <span className={`badge ${userRole === 'admin' ? 'admin-badge' : ''}`}>{userRole}</span>}
-                {isActive && <span className="badge" style={{ background: '#16a34a' }}>Active</span>}
+                {isActive && <span className="badge" style={{ background: 'var(--color-badge-active)' }}>Active</span>}
               </>
             }
             meta={nearestDate && (

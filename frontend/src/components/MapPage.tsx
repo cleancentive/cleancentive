@@ -9,6 +9,10 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+function getCssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+}
+
 export function MapPage() {
   const { spotGeoJson, cleanupGeoJson, isLoading, error, fetchMapData } = useMapStore()
   const { user } = useAuthStore()
@@ -67,6 +71,13 @@ export function MapPage() {
     map.on('touchstart', () => { userInteractedRef.current = true })
 
     map.on('load', () => {
+      // Resolve entity colors from CSS custom properties (MapLibre needs literal hex)
+      const spotBase = getCssVar('--color-entity-spot')
+      const spotLight = getCssVar('--color-entity-spot-light')
+      const spotDark = getCssVar('--color-entity-spot-dark')
+      const pickBase = getCssVar('--color-entity-pick')
+      const cleanupBase = getCssVar('--color-entity-cleanup')
+
       // Spots source with clustering
       map.addSource('spots-source', {
         type: 'geojson',
@@ -76,7 +87,7 @@ export function MapPage() {
         clusterRadius: 50,
       })
 
-      // Cluster circles
+      // Cluster circles — count-based shading using spot color family
       map.addLayer({
         id: 'clusters',
         type: 'circle',
@@ -85,9 +96,9 @@ export function MapPage() {
         paint: {
           'circle-color': [
             'step', ['get', 'point_count'],
-            '#51bbd6', 10,
-            '#f1f075', 50,
-            '#f28cb1',
+            spotLight, 10,
+            spotBase, 50,
+            spotDark,
           ],
           'circle-radius': [
             'step', ['get', 'point_count'],
@@ -115,7 +126,7 @@ export function MapPage() {
         },
       })
 
-      // Individual spot circles
+      // Individual spot/pick circles — entity-type coloring
       map.addLayer({
         id: 'unclustered-spot',
         type: 'circle',
@@ -124,15 +135,9 @@ export function MapPage() {
         paint: {
           'circle-color': [
             'case',
-            ['==', ['get', 'pickedUp'], false],
-            '#2563eb', // blue for spot-only
-            [
-              'match', ['get', 'status'],
-              'completed', '#4caf50',
-              'processing', '#ff9800',
-              'failed', '#f44336',
-              '#9e9e9e',
-            ],
+            ['==', ['get', 'pickedUp'], true],
+            pickBase,   // green — collected
+            spotBase,    // red — needs action
           ],
           'circle-radius': 7,
           'circle-stroke-width': 2,
@@ -151,7 +156,7 @@ export function MapPage() {
         type: 'circle',
         source: 'cleanups-source',
         paint: {
-          'circle-color': '#1976d2',
+          'circle-color': cleanupBase,
           'circle-radius': 10,
           'circle-stroke-width': 3,
           'circle-stroke-color': '#fff',

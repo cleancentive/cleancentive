@@ -7,6 +7,7 @@ import { formatTimestamp } from '../utils/formatTimestamp'
 import { CountdownButton } from './CountdownButton'
 import { UMAMI_SHARE_URL } from '../lib/analytics'
 import { Avatar } from './Avatar'
+import { FEEDBACK_STATUS_COLORS } from '../lib/statusColors'
 
 function formatAge(seconds: number | null) {
   if (seconds === null) {
@@ -519,7 +520,7 @@ export function AdminPanel() {
                 }}
               >
                 <span className="badge">{f.category}</span>
-                <span className="badge" style={{ backgroundColor: f.status === 'resolved' ? '#22c55e' : f.status === 'in_progress' ? '#f59e0b' : f.status === 'acknowledged' ? '#3b82f6' : '#888', color: '#fff' }}>
+                <span className="badge" style={{ backgroundColor: FEEDBACK_STATUS_COLORS[f.status] || 'var(--color-status-new)', color: '#fff' }}>
                   {f.status === 'in_progress' ? 'In progress' : f.status.replace('_', ' ')}
                 </span>
                 <span className="feedback-admin-description">{f.description.slice(0, 80)}{f.description.length > 80 ? '...' : ''}</span>

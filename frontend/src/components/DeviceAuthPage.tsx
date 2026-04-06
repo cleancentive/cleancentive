@@ -53,7 +53,7 @@ export function DeviceAuthPage() {
     return (
       <div style={{ maxWidth: 440, margin: '4rem auto', textAlign: 'center' }}>
         <h2>Device Approved</h2>
-        <p style={{ fontSize: '1.1rem', color: 'var(--green-600, #16a34a)' }}>
+        <p style={{ fontSize: '1.1rem', color: 'var(--color-success)' }}>
           Authenticated as <strong>{user?.nickname}</strong>. You can close this tab.
         </p>
       </div>
@@ -77,7 +77,7 @@ export function DeviceAuthPage() {
         {code || '------'}
       </p>
       <p>Verify this code matches what your terminal shows.</p>
-      {error && <p style={{ color: 'var(--red-600, #dc2626)' }}>{error}</p>}
+      {error && <p style={{ color: 'var(--color-danger)' }}>{error}</p>}
       <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1.5rem' }}>
         <button
           className="primary-button"

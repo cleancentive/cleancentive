@@ -3,17 +3,11 @@ import { useParams, Link } from 'react-router-dom'
 import { useFeedbackStore } from '../stores/feedbackStore'
 import { useAuthStore } from '../stores/authStore'
 import { formatTimestamp } from '../utils/formatTimestamp'
-
-const STATUS_COLORS: Record<string, string> = {
-  new: '#888',
-  acknowledged: '#3b82f6',
-  in_progress: '#f59e0b',
-  resolved: '#22c55e',
-}
+import { FEEDBACK_STATUS_COLORS } from '../lib/statusColors'
 
 function StatusBadge({ status }: { status: string }) {
   return (
-    <span className="badge" style={{ backgroundColor: STATUS_COLORS[status] || '#888', color: '#fff' }}>
+    <span className="badge" style={{ backgroundColor: FEEDBACK_STATUS_COLORS[status] || 'var(--color-status-new)', color: '#fff' }}>
       {status.replace('_', ' ')}
     </span>
   )

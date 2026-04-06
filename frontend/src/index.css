@@ -44,6 +44,7 @@
   --slate-500: #64748b;
   --slate-600: #475569;
   --slate-800: #1e293b;
+  --slate-900: #0f172a;
 
   --gray-100: #f3f4f6;
   --gray-200: #e5e7eb;
@@ -54,6 +55,8 @@
   --gray-700: #374151;
   --gray-800: #1f2937;
   --gray-900: #111827;
+
+  --violet-600: #7c3aed;
 
   /* ── Semantic aliases ── */
 
@@ -85,10 +88,16 @@
   --color-warning-subtle: var(--amber-100);
   --color-warning-border: var(--amber-200);
 
-  /* CTA — guest conversion: reuse primary */
-  --color-cta: var(--color-primary);
-  --color-cta-hover: var(--color-primary-hover);
-  --color-cta-border: var(--color-primary);
+  /* CTA — guest conversion & attention: amber */
+  --color-cta: var(--amber-500);
+  --color-cta-hover: var(--amber-600);
+  --color-cta-border: var(--amber-500);
+  --color-cta-subtle: var(--amber-100);
+
+  /* Highlight — active filters, selection indicators */
+  --color-highlight: var(--amber-500);
+  --color-highlight-subtle: var(--amber-100);
+  --color-highlight-border: var(--amber-200);
 
   /* Text */
   --color-text: var(--gray-800);
@@ -101,6 +110,36 @@
   --color-surface-hover: var(--gray-100);
   --color-border: var(--gray-200);
   --color-border-input: var(--gray-300);
+
+  /* ── Entity-type tokens ── */
+
+  /* Spot (not yet picked up) — red, "needs action" */
+  --color-entity-spot: var(--red-500);
+  --color-entity-spot-light: var(--red-300);
+  --color-entity-spot-dark: var(--red-700);
+  --color-entity-spot-subtle: var(--red-50);
+
+  /* Pick (collected litter) — green, "resolved / positive outcome" */
+  --color-entity-pick: var(--emerald-600);
+  --color-entity-pick-light: var(--emerald-500);
+  --color-entity-pick-dark: var(--emerald-800);
+  --color-entity-pick-subtle: var(--emerald-50);
+
+  /* Cleanup (organized event) — blue, brand color */
+  --color-entity-cleanup: var(--blue-600);
+  --color-entity-cleanup-light: var(--blue-500);
+  --color-entity-cleanup-dark: var(--blue-800);
+  --color-entity-cleanup-subtle: var(--blue-50);
+
+  /* ── Feedback status tokens ── */
+  --color-status-new: var(--gray-500);
+  --color-status-acknowledged: var(--blue-500);
+  --color-status-in-progress: var(--amber-500);
+  --color-status-resolved: var(--emerald-500);
+
+  /* ── Badge tokens ── */
+  --color-badge-partner: var(--violet-600);
+  --color-badge-active: var(--emerald-600);
 
   font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;

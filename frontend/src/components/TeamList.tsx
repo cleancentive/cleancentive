@@ -143,9 +143,9 @@ export function TeamList() {
             description={team.description}
             tags={
               <>
-                {isPartner && <span className="badge" style={{ background: '#7c3aed' }}>Partner</span>}
+                {isPartner && <span className="badge" style={{ background: 'var(--color-badge-partner)' }}>Partner</span>}
                 {userRole && <span className={`badge ${userRole === 'admin' ? 'admin-badge' : ''}`}>{userRole}</span>}
-                {activeTeamId === team.id && <span className="badge" style={{ background: '#16a34a' }}>Active</span>}
+                {activeTeamId === team.id && <span className="badge" style={{ background: 'var(--color-badge-active)' }}>Active</span>}
               </>
             }
           />

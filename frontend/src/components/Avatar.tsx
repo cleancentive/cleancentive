@@ -34,7 +34,7 @@ export function Avatar({ userId, avatarEmailId, nickname, size = 40 }: AvatarPro
         strokeLinejoin="round"
         role="img"
         aria-label={nickname}
-        style={{ borderRadius: '50%', backgroundColor: '#e5e7eb', padding: size * 0.15 }}
+        style={{ borderRadius: '50%', backgroundColor: 'var(--gray-200)', padding: size * 0.15 }}
       >
         <circle cx="10" cy="7" r="3" />
         <path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" />
@@ -51,7 +51,7 @@ export function Avatar({ userId, avatarEmailId, nickname, size = 40 }: AvatarPro
         alt={nickname}
         width={size}
         height={size}
-        style={{ borderRadius: '50%', objectFit: 'cover', backgroundColor: '#e5e7eb' }}
+        style={{ borderRadius: '50%', objectFit: 'cover', backgroundColor: 'var(--gray-200)' }}
       />
     )
   }
@@ -66,7 +66,7 @@ export function Avatar({ userId, avatarEmailId, nickname, size = 40 }: AvatarPro
       width={size}
       height={size}
       onError={() => setFailed(true)}
-      style={{ borderRadius: '50%', objectFit: 'cover', backgroundColor: '#e5e7eb' }}
+      style={{ borderRadius: '50%', objectFit: 'cover', backgroundColor: 'var(--gray-200)' }}
     />
   )
 }
