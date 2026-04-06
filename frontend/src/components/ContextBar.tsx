@@ -150,8 +150,12 @@ function isDateOngoing(startAt: string, endAt: string): boolean {
   return new Date(startAt).getTime() <= now && new Date(endAt).getTime() >= now
 }
 
-function hasActiveFilters(myFilter: boolean, pickedUpFilter: PickedUpFilter, datePreset: DatePreset): boolean {
+function hasActiveFilters(
+  myFilter: boolean, pickedUpFilter: PickedUpFilter, datePreset: DatePreset,
+  activeTeamId?: string | null, activeCleanupDateId?: string | null,
+): boolean {
   return myFilter || pickedUpFilter !== 'all' || datePreset !== 'all'
+    || !!activeTeamId || !!activeCleanupDateId
 }
 
 export function ContextBar() {
@@ -269,7 +273,7 @@ export function ContextBar() {
 
   const dropdownEmptyLabel = config.dropdownsAreFilters ? 'All' : 'None'
   const filterMode = config.dropdownsAreFilters
-  const anyFiltersActive = hasActiveFilters(myFilter, pickedUpFilter, datePreset)
+  const anyFiltersActive = hasActiveFilters(myFilter, pickedUpFilter, datePreset, user.active_team_id, user.active_cleanup_date_id)
   const anyFilterEnabled = config.myEnabled || config.pickedUpEnabled || config.dateEnabled
 
   // Compound summary: "My picks in [TeamName]"
@@ -358,10 +362,14 @@ export function ContextBar() {
           </div>
         </div>
 
-        {anyFilterEnabled && anyFiltersActive && (
+        {anyFiltersActive && (
           <button
-            className="context-clear-button"
-            onClick={clearFilters}
+            className={`context-clear-button${user.active_team_id || user.active_cleanup_date_id ? ' context-clear-button--highlight' : ''}`}
+            onClick={() => {
+              clearFilters()
+              if (user.active_team_id) deactivateTeam()
+              if (user.active_cleanup_date_id) deactivateDate()
+            }}
             title="Clear all filters"
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">

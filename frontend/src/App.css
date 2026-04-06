@@ -3106,6 +3106,17 @@
   border-color: var(--color-border-input);
 }
 
+.context-clear-button--highlight {
+  background: var(--color-accent-bg, #dbeafe);
+  border-color: var(--color-accent, #2563eb);
+  color: var(--color-accent, #2563eb);
+}
+
+.context-clear-button--highlight:hover {
+  background: var(--color-accent, #2563eb);
+  color: white;
+}
+
 /* User Menu Context */
 .user-menu-dropdown-context {
   padding: 0.4rem 0.75rem;
