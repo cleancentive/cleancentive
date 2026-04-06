@@ -12,6 +12,7 @@ import { CleanupDetail } from './components/CleanupDetail'
 import { InsightsPage } from './components/InsightsPage'
 import { MapPage } from './components/MapPage'
 import { FeedbackPage } from './components/FeedbackPage'
+import { DeviceAuthPage } from './components/DeviceAuthPage'
 import { useAuthStore } from './stores/authStore'
 import './App.css'
 
@@ -60,6 +61,7 @@ function App() {
           <Route path="/steward" element={<AdminPanel />} />
           <Route path="/steward/feedback/:feedbackId" element={<AdminPanel />} />
           <Route path="/steward/users/:id" element={<UserDetail />} />
+          <Route path="/auth/device" element={<DeviceAuthPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

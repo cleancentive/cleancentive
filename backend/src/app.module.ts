@@ -9,6 +9,7 @@ import { User } from './user/user.entity';
 import { UserEmail } from './user/user-email.entity';
 import { Admin } from './admin/admin.entity';
 import { PendingAuthRequest } from './auth/pending-auth-request.entity';
+import { DeviceCode } from './auth/device-code.entity';
 import { Spot } from './spot/spot.entity';
 import { DetectedItem } from './spot/detected-item.entity';
 import { UserModule } from './user/user.module';
@@ -55,6 +56,7 @@ import { LabelModule } from './label/label.module';
         UserEmail,
         Admin,
         PendingAuthRequest,
+        DeviceCode,
         Spot,
         DetectedItem,
         Team,

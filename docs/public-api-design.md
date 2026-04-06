@@ -83,9 +83,20 @@ interface PublicSpotDto {
 
 ---
 
-## Authentication for Third Parties
+## Authentication
 
-### API Key System
+### Device Code Flow (First-Party CLI)
+
+For first-party CLI tools (e.g., `triagato`), a device code flow avoids manual token copy-paste:
+
+1. CLI calls `POST /api/v1/auth/device-code` → `{ id, deviceCode, expiresIn }`
+2. User opens `https://app.cleancentive.org/auth/device?code={deviceCode}` in browser
+3. User approves (requires active admin session) → `POST /api/v1/auth/device-code/approve`
+4. CLI polls `GET /api/v1/auth/device-code/{id}` → `{ status: 'completed', sessionToken }`
+
+Device codes expire in 5 minutes. The resulting session token has standard 365-day expiry. This flow is implemented and used by the `/triagato` feedback triage command.
+
+### API Key System (Third Parties)
 
 New `api_keys` table:
 

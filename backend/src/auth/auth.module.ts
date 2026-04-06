@@ -9,6 +9,7 @@ import { EmailModule } from '../email/email.module';
 import { UserModule } from '../user/user.module';
 import { AdminModule } from '../admin/admin.module';
 import { PendingAuthRequest } from './pending-auth-request.entity';
+import { DeviceCode } from './device-code.entity';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { PendingAuthRequest } from './pending-auth-request.entity';
       secret: process.env.JWT_SECRET || 'default-secret-change-in-production',
       signOptions: { expiresIn: '365d' },
     }),
-    TypeOrmModule.forFeature([PendingAuthRequest]),
+    TypeOrmModule.forFeature([PendingAuthRequest, DeviceCode]),
     EmailModule,
     UserModule,
     AdminModule,

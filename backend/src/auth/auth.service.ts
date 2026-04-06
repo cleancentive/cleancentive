@@ -8,6 +8,7 @@ import { EmailService } from '../email/email.service';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
 import { PendingAuthRequest, PendingAuthStatus } from './pending-auth-request.entity';
+import { DeviceCode, DeviceCodeStatus } from './device-code.entity';
 
 @Injectable()
 export class AuthService {
@@ -19,6 +20,8 @@ export class AuthService {
     private eventEmitter: EventEmitter2,
     @InjectRepository(PendingAuthRequest)
     private pendingAuthRepo: Repository<PendingAuthRequest>,
+    @InjectRepository(DeviceCode)
+    private deviceCodeRepo: Repository<DeviceCode>,
   ) {}
 
   async sendMagicLink(email: string, guestId?: string, origin?: string): Promise<{ requestId: string } | null> {
@@ -247,5 +250,79 @@ export class AuthService {
 
   async updateLastSeen(userId: string): Promise<void> {
     await this.userService.updateLastLogin(userId);
+  }
+
+  // ── Device code auth flow ──
+
+  private static readonly DEVICE_CODE_EXPIRY_MINUTES = 5;
+
+  async createDeviceCode(): Promise<{ id: string; deviceCode: string; expiresIn: number }> {
+    // Clean up expired codes
+    await this.deviceCodeRepo
+      .createQueryBuilder()
+      .delete()
+      .where('"expiresAt" < :now', { now: new Date() })
+      .execute();
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = new Date(Date.now() + AuthService.DEVICE_CODE_EXPIRY_MINUTES * 60 * 1000);
+
+    const record = await this.deviceCodeRepo.save({
+      code,
+      sessionToken: null,
+      status: DeviceCodeStatus.PENDING,
+      expiresAt,
+    });
+
+    return {
+      id: record.id,
+      deviceCode: code,
+      expiresIn: AuthService.DEVICE_CODE_EXPIRY_MINUTES * 60,
+    };
+  }
+
+  async approveDeviceCode(code: string, adminUserId: string): Promise<void> {
+    const record = await this.deviceCodeRepo.findOne({ where: { code } });
+
+    if (!record || record.expiresAt < new Date() || record.status === DeviceCodeStatus.COMPLETED) {
+      throw new NotFoundException('Device code not found or expired');
+    }
+
+    const sessionToken = await this.generateSessionToken(adminUserId);
+    await this.deviceCodeRepo.update(record.id, {
+      status: DeviceCodeStatus.COMPLETED,
+      sessionToken,
+    });
+  }
+
+  async rejectDeviceCode(code: string): Promise<void> {
+    const record = await this.deviceCodeRepo.findOne({ where: { code } });
+
+    if (!record || record.expiresAt < new Date() || record.status !== DeviceCodeStatus.PENDING) {
+      throw new NotFoundException('Device code not found or expired');
+    }
+
+    await this.deviceCodeRepo.update(record.id, { status: DeviceCodeStatus.REJECTED });
+  }
+
+  async pollDeviceCode(id: string): Promise<{ status: string; sessionToken?: string }> {
+    const record = await this.deviceCodeRepo.findOne({ where: { id } });
+
+    if (!record || record.expiresAt < new Date()) {
+      if (record) await this.deviceCodeRepo.delete(record.id);
+      throw new NotFoundException('Device code not found or expired');
+    }
+
+    if (record.status === DeviceCodeStatus.COMPLETED) {
+      await this.deviceCodeRepo.delete(record.id);
+      return { status: 'completed', sessionToken: record.sessionToken };
+    }
+
+    if (record.status === DeviceCodeStatus.REJECTED) {
+      await this.deviceCodeRepo.delete(record.id);
+      return { status: 'rejected' };
+    }
+
+    return { status: 'pending' };
   }
 }

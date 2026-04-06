@@ -7,6 +7,7 @@ import { UserService } from '../src/user/user.service';
 import { AdminService } from '../src/admin/admin.service';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { PendingAuthRequest } from '../src/auth/pending-auth-request.entity';
+import { DeviceCode } from '../src/auth/device-code.entity';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -60,6 +61,21 @@ describe('AuthService', () => {
             findOne: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
+          },
+        },
+        {
+          provide: getRepositoryToken(DeviceCode),
+          useValue: {
+            save: jest.fn(),
+            findOne: jest.fn(),
+            update: jest.fn(),
+            delete: jest.fn(),
+            count: jest.fn().mockResolvedValue(0),
+            createQueryBuilder: jest.fn().mockReturnValue({
+              delete: jest.fn().mockReturnThis(),
+              where: jest.fn().mockReturnThis(),
+              execute: jest.fn().mockResolvedValue({}),
+            }),
           },
         },
       ],

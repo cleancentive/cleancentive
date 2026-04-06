@@ -1,8 +1,9 @@
-import { Controller, Post, Body, Get, Query, Param, Res, UseGuards, Request, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Param, Res, UseGuards, Request, BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import type { Response } from 'express';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { AdminGuard } from '../admin/admin.guard';
 
 @Controller('auth')
 @ApiTags('auth')
@@ -115,5 +116,51 @@ export class AuthController {
     // In a stateless JWT system, logout is handled client-side
     // This endpoint is for consistency and potential future server-side token blacklisting
     return { success: true };
+  }
+
+  // ── Device code auth flow ──
+
+  @Post('device-code')
+  @ApiOperation({ summary: 'Generate a device code for CLI authentication' })
+  async createDeviceCode(): Promise<{ id: string; deviceCode: string; expiresIn: number }> {
+    return this.authService.createDeviceCode();
+  }
+
+  @Post('device-code/approve')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('Bearer')
+  @ApiOperation({ summary: 'Approve a device code — grants the CLI a session token for the approving user' })
+  async approveDeviceCode(
+    @Request() req: any,
+    @Body('deviceCode') deviceCode: string,
+  ): Promise<{ success: boolean }> {
+    if (!deviceCode) {
+      throw new BadRequestException('deviceCode is required');
+    }
+    try {
+      await this.authService.approveDeviceCode(deviceCode, req.user.userId);
+      return { success: true };
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  @Post('device-code/reject')
+  @ApiOperation({ summary: 'Reject a device code' })
+  async rejectDeviceCode(
+    @Body('deviceCode') deviceCode: string,
+  ): Promise<{ success: boolean }> {
+    if (!deviceCode) {
+      throw new BadRequestException('deviceCode is required');
+    }
+    await this.authService.rejectDeviceCode(deviceCode);
+    return { success: true };
+  }
+
+  @Get('device-code/:id')
+  @ApiOperation({ summary: 'Poll device code status' })
+  async pollDeviceCode(@Param('id') id: string): Promise<{ status: string; sessionToken?: string }> {
+    return this.authService.pollDeviceCode(id);
   }
 }
