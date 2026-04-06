@@ -74,3 +74,8 @@ docker-compose.override.yml
 .worktrees/
 
 .playwright-mcp
+
+# triagato
+docs/feedback-plans/*.md
+!docs/feedback-plans/README.md
+infrastructure/.feedback-token
