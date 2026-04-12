@@ -529,6 +529,8 @@ export class TeamService {
     domain: string;
     favicon_url: string | null;
     colors: { primary: string | null; accent: string | null };
+    name: string | null;
+    description: string | null;
   }> {
     let parsed: URL;
     try {
@@ -558,13 +560,17 @@ export class TeamService {
     const domain = parsed.hostname.replace(/^www\./, '');
     const origin = parsed.origin;
 
+    // Extract name and description from HTML meta
+    const name = this.extractSiteName(html, domain);
+    const description = this.extractSiteDescription(html);
+
     // Extract favicon
     const favicon_url = this.extractFavicon(html, origin);
 
-    // Extract colors — try meta tags first, then CSS custom properties, then inline style hex
+    // Extract colors — try meta tags, manifest, CSS custom properties, inline style hex
     const colors = await this.extractColors(html, origin);
 
-    return { domain, favicon_url, colors };
+    return { domain, favicon_url, colors, name, description };
   }
 
   private extractFavicon(html: string, origin: string): string | null {
@@ -602,14 +608,21 @@ export class TeamService {
       accent = tileColor[1];
     }
 
-    // 3. Look for CSS custom properties with "primary" or "brand" in linked stylesheets and inline styles
+    // 3. Try web app manifest for theme_color / background_color
+    if (!primary || !accent) {
+      const manifestColors = await this.extractColorsFromManifest(html, origin);
+      if (!primary && manifestColors.primary) primary = manifestColors.primary;
+      if (!accent && manifestColors.accent) accent = manifestColors.accent;
+    }
+
+    // 4. Look for CSS custom properties with "primary" or "brand" in linked stylesheets and inline styles
     if (!primary || !accent) {
       const cssColors = await this.extractColorsFromCss(html, origin);
       if (!primary && cssColors.primary) primary = cssColors.primary;
       if (!accent && cssColors.accent) accent = cssColors.accent;
     }
 
-    // 4. Fall back to most common non-neutral hex colors in inline <style> blocks
+    // 5. Fall back to most common non-neutral hex colors in inline <style> blocks
     if (!primary) {
       const inlineStyles = [...html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)]
         .map(m => m[1]).join('\n');
@@ -622,6 +635,9 @@ export class TeamService {
       if (sorted[0]) primary = sorted[0][0];
       if (sorted[1]) accent = accent || sorted[1][0];
     }
+
+    // 6. Neutral fallback — distinct from CleanCentive primary blue, good contrast on white
+    if (!primary) primary = '#374151'; // gray-700
 
     return { primary, accent };
   }
@@ -698,6 +714,84 @@ export class TeamService {
     if (href.startsWith('//')) return `https:${href}`;
     if (href.startsWith('/')) return `${origin}${href}`;
     return `${origin}/${href}`;
+  }
+
+  private extractSiteName(html: string, domain: string): string | null {
+    // 1. og:site_name
+    const siteName = html.match(/<meta[^>]*property=["']og:site_name["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:site_name["']/i);
+    if (siteName?.[1]?.trim()) return siteName[1].trim();
+
+    // 2. og:title
+    const ogTitle = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
+    if (ogTitle?.[1]?.trim()) return ogTitle[1].trim();
+
+    // 3. <title> tag — strip trailing " - ..." or " | ..." suffixes
+    const title = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+    if (title?.[1]?.trim()) {
+      return title[1].trim().replace(/\s*[|\-–—].+$/, '').trim() || title[1].trim();
+    }
+
+    // 4. Derive from domain
+    return this.nameFromDomain(domain);
+  }
+
+  private nameFromDomain(domain: string): string {
+    const base = domain.replace(/^www\./, '').split('.')[0];
+    return base.charAt(0).toUpperCase() + base.slice(1);
+  }
+
+  private extractSiteDescription(html: string): string | null {
+    // 1. og:description
+    const ogDesc = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:description["']/i);
+    if (ogDesc?.[1]?.trim()) return ogDesc[1].trim();
+
+    // 2. meta description
+    const desc = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i)
+      || html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
+    if (desc?.[1]?.trim()) return desc[1].trim();
+
+    return null;
+  }
+
+  private async extractColorsFromManifest(html: string, origin: string): Promise<{ primary: string | null; accent: string | null }> {
+    // Find manifest URL from HTML or try well-known paths
+    const manifestLink = html.match(/<link[^>]*rel=["']manifest["'][^>]*href=["']([^"']+)["']/i)
+      || html.match(/<link[^>]*href=["']([^"']+)["'][^>]*rel=["']manifest["']/i);
+
+    const candidates = new Set<string>();
+    if (manifestLink?.[1]) candidates.add(this.resolveUrl(manifestLink[1], origin));
+    candidates.add(`${origin}/manifest.json`);
+    candidates.add(`${origin}/site.webmanifest`);
+
+    for (const url of candidates) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3_000);
+        const res = await fetch(url, {
+          signal: controller.signal,
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CleanCentive/1.0)' },
+        });
+        clearTimeout(timeout);
+        if (!res.ok) continue;
+        const manifest = await res.json();
+        let primary: string | null = null;
+        let accent: string | null = null;
+        if (manifest.theme_color && !this.isNeutralColor(manifest.theme_color)) {
+          primary = manifest.theme_color;
+        }
+        if (manifest.background_color && !this.isNeutralColor(manifest.background_color)) {
+          accent = manifest.background_color;
+        }
+        if (primary || accent) return { primary, accent };
+      } catch {
+        // Skip inaccessible manifests
+      }
+    }
+
+    return { primary: null, accent: null };
   }
 
   async reconcileTeamMemberships(teamId: string): Promise<{ added: number; removed: number }> {
