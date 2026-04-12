@@ -72,7 +72,7 @@ interface TeamState {
   postMessage: (id: string, audience: 'members' | 'organizers', subject: string, body: string) => Promise<void>
   updateEmailPatterns: (teamId: string, patterns: string[]) => Promise<void>
   updateCustomCss: (teamId: string, customCss: string | null) => Promise<void>
-  importPartnerUrl: (url: string) => Promise<{ domain: string; favicon_url: string | null; colors: { primary: string | null; accent: string | null } } | null>
+  importPartnerUrl: (url: string) => Promise<{ domain: string; favicon_url: string | null; colors: { primary: string | null; accent: string | null }; name: string | null; description: string | null } | null>
   clearError: () => void
 }
 

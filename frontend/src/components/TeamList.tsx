@@ -118,6 +118,8 @@ export function TeamList() {
                   onPatternsChange={setPatterns}
                   customCss={customCss}
                   onCustomCssChange={setCustomCss}
+                  onNameSuggestion={(n) => { if (!name.trim()) setName(n) }}
+                  onDescriptionSuggestion={(d) => { if (!description.trim()) setDescription(d) }}
                 />
               </div>
             </details>

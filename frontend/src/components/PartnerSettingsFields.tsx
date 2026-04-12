@@ -7,6 +7,8 @@ interface Props {
   onPatternsChange: (v: string) => void
   customCss: string
   onCustomCssChange: (v: string) => void
+  onNameSuggestion?: (name: string) => void
+  onDescriptionSuggestion?: (desc: string) => void
 }
 
 function generateCss(colors: { primary: string | null; accent: string | null }, faviconUrl: string | null): string {
@@ -18,7 +20,7 @@ function generateCss(colors: { primary: string | null; accent: string | null }, 
   return lines.join('\n')
 }
 
-export function PartnerSettingsFields({ patterns, onPatternsChange, customCss, onCustomCssChange }: Props) {
+export function PartnerSettingsFields({ patterns, onPatternsChange, customCss, onCustomCssChange, onNameSuggestion, onDescriptionSuggestion }: Props) {
   const { importPartnerUrl } = useTeamStore()
   const { isOnline } = useConnectivityStore()
   const [importUrl, setImportUrl] = useState('')
@@ -32,6 +34,8 @@ export function PartnerSettingsFields({ patterns, onPatternsChange, customCss, o
     if (result) {
       onPatternsChange(result.domain)
       onCustomCssChange(generateCss(result.colors, result.favicon_url))
+      if (result.name && onNameSuggestion) onNameSuggestion(result.name)
+      if (result.description && onDescriptionSuggestion) onDescriptionSuggestion(result.description)
     }
   }
 
