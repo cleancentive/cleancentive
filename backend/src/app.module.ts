@@ -37,6 +37,8 @@ import { Label } from './label/label.entity';
 import { LabelTranslation } from './label/label-translation.entity';
 import { DetectedItemEdit } from './spot/detected-item-edit.entity';
 import { LabelModule } from './label/label.module';
+import { OidcModule } from './oidc/oidc.module';
+import { OidcAuthorizationCode, OidcRefreshToken, OidcClient } from './oidc/oidc.entity';
 
 @Module({
   imports: [
@@ -72,6 +74,9 @@ import { LabelModule } from './label/label.module';
         Label,
         LabelTranslation,
         DetectedItemEdit,
+        OidcAuthorizationCode,
+        OidcRefreshToken,
+        OidcClient,
       ],
       subscribers: [AuditSubscriber],
       synchronize: process.env.NODE_ENV !== 'production',
@@ -90,6 +95,7 @@ import { LabelModule } from './label/label.module';
     InsightsModule,
     FeedbackModule,
     LabelModule,
+    OidcModule,
   ],
   providers: [
     {

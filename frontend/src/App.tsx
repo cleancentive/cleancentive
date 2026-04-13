@@ -14,6 +14,7 @@ import { MapPage } from './components/MapPage'
 import { FeedbackPage } from './components/FeedbackPage'
 import { FeedbackNew } from './components/FeedbackNew'
 import { DeviceAuthPage } from './components/DeviceAuthPage'
+import { OidcAuthorize } from './components/OidcAuthorize'
 import { useAuthStore } from './stores/authStore'
 import './App.css'
 
@@ -64,6 +65,7 @@ function App() {
           <Route path="/steward/feedback/:feedbackId" element={<AdminPanel />} />
           <Route path="/steward/users/:id" element={<UserDetail />} />
           <Route path="/auth/device" element={<DeviceAuthPage />} />
+          <Route path="/oidc/authorize" element={<OidcAuthorize />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

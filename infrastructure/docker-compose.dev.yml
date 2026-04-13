@@ -21,6 +21,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init-umami-db.sql:/docker-entrypoint-initdb.d/10-create-umami-db.sql:ro
+      - ./init-outline-db.sql:/docker-entrypoint-initdb.d/20-create-outline-db.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cleancentive"]
       interval: 10s
@@ -105,7 +106,54 @@ services:
       timeout: 5s
       retries: 3
 
+  outline:
+    image: docker.getoutline.com/outlinewiki/outline:latest
+    container_name: cleancentive-outline
+    environment:
+      - PORT=3000
+      - URL=https://wiki.cleancentive.local
+      - DATABASE_URL=postgres://cleancentive:cleancentive_dev_password@postgres:5432/outline
+      - PGSSLMODE=disable
+      - REDIS_URL=redis://redis:6379
+      - REDIS_COLLABORATION_URL=redis://redis:6379
+      - SECRET_KEY=eb33b7f120aadea6482149a2ba6c2fbe8d796912fb50e7c571ab802c7118dfd4
+      - UTILS_SECRET=eb33b7f120aadea6482149a2ba6c2fbe8d796912fb50e7c571ab802c7118dfd4
+      - FILE_STORAGE=local
+      - OIDC_CLIENT_ID=outline
+      - OIDC_CLIENT_SECRET=outline-dev-secret
+      - OIDC_ISSUER_URL=https://cleancentive.local/api/v1/oidc
+      - OIDC_SCOPES=openid profile email offline_access
+      - OIDC_DISABLE_REDIRECT=true
+      - FORCE_HTTPS=true
+      # Trust the mkcert-issued dev CA so Outline's server-side OIDC discovery
+      # fetch passes TLS verification against cleancentive.local.
+      - NODE_EXTRA_CA_CERTS=/certs/rootCA.pem
+      - SMTP_HOST=mailpit
+      - SMTP_PORT=1025
+      - SMTP_FROM_EMAIL="Cleancentive <no-reply@cleancentive.local>"
+      - SMTP_NO_EMAIL=true
+    ports:
+      - "127.0.0.1:3010:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "cleancentive.local:host-gateway"
+    volumes:
+      - outline_data:/var/lib/outline/data
+      - ./certs:/certs:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/_health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  outline_data:
