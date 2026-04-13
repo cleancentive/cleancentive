@@ -3,7 +3,7 @@
   "mcp": {
     "playwright": {
       "type": "local",
-      "command": ["npx", "@playwright/mcp", "--cdp-url", "http://127.0.0.1:9222"],
+      "command": ["npx", "@playwright/mcp", "--cdp-url", "http://127.0.0.1:9222", "--caps", "devtools"],
       "enabled": true
     }
   }

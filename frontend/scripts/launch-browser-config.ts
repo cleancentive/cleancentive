@@ -6,18 +6,20 @@ export type BrowserToolTarget = {
 
 export const MINIO_URL = 'http://localhost:9001';
 export const POSTGRES_BROWSER_URL = 'http://localhost:8081';
-export const SWAGGER_URL = 'https://localhost:5173/api/';
+export const SWAGGER_URL = 'https://cleancentive.local/api/';
 export const MAILPIT_URL = 'http://localhost:8025';
-export const UMAMI_URL = 'http://localhost:3001';
+export const UMAMI_URL = 'https://analytics.cleancentive.local';
+export const OUTLINE_URL = 'https://wiki.cleancentive.local';
 
 export function buildBrowserToolTargets(env: NodeJS.ProcessEnv): BrowserToolTarget[] {
   return [
-    { name: 'App', url: env.BROWSER_URL ?? 'https://localhost:5173/', login: 'none' },
+    { name: 'App', url: env.BROWSER_URL ?? 'https://cleancentive.local/', login: 'none' },
     { name: 'Swagger UI', url: SWAGGER_URL, login: 'none' },
     { name: 'Mailpit', url: MAILPIT_URL, login: 'none' },
     { name: 'Postgres browser', url: POSTGRES_BROWSER_URL, login: 'none' },
     { name: 'MinIO', url: MINIO_URL, login: 'minio' },
     { name: 'Umami Analytics', url: UMAMI_URL, login: 'umami' },
+    { name: 'Outline Wiki', url: OUTLINE_URL, login: 'none' },
   ];
 }
 

@@ -54,6 +54,33 @@ You are working on Cleancentive, an environmental cleanup and litter tracking ap
 - Use `idempotato --no-fry <host>` to verify server state matches desired state without making changes.
 - Image tags in `infrastructure/docker-compose.prod.yml` must use full 40-character git commit SHAs. Only promote tags for commits that actually built images (check CI).
 
+## Local Dev Bootstrap
+
+The whole dev stack is designed to come up from a fresh machine with two commands:
+
+```
+bun dev      # starts infra + backend + frontend + worker
+bun browse   # opens the shared Chromium with all dev tabs
+```
+
+`bun dev` chains through preflight scripts that provision what's needed:
+
+1. [infrastructure/check-hosts.ts](infrastructure/check-hosts.ts) — ensures `/etc/hosts` maps `cleancentive.local`, `wiki.cleancentive.local`, `analytics.cleancentive.local`, and `host.docker.internal` to `127.0.0.1`. Prompts for sudo interactively; prints the command on non-TTY.
+2. [infrastructure/setup-certs.ts](infrastructure/setup-certs.ts) — ensures mkcert + its local CA are installed and a cert for `*.cleancentive.local` exists at `infrastructure/certs/`. On macOS it offers to `brew install mkcert nss` automatically. On Linux it prints install commands (too many distro variants to auto-install safely).
+3. `docker compose … up -d` — brings up Postgres, Redis, MinIO, Mailpit, Caddy (TLS termination on :443 with mkcert certs), Umami, Outline (wiki).
+4. [infrastructure/setup-umami.ts](infrastructure/setup-umami.ts) — creates the "Cleancentive Dev" website in Umami and writes the ID into `frontend/.env.local`.
+
+**Never add a step that requires the dev to run a one-off command manually.** If you're tempted to document "also run X once", instead make `bun dev` run X idempotently. Exception: system-level installs on Linux (we print commands for those).
+
+Dev URLs all use HTTPS with trusted certs — geolocation permissions, service workers, and `Secure` cookies all behave as they would in prod:
+
+| Service | Dev URL |
+|---|---|
+| App (frontend + `/api/*`) | `https://cleancentive.local` |
+| Wiki (Outline) | `https://wiki.cleancentive.local` |
+| Analytics (Umami) | `https://analytics.cleancentive.local` |
+| Mailpit / MinIO / pgweb | `http://localhost:<port>` (dev-only, kept on plain ports) |
+
 ## Browser Tools (MCP)
 
 Coding agents can interact with the shared development browser via the Playwright MCP server.
@@ -68,3 +95,5 @@ The MCP server connects to the running browser on CDP port 9222 and provides too
 
 The browser must be running — the MCP server attaches to it, it does not launch its own.
 Agent and human share the same browser; changes are visible to both.
+
+**Screenshots and traces go in `.playwright-mcp/`** (already gitignored). When calling `browser_take_screenshot`, `browser_start_tracing`, `browser_start_video`, or any tool that takes a `filename`, prefix the path with `.playwright-mcp/` — e.g. `.playwright-mcp/wiki-sso.png`. Do not write browser artefacts to the project root.

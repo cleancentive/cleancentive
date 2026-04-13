@@ -171,7 +171,7 @@ for (const target of openedTargets) {
 console.log(`CDP endpoint:    http://127.0.0.1:${CDP_PORT}`);
 console.log('\nAgents can connect with:');
 console.log(`  CDP_URL=http://127.0.0.1:${CDP_PORT} bun run test:e2e:shared`);
-console.log(`  MCP: @playwright/mcp --cdp-url http://127.0.0.1:${CDP_PORT}`);
+console.log(`  MCP: @playwright/mcp --cdp-url http://127.0.0.1:${CDP_PORT} --caps devtools`);
 console.log('\nPress Ctrl+C to close.\n');
 
 let closing = false;

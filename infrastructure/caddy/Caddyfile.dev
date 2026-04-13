@@ -1,9 +1,28 @@
-:8080 {
+{
+  # Use mkcert-issued certs for the *.cleancentive.local hostnames; disable
+  # Caddy's auto-HTTPS (ACME + internal CA) since we bring our own.
+  auto_https off
+}
+
+cleancentive.local {
+  tls /certs/cleancentive.local.pem /certs/cleancentive.local-key.pem
+
   @api path /api/*
   handle @api {
     reverse_proxy host.docker.internal:3000
   }
+
   handle {
     reverse_proxy host.docker.internal:5173
   }
+}
+
+wiki.cleancentive.local {
+  tls /certs/cleancentive.local.pem /certs/cleancentive.local-key.pem
+  reverse_proxy host.docker.internal:3010
+}
+
+analytics.cleancentive.local {
+  tls /certs/cleancentive.local.pem /certs/cleancentive.local-key.pem
+  reverse_proxy umami:3000
 }

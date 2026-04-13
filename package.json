@@ -12,7 +12,7 @@
   "scripts": {
     "dev": "bun run dev:infra:start && bun run --filter '*' dev",
     "dev:stop": "bun run --filter '*' dev:stop",
-    "dev:infra:start": "docker compose -f infrastructure/docker-compose.dev.yml up -d && bun run infrastructure/setup-umami.ts",
+    "dev:infra:start": "bun run infrastructure/check-hosts.ts && bun run infrastructure/setup-certs.ts && docker compose -f infrastructure/docker-compose.dev.yml up -d && bun run infrastructure/setup-umami.ts",
     "dev:infra:stop": "docker compose -f infrastructure/docker-compose.dev.yml down",
     "build": "bun run --filter '*' build",
     "test": "bun run --filter '*' test",

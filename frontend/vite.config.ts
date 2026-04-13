@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
-import basicSsl from '@vitejs/plugin-basic-ssl'
 import pkg from './package.json'
 
 export const pwaConfig = {
@@ -35,7 +34,6 @@ export default defineConfig({
     __APP_BUILD_TIME__: JSON.stringify((pkg as Record<string, unknown>).buildTime ?? 0),
   },
   plugins: [
-    basicSsl(),
     react(),
     VitePWA(pwaConfig),
   ],

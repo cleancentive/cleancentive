@@ -2,7 +2,7 @@
   "mcpServers": {
     "playwright": {
       "command": "npx",
-      "args": ["-y", "@playwright/mcp", "--cdp-endpoint", "http://127.0.0.1:9222"]
+      "args": ["-y", "@playwright/mcp", "--cdp-endpoint", "http://127.0.0.1:9222", "--caps", "devtools"]
     }
   }
 }
