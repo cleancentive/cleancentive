@@ -42,7 +42,7 @@ interface AuthState {
   verifyMagicLink: (token: string) => Promise<void>
   cancelPendingAuth: () => void
   logout: () => void
-  updateProfile: (data: { nickname?: string; full_name?: string }) => Promise<void>
+  updateProfile: (data: { nickname?: string; full_name?: string | null }) => Promise<void>
   addEmail: (email: string) => Promise<{ status: string; ownerNickname?: string }>
   confirmMerge: (email: string) => Promise<boolean>
   removeEmail: (emailId: string) => Promise<void>
@@ -215,7 +215,7 @@ export const useAuthStore = create<AuthState>()(
         useUiStore.getState().setPickCount(0)
       },
 
-      updateProfile: async (data: { nickname?: string; full_name?: string }) => {
+      updateProfile: async (data: { nickname?: string; full_name?: string | null }) => {
         const { sessionToken } = get()
         if (!sessionToken) return
 
