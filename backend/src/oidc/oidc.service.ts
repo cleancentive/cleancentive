@@ -356,6 +356,7 @@ export class OidcService implements OnModuleInit {
     email_verified?: boolean;
     preferred_username?: string;
     name?: string;
+    picture?: string;
   }> {
     const user = await this.userService.findById(userId);
     if (!user) {
@@ -399,16 +400,26 @@ export class OidcService implements OnModuleInit {
  * `preferred_username`, `name`, or `username` — so we always emit
  * `preferred_username` derived from the email local-part, and fall back to
  * the email itself for `name` when the nickname is the "guest" placeholder.
+ *
+ * Also emits `picture` (avatar URL) when the user has selected an email for
+ * their Gravatar — Outline reads this and uses it as the user's avatar so
+ * the same face appears across both apps.
  */
 function buildIdentityClaims(
   userId: string,
-  user: { nickname: string; full_name?: string | null; emails?: Array<{ email: string }> },
+  user: {
+    nickname: string;
+    full_name?: string | null;
+    avatar_email_id?: string | null;
+    emails?: Array<{ email: string }>;
+  },
 ): {
   sub: string;
   email?: string;
   email_verified?: boolean;
   preferred_username?: string;
   name?: string;
+  picture?: string;
 } {
   const primaryEmail = user.emails?.[0]?.email;
   const emailLocalPart = primaryEmail?.split('@')[0];
@@ -417,11 +428,17 @@ function buildIdentityClaims(
     (user.nickname && user.nickname !== 'guest' ? user.nickname : null) ||
     emailLocalPart ||
     userId;
+  // Strip /api/v1/oidc to get the app base URL for serving the avatar image.
+  const appBaseUrl = ISSUER_URL.replace(/\/api\/v1\/oidc\/?$/, '');
+  const pictureUrl = user.avatar_email_id
+    ? `${appBaseUrl}/api/v1/user/${userId}/avatar?v=${user.avatar_email_id}`
+    : undefined;
   return {
     sub: userId,
     ...(primaryEmail ? { email: primaryEmail, email_verified: true } : {}),
     ...(emailLocalPart ? { preferred_username: emailLocalPart } : {}),
     name: displayName,
+    ...(pictureUrl ? { picture: pictureUrl } : {}),
   };
 }
 

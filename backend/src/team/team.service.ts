@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { OnEvent } from '@nestjs/event-emitter';
+import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository, In } from 'typeorm';
 import { Team } from './team.entity';
 import { TeamMembership } from './team-membership.entity';
@@ -66,6 +66,7 @@ export class TeamService {
     private readonly userEmailRepository: Repository<UserEmail>,
     private readonly adminService: AdminService,
     private readonly emailService: EmailService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   normalizeName(name: string): string {
@@ -294,6 +295,7 @@ export class TeamService {
       role: 'member',
     });
     await this.teamMembershipRepository.save(membership);
+    this.eventEmitter.emit('team.member-joined', { teamId, userId, teamName: team.name });
     return { joined: true };
   }
 
@@ -321,6 +323,7 @@ export class TeamService {
 
     await this.teamMembershipRepository.delete({ id: membership.id });
     await this.userRepository.update({ id: userId, active_team_id: teamId }, { active_team_id: null, updated_by: userId });
+    this.eventEmitter.emit('team.member-left', { teamId, userId });
     return { left: true };
   }
 

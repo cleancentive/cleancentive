@@ -119,7 +119,13 @@ services:
       - REDIS_COLLABORATION_URL=redis://redis:6379
       - SECRET_KEY=eb33b7f120aadea6482149a2ba6c2fbe8d796912fb50e7c571ab802c7118dfd4
       - UTILS_SECRET=eb33b7f120aadea6482149a2ba6c2fbe8d796912fb50e7c571ab802c7118dfd4
-      - FILE_STORAGE=local
+      - FILE_STORAGE=s3
+      - AWS_ACCESS_KEY_ID=minioadmin
+      - AWS_SECRET_ACCESS_KEY=minioadmin
+      - AWS_REGION=us-east-1
+      - AWS_S3_UPLOAD_BUCKET_URL=http://minio:9000
+      - AWS_S3_UPLOAD_BUCKET_NAME=cleancentive-wiki
+      - AWS_S3_FORCE_PATH_STYLE=true
       - OIDC_CLIENT_ID=outline
       - OIDC_CLIENT_SECRET=outline-dev-secret
       - OIDC_ISSUER_URL=https://cleancentive.local/api/v1/oidc

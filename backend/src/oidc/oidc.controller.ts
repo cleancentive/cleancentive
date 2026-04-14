@@ -95,6 +95,12 @@ export class OidcController {
     const userId = (req as any).user?.userId;
     if (!userId) throw new HttpException('Unauthorized', HttpStatus.UNAUTHORIZED);
 
+    // Block guests (no verified email) from wiki SSO.
+    const claims = await this.oidcService.getUserInfo(userId);
+    if (!claims.email) {
+      throw new HttpException('Wiki access requires a verified email. Sign in with a magic link first.', HttpStatus.FORBIDDEN);
+    }
+
     if (body.response_type !== 'code') {
       throw new HttpException('response_type must be "code"', HttpStatus.BAD_REQUEST);
     }

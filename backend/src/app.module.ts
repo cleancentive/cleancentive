@@ -39,6 +39,7 @@ import { DetectedItemEdit } from './spot/detected-item-edit.entity';
 import { LabelModule } from './label/label.module';
 import { OidcModule } from './oidc/oidc.module';
 import { OidcAuthorizationCode, OidcRefreshToken, OidcClient } from './oidc/oidc.entity';
+import { OutlineSyncModule } from './outline-sync/outline-sync.module';
 
 @Module({
   imports: [
@@ -96,6 +97,7 @@ import { OidcAuthorizationCode, OidcRefreshToken, OidcClient } from './oidc/oidc
     FeedbackModule,
     LabelModule,
     OidcModule,
+    OutlineSyncModule,
   ],
   providers: [
     {

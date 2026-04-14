@@ -43,6 +43,11 @@ export function OidcAuthorize() {
           },
           body: JSON.stringify(body),
         })
+        if (res.status === 403) {
+          const body = await res.json().catch(() => null)
+          setError(body?.message ?? 'Wiki access requires a verified email. Sign in with a magic link first.')
+          return
+        }
         if (!res.ok) {
           const text = await res.text().catch(() => '')
           throw new Error(`HTTP ${res.status}${text ? `: ${text}` : ''}`)

@@ -44,7 +44,7 @@ export function ProfileEditor() {
     try {
       await updateProfile({
         nickname: nickname.trim(),
-        full_name: fullName.trim() || undefined
+        full_name: fullName.trim() || null
       })
       setIsEditing(false)
     } catch {

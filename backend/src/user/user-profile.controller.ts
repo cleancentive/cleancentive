@@ -20,7 +20,7 @@ export class UserProfileController {
   @Put('profile')
   async updateProfile(
     @Request() req: any,
-    @Body() updates: { nickname?: string; full_name?: string }
+    @Body() updates: { nickname?: string; full_name?: string | null }
   ): Promise<User> {
     return this.userService.updateProfile(req.user.userId, {
       nickname: updates.nickname,

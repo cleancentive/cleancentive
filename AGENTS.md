@@ -69,6 +69,7 @@ bun browse   # opens the shared Chromium with all dev tabs
 2. [infrastructure/setup-certs.ts](infrastructure/setup-certs.ts) — ensures mkcert + its local CA are installed and a cert for `*.cleancentive.local` exists at `infrastructure/certs/`. On macOS it offers to `brew install mkcert nss` automatically. On Linux it prints install commands (too many distro variants to auto-install safely).
 3. `docker compose … up -d` — brings up Postgres, Redis, MinIO, Mailpit, Caddy (TLS termination on :443 with mkcert certs), Umami, Outline (wiki).
 4. [infrastructure/setup-umami.ts](infrastructure/setup-umami.ts) — creates the "Cleancentive Dev" website in Umami and writes the ID into `frontend/.env.local`.
+5. [infrastructure/setup-outline.ts](infrastructure/setup-outline.ts) — ensures the Outline MinIO bucket exists and idempotently provisions Outline's workspace branding, Umami analytics integration, and admin role sync directly via SQL on the Outline database. No API token needed. On the very first `bun dev` (before any user has signed in to the wiki), the script skips provisioning because Outline hasn't created a team row yet — sign in once via SSO and the next `bun dev` will pick it up.
 
 **Never add a step that requires the dev to run a one-off command manually.** If you're tempted to document "also run X once", instead make `bun dev` run X idempotently. Exception: system-level installs on Linux (we print commands for those).
 

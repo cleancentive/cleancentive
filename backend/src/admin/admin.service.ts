@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Admin } from './admin.entity';
 import { User } from '../user/user.entity';
 import { UserEmail } from '../user/user-email.entity';
@@ -16,6 +17,7 @@ export class AdminService {
     @InjectRepository(UserEmail)
     private userEmailRepository: Repository<UserEmail>,
     private configService: ConfigService,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   async isAdmin(userId: string): Promise<boolean> {
@@ -30,11 +32,14 @@ export class AdminService {
     const admin = this.adminRepository.create({
       user_id: userId,
     });
-    return this.adminRepository.save(admin);
+    const saved = await this.adminRepository.save(admin);
+    this.eventEmitter.emit('admin.promoted', { userId });
+    return saved;
   }
 
   async demoteFromAdmin(userId: string): Promise<void> {
     await this.adminRepository.delete({ user_id: userId });
+    this.eventEmitter.emit('admin.demoted', { userId });
   }
 
   async getUsers(params: {

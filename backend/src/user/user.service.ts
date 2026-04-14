@@ -471,7 +471,7 @@ export class UserService {
     await this.userRepository.update({ id: userId }, { last_login: new Date(), updated_by: userId });
   }
 
-  async updateProfile(userId: string, updates: { nickname?: string; fullName?: string }): Promise<User> {
+  async updateProfile(userId: string, updates: { nickname?: string; fullName?: string | null }): Promise<User> {
     const user = await this.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
@@ -488,10 +488,12 @@ export class UserService {
     }
 
     if (updates.fullName !== undefined) {
-      user.full_name = updates.fullName;
+      user.full_name = updates.fullName || null;
     }
 
-    return this.userRepository.save(user);
+    const saved = await this.userRepository.save(user);
+    this.eventEmitter.emit('user.profile-changed', { userId });
+    return saved;
   }
 
   async updateAvatarEmail(userId: string, emailId: string | null): Promise<User> {
@@ -510,7 +512,9 @@ export class UserService {
     }
 
     user.avatar_email_id = emailId;
-    return this.userRepository.save(user);
+    const saved = await this.userRepository.save(user);
+    this.eventEmitter.emit('user.avatar-changed', { userId, avatarEmailId: emailId });
+    return saved;
   }
 
   async getAvatarImage(userId: string): Promise<{ buffer: Buffer; contentType: string } | null> {
