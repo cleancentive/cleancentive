@@ -404,7 +404,9 @@ export class UserService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+    const emails = user.emails?.map((e) => e.email) ?? [];
     await this.userRepository.remove(user);
+    this.eventEmitter.emit('user.deleted', { userId, emails });
   }
 
   async anonymizeAccount(userId: string): Promise<void> {
@@ -412,6 +414,8 @@ export class UserService {
     if (!user) {
       throw new NotFoundException('User not found');
     }
+
+    const emails = user.emails?.map((e) => e.email) ?? [];
 
     // Delete all emails
     await this.userEmailRepository.delete({ user_id: userId });
@@ -424,6 +428,7 @@ export class UserService {
     user.active_team_id = null;
     user.active_cleanup_date_id = null;
     await this.userRepository.save(user);
+    this.eventEmitter.emit('user.anonymized', { userId, emails });
   }
 
   async getProfileWithContext(userId: string): Promise<any> {

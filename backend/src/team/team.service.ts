@@ -259,12 +259,15 @@ export class TeamService {
     await this.ensureTeamNotArchived(team);
     await this.ensureOrganizer(teamId, actorUserId);
 
+    const oldName = team.name;
+    let nameChanged = false;
     if (input.name !== undefined) {
       const trimmedName = input.name.trim();
       if (!trimmedName) throw new BadRequestException('name is required');
       const nameNormalized = this.normalizeName(trimmedName);
       const existing = await this.teamRepository.findOne({ where: { name_normalized: nameNormalized } });
       if (existing && existing.id !== teamId) throw new BadRequestException('Team name already exists');
+      if (trimmedName !== oldName) nameChanged = true;
       team.name = trimmedName;
       team.name_normalized = nameNormalized;
     }
@@ -272,7 +275,11 @@ export class TeamService {
       team.description = input.description.trim();
     }
 
-    return this.teamRepository.save(team);
+    const saved = await this.teamRepository.save(team);
+    if (nameChanged) {
+      this.eventEmitter.emit('team.renamed', { teamId, oldName, newName: saved.name });
+    }
+    return saved;
   }
 
   async joinTeam(teamId: string, userId: string): Promise<{ joined: boolean }> {
@@ -425,6 +432,7 @@ export class TeamService {
     await this.teamRepository.save(team);
 
     await this.userRepository.update({ active_team_id: teamId }, { active_team_id: null, updated_by: actorUserId });
+    this.eventEmitter.emit('team.archived', { teamId, teamName: team.name });
   }
 
   async listMessages(teamId: string, userId: string): Promise<Array<TeamMessage & { author?: { nickname: string; avatarEmailId: string | null } }>> {

@@ -231,6 +231,69 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  @OnEvent('team.renamed')
+  async handleTeamRenamed(payload: { teamId: string; oldName: string; newName: string }): Promise<void> {
+    if (!this.isReady()) return;
+    try {
+      const res = await this.pg.query(
+        `UPDATE groups SET name = $1, "updatedAt" = NOW() WHERE "externalId" = $2 AND "teamId" = $3`,
+        [`Team: ${payload.newName}`, payload.teamId, this.outlineTeamId],
+      );
+      if ((res.rowCount ?? 0) > 0) {
+        this.logger.log(`Renamed Outline group for team ${payload.teamId}: "${payload.oldName}" → "${payload.newName}"`);
+      }
+    } catch (e) {
+      this.logger.warn(`Team rename sync failed: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
+  @OnEvent('team.archived')
+  async handleTeamArchived(payload: { teamId: string; teamName: string }): Promise<void> {
+    if (!this.isReady()) return;
+    try {
+      const group = await this.pg.query<{ id: string }>(
+        `SELECT id FROM groups WHERE "externalId" = $1 AND "teamId" = $2`,
+        [payload.teamId, this.outlineTeamId],
+      );
+      if (!group.rows[0]) return;
+      const del = await this.pg.query(
+        `DELETE FROM group_users WHERE "groupId" = $1`,
+        [group.rows[0].id],
+      );
+      this.logger.log(`Team ${payload.teamName} archived — cleared ${del.rowCount ?? 0} members from Outline group`);
+    } catch (e) {
+      this.logger.warn(`Team archive sync failed: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
+  @OnEvent('user.anonymized')
+  async handleUserAnonymized(payload: { userId: string; emails: string[] }): Promise<void> {
+    await this.suspendOutlineUsersByEmail(payload.emails, 'anonymized');
+  }
+
+  @OnEvent('user.deleted')
+  async handleUserDeleted(payload: { userId: string; emails: string[] }): Promise<void> {
+    await this.suspendOutlineUsersByEmail(payload.emails, 'deleted');
+  }
+
+  private async suspendOutlineUsersByEmail(emails: string[], reason: string): Promise<void> {
+    if (!this.isReady() || emails.length === 0) return;
+    try {
+      for (const email of emails) {
+        const res = await this.pg.query(
+          `UPDATE users SET "suspendedAt" = NOW(), "suspendedById" = $1, "updatedAt" = NOW()
+           WHERE LOWER(email) = LOWER($2) AND "teamId" = $3 AND "suspendedAt" IS NULL`,
+          [this.outlineAdminUserId, email, this.outlineTeamId],
+        );
+        if ((res.rowCount ?? 0) > 0) {
+          this.logger.log(`Suspended Outline user ${email} (${reason})`);
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`User suspend sync failed: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
   // --- Group primitives ----------------------------------------------------
 
   private async ensureTeamGroup(teamId: string, teamName: string): Promise<void> {
