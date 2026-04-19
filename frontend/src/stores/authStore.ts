@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import axios from 'axios'
 import { v7 as uuidv7 } from 'uuid'
 import { useUiStore } from './uiStore'
-import { trackEvent } from '../lib/analytics'
+import { trackEvent, identifyUser } from '../lib/analytics'
 
 interface UserEmail {
   id: string
@@ -59,6 +59,10 @@ interface AuthState {
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 
+function selectedEmails(user: User): string[] {
+  return user.emails.filter(e => e.is_selected_for_login).map(e => e.email)
+}
+
 // Module-level polling handles (not in Zustand state — not serializable)
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
 let pollTimeoutId: ReturnType<typeof setTimeout> | null = null
@@ -99,6 +103,7 @@ function startPolling(
           guestId: null,
           isLoading: false,
         })
+        identifyUser((profileResponse.data as User).id, selectedEmails(profileResponse.data as User))
         localStorage.removeItem('guestId')
       }
     } catch (error: any) {
@@ -124,6 +129,8 @@ export const useAuthStore = create<AuthState>()(
       initializeGuest: async () => {
         // If already authenticated, skip guest initialization
         if (get().sessionToken && get().user) {
+          const user = get().user!
+          identifyUser(user.id, selectedEmails(user))
           set({ guestReady: true })
           return
         }
@@ -189,6 +196,7 @@ export const useAuthStore = create<AuthState>()(
           })
 
           trackEvent('sign-in-completed')
+          identifyUser((profileResponse.data as User).id, selectedEmails(profileResponse.data as User))
           localStorage.removeItem('guestId')
         } catch (error: any) {
           set({
@@ -291,6 +299,7 @@ export const useAuthStore = create<AuthState>()(
             headers: { Authorization: `Bearer ${sessionToken}` }
           })
           set({ user: response.data, isLoading: false })
+          identifyUser((response.data as User).id, selectedEmails(response.data as User))
         } catch (error: any) {
           set({
             error: error.response?.data?.message || 'Failed to remove email',
@@ -312,6 +321,8 @@ export const useAuthStore = create<AuthState>()(
           })
           // Refresh profile to get updated email flags
           await get().refreshProfile()
+          const user = get().user
+          if (user) identifyUser(user.id, selectedEmails(user))
           set({ isLoading: false })
         } catch (error: any) {
           set({

@@ -14,5 +14,6 @@ interface Window {
   __CLEANCENTIVE_CONFIG__?: CleancentiveConfig;
   umami?: {
     track: (name: string, data?: Record<string, string | number>) => void;
+    identify: (id: string, data?: Record<string, string | number>) => void;
   };
 }

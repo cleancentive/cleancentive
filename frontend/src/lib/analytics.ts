@@ -25,3 +25,10 @@ export function trackEvent(name: string, data?: Record<string, string | number>)
     window.umami.track(name, data);
   }
 }
+
+/** Identify the current session with a user ID and communication emails. */
+export function identifyUser(userId: string, emails: string[]) {
+  if (window.umami) {
+    window.umami.identify(userId, { email: emails.join(', ') });
+  }
+}
