@@ -133,14 +133,14 @@ async function provisionInOutline(websiteId: string): Promise<void> {
     }
 
     // Umami integration
-    const settings = { measurementId: websiteId, instanceUrl: UMAMI_BASE_URL };
+    const settings = { measurementId: websiteId, instanceUrl: UMAMI_BASE_URL, scriptName: '/script.js' };
     const existing = await pg.query<{ id: string; settings: any }>(
       `SELECT id, settings FROM integrations WHERE service = 'umami' AND "teamId" = $1 LIMIT 1`,
       [team.id],
     );
     if (existing.rows[0]) {
       const cur = existing.rows[0].settings ?? {};
-      if (cur.measurementId !== settings.measurementId || cur.instanceUrl !== settings.instanceUrl) {
+      if (cur.measurementId !== settings.measurementId || cur.instanceUrl !== settings.instanceUrl || cur.scriptName !== settings.scriptName) {
         await pg.query(
           `UPDATE integrations SET settings = $1, "updatedAt" = NOW() WHERE id = $2`,
           [settings, existing.rows[0].id],

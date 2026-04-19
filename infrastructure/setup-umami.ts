@@ -16,7 +16,7 @@ const UMAMI_URL = 'http://localhost:3001';
 const UMAMI_USERNAME = 'admin';
 const UMAMI_PASSWORD = 'umami';
 const WEBSITE_NAME = 'Cleancentive Dev';
-const WEBSITE_DOMAIN = 'localhost';
+const WEBSITE_DOMAIN = 'cleancentive.local';
 const ENV_LOCAL_PATH = path.resolve(import.meta.dir, '..', 'frontend', '.env.local');
 
 async function waitForUmami(maxAttempts = 30) {
@@ -62,7 +62,7 @@ async function getOrCreateWebsite(token: string): Promise<string> {
 }
 
 function writeEnvLocal(websiteId: string) {
-  const scriptUrl = `${UMAMI_URL}/script.js`;
+  const scriptUrl = 'https://analytics.cleancentive.local/script.js';
   const umamiLines = [
     `VITE_UMAMI_SCRIPT_URL=${scriptUrl}`,
     `VITE_UMAMI_WEBSITE_ID=${websiteId}`,
