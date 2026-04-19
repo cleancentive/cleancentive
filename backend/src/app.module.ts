@@ -25,6 +25,7 @@ import { CleanupDate } from './cleanup/cleanup-date.entity';
 import { CleanupParticipant } from './cleanup/cleanup-participant.entity';
 import { CleanupMessage } from './cleanup/cleanup-message.entity';
 import { TeamEmailPattern } from './team/team-email-pattern.entity';
+import { TeamOutlineCollection } from './team/team-outline-collection.entity';
 import { TeamModule } from './team/team.module';
 import { CleanupModule } from './cleanup/cleanup.module';
 import { StorageModule } from './storage/storage.module';
@@ -66,6 +67,7 @@ import { OutlineSyncModule } from './outline-sync/outline-sync.module';
         TeamMembership,
         TeamMessage,
         TeamEmailPattern,
+        TeamOutlineCollection,
         Cleanup,
         CleanupDate,
         CleanupParticipant,

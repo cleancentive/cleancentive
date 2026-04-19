@@ -193,6 +193,7 @@ export class TeamService {
     await this.teamMembershipRepository.save(membership);
 
     await this.userRepository.update({ id: userId }, { active_team_id: savedTeam.id, updated_by: userId });
+    this.eventEmitter.emit('team.created', { teamId: savedTeam.id, teamName: savedTeam.name });
     return savedTeam;
   }
 

@@ -1,9 +1,13 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, IsNull } from 'typeorm';
 import { Client as PgClient } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
+import { Team } from '../team/team.entity';
+import { TeamOutlineCollection } from '../team/team-outline-collection.entity';
 
 /**
  * Pushes cleancentive state into Outline's Postgres database in real-time so
@@ -22,9 +26,16 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   private outlineTeamId: string | null = null;
   private outlineAdminUserId: string | null = null;
 
+  private readonly outlineApiUrl = process.env.OUTLINE_API_URL ?? 'https://wiki.cleancentive.local';
+  private readonly outlineApiKey = process.env.OUTLINE_API_KEY ?? '';
+  private apiKeyWarned = false;
+
   constructor(
     private readonly userService: UserService,
     private readonly adminService: AdminService,
+    @InjectRepository(Team) private readonly teamRepository: Repository<Team>,
+    @InjectRepository(TeamOutlineCollection)
+    private readonly teamCollectionRepository: Repository<TeamOutlineCollection>,
   ) {
     this.pg = new PgClient({
       host: process.env.DB_HOST ?? 'localhost',
@@ -41,6 +52,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       await this.cacheOutlineTeamAndAdmin();
       await this.ensureStewardsGroup();
       await this.syncExistingAdmins();
+      await this.backfillTeamCollections();
     } catch (e) {
       this.logger.warn(`Outline sync disabled (${e instanceof Error ? e.message : e}). Wiki integration will not sync until the outline DB is reachable.`);
     }
@@ -231,6 +243,11 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  @OnEvent('team.created')
+  async handleTeamCreated(payload: { teamId: string; teamName: string }): Promise<void> {
+    await this.provisionTeamCollection(payload.teamId, payload.teamName);
+  }
+
   @OnEvent('team.renamed')
   async handleTeamRenamed(payload: { teamId: string; oldName: string; newName: string }): Promise<void> {
     if (!this.isReady()) return;
@@ -244,6 +261,19 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       }
     } catch (e) {
       this.logger.warn(`Team rename sync failed: ${e instanceof Error ? e.message : e}`);
+    }
+
+    const mapping = await this.teamCollectionRepository.findOne({ where: { team_id: payload.teamId } });
+    if (mapping) {
+      try {
+        await this.callOutlineApi('/collections.update', {
+          id: mapping.outline_collection_id,
+          name: payload.newName,
+        });
+        this.logger.log(`Renamed Outline collection for team ${payload.teamId}: "${payload.oldName}" → "${payload.newName}"`);
+      } catch (e) {
+        this.logger.warn(`Collection rename failed: ${e instanceof Error ? e.message : e}`);
+      }
     }
   }
 
@@ -261,6 +291,19 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
         [group.rows[0].id],
       );
       this.logger.log(`Team ${payload.teamName} archived — cleared ${del.rowCount ?? 0} members from Outline group`);
+
+      const mapping = await this.teamCollectionRepository.findOne({ where: { team_id: payload.teamId } });
+      if (mapping) {
+        try {
+          await this.callOutlineApi('/collections.remove_group', {
+            id: mapping.outline_collection_id,
+            groupId: group.rows[0].id,
+          });
+          this.logger.log(`Revoked team group access on Outline collection for archived team ${payload.teamName}`);
+        } catch (e) {
+          this.logger.warn(`Collection group removal failed: ${e instanceof Error ? e.message : e}`);
+        }
+      }
     } catch (e) {
       this.logger.warn(`Team archive sync failed: ${e instanceof Error ? e.message : e}`);
     }
@@ -341,5 +384,94 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       `DELETE FROM group_users WHERE "userId" = $1 AND "groupId" = $2`,
       [outlineUserId, group.rows[0].id],
     );
+  }
+
+  // --- Collection provisioning --------------------------------------------
+
+  private async callOutlineApi(endpoint: string, body?: any): Promise<any | null> {
+    if (!this.outlineApiKey) {
+      if (!this.apiKeyWarned) {
+        this.logger.warn('OUTLINE_API_KEY not configured — collection provisioning disabled');
+        this.apiKeyWarned = true;
+      }
+      return null;
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    try {
+      const res = await fetch(`${this.outlineApiUrl}/api${endpoint}`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${this.outlineApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) {
+        throw new Error(`Outline API ${endpoint} returned ${res.status}: ${await res.text()}`);
+      }
+      return await res.json();
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  private async provisionTeamCollection(teamId: string, teamName: string): Promise<void> {
+    if (!this.isReady()) return;
+    if (!this.outlineApiKey) {
+      if (!this.apiKeyWarned) {
+        this.logger.warn('OUTLINE_API_KEY not configured — collection provisioning disabled');
+        this.apiKeyWarned = true;
+      }
+      return;
+    }
+
+    const existing = await this.teamCollectionRepository.findOne({ where: { team_id: teamId } });
+    if (existing) return;
+
+    try {
+      const created = await this.callOutlineApi('/collections.create', {
+        name: teamName,
+        permission: null, // private — access granted only via group
+      });
+      const collectionId = created?.data?.id;
+      if (!collectionId) {
+        this.logger.warn(`Collection create returned no id for team ${teamName}`);
+        return;
+      }
+
+      const group = await this.pg.query<{ id: string }>(
+        `SELECT id FROM groups WHERE "externalId" = $1 AND "teamId" = $2`,
+        [teamId, this.outlineTeamId],
+      );
+      if (group.rows[0]) {
+        try {
+          await this.callOutlineApi('/collections.add_group', {
+            id: collectionId,
+            groupId: group.rows[0].id,
+            permission: 'read_write',
+          });
+        } catch (e) {
+          this.logger.warn(`Failed to grant team group access to new collection: ${e instanceof Error ? e.message : e}`);
+        }
+      }
+
+      await this.teamCollectionRepository.save(
+        this.teamCollectionRepository.create({ team_id: teamId, outline_collection_id: collectionId }),
+      );
+      this.logger.log(`Provisioned Outline collection for team ${teamName} (${collectionId})`);
+    } catch (e) {
+      this.logger.warn(`Team collection provisioning failed: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
+  /** Backfill: create Outline collections for teams that don't have one yet. */
+  private async backfillTeamCollections(): Promise<void> {
+    if (!this.isReady() || !this.outlineApiKey) return;
+    const teams = await this.teamRepository.find({ where: { archived_at: IsNull() } });
+    for (const team of teams) {
+      await this.provisionTeamCollection(team.id, team.name);
+    }
   }
 }
