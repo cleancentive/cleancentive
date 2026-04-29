@@ -8,6 +8,7 @@ interface CleancentiveConfig {
   umamiScriptUrl?: string;
   umamiWebsiteId?: string;
   umamiShareUrl?: string;
+  wikiUrl?: string;
 }
 
 interface Window {

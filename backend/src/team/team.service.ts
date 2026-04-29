@@ -12,6 +12,7 @@ import { Team } from './team.entity';
 import { TeamMembership } from './team-membership.entity';
 import { TeamMessage } from './team-message.entity';
 import { TeamEmailPattern } from './team-email-pattern.entity';
+import { TeamOutlineCollection } from './team-outline-collection.entity';
 import { User } from '../user/user.entity';
 import { AdminService } from '../admin/admin.service';
 import { UserEmail } from '../user/user-email.entity';
@@ -60,6 +61,8 @@ export class TeamService {
     private readonly teamMessageRepository: Repository<TeamMessage>,
     @InjectRepository(TeamEmailPattern)
     private readonly teamEmailPatternRepository: Repository<TeamEmailPattern>,
+    @InjectRepository(TeamOutlineCollection)
+    private readonly teamOutlineCollectionRepository: Repository<TeamOutlineCollection>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     @InjectRepository(UserEmail)
@@ -210,6 +213,7 @@ export class TeamService {
     members: Array<{ userId: string; nickname: string; role: string; avatarEmailId: string | null }>;
     userRole: string | null;
     isPartner: boolean;
+    outlineCollectionId: string | null;
     emailPatterns?: Array<{ id: string; email_pattern: string }>;
   }> {
     const team = await this.getTeam(teamId);
@@ -243,7 +247,10 @@ export class TeamService {
 
     const isPartner = await this.isPartnerTeam(teamId);
 
-    const result: any = { team, members, userRole, isPartner };
+    const outlineMapping = await this.teamOutlineCollectionRepository.findOne({ where: { team_id: teamId } });
+    const outlineCollectionId = outlineMapping?.outline_collection_id ?? null;
+
+    const result: any = { team, members, userRole, isPartner, outlineCollectionId };
 
     // Only expose email patterns and custom_css to platform admins
     if (isPlatformAdmin && isPartner) {

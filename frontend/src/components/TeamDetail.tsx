@@ -10,6 +10,10 @@ import { useUiStore } from '../stores/uiStore'
 import { ConfirmDialog } from './ConfirmDialog'
 import { PartnerSettingsFields } from './PartnerSettingsFields'
 
+const WIKI_URL = window.__CLEANCENTIVE_CONFIG__?.wikiUrl
+  || import.meta.env.VITE_WIKI_URL
+  || 'https://wiki.cleancentive.local'
+
 export function TeamDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -120,6 +124,14 @@ export function TeamDetail() {
             <legend>
               {team.name}
               {isOrganizer && <button className="link-button legend-edit-button" onClick={() => { setEditName(team.name); setEditDescription(team.description); setEditing(true) }}>Edit</button>}
+              {currentTeam?.outlineCollectionId && (
+                <a
+                  className="link-button legend-edit-button"
+                  href={`${WIKI_URL}/collection/${currentTeam.outlineCollectionId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >Wiki ↗</a>
+              )}
             </legend>
             {team.description && <p>{team.description}</p>}
           </>

@@ -29,6 +29,7 @@ interface TeamDetail {
   members: TeamMember[]
   userRole: string | null
   isPartner: boolean
+  outlineCollectionId: string | null
   emailPatterns?: Array<{ id: string; email_pattern: string }>
 }
 
