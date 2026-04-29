@@ -13,6 +13,7 @@ async function bootstrap() {
   try {
     const app = await NestFactory.create(AppModule, {
       logger: ['log', 'error', 'warn', 'debug', 'verbose'],
+      rawBody: true, // needed for Outline webhook HMAC verification
     });
 
     // Set global API prefix

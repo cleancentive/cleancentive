@@ -41,6 +41,8 @@ import { LabelModule } from './label/label.module';
 import { OidcModule } from './oidc/oidc.module';
 import { OidcAuthorizationCode, OidcRefreshToken, OidcClient } from './oidc/oidc.entity';
 import { OutlineSyncModule } from './outline-sync/outline-sync.module';
+import { OutlineWebhookConfig } from './outline-sync/outline-webhook-config.entity';
+import { OutlineEvent } from './outline-sync/outline-event.entity';
 
 @Module({
   imports: [
@@ -80,6 +82,8 @@ import { OutlineSyncModule } from './outline-sync/outline-sync.module';
         OidcAuthorizationCode,
         OidcRefreshToken,
         OidcClient,
+        OutlineWebhookConfig,
+        OutlineEvent,
       ],
       subscribers: [AuditSubscriber],
       synchronize: false,

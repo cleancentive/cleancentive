@@ -1,13 +1,15 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, Not } from 'typeorm';
 import { Client as PgClient } from 'pg';
+import { Queue, Worker } from 'bullmq';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
 import { Team } from '../team/team.entity';
 import { TeamOutlineCollection } from '../team/team-outline-collection.entity';
+import { OutlineWebhookConfig } from './outline-webhook-config.entity';
 
 /**
  * Pushes cleancentive state into Outline's Postgres database in real-time so
@@ -30,12 +32,27 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   private outlineApiKey = '';
   private static readonly API_KEY_NAME = 'cleancentive-sync';
 
+  private static readonly RECONCILE_QUEUE = 'cleancentive-outline-reconcile';
+  private static readonly RECONCILE_JOB = 'reconcile-team-collections';
+  private static readonly WEBHOOK_NAME = 'cleancentive-webhook';
+  private static readonly WEBHOOK_EVENTS = [
+    'documents.create',
+    'documents.update',
+    'documents.delete',
+    'documents.archive',
+    'comments.create',
+  ];
+  private reconcileQueue: Queue | null = null;
+  private reconcileWorker: Worker | null = null;
+
   constructor(
     private readonly userService: UserService,
     private readonly adminService: AdminService,
     @InjectRepository(Team) private readonly teamRepository: Repository<Team>,
     @InjectRepository(TeamOutlineCollection)
     private readonly teamCollectionRepository: Repository<TeamOutlineCollection>,
+    @InjectRepository(OutlineWebhookConfig)
+    private readonly webhookConfigRepository: Repository<OutlineWebhookConfig>,
   ) {
     this.pg = new PgClient({
       host: process.env.DB_HOST ?? 'localhost',
@@ -50,16 +67,22 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.pg.connect();
       await this.cacheOutlineTeamAndAdmin();
-      await this.ensureStewardsGroup();
       await this.provisionApiKey();
+      await this.provisionWebhookSubscription();
+      await this.ensureStewardsGroup();
       await this.syncExistingAdmins();
       await this.backfillTeamCollections();
     } catch (e) {
       this.logger.warn(`Outline sync disabled (${e instanceof Error ? e.message : e}). Wiki integration will not sync until the outline DB is reachable.`);
     }
+    // Reconciliation queue is independent of Outline DB reachability — it
+    // self-heals when Outline comes back.
+    await this.initReconciliationQueue();
   }
 
   async onModuleDestroy() {
+    await this.reconcileWorker?.close().catch(() => {});
+    await this.reconcileQueue?.close().catch(() => {});
     await this.pg.end().catch(() => {});
   }
 
@@ -76,36 +99,27 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async ensureStewardsGroup(): Promise<void> {
-    if (!this.outlineTeamId || !this.outlineAdminUserId) return;
-    const existing = await this.pg.query(
-      `SELECT id FROM groups WHERE "externalId" = 'stewards' AND "teamId" = $1`,
-      [this.outlineTeamId],
-    );
-    if (existing.rows.length > 0) return;
-    await this.pg.query(
-      `INSERT INTO groups (id, name, "teamId", "createdById", "externalId", "createdAt", "updatedAt")
-       VALUES ($1, 'Stewards', $2, $3, 'stewards', NOW(), NOW())`,
-      [randomUUID(), this.outlineTeamId, this.outlineAdminUserId],
-    );
+    if (!this.outlineTeamId || !this.outlineAdminUserId || !this.outlineApiKey) return;
+    if (await this.findGroupIdByExternalId('stewards')) return;
+    await this.callOutlineApi('/groups.create', { name: 'Stewards', externalId: 'stewards' });
     this.logger.log('Created "Stewards" group in Outline.');
   }
 
   /** Backfill: ensure all current cleancentive admins are in the Stewards group + have Outline admin role. */
   private async syncExistingAdmins(): Promise<void> {
-    if (!this.isReady()) return;
+    if (!this.isReady() || !this.outlineApiKey) return;
     const adminUserIds = await this.adminService.getAdminUserIds();
     for (const userId of adminUserIds) {
       const email = await this.getEmail(userId);
       if (!email) continue;
       const outlineUserId = await this.findOutlineUserId(email);
       if (!outlineUserId) continue;
-      // Ensure admin role
-      await this.pg.query(
-        `UPDATE users SET role = 'admin', "updatedAt" = NOW() WHERE id = $1 AND role != 'admin'`,
-        [outlineUserId],
-      );
-      // Ensure Stewards group membership
-      await this.addToGroup(outlineUserId, 'stewards');
+      try {
+        await this.setOutlineUserRole(outlineUserId, 'admin');
+        await this.addToGroup(outlineUserId, 'stewards');
+      } catch (e) {
+        this.logger.warn(`Admin backfill failed for ${email}: ${e instanceof Error ? e.message : e}`);
+      }
     }
   }
 
@@ -126,6 +140,25 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     return user?.emails?.[0]?.email ?? null;
   }
 
+  /** Set Outline user role, treating "already in that role" 400 as a no-op. */
+  private async setOutlineUserRole(outlineUserId: string, role: 'admin' | 'member'): Promise<void> {
+    try {
+      await this.callOutlineApi('/users.update_role', { id: outlineUserId, role });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!msg.includes('already in that role')) throw e;
+    }
+  }
+
+  /** Look up an Outline group ID by its externalId. */
+  private async findGroupIdByExternalId(externalId: string): Promise<string | null> {
+    const res = await this.pg.query<{ id: string }>(
+      `SELECT id FROM groups WHERE "externalId" = $1 AND "teamId" = $2`,
+      [externalId, this.outlineTeamId],
+    );
+    return res.rows[0]?.id ?? null;
+  }
+
   private isReady(): boolean {
     return this.outlineTeamId !== null && this.outlineAdminUserId !== null;
   }
@@ -134,20 +167,19 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
 
   @OnEvent('user.profile-changed')
   async handleProfileChanged(payload: { userId: string }): Promise<void> {
-    if (!this.isReady()) return;
+    if (!this.isReady() || !this.outlineApiKey) return;
     try {
       const user = await this.userService.findById(payload.userId);
       if (!user) return;
       const email = user.emails?.[0]?.email;
       if (!email) return;
+      const outlineUserId = await this.findOutlineUserId(email);
+      if (!outlineUserId) return;
       const displayName =
         (user.full_name?.trim()) ||
         (user.nickname && user.nickname !== 'guest' ? user.nickname : null) ||
         email.split('@')[0];
-      await this.pg.query(
-        `UPDATE users SET name = $1, "updatedAt" = NOW() WHERE LOWER(email) = LOWER($2) AND "teamId" = $3`,
-        [displayName, email, this.outlineTeamId],
-      );
+      await this.callOutlineApi('/users.update', { id: outlineUserId, name: displayName });
       this.logger.debug(`Synced display name for ${email} → ${displayName}`);
     } catch (e) {
       this.logger.warn(`Profile sync failed: ${e instanceof Error ? e.message : e}`);
@@ -156,19 +188,18 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
 
   @OnEvent('user.avatar-changed')
   async handleAvatarChanged(payload: { userId: string; avatarEmailId: string | null }): Promise<void> {
-    if (!this.isReady()) return;
+    if (!this.isReady() || !this.outlineApiKey) return;
     try {
       const email = await this.getEmail(payload.userId);
       if (!email) return;
+      const outlineUserId = await this.findOutlineUserId(email);
+      if (!outlineUserId) return;
       const appBaseUrl = (process.env.OIDC_ISSUER_URL ?? 'https://cleancentive.local/api/v1/oidc')
         .replace(/\/api\/v1\/oidc\/?$/, '');
       const avatarUrl = payload.avatarEmailId
         ? `${appBaseUrl}/api/v1/user/${payload.userId}/avatar?v=${payload.avatarEmailId}`
         : null;
-      await this.pg.query(
-        `UPDATE users SET "avatarUrl" = $1, "updatedAt" = NOW() WHERE LOWER(email) = LOWER($2) AND "teamId" = $3`,
-        [avatarUrl, email, this.outlineTeamId],
-      );
+      await this.callOutlineApi('/users.update', { id: outlineUserId, avatarUrl });
       this.logger.debug(`Synced avatar for ${email}`);
     } catch (e) {
       this.logger.warn(`Avatar sync failed: ${e instanceof Error ? e.message : e}`);
@@ -177,16 +208,13 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
 
   @OnEvent('admin.promoted')
   async handleAdminPromoted(payload: { userId: string }): Promise<void> {
-    if (!this.isReady()) return;
+    if (!this.isReady() || !this.outlineApiKey) return;
     try {
       const email = await this.getEmail(payload.userId);
       if (!email) return;
       const outlineUserId = await this.findOutlineUserId(email);
       if (!outlineUserId) return;
-      await this.pg.query(
-        `UPDATE users SET role = 'admin', "updatedAt" = NOW() WHERE id = $1`,
-        [outlineUserId],
-      );
+      await this.setOutlineUserRole(outlineUserId, 'admin');
       await this.addToGroup(outlineUserId, 'stewards');
       this.logger.log(`Promoted ${email} to Outline admin + Stewards group`);
     } catch (e) {
@@ -196,16 +224,13 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
 
   @OnEvent('admin.demoted')
   async handleAdminDemoted(payload: { userId: string }): Promise<void> {
-    if (!this.isReady()) return;
+    if (!this.isReady() || !this.outlineApiKey) return;
     try {
       const email = await this.getEmail(payload.userId);
       if (!email) return;
       const outlineUserId = await this.findOutlineUserId(email);
       if (!outlineUserId) return;
-      await this.pg.query(
-        `UPDATE users SET role = 'member', "updatedAt" = NOW() WHERE id = $1`,
-        [outlineUserId],
-      );
+      await this.setOutlineUserRole(outlineUserId, 'member');
       await this.removeFromGroup(outlineUserId, 'stewards');
       this.logger.log(`Demoted ${email} from Outline admin`);
     } catch (e) {
@@ -251,17 +276,15 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
 
   @OnEvent('team.renamed')
   async handleTeamRenamed(payload: { teamId: string; oldName: string; newName: string }): Promise<void> {
-    if (!this.isReady()) return;
-    try {
-      const res = await this.pg.query(
-        `UPDATE groups SET name = $1, "updatedAt" = NOW() WHERE "externalId" = $2 AND "teamId" = $3`,
-        [`Team: ${payload.newName}`, payload.teamId, this.outlineTeamId],
-      );
-      if ((res.rowCount ?? 0) > 0) {
+    if (!this.isReady() || !this.outlineApiKey) return;
+    const groupId = await this.findGroupIdByExternalId(payload.teamId);
+    if (groupId) {
+      try {
+        await this.callOutlineApi('/groups.update', { id: groupId, name: `Team: ${payload.newName}` });
         this.logger.log(`Renamed Outline group for team ${payload.teamId}: "${payload.oldName}" → "${payload.newName}"`);
+      } catch (e) {
+        this.logger.warn(`Group rename failed: ${e instanceof Error ? e.message : e}`);
       }
-    } catch (e) {
-      this.logger.warn(`Team rename sync failed: ${e instanceof Error ? e.message : e}`);
     }
 
     const mapping = await this.teamCollectionRepository.findOne({ where: { team_id: payload.teamId } });
@@ -280,25 +303,29 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
 
   @OnEvent('team.archived')
   async handleTeamArchived(payload: { teamId: string; teamName: string }): Promise<void> {
-    if (!this.isReady()) return;
+    if (!this.isReady() || !this.outlineApiKey) return;
     try {
-      const group = await this.pg.query<{ id: string }>(
-        `SELECT id FROM groups WHERE "externalId" = $1 AND "teamId" = $2`,
-        [payload.teamId, this.outlineTeamId],
-      );
-      if (!group.rows[0]) return;
-      const del = await this.pg.query(
-        `DELETE FROM group_users WHERE "groupId" = $1`,
-        [group.rows[0].id],
-      );
-      this.logger.log(`Team ${payload.teamName} archived — cleared ${del.rowCount ?? 0} members from Outline group`);
+      const groupId = await this.findGroupIdByExternalId(payload.teamId);
+      if (!groupId) return;
+
+      // No bulk-remove API; loop through current memberships and remove each.
+      const memberships = await this.callOutlineApi('/groups.memberships', { id: groupId, limit: 100 });
+      const users = (memberships?.data?.users ?? []) as Array<{ id: string }>;
+      for (const u of users) {
+        try {
+          await this.callOutlineApi('/groups.remove_user', { id: groupId, userId: u.id });
+        } catch (e) {
+          this.logger.warn(`Failed to remove user ${u.id} from archived team group: ${e instanceof Error ? e.message : e}`);
+        }
+      }
+      this.logger.log(`Team ${payload.teamName} archived — removed ${users.length} members from Outline group`);
 
       const mapping = await this.teamCollectionRepository.findOne({ where: { team_id: payload.teamId } });
       if (mapping) {
         try {
           await this.callOutlineApi('/collections.remove_group', {
             id: mapping.outline_collection_id,
-            groupId: group.rows[0].id,
+            groupId,
           });
           this.logger.log(`Revoked team group access on Outline collection for archived team ${payload.teamName}`);
         } catch (e) {
@@ -321,70 +348,44 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async suspendOutlineUsersByEmail(emails: string[], reason: string): Promise<void> {
-    if (!this.isReady() || emails.length === 0) return;
-    try {
-      for (const email of emails) {
-        const res = await this.pg.query(
-          `UPDATE users SET "suspendedAt" = NOW(), "suspendedById" = $1, "updatedAt" = NOW()
-           WHERE LOWER(email) = LOWER($2) AND "teamId" = $3 AND "suspendedAt" IS NULL`,
-          [this.outlineAdminUserId, email, this.outlineTeamId],
-        );
-        if ((res.rowCount ?? 0) > 0) {
-          this.logger.log(`Suspended Outline user ${email} (${reason})`);
-        }
+    if (!this.isReady() || !this.outlineApiKey || emails.length === 0) return;
+    for (const email of emails) {
+      try {
+        const outlineUserId = await this.findOutlineUserId(email);
+        if (!outlineUserId) continue;
+        await this.callOutlineApi('/users.suspend', { id: outlineUserId });
+        this.logger.log(`Suspended Outline user ${email} (${reason})`);
+      } catch (e) {
+        this.logger.warn(`User suspend failed for ${email}: ${e instanceof Error ? e.message : e}`);
       }
-    } catch (e) {
-      this.logger.warn(`User suspend sync failed: ${e instanceof Error ? e.message : e}`);
     }
   }
 
   // --- Group primitives ----------------------------------------------------
 
   private async ensureTeamGroup(teamId: string, teamName: string): Promise<void> {
-    const existing = await this.pg.query(
-      `SELECT id FROM groups WHERE "externalId" = $1 AND "teamId" = $2`,
-      [teamId, this.outlineTeamId],
-    );
-    if (existing.rows.length > 0) {
-      // Update name if it changed
-      await this.pg.query(
-        `UPDATE groups SET name = $1, "updatedAt" = NOW() WHERE "externalId" = $2 AND "teamId" = $3`,
-        [`Team: ${teamName}`, teamId, this.outlineTeamId],
-      );
+    if (!this.outlineApiKey) return;
+    const existingGroupId = await this.findGroupIdByExternalId(teamId);
+    if (existingGroupId) {
+      await this.callOutlineApi('/groups.update', { id: existingGroupId, name: `Team: ${teamName}` });
       return;
     }
-    await this.pg.query(
-      `INSERT INTO groups (id, name, "teamId", "createdById", "externalId", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
-      [randomUUID(), `Team: ${teamName}`, this.outlineTeamId, this.outlineAdminUserId, teamId],
-    );
+    await this.callOutlineApi('/groups.create', { name: `Team: ${teamName}`, externalId: teamId });
     this.logger.log(`Created Outline group "Team: ${teamName}"`);
   }
 
   private async addToGroup(outlineUserId: string, externalGroupId: string): Promise<void> {
-    const group = await this.pg.query<{ id: string }>(
-      `SELECT id FROM groups WHERE "externalId" = $1 AND "teamId" = $2`,
-      [externalGroupId, this.outlineTeamId],
-    );
-    if (!group.rows[0]) return;
-    await this.pg.query(
-      `INSERT INTO group_users ("userId", "groupId", "createdById", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, NOW(), NOW())
-       ON CONFLICT ("userId", "groupId") DO NOTHING`,
-      [outlineUserId, group.rows[0].id, this.outlineAdminUserId],
-    );
+    if (!this.outlineApiKey) return;
+    const groupId = await this.findGroupIdByExternalId(externalGroupId);
+    if (!groupId) return;
+    await this.callOutlineApi('/groups.add_user', { id: groupId, userId: outlineUserId });
   }
 
   private async removeFromGroup(outlineUserId: string, externalGroupId: string): Promise<void> {
-    const group = await this.pg.query<{ id: string }>(
-      `SELECT id FROM groups WHERE "externalId" = $1 AND "teamId" = $2`,
-      [externalGroupId, this.outlineTeamId],
-    );
-    if (!group.rows[0]) return;
-    await this.pg.query(
-      `DELETE FROM group_users WHERE "userId" = $1 AND "groupId" = $2`,
-      [outlineUserId, group.rows[0].id],
-    );
+    if (!this.outlineApiKey) return;
+    const groupId = await this.findGroupIdByExternalId(externalGroupId);
+    if (!groupId) return;
+    await this.callOutlineApi('/groups.remove_user', { id: groupId, userId: outlineUserId });
   }
 
   // --- Collection provisioning --------------------------------------------
@@ -416,6 +417,46 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     );
     this.outlineApiKey = plaintext;
     this.logger.log('Provisioned Outline API key for this process');
+  }
+
+  /**
+   * Subscribe Outline to push events back to Cleancentive. Generates a stable
+   * HMAC secret on first run (persisted in `outline_webhook_config`) and
+   * reuses it on subsequent runs. Soft-deletes any prior `cleancentive-webhook`
+   * subscription rows so exactly one is live at a time.
+   */
+  private async provisionWebhookSubscription(): Promise<void> {
+    if (!this.isReady()) return;
+
+    let config = await this.webhookConfigRepository.findOne({ where: {}, order: { created_at: 'ASC' } });
+    if (!config) {
+      const secret = randomBytes(32).toString('hex');
+      config = await this.webhookConfigRepository.save(this.webhookConfigRepository.create({ secret }));
+    }
+
+    const publicUrl = process.env.CLEANCENTIVE_PUBLIC_URL ?? 'https://cleancentive.local';
+    const webhookUrl = `${publicUrl}/api/v1/outline-webhooks/incoming`;
+
+    await this.pg.query(
+      `UPDATE webhook_subscriptions SET "deletedAt" = NOW(), "updatedAt" = NOW()
+       WHERE name = $1 AND "deletedAt" IS NULL`,
+      [OutlineSyncService.WEBHOOK_NAME],
+    );
+    await this.pg.query(
+      `INSERT INTO webhook_subscriptions
+         (id, "teamId", "createdById", url, enabled, name, events, secret, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, true, $5, $6, $7, NOW(), NOW())`,
+      [
+        randomUUID(),
+        this.outlineTeamId,
+        this.outlineAdminUserId,
+        webhookUrl,
+        OutlineSyncService.WEBHOOK_NAME,
+        OutlineSyncService.WEBHOOK_EVENTS,
+        Buffer.from(config.secret, 'utf8'),
+      ],
+    );
+    this.logger.log(`Provisioned Outline webhook subscription → ${webhookUrl}`);
   }
 
   /** Generate `length` characters from `[A-Za-z0-9_]`, matching Outline's `randomString`. */
@@ -473,15 +514,12 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       // created lazily on first team.member-joined; if we skipped this, the
       // collection would stay admin-only until a non-creator joined.
       await this.ensureTeamGroup(teamId, teamName);
-      const group = await this.pg.query<{ id: string }>(
-        `SELECT id FROM groups WHERE "externalId" = $1 AND "teamId" = $2`,
-        [teamId, this.outlineTeamId],
-      );
-      if (group.rows[0]) {
+      const groupId = await this.findGroupIdByExternalId(teamId);
+      if (groupId) {
         try {
           await this.callOutlineApi('/collections.add_group', {
             id: collectionId,
-            groupId: group.rows[0].id,
+            groupId,
             permission: 'read_write',
           });
         } catch (e) {
@@ -492,10 +530,38 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       await this.teamCollectionRepository.save(
         this.teamCollectionRepository.create({ team_id: teamId, outline_collection_id: collectionId }),
       );
+
+      // Seed a starter document so the collection is non-empty on first visit.
+      // Failure is non-fatal — users can still write content themselves.
+      try {
+        await this.callOutlineApi('/documents.create', {
+          collectionId,
+          title: `Welcome to the ${teamName} wiki`,
+          text: this.starterDocText(teamName),
+          publish: true,
+        });
+      } catch (e) {
+        this.logger.warn(`Seed doc create failed for team ${teamName}: ${e instanceof Error ? e.message : e}`);
+      }
+
       this.logger.log(`Provisioned Outline collection for team ${teamName} (${collectionId})`);
     } catch (e) {
       this.logger.warn(`Team collection provisioning failed: ${e instanceof Error ? e.message : e}`);
     }
+  }
+
+  private starterDocText(teamName: string): string {
+    return [
+      `This is the wiki space for **${teamName}**.`,
+      '',
+      'A few suggestions to get started:',
+      '',
+      '- Document the spots you cover most often, with notes on access, hazards, and what kind of litter you typically find.',
+      '- Capture lessons from past cleanups — what worked, what didn\'t.',
+      '- Pin team agreements (meeting cadence, who handles equipment, etc.) so new members can self-onboard.',
+      '',
+      'Anyone in the team can edit this page.',
+    ].join('\n');
   }
 
   /** Backfill: create Outline collections for teams that don't have one yet. */
@@ -505,5 +571,113 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     for (const team of teams) {
       await this.provisionTeamCollection(team.id, team.name);
     }
+  }
+
+  // --- Reconciliation -----------------------------------------------------
+
+  private async initReconciliationQueue(): Promise<void> {
+    const connection = {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: parseInt(process.env.REDIS_PORT || '6379', 10),
+    };
+    this.reconcileQueue = new Queue(OutlineSyncService.RECONCILE_QUEUE, { connection });
+    this.reconcileWorker = new Worker(
+      OutlineSyncService.RECONCILE_QUEUE,
+      async (job) => {
+        if (job.name === OutlineSyncService.RECONCILE_JOB) {
+          await this.reconcileTeamCollections();
+        }
+      },
+      { connection, concurrency: 1 },
+    );
+    this.reconcileWorker.on('failed', (job, err) => {
+      this.logger.error(`Reconcile job ${job?.name} failed: ${err.message}`);
+    });
+
+    // Clear any stale repeatables and re-schedule daily at 03:30 UTC.
+    const existing = await this.reconcileQueue.getRepeatableJobs();
+    for (const j of existing) await this.reconcileQueue.removeRepeatableByKey(j.key);
+    await this.reconcileQueue.add(
+      OutlineSyncService.RECONCILE_JOB,
+      {},
+      { repeat: { pattern: '30 3 * * *' }, removeOnComplete: true, removeOnFail: false },
+    );
+    this.logger.log('Outline reconciliation registered: daily at 03:30 UTC');
+  }
+
+  /**
+   * Drift safety net for the reactive-only sync. Detects mismatches between
+   * Cleancentive teams and Outline collections and reconciles where intent is
+   * unambiguous; logs warnings where it isn't.
+   */
+  async reconcileTeamCollections(): Promise<void> {
+    if (!this.isReady() || !this.outlineApiKey) {
+      this.logger.warn('Reconciliation skipped: Outline sync not ready');
+      return;
+    }
+
+    let provisioned = 0, renamed = 0, missing = 0, archivedRevoked = 0, orphans = 0;
+
+    // 1. Active teams: ensure mapping exists and Outline collection matches.
+    const activeTeams = await this.teamRepository.find({ where: { archived_at: IsNull() } });
+    for (const team of activeTeams) {
+      const mapping = await this.teamCollectionRepository.findOne({ where: { team_id: team.id } });
+      if (!mapping) {
+        await this.provisionTeamCollection(team.id, team.name);
+        provisioned++;
+        continue;
+      }
+      try {
+        const info = await this.callOutlineApi('/collections.info', { id: mapping.outline_collection_id });
+        const remote = info?.data;
+        if (!remote) continue;
+        if (remote.name !== team.name) {
+          await this.callOutlineApi('/collections.update', { id: mapping.outline_collection_id, name: team.name });
+          renamed++;
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes('404')) {
+          this.logger.warn(`Outline collection ${mapping.outline_collection_id} for team ${team.name} is gone — not auto-recreating`);
+          missing++;
+        } else {
+          this.logger.warn(`Reconciliation check failed for team ${team.name}: ${msg}`);
+        }
+      }
+    }
+
+    // 2. Archived teams with mappings: ensure team group is detached from collection.
+    const archivedTeams = await this.teamRepository.find({ where: { archived_at: Not(IsNull()) } });
+    for (const team of archivedTeams) {
+      const mapping = await this.teamCollectionRepository.findOne({ where: { team_id: team.id } });
+      if (!mapping) continue;
+      const groupId = await this.findGroupIdByExternalId(team.id);
+      if (!groupId) continue;
+      try {
+        // collections.remove_group is idempotent — calling on an already-removed
+        // group returns an error we can ignore. Cheaper than a list+diff.
+        await this.callOutlineApi('/collections.remove_group', {
+          id: mapping.outline_collection_id,
+          groupId,
+        });
+        archivedRevoked++;
+      } catch {
+        // Already detached or collection missing — fine.
+      }
+    }
+
+    // 3. Mapping rows whose team is gone entirely.
+    const mappings = await this.teamCollectionRepository.find();
+    for (const m of mappings) {
+      const team = await this.teamRepository.findOne({ where: { id: m.team_id } });
+      if (!team) {
+        this.logger.warn(`Orphan team_outline_collections row for team_id=${m.team_id} (team deleted)`);
+        orphans++;
+      }
+    }
+
+    this.logger.log(
+      `Reconciliation finished: ${provisioned} provisioned, ${renamed} renamed, ${missing} missing-collection warnings, ${archivedRevoked} archived-team revocations, ${orphans} orphan mappings`,
+    );
   }
 }

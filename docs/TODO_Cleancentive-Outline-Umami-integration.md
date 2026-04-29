@@ -106,43 +106,43 @@ All downstream `callOutlineApi()` calls use the in-memory key.
 
 **Horizontal scaling:** the backend runs as a single instance today — this is fine. If multiple backends ever run concurrently, switch to a per-instance key name (`cleancentive-sync-${instanceId}`) or a coordination lock. Not in scope.
 
-### ⬜ Surface wiki content in the main app
-- **Search:** `documents.search` API, expose wiki results in a Cleancentive search bar / command palette
-- **Links:** show "Wiki docs for this team" on team/cleanup pages via `documents.list` filtered by collection
-- **Embed:** use public share links in iframes for landing-page content (cleanup instructions, team guidelines)
+### ✅ Surface wiki content in the main app
+- "Wiki ↗" link on the team detail page opens that team's Outline collection. Hidden when the mapping isn't yet provisioned (transient — fixed at next sync tick).
+- Backend extends `GET /teams/:id` with `outlineCollectionId`; frontend reads it via `currentTeam.outlineCollectionId` and composes `${WIKI_URL}/collection/<id>`.
+- Search and full-collection embeds remain deferred — see "Future" below.
 
-### ⬜ Reconciliation job (nightly safety net)
-- Nightly task diffs Cleancentive teams vs Outline collections with matching mapping rows
-- Creates missing, updates renamed, warns on orphan Outline collections
-- Required because reactive-only sync misses events lost to downtime
+### ✅ Reconciliation job (nightly safety net)
+- BullMQ repeatable job runs daily at 03:30 UTC.
+- For each non-archived team: provisions missing mappings, renames Outline collections that drift from the Cleancentive name, warns on collections that vanished (does **not** auto-recreate).
+- For each archived team with a mapping: idempotently re-revokes team group access (self-heal of missed `team.archived` events).
+- Logs orphan mapping rows where the Cleancentive team is gone.
 
-### ⬜ Outline → Cleancentive webhooks
-- Register a webhook subscription on the Outline side pointing at a new Cleancentive backend endpoint
-- Verify `Outline-Signature` header (HMAC-SHA256), respond within 5s, process async
-- Events: `documents.*`, `comments.create`, `shares.*`, `users.*`
-- Enables activity feed, notifications, gamification (points for wiki contributions)
+### ✅ Outline → Cleancentive webhooks
+- HMAC secret auto-provisioned at startup (stored in `outline_webhook_config`); webhook subscription auto-registered in Outline (`webhook_subscriptions`).
+- `POST /api/v1/outline-webhooks/incoming` verifies the `Outline-Signature` (`t=<ms>,s=<sha256_hex>`) using `timingSafeEqual` over the raw body, persists each event into `outline_events`.
+- Subscribed events: `documents.create`, `documents.update`, `documents.delete`, `documents.archive`, `comments.create`. Easy to widen later — change the constant and restart.
+- Activity-feed UI / notifications / gamification on top of `outline_events` are follow-ups.
 
-### ⬜ Replace direct DB writes with Outline REST API
-- OutlineSyncService currently writes to `users`, `groups`, `group_users` via SQL — risks breaking on Outline schema changes
-- Switch to `users.update`, `groups.create`, `groups.add_user`, `groups.remove_user`
-- Now easy because API key is auto-provisioned
-- Will benefit from the reconciliation job as an additional safety net
+### ✅ Replace direct DB writes with Outline REST API
+- All user/group/group-membership writes in OutlineSyncService now go through `/api/users.update`, `/api/users.update_role`, `/api/users.suspend`, `/api/groups.create`, `/api/groups.update`, `/api/groups.add_user`, `/api/groups.remove_user`.
+- Direct SQL retained only for: API-key bootstrap, webhook-subscription bootstrap (chicken-and-egg), and read-only lookups (`findOutlineUserId`, `findGroupIdByExternalId`).
+- The bulk wipe of `group_users` on team archive is now a loop calling `groups.remove_user` per member.
 
-### ⬜ Wiki-aware Umami identification
-- Outline's Umami plugin injects the tracking script but never calls `identify()`
-- Options (in rough order of robustness):
-  1. Caddy response-body filter injecting a small `<script>` that reads Outline's client-side user state and calls `umami.identify()` — fragile, couples to Outline internals
-  2. Upstream PR to Outline's Umami plugin adding `identify()` support — proper but slow
-  3. Accept anonymous wiki sessions — simplest, fine if wiki analytics stay aggregate-only
-- Low priority given the main app carries most attribution-relevant events
+### ⛔ Wiki-aware Umami identification — won't do
+- Outline's Umami plugin doesn't call `umami.identify()`. The three workarounds (Caddy body filter, upstream PR, custom Outline image) all trade fragility or maintenance burden for a low-value gain — wiki traffic is low-volume and the main app carries the attribution-relevant events.
+- Decision: accept anonymous wiki sessions. Revisit only if wiki analytics become a primary attribution surface.
 
-### ⬜ Auto-generated wiki content
-- Seed templates: cleanup reports, team guidelines (`documents.create` with `template: true`)
-- After a cleanup event ends, auto-create a summary document in the team's collection with stats
+### ✅ Seed each new collection with a starter doc
+- `provisionTeamCollection` publishes a "Welcome to the {team} wiki" markdown doc into the new collection so it isn't blank on first visit.
+- Failure of this final step is non-fatal — collection still exists; users can write their own content.
 
-### ⬜ Comments ↔ messages bridge
-- Webhook on `comments.create` cross-posts wiki doc comments into the team's Cleancentive message thread
-- Optionally bidirectional: Cleancentive messages referencing a wiki doc post back as Outline comments via `comments.create`
+## Future
+
+Out of scope for the current pass; revisit when use cases are concrete:
+- **Wiki search / `documents.search`** in the main app's search bar or command palette.
+- **Cleanup-summary docs**: after a cleanup event ends, auto-create a summary in the team's collection with stats.
+- **Document templates** (`documents.create` with `template: true`) for cleanup reports and team guidelines.
+- **Comments ↔ messages bridge**: cross-post `comments.create` webhooks into team threads (and the reverse via `comments.create` API).
 
 ## Prioritisation
 
@@ -150,24 +150,13 @@ All downstream `callOutlineApi()` calls use the in-memory key.
 |---|---|---|
 | High | Fix lifecycle gaps | ✅ done |
 | High | Auto-provision collections per team (incl. automated API key) | ✅ done |
-| High | Surface wiki links on team pages | ⬜ |
-| Medium | Reconciliation job | ⬜ |
-| Medium | Webhooks for activity feed | ⬜ |
-| Medium | Replace direct DB with API | ⬜ |
-| Low | Wiki-side Umami identification | ⬜ |
-| Low | Auto-generated content | ⬜ |
-| Low | Comments bridge | ⬜ |
+| High | Surface wiki links on team pages | ✅ done |
+| Medium | Reconciliation job | ✅ done |
+| Medium | Webhooks for activity feed | ✅ done (receive path) |
+| Medium | Replace direct DB with API | ✅ done |
+| Low | Wiki-side Umami identification | ⛔ won't do |
+| Low | Seed doc on collection provisioning | ✅ done |
+| Low | Auto-generated cleanup summaries | future |
+| Low | Comments bridge | future |
 
-## Next steps
-
-The next item on the roadmap is **Surface wiki links on team pages** (High). Suggested smallest viable cut:
-- Backend: add a small endpoint that returns the Outline collection ID for a given team (looking up the `team_outline_collections` mapping); 404 if not yet provisioned.
-- Frontend: on the team page, fetch the mapping and render a "Wiki" link to `https://wiki.cleancentive.local/collection/{id}`.
-
-After that, the **Reconciliation job** is a natural follow-up since it pairs with the new collection lifecycle to backstop reactive-only sync.
-
-### How to verify the auto-provisioning end-to-end
-1. **Clean bootstrap:** start backend against a fresh Outline DB → exactly one row in `"apiKeys"` with `name='cleancentive-sync'`, `deletedAt IS NULL`.
-2. **Restart cycle:** restart backend → previous row has `deletedAt` set, new row is active — exactly one live `cleancentive-sync` key at any time.
-3. **End-to-end team flow:** create a team via the frontend → Outline collection appears, team group has `read_write`. No manual step anywhere.
-4. **Failure mode:** stop the Outline Postgres → create a team → backend still works, sync skipped silently.
+All scoped integration work is in. Activity-feed UI / cleanup-summary docs / comments bridge are now standalone features to plan when their use cases concretise.
