@@ -43,6 +43,7 @@ import { OidcAuthorizationCode, OidcRefreshToken, OidcClient } from './oidc/oidc
 import { OutlineSyncModule } from './outline-sync/outline-sync.module';
 import { OutlineWebhookConfig } from './outline-sync/outline-webhook-config.entity';
 import { OutlineEvent } from './outline-sync/outline-event.entity';
+import { ClientEventsModule } from './client-events/client-events.module';
 
 @Module({
   imports: [
@@ -104,6 +105,7 @@ import { OutlineEvent } from './outline-sync/outline-event.entity';
     LabelModule,
     OidcModule,
     OutlineSyncModule,
+    ClientEventsModule,
   ],
   providers: [
     {

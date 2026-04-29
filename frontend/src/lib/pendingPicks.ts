@@ -1,8 +1,12 @@
 import { v7 as uuidv7 } from 'uuid'
+import { reportClientEvent, type IdentityHint } from './clientEvents'
 
 const DB_NAME = 'cleancentive-offline'
-const DB_VERSION = 3
+const DB_VERSION = 4
 const STORE_NAME = 'pending-picks'
+
+const REPORT_ATTEMPT_THRESHOLD = 3
+const REPORT_IDENTITY_MISMATCH_MIN_AGE_MS = 24 * 60 * 60 * 1000
 
 export type OutboxStatus = 'pending' | 'uploading' | 'failed'
 
@@ -25,6 +29,7 @@ export interface OutboxItem {
   lastError: string | null
   nextRetryAt: number
   createdAt: number
+  reportedAt: number | null
 }
 
 interface QueueCaptureInput {
@@ -75,7 +80,7 @@ function openDatabase(): Promise<IDBDatabase> {
       reject(request.error || new Error('Failed to open IndexedDB'))
     }
 
-    request.onupgradeneeded = () => {
+    request.onupgradeneeded = (event) => {
       const database = request.result
       if (database.objectStoreNames.contains('upload-outbox')) {
         database.deleteObjectStore('upload-outbox')
@@ -84,6 +89,20 @@ function openDatabase(): Promise<IDBDatabase> {
         const store = database.createObjectStore(STORE_NAME, { keyPath: 'id' })
         store.createIndex('status', 'status', { unique: false })
         store.createIndex('createdAt', 'createdAt', { unique: false })
+      }
+
+      if (event.oldVersion < 4 && request.transaction) {
+        const store = request.transaction.objectStore(STORE_NAME)
+        const cursorRequest = store.openCursor()
+        cursorRequest.onsuccess = () => {
+          const cursor = cursorRequest.result
+          if (!cursor) return
+          const value = cursor.value as OutboxItem
+          if (value.reportedAt === undefined) {
+            cursor.update({ ...value, reportedAt: null })
+          }
+          cursor.continue()
+        }
       }
     }
 
@@ -125,6 +144,7 @@ export async function queueCapture(input: QueueCaptureInput): Promise<OutboxItem
     lastError: null,
     nextRetryAt: Date.now(),
     createdAt: Date.now(),
+    reportedAt: null,
   }
 
   const database = await openDatabase()
@@ -197,6 +217,19 @@ function canCurrentIdentityUpload(item: OutboxItem, context: FlushContext): bool
   return item.ownerGuestId === context.currentGuestId
 }
 
+function identityHintFor(item: OutboxItem, context: FlushContext): IdentityHint {
+  if (!context.currentUserId && !context.currentGuestId) {
+    return 'no-current-identity'
+  }
+  if (item.ownerUserId && context.currentUserId && item.ownerUserId !== context.currentUserId) {
+    return 'mismatch'
+  }
+  if (!item.ownerUserId && item.ownerGuestId && context.currentGuestId && item.ownerGuestId !== context.currentGuestId) {
+    return 'mismatch'
+  }
+  return 'matches'
+}
+
 async function uploadItem(item: OutboxItem, context: FlushContext): Promise<void> {
   const formData = new FormData()
   const imageFile = new File([item.imageBlob], `${item.id}.jpg`, { type: item.mimeType })
@@ -254,6 +287,17 @@ export async function flushOutbox(context: FlushContext): Promise<void> {
     }
 
     if (!canCurrentIdentityUpload(item, context)) {
+      const ageMs = now - item.createdAt
+      if ((item.reportedAt ?? null) === null && ageMs >= REPORT_IDENTITY_MISMATCH_MIN_AGE_MS) {
+        reportClientEvent({
+          eventType: 'pick.upload.skipped.identity-mismatch',
+          itemId: item.id,
+          attempts: item.attempts,
+          ageMs,
+          identityHint: identityHintFor(item, context),
+        })
+        await updateOutboxItem(item.id, (current) => ({ ...current, reportedAt: Date.now() }))
+      }
       continue
     }
 
@@ -268,13 +312,30 @@ export async function flushOutbox(context: FlushContext): Promise<void> {
       await removeOutboxItem(item.id)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Upload failed'
+      const status = error instanceof UploadRequestError ? error.status : null
+      const nextAttempts = item.attempts + 1
+      const shouldReport = nextAttempts >= REPORT_ATTEMPT_THRESHOLD && (item.reportedAt ?? null) === null
+      const reportedAt = shouldReport ? Date.now() : (item.reportedAt ?? null)
+
       await updateOutboxItem(item.id, (current) => ({
         ...current,
         status: 'failed',
         attempts: current.attempts + 1,
         lastError: message,
-        nextRetryAt: Date.now() + getRetryDelayMs(current.attempts + 1, error instanceof UploadRequestError ? error.status : undefined),
+        nextRetryAt: Date.now() + getRetryDelayMs(current.attempts + 1, status ?? undefined),
+        reportedAt,
       }))
+
+      if (shouldReport) {
+        reportClientEvent({
+          eventType: 'pick.upload.failed',
+          itemId: item.id,
+          attempts: nextAttempts,
+          ageMs: Date.now() - item.createdAt,
+          status,
+          message,
+        })
+      }
     }
   }
 }
