@@ -3,7 +3,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull } from 'typeorm';
 import { Client as PgClient } from 'pg';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
 import { Team } from '../team/team.entity';
@@ -27,8 +27,8 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   private outlineAdminUserId: string | null = null;
 
   private readonly outlineApiUrl = process.env.OUTLINE_API_URL ?? 'https://wiki.cleancentive.local';
-  private readonly outlineApiKey = process.env.OUTLINE_API_KEY ?? '';
-  private apiKeyWarned = false;
+  private outlineApiKey = '';
+  private static readonly API_KEY_NAME = 'cleancentive-sync';
 
   constructor(
     private readonly userService: UserService,
@@ -51,6 +51,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       await this.pg.connect();
       await this.cacheOutlineTeamAndAdmin();
       await this.ensureStewardsGroup();
+      await this.provisionApiKey();
       await this.syncExistingAdmins();
       await this.backfillTeamCollections();
     } catch (e) {
@@ -388,14 +389,48 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
 
   // --- Collection provisioning --------------------------------------------
 
-  private async callOutlineApi(endpoint: string, body?: any): Promise<any | null> {
-    if (!this.outlineApiKey) {
-      if (!this.apiKeyWarned) {
-        this.logger.warn('OUTLINE_API_KEY not configured — collection provisioning disabled');
-        this.apiKeyWarned = true;
-      }
-      return null;
+  /**
+   * Mint a fresh Outline API key for this process. Soft-deletes any prior
+   * `cleancentive-sync` keys (e.g. left over from a previous run) so there is
+   * exactly one live key at any time, and stores the plaintext in memory only.
+   *
+   * Outline hashes API keys with plain SHA-256 hex (`server/utils/crypto.ts`),
+   * so we generate a `ol_api_<38 word chars>` plaintext, insert its hash, and
+   * use the plaintext for downstream API calls.
+   */
+  private async provisionApiKey(): Promise<void> {
+    if (!this.isReady()) return;
+    const plaintext = `ol_api_${this.randomWordChars(38)}`;
+    const hash = createHash('sha256').update(plaintext).digest('hex');
+    const last4 = plaintext.slice(-4);
+
+    await this.pg.query(
+      `UPDATE "apiKeys" SET "deletedAt" = NOW(), "updatedAt" = NOW()
+       WHERE name = $1 AND "deletedAt" IS NULL`,
+      [OutlineSyncService.API_KEY_NAME],
+    );
+    await this.pg.query(
+      `INSERT INTO "apiKeys" (id, name, "userId", hash, last4, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
+      [randomUUID(), OutlineSyncService.API_KEY_NAME, this.outlineAdminUserId, hash, last4],
+    );
+    this.outlineApiKey = plaintext;
+    this.logger.log('Provisioned Outline API key for this process');
+  }
+
+  /** Generate `length` characters from `[A-Za-z0-9_]`, matching Outline's `randomString`. */
+  private randomWordChars(length: number): string {
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_';
+    const bytes = randomBytes(length);
+    let out = '';
+    for (let i = 0; i < length; i++) {
+      out += alphabet[bytes[i] % alphabet.length];
     }
+    return out;
+  }
+
+  private async callOutlineApi(endpoint: string, body?: any): Promise<any | null> {
+    if (!this.outlineApiKey) return null;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10_000);
     try {
@@ -418,14 +453,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async provisionTeamCollection(teamId: string, teamName: string): Promise<void> {
-    if (!this.isReady()) return;
-    if (!this.outlineApiKey) {
-      if (!this.apiKeyWarned) {
-        this.logger.warn('OUTLINE_API_KEY not configured — collection provisioning disabled');
-        this.apiKeyWarned = true;
-      }
-      return;
-    }
+    if (!this.isReady() || !this.outlineApiKey) return;
 
     const existing = await this.teamCollectionRepository.findOne({ where: { team_id: teamId } });
     if (existing) return;
@@ -441,6 +469,10 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
+      // Ensure the team group exists before attaching it. Groups are otherwise
+      // created lazily on first team.member-joined; if we skipped this, the
+      // collection would stay admin-only until a non-creator joined.
+      await this.ensureTeamGroup(teamId, teamName);
       const group = await this.pg.query<{ id: string }>(
         `SELECT id FROM groups WHERE "externalId" = $1 AND "teamId" = $2`,
         [teamId, this.outlineTeamId],

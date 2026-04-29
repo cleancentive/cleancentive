@@ -4,7 +4,7 @@
   "private": true,
   "description": "NestJS API backend for cleancentive",
   "scripts": {
-    "dev": "bun --watch src/main.ts",
+    "dev": "NODE_EXTRA_CA_CERTS=../infrastructure/certs/rootCA.pem bun --watch src/main.ts",
     "dev:nest": "nest start --watch",
     "dev:stop": "lsof -ti :3000 | xargs kill -9 2>/dev/null || true",
     "import:mongo-export": "bun run scripts/import-mongo-export.ts",

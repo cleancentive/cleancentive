@@ -1,7 +1,5 @@
 # Cleancentive ↔ Outline ↔ Umami integration
 
-> On approval, write this content to [docs/TODO_cleancentive_outline_umami_integration.md](../../../git/cleancentive/docs/TODO_cleancentive_outline_umami_integration.md).
-
 ## Context
 
 Outline is embedded as the wiki for Cleancentive (SSO via OIDC, user/group sync via OutlineSyncService, Umami analytics on both the main app and the wiki). This document catalogues the current state, lifecycle gaps, integration opportunities, and tracks the roadmap — with **Cleancentive as the leading system** and **zero manual setup steps** (this is an idempotent, GitOps-managed project; all server state must be reproducible via automation).
@@ -69,11 +67,11 @@ Legend: ✅ done — 🚧 in progress — ⬜ not started
 - Emit `team.renamed`, `team.archived`, `user.anonymized`, `user.deleted` with tombstone payloads (emails captured before DB deletion so OutlineSync can still resolve the Outline user)
 - OutlineSync handlers rename the group, clear archived team's group members, suspend Outline user on anonymize/delete
 
-### 🚧 Auto-provision Outline collections per team
+### ✅ Auto-provision Outline collections per team
 
-**Status:** mapping table, entity, event emission, handlers, and backfill are committed. Still open: automate the Outline API key so no human step is required.
+**Status:** complete. Mapping table, entity, event emission, handlers, backfill, and **automated API key provisioning** are all in place. No manual step required anywhere in the pipeline.
 
-**Design (completed parts):**
+**Design:**
 - `team_outline_collections` mapping table (`team_id UUID UNIQUE FK → teams(id) ON DELETE CASCADE`, `outline_collection_id varchar`)
   - Cleancentive-owned, not derived from Outline-editable fields (description/slug/DataAttributes), so Outline-side renames don't break the link
 - `team.created` emitted from `TeamService.createTeam()`
@@ -86,7 +84,7 @@ Legend: ✅ done — 🚧 in progress — ⬜ not started
 
 **Why archive over hard-delete:** wiki content has long-term documentation value (past event reports, team agreements). Outline has no public `collections.archive`; revoking group access preserves content while removing team-member visibility.
 
-#### Automate the Outline API key (replaces the last manual step)
+#### Automated Outline API key provisioning
 
 **Approach — runtime, ephemeral, in-process:** `OutlineSyncService` provisions its own API key at startup, stores it in memory only, and regenerates on every restart. No env var, no filesystem writes, no manual UI step.
 
@@ -104,14 +102,9 @@ Legend: ✅ done — 🚧 in progress — ⬜ not started
 
 All downstream `callOutlineApi()` calls use the in-memory key.
 
-**Graceful degradation:** if Outline DB is unreachable at startup, the existing `onModuleInit` catch already logs and continues. `callOutlineApi` returns `null`; team creation still succeeds; collection provisioning is skipped with a warning.
+**Graceful degradation:** if Outline DB is unreachable at startup, the existing `onModuleInit` catch already logs and continues. `callOutlineApi` returns `null`; team creation still succeeds; collection provisioning is skipped silently.
 
 **Horizontal scaling:** the backend runs as a single instance today — this is fine. If multiple backends ever run concurrently, switch to a per-instance key name (`cleancentive-sync-${instanceId}`) or a coordination lock. Not in scope.
-
-**Cleanups to commit alongside the API key automation:**
-- Remove `OUTLINE_API_KEY` from `backend/.env.example` (keep `OUTLINE_API_URL`)
-- Remove the env var read and `apiKeyWarned` flag in `OutlineSyncService` — the key is always provisioned if the DB is reachable
-- Convert the `outlineApiKey` field from `readonly` to mutable
 
 ### ⬜ Surface wiki content in the main app
 - **Search:** `documents.search` API, expose wiki results in a Cleancentive search bar / command palette
@@ -156,7 +149,7 @@ All downstream `callOutlineApi()` calls use the in-memory key.
 | Priority | Item | Status |
 |---|---|---|
 | High | Fix lifecycle gaps | ✅ done |
-| High | Auto-provision collections per team (incl. automated API key) | 🚧 API key automation is the remaining piece |
+| High | Auto-provision collections per team (incl. automated API key) | ✅ done |
 | High | Surface wiki links on team pages | ⬜ |
 | Medium | Reconciliation job | ⬜ |
 | Medium | Webhooks for activity feed | ⬜ |
@@ -165,14 +158,16 @@ All downstream `callOutlineApi()` calls use the in-memory key.
 | Low | Auto-generated content | ⬜ |
 | Low | Comments bridge | ⬜ |
 
-## Immediate next step
+## Next steps
 
-Wrap up the auto-provisioning feature by automating the API key (see "Automate the Outline API key" section above). Files touched:
-- `backend/src/outline-sync/outline-sync.service.ts` — `provisionApiKey()` + integrate into `onModuleInit`; remove env var read and `apiKeyWarned`
-- `backend/.env.example` — drop `OUTLINE_API_KEY` line (keep `OUTLINE_API_URL`)
+The next item on the roadmap is **Surface wiki links on team pages** (High). Suggested smallest viable cut:
+- Backend: add a small endpoint that returns the Outline collection ID for a given team (looking up the `team_outline_collections` mapping); 404 if not yet provisioned.
+- Frontend: on the team page, fetch the mapping and render a "Wiki" link to `https://wiki.cleancentive.local/collection/{id}`.
 
-### Verification
-1. **Clean bootstrap:** start backend against a fresh Outline DB → exactly one row in `"apiKeys"` with `name='cleancentive-sync'`, `deletedAt IS NULL`
-2. **Restart cycle:** restart backend → previous row has `deletedAt` set, new row is active — exactly one live `cleancentive-sync` key at any time
+After that, the **Reconciliation job** is a natural follow-up since it pairs with the new collection lifecycle to backstop reactive-only sync.
+
+### How to verify the auto-provisioning end-to-end
+1. **Clean bootstrap:** start backend against a fresh Outline DB → exactly one row in `"apiKeys"` with `name='cleancentive-sync'`, `deletedAt IS NULL`.
+2. **Restart cycle:** restart backend → previous row has `deletedAt` set, new row is active — exactly one live `cleancentive-sync` key at any time.
 3. **End-to-end team flow:** create a team via the frontend → Outline collection appears, team group has `read_write`. No manual step anywhere.
-4. **Failure mode:** stop the Outline Postgres → create a team → backend still works, warning logged.
+4. **Failure mode:** stop the Outline Postgres → create a team → backend still works, sync skipped silently.
