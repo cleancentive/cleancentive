@@ -14,6 +14,7 @@ import type { Request, Response } from 'express';
 import { OidcService } from './oidc.service';
 import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { IntegrationQueueService } from '../integrations/integration-queue.service';
 
 @Controller('oidc')
 export class OidcController {
@@ -22,6 +23,7 @@ export class OidcController {
   constructor(
     private readonly oidcService: OidcService,
     private readonly authService: AuthService,
+    private readonly integrationQueueService: IntegrationQueueService,
   ) {
     this.issuerUrl = process.env.OIDC_ISSUER_URL || 'https://cleancentive.org/api/v1/oidc';
   }
@@ -180,6 +182,10 @@ export class OidcController {
         scope: codeData.scope,
         nonce: codeData.nonce,
       });
+
+      if ((client_id || 'outline') === 'outline') {
+        await this.integrationQueueService.enqueueOutlineBootstrap({ userId: codeData.userId });
+      }
 
       return res.json({
         access_token: tokens.accessToken,

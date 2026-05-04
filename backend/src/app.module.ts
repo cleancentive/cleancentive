@@ -44,6 +44,7 @@ import { OutlineSyncModule } from './outline-sync/outline-sync.module';
 import { OutlineWebhookConfig } from './outline-sync/outline-webhook-config.entity';
 import { OutlineEvent } from './outline-sync/outline-event.entity';
 import { ClientEventsModule } from './client-events/client-events.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 
 @Module({
   imports: [
@@ -105,6 +106,7 @@ import { ClientEventsModule } from './client-events/client-events.module';
     LabelModule,
     OidcModule,
     OutlineSyncModule,
+    IntegrationsModule,
     ClientEventsModule,
   ],
   providers: [

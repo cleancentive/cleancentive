@@ -1,10 +1,9 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { OnEvent } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not } from 'typeorm';
 import { Client as PgClient } from 'pg';
-import { Queue, Worker } from 'bullmq';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { S3Client, HeadBucketCommand, CreateBucketCommand } from '@aws-sdk/client-s3';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
 import { Team } from '../team/team.entity';
@@ -25,15 +24,20 @@ import { OutlineWebhookConfig } from './outline-webhook-config.entity';
 export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OutlineSyncService.name);
   private pg: PgClient;
+  private isPgConnected = false;
   private outlineTeamId: string | null = null;
   private outlineAdminUserId: string | null = null;
 
   private readonly outlineApiUrl = process.env.OUTLINE_API_URL ?? 'https://wiki.cleancentive.local';
+  private readonly outlinePublicUrl = process.env.OUTLINE_PUBLIC_URL ?? process.env.WIKI_URL ?? 'https://wiki.cleancentive.local';
+  private readonly umamiBaseUrl = process.env.UMAMI_PUBLIC_URL ?? 'https://analytics.cleancentive.local';
+  private readonly umamiAdminUrl = process.env.UMAMI_URL ?? 'http://localhost:3001';
+  private readonly umamiWikiDomain = process.env.UMAMI_WIKI_DOMAIN ?? new URL(this.outlinePublicUrl).hostname;
+  private readonly outlineTeamLogoUrl = process.env.OUTLINE_TEAM_LOGO_URL ?? 'https://cleancentive.local/icon.svg';
+  private readonly outlineS3Bucket = process.env.OUTLINE_S3_BUCKET ?? 'cleancentive-wiki';
   private outlineApiKey = '';
   private static readonly API_KEY_NAME = 'cleancentive-sync';
 
-  private static readonly RECONCILE_QUEUE = 'cleancentive-outline-reconcile';
-  private static readonly RECONCILE_JOB = 'reconcile-team-collections';
   private static readonly WEBHOOK_NAME = 'cleancentive-webhook';
   private static readonly WEBHOOK_EVENTS = [
     'documents.create',
@@ -42,9 +46,6 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     'documents.archive',
     'comments.create',
   ];
-  private reconcileQueue: Queue | null = null;
-  private reconcileWorker: Worker | null = null;
-
   constructor(
     private readonly userService: UserService,
     private readonly adminService: AdminService,
@@ -64,9 +65,18 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
+    await this.bootstrap();
+  }
+
+  async bootstrap(): Promise<void> {
     try {
-      await this.pg.connect();
+      await this.ensureWikiBucket();
+      if (!this.isPgConnected) {
+        await this.pg.connect();
+        this.isPgConnected = true;
+      }
       await this.cacheOutlineTeamAndAdmin();
+      await this.provisionWorkspaceBrandingAndAnalytics();
       await this.provisionApiKey();
       await this.provisionWebhookSubscription();
       await this.ensureStewardsGroup();
@@ -75,15 +85,11 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     } catch (e) {
       this.logger.warn(`Outline sync disabled (${e instanceof Error ? e.message : e}). Wiki integration will not sync until the outline DB is reachable.`);
     }
-    // Reconciliation queue is independent of Outline DB reachability — it
-    // self-heals when Outline comes back.
-    await this.initReconciliationQueue();
   }
 
   async onModuleDestroy() {
-    await this.reconcileWorker?.close().catch(() => {});
-    await this.reconcileQueue?.close().catch(() => {});
     await this.pg.end().catch(() => {});
+    this.isPgConnected = false;
   }
 
   private async cacheOutlineTeamAndAdmin(): Promise<void> {
@@ -103,6 +109,100 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     if (await this.findGroupIdByExternalId('stewards')) return;
     await this.callOutlineApi('/groups.create', { name: 'Stewards', externalId: 'stewards' });
     this.logger.log('Created "Stewards" group in Outline.');
+  }
+
+  private async ensureWikiBucket(): Promise<void> {
+    const client = new S3Client({
+      region: process.env.S3_REGION ?? 'us-east-1',
+      endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9002',
+      forcePathStyle: true,
+      credentials: {
+        accessKeyId: process.env.S3_ACCESS_KEY ?? 'minioadmin',
+        secretAccessKey: process.env.S3_SECRET_KEY ?? 'minioadmin',
+      },
+    });
+
+    try {
+      await client.send(new HeadBucketCommand({ Bucket: this.outlineS3Bucket }));
+    } catch {
+      await client.send(new CreateBucketCommand({ Bucket: this.outlineS3Bucket }));
+      this.logger.log(`Created Outline S3 bucket "${this.outlineS3Bucket}"`);
+    }
+  }
+
+  private async getOrCreateUmamiWikiWebsite(): Promise<string> {
+    const loginRes = await fetch(`${this.umamiAdminUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: process.env.UMAMI_USERNAME ?? 'admin',
+        password: process.env.UMAMI_PASSWORD ?? 'umami',
+      }),
+    });
+    if (!loginRes.ok) throw new Error(`Umami login failed: ${loginRes.status}`);
+    const { token } = (await loginRes.json()) as { token: string };
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+    const listRes = await fetch(`${this.umamiAdminUrl}/api/websites`, { headers });
+    if (!listRes.ok) throw new Error(`Umami website list failed: ${listRes.status}`);
+    const { data } = (await listRes.json()) as { data: Array<{ id: string; name: string }> };
+    const existing = data.find((website) => website.name === 'Cleancentive Wiki');
+    if (existing) return existing.id;
+
+    const createRes = await fetch(`${this.umamiAdminUrl}/api/websites`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name: 'Cleancentive Wiki', domain: this.umamiWikiDomain }),
+    });
+    if (!createRes.ok) throw new Error(`Umami website create failed: ${createRes.status}`);
+    const created = (await createRes.json()) as { id: string };
+    return created.id;
+  }
+
+  private async provisionWorkspaceBrandingAndAnalytics(): Promise<void> {
+    if (!this.outlineTeamId) {
+      this.logger.log(`Outline workspace provisioning pending first SSO sign-in at ${this.outlinePublicUrl}`);
+      return;
+    }
+
+    const teams = await this.pg.query<{ avatarUrl: string | null }>(
+      `SELECT "avatarUrl" FROM teams WHERE id = $1 LIMIT 1`,
+      [this.outlineTeamId],
+    );
+    const team = teams.rows[0];
+    if (team && team.avatarUrl !== this.outlineTeamLogoUrl) {
+      await this.pg.query(`UPDATE teams SET "avatarUrl" = $1, "updatedAt" = NOW() WHERE id = $2`, [
+        this.outlineTeamLogoUrl,
+        this.outlineTeamId,
+      ]);
+    }
+
+    const websiteId = await this.getOrCreateUmamiWikiWebsite();
+    const settings = { measurementId: websiteId, instanceUrl: this.umamiBaseUrl, scriptName: '/script.js' };
+    const existing = await this.pg.query<{ id: string; settings: any }>(
+      `SELECT id, settings FROM integrations WHERE service = 'umami' AND "teamId" = $1 LIMIT 1`,
+      [this.outlineTeamId],
+    );
+    if (existing.rows[0]) {
+      const current = existing.rows[0].settings ?? {};
+      if (
+        current.measurementId !== settings.measurementId ||
+        current.instanceUrl !== settings.instanceUrl ||
+        current.scriptName !== settings.scriptName
+      ) {
+        await this.pg.query(`UPDATE integrations SET settings = $1, "updatedAt" = NOW() WHERE id = $2`, [
+          settings,
+          existing.rows[0].id,
+        ]);
+      }
+      return;
+    }
+
+    await this.pg.query(
+      `INSERT INTO integrations (id, type, service, "teamId", settings, "createdAt", "updatedAt")
+       VALUES ($1, 'analytics', 'umami', $2, $3, NOW(), NOW())`,
+      [randomUUID(), this.outlineTeamId, settings],
+    );
   }
 
   /** Backfill: ensure all current cleancentive admins are in the Stewards group + have Outline admin role. */
@@ -165,7 +265,35 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
 
   // --- Event Handlers ------------------------------------------------------
 
-  @OnEvent('user.profile-changed')
+  async processEvent(eventName: string, payload: unknown): Promise<void> {
+    switch (eventName) {
+      case 'user.profile-changed':
+        return this.handleProfileChanged(payload as { userId: string });
+      case 'user.avatar-changed':
+        return this.handleAvatarChanged(payload as { userId: string; avatarEmailId: string | null });
+      case 'admin.promoted':
+        return this.handleAdminPromoted(payload as { userId: string });
+      case 'admin.demoted':
+        return this.handleAdminDemoted(payload as { userId: string });
+      case 'team.member-joined':
+        return this.handleTeamMemberJoined(payload as { teamId: string; userId: string; teamName: string });
+      case 'team.member-left':
+        return this.handleTeamMemberLeft(payload as { teamId: string; userId: string });
+      case 'team.created':
+        return this.handleTeamCreated(payload as { teamId: string; teamName: string });
+      case 'team.renamed':
+        return this.handleTeamRenamed(payload as { teamId: string; oldName: string; newName: string });
+      case 'team.archived':
+        return this.handleTeamArchived(payload as { teamId: string; teamName: string });
+      case 'user.anonymized':
+        return this.handleUserAnonymized(payload as { userId: string; emails: string[] });
+      case 'user.deleted':
+        return this.handleUserDeleted(payload as { userId: string; emails: string[] });
+      default:
+        throw new Error(`Unknown Outline sync event: ${eventName}`);
+    }
+  }
+
   async handleProfileChanged(payload: { userId: string }): Promise<void> {
     if (!this.isReady() || !this.outlineApiKey) return;
     try {
@@ -186,7 +314,6 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  @OnEvent('user.avatar-changed')
   async handleAvatarChanged(payload: { userId: string; avatarEmailId: string | null }): Promise<void> {
     if (!this.isReady() || !this.outlineApiKey) return;
     try {
@@ -206,7 +333,6 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  @OnEvent('admin.promoted')
   async handleAdminPromoted(payload: { userId: string }): Promise<void> {
     if (!this.isReady() || !this.outlineApiKey) return;
     try {
@@ -222,7 +348,6 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  @OnEvent('admin.demoted')
   async handleAdminDemoted(payload: { userId: string }): Promise<void> {
     if (!this.isReady() || !this.outlineApiKey) return;
     try {
@@ -238,7 +363,6 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  @OnEvent('team.member-joined')
   async handleTeamMemberJoined(payload: { teamId: string; userId: string; teamName: string }): Promise<void> {
     if (!this.isReady()) return;
     try {
@@ -254,7 +378,6 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  @OnEvent('team.member-left')
   async handleTeamMemberLeft(payload: { teamId: string; userId: string }): Promise<void> {
     if (!this.isReady()) return;
     try {
@@ -269,12 +392,10 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  @OnEvent('team.created')
   async handleTeamCreated(payload: { teamId: string; teamName: string }): Promise<void> {
     await this.provisionTeamCollection(payload.teamId, payload.teamName);
   }
 
-  @OnEvent('team.renamed')
   async handleTeamRenamed(payload: { teamId: string; oldName: string; newName: string }): Promise<void> {
     if (!this.isReady() || !this.outlineApiKey) return;
     const groupId = await this.findGroupIdByExternalId(payload.teamId);
@@ -301,7 +422,6 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  @OnEvent('team.archived')
   async handleTeamArchived(payload: { teamId: string; teamName: string }): Promise<void> {
     if (!this.isReady() || !this.outlineApiKey) return;
     try {
@@ -337,12 +457,10 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  @OnEvent('user.anonymized')
   async handleUserAnonymized(payload: { userId: string; emails: string[] }): Promise<void> {
     await this.suspendOutlineUsersByEmail(payload.emails, 'anonymized');
   }
 
-  @OnEvent('user.deleted')
   async handleUserDeleted(payload: { userId: string; emails: string[] }): Promise<void> {
     await this.suspendOutlineUsersByEmail(payload.emails, 'deleted');
   }
@@ -574,36 +692,6 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   // --- Reconciliation -----------------------------------------------------
-
-  private async initReconciliationQueue(): Promise<void> {
-    const connection = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    };
-    this.reconcileQueue = new Queue(OutlineSyncService.RECONCILE_QUEUE, { connection });
-    this.reconcileWorker = new Worker(
-      OutlineSyncService.RECONCILE_QUEUE,
-      async (job) => {
-        if (job.name === OutlineSyncService.RECONCILE_JOB) {
-          await this.reconcileTeamCollections();
-        }
-      },
-      { connection, concurrency: 1 },
-    );
-    this.reconcileWorker.on('failed', (job, err) => {
-      this.logger.error(`Reconcile job ${job?.name} failed: ${err.message}`);
-    });
-
-    // Clear any stale repeatables and re-schedule daily at 03:30 UTC.
-    const existing = await this.reconcileQueue.getRepeatableJobs();
-    for (const j of existing) await this.reconcileQueue.removeRepeatableByKey(j.key);
-    await this.reconcileQueue.add(
-      OutlineSyncService.RECONCILE_JOB,
-      {},
-      { repeat: { pattern: '30 3 * * *' }, removeOnComplete: true, removeOnFail: false },
-    );
-    this.logger.log('Outline reconciliation registered: daily at 03:30 UTC');
-  }
 
   /**
    * Drift safety net for the reactive-only sync. Detects mismatches between

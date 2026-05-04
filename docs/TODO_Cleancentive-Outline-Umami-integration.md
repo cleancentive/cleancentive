@@ -111,8 +111,11 @@ All downstream `callOutlineApi()` calls use the in-memory key.
 - Backend extends `GET /teams/:id` with `outlineCollectionId`; frontend reads it via `currentTeam.outlineCollectionId` and composes `${WIKI_URL}/collection/<id>`.
 - Search and full-collection embeds remain deferred — see "Future" below.
 
-### ✅ Reconciliation job (nightly safety net)
-- BullMQ repeatable job runs daily at 03:30 UTC.
+### ✅ Durable integration queue + reconciliation job
+- BullMQ integration queue (`cleancentive-integrations`) owns Outline bootstrap and sync jobs.
+- Successful Outline OIDC token exchange enqueues `outline.bootstrap`; backend startup also enqueues it as a missed-event safety net.
+- Cleancentive domain events enqueue durable Outline sync work instead of relying on direct in-process side effects.
+- BullMQ repeatable reconciliation job runs daily at 03:30 UTC.
 - For each non-archived team: provisions missing mappings, renames Outline collections that drift from the Cleancentive name, warns on collections that vanished (does **not** auto-recreate).
 - For each archived team with a mapping: idempotently re-revokes team group access (self-heal of missed `team.archived` events).
 - Logs orphan mapping rows where the Cleancentive team is gone.

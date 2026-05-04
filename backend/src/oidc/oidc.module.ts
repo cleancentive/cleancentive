@@ -6,6 +6,7 @@ import { OidcController } from './oidc.controller';
 import { OidcAuthorizationCode, OidcRefreshToken, OidcClient } from './oidc.entity';
 import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../user/user.module';
+import { IntegrationsModule } from '../integrations/integrations.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { UserModule } from '../user/user.module';
     TypeOrmModule.forFeature([OidcAuthorizationCode, OidcRefreshToken, OidcClient]),
     AuthModule,
     UserModule,
+    IntegrationsModule,
   ],
   controllers: [OidcController],
   providers: [OidcService],

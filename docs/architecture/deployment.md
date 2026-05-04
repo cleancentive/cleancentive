@@ -48,3 +48,42 @@ graph TD
 | mailpit | `axllent/mailpit:latest` | 8025 (Web UI), 1025 (SMTP) | — |
 
 All services use named Docker volumes for data persistence across restarts.
+
+## Production Environment
+
+Production runs from `infrastructure/docker-compose.prod.yml` under `/opt/cleancentive/deploy`, reconciled by `infrastructure/scripts/reconcile.sh`. Caddy terminates TLS and routes the main app, analytics, and wiki hostnames.
+
+```mermaid
+graph TD
+    Caddy["Caddy<br/>:80/:443"]
+    Frontend["Frontend<br/>Nginx static PWA"]
+    Backend["Backend<br/>NestJS API"]
+    Worker["Worker<br/>Image analysis"]
+    Postgres["PostgreSQL + PostGIS<br/>cleancentive, umami, outline DBs"]
+    Redis["Redis"]
+    Umami["Umami Analytics"]
+    Outline["Outline Wiki"]
+    Integrations["Integration Queue<br/>BullMQ worker in backend"]
+    Backblaze["Backblaze B2<br/>S3-compatible buckets"]
+
+    Caddy --> Frontend
+    Caddy --> Backend
+    Caddy --> Umami
+    Caddy --> Outline
+    Backend --> Postgres
+    Backend --> Redis
+    Worker --> Postgres
+    Worker --> Redis
+    Worker --> Backblaze
+    Umami --> Postgres
+    Outline --> Postgres
+    Outline --> Redis
+    Outline --> Backblaze
+    Backend --> Integrations
+    Integrations --> Postgres
+    Integrations --> Umami
+    Integrations --> Backblaze
+    Integrations --> Outline
+```
+
+The backend owns a small durable integration queue for cross-system convergence. Outline bootstrap jobs are idempotent: they ensure the wiki Backblaze bucket exists, create or update the Umami website integration, apply Cleancentive branding once Outline has a team row from the first SSO sign-in, and schedule nightly reconciliation through BullMQ.
