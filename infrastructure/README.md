@@ -4,8 +4,8 @@ This directory contains the production deployment bundle, bootstrap guidance, va
 
 ## Target architecture
 
-- Single Hetzner VPS running `caddy`, `frontend`, `backend`, `worker`, `postgres`, and `redis`
-- External providers for transactional email (`Resend`) and object storage (`Backblaze B2`)
+- Single Hetzner VPS running `caddy`, `frontend`, `backend`, `worker`, `outline`, `postgres`, `redis`, and `umami`
+- External providers for DNS (`Hetzner DNS`), transactional email (`Resend`), and object storage (`Backblaze B2`)
 - Production desired state locked in `infrastructure/docker-compose.prod.yml`
 - Images published to GHCR and pinned by full 40-character git commit SHA tags
 - Production reconciliation triggered by GitHub Actions over SSH, with a low-frequency fallback timer on the server
@@ -29,9 +29,38 @@ This directory contains the production deployment bundle, bootstrap guidance, va
 
 ### Providers
 
-- Domain and DNS administered by the Cleancentive team
+- `cleancentive.org` DNS zone managed in Hetzner DNS with `hcloud zone`
 - Resend account and verified sending domain
-- Backblaze B2 bucket and application key
+- Backblaze B2 buckets and application key for app uploads and wiki attachments
+
+### DNS records
+
+Production routes the main app, analytics, and wiki through the same VPS. Keep `A` and `AAAA` records in sync with the server addresses:
+
+| Hostname | Type | Value |
+|---|---|---|
+| `cleancentive.org` | `A` | `46.225.228.123` |
+| `www.cleancentive.org` | `A` | `46.225.228.123` |
+| `analytics.cleancentive.org` | `A` | `46.225.228.123` |
+| `wiki.cleancentive.org` | `A` | `46.225.228.123` |
+| `cleancentive.org` | `AAAA` | `2a01:4f8:1c19:f583::1` |
+| `www.cleancentive.org` | `AAAA` | `2a01:4f8:1c19:f583::1` |
+| `analytics.cleancentive.org` | `AAAA` | `2a01:4f8:1c19:f583::1` |
+| `wiki.cleancentive.org` | `AAAA` | `2a01:4f8:1c19:f583::1` |
+
+Use `hcloud` for idempotent DNS changes:
+
+```bash
+hcloud zone rrset set-records cleancentive.org wiki A --record 46.225.228.123
+hcloud zone rrset set-records cleancentive.org wiki AAAA --record 2a01:4f8:1c19:f583::1
+```
+
+Verify propagation with:
+
+```bash
+dig +short A wiki.cleancentive.org
+dig +short AAAA wiki.cleancentive.org
+```
 
 ### Secrets
 
@@ -60,6 +89,8 @@ The production server does not need to clone the whole repository. It only needs
 
 - `infrastructure/docker-compose.prod.yml`
 - `infrastructure/caddy/Caddyfile`
+- `infrastructure/scripts/reconcile.sh`
+- `infrastructure/scripts/validate-prod-compose.sh`
 - the private `.env`
 
 The production server downloads the public deploy bundle itself and receives the private `.env` from GitHub Actions.
@@ -112,6 +143,9 @@ Triggered by changes in:
 
 - `infrastructure/docker-compose.prod.yml`
 - `infrastructure/caddy/Caddyfile`
+- `infrastructure/setup-outline.ts`
+- `infrastructure/scripts/reconcile.sh`
+- `infrastructure/scripts/validate-prod-compose.sh`
 
 ### No-op changes
 
@@ -137,8 +171,9 @@ Umami is currently part of the development stack only. Changes to the Umami dev 
 
 Validation checks:
 
-- every image reference uses a full 40-character SHA tag
-- every referenced image tag exists in GHCR
+- every Cleancentive image reference uses a full 40-character SHA tag
+- every referenced Cleancentive image tag exists in GHCR
+- supported third-party production images are pinned by digest
 - no floating tags such as `latest`, `main`, or `prod`
 
 Install the shared git hook locally with:

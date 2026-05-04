@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deploy Cleancentive to a single Hetzner VPS with declarative, Git-tracked infrastructure while using Resend for email and Backblaze B2 for S3-compatible object storage.
+**Goal:** Deploy Cleancentive to a single Hetzner VPS with declarative, Git-tracked infrastructure while using Hetzner DNS, Resend for email, and Backblaze B2 for S3-compatible object storage.
 
 **Architecture:** Keep stateful core services (Postgres/PostGIS and Redis) on the VPS in containers, run frontend/backend/worker behind Caddy, and externalize transactional email plus object storage. Reconcile production from committed manifests and pinned images so server state is reproducible.
 
-**Tech Stack:** Docker Compose, Caddy, NestJS backend, React/Vite frontend, worker service, PostgreSQL/PostGIS, Redis, Resend, Backblaze B2 (S3 API), GitHub Actions (or equivalent CI).
+**Tech Stack:** Docker Compose, Caddy, NestJS backend, React/Vite frontend, worker service, PostgreSQL/PostGIS, Redis, Hetzner DNS via `hcloud zone`, Resend, Backblaze B2 (S3 API), GitHub Actions (or equivalent CI).
 
 ---
 
@@ -19,6 +19,16 @@
 - [ ] Buy or confirm the production domain.
 - [ ] Create Resend account and verify sending domain.
 - [ ] Add email DNS records required by Resend (SPF, DKIM, and DMARC).
+- [ ] Manage the `cleancentive.org` DNS zone in Hetzner DNS via `hcloud zone`.
+- [ ] Configure production web host records:
+  - `cleancentive.org A 46.225.228.123`
+  - `www.cleancentive.org A 46.225.228.123`
+  - `analytics.cleancentive.org A 46.225.228.123`
+  - `wiki.cleancentive.org A 46.225.228.123`
+  - `cleancentive.org AAAA 2a01:4f8:1c19:f583::1`
+  - `www.cleancentive.org AAAA 2a01:4f8:1c19:f583::1`
+  - `analytics.cleancentive.org AAAA 2a01:4f8:1c19:f583::1`
+  - `wiki.cleancentive.org AAAA 2a01:4f8:1c19:f583::1`
 - [ ] Create Backblaze B2 bucket for production images.
 - [ ] Create Backblaze application key with least privileges needed for the app.
 - [ ] Record B2 endpoint/region/bucket/key details in the secret inventory.
@@ -32,7 +42,7 @@
 - [ ] Install system updates and enable unattended security upgrades.
 - [ ] Configure firewall to allow only `22`, `80`, and `443`.
 - [ ] Restrict SSH access by key and source CIDR where possible.
-- [ ] Configure DNS `A/AAAA` records to point to the VPS.
+- [ ] Configure DNS `A/AAAA` records to point to the VPS with `hcloud zone rrset set-records`.
 
 ### Task 3: Secrets and access control
 
