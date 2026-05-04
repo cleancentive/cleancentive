@@ -40,15 +40,17 @@ if (existsSync(BACKEND_ENV)) {
 }
 
 // --- config ----------------------------------------------------------------
+const OUTLINE_PUBLIC_URL = process.env.OUTLINE_PUBLIC_URL ?? process.env.WIKI_URL ?? 'https://wiki.cleancentive.local';
 const UMAMI_BASE_URL = process.env.UMAMI_PUBLIC_URL ?? 'https://analytics.cleancentive.local';
 const UMAMI_ADMIN_URL = process.env.UMAMI_URL ?? 'http://localhost:3001';
 const UMAMI_USERNAME = process.env.UMAMI_USERNAME ?? 'admin';
 const UMAMI_PASSWORD = process.env.UMAMI_PASSWORD ?? 'umami';
 const UMAMI_WIKI_WEBSITE_NAME = 'Cleancentive Wiki';
-const UMAMI_WIKI_DOMAIN = 'wiki.cleancentive.local';
+const UMAMI_WIKI_DOMAIN = process.env.UMAMI_WIKI_DOMAIN ?? new URL(OUTLINE_PUBLIC_URL).hostname;
 
 const TEAM_LOGO_URL =
   process.env.OUTLINE_TEAM_LOGO_URL ?? 'https://cleancentive.local/icon.svg';
+const OUTLINE_S3_BUCKET = process.env.OUTLINE_S3_BUCKET ?? 'cleancentive-wiki';
 
 const PG_OUTLINE = {
   host: process.env.DB_HOST ?? 'localhost',
@@ -69,12 +71,11 @@ async function ensureWikiBucket(): Promise<void> {
       secretAccessKey: process.env.S3_SECRET_KEY ?? 'minioadmin',
     },
   });
-  const bucket = 'cleancentive-wiki';
   try {
-    await client.send(new HeadBucketCommand({ Bucket: bucket }));
+    await client.send(new HeadBucketCommand({ Bucket: OUTLINE_S3_BUCKET }));
   } catch {
-    await client.send(new CreateBucketCommand({ Bucket: bucket }));
-    console.log(`Outline: created MinIO bucket "${bucket}".`);
+    await client.send(new CreateBucketCommand({ Bucket: OUTLINE_S3_BUCKET }));
+    console.log(`Outline: created S3 bucket "${OUTLINE_S3_BUCKET}".`);
   }
 }
 
@@ -118,8 +119,8 @@ async function provisionInOutline(websiteId: string): Promise<void> {
     const team = teams.rows[0];
     if (!team) {
       console.log('Outline: no team yet (no SSO sign-in has happened) — skipping provisioning.');
-      console.log('  Once you sign into https://wiki.cleancentive.local once, the next');
-      console.log('  `bun dev` will provision the Umami integration and branding.');
+      console.log(`  Once you sign into ${OUTLINE_PUBLIC_URL} once, the next`);
+      console.log('  provisioning run will configure the Umami integration and branding.');
       return;
     }
 

@@ -16,7 +16,7 @@ fi
 images=()
 while IFS= read -r line; do
   images+=("$line")
-done < <(grep -E '^\s*image:\s*ghcr\.io/cleancentive/' "$compose_file" | sed -E 's/^[[:space:]]*image:[[:space:]]*//')
+done < <(grep -E '^\s*image:\s*(ghcr\.io/cleancentive/|docker\.getoutline\.com/outlinewiki/outline(:|@))' "$compose_file" | sed -E 's/^[[:space:]]*image:[[:space:]]*//')
 
 if [[ ${#images[@]} -eq 0 ]]; then
   echo "No image references found in $compose_file" >&2
@@ -24,17 +24,20 @@ if [[ ${#images[@]} -eq 0 ]]; then
 fi
 
 sha_pattern='^[0-9a-f]{40}$'
+digest_pattern='^docker\.getoutline\.com/outlinewiki/outline(:[^@]+)?@sha256:[0-9a-f]{64}$'
 
 for image in "${images[@]}"; do
   tag="${image##*:}"
 
-  if [[ "$image" != ghcr.io/cleancentive/*:* ]]; then
-    echo "Image must reference GHCR with an explicit tag: $image" >&2
-    exit 1
-  fi
-
-  if [[ ! "$tag" =~ $sha_pattern ]]; then
-    echo "Image tag must be a full 40-character git SHA: $image" >&2
+  if [[ "$image" == ghcr.io/cleancentive/*:* ]]; then
+    if [[ ! "$tag" =~ $sha_pattern ]]; then
+      echo "Cleancentive image tag must be a full 40-character git SHA: $image" >&2
+      exit 1
+    fi
+  elif [[ "$image" =~ $digest_pattern ]]; then
+    true
+  else
+    echo "Unsupported production image reference: $image" >&2
     exit 1
   fi
 

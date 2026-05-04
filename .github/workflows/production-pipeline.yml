@@ -67,7 +67,7 @@ jobs:
                 frontend=true
                 worker=true
                 ;;
-              infrastructure/docker-compose.prod.yml|infrastructure/caddy/Caddyfile)
+              infrastructure/docker-compose.prod.yml|infrastructure/caddy/Caddyfile|infrastructure/setup-outline.ts|infrastructure/scripts/reconcile.sh|infrastructure/scripts/validate-prod-compose.sh)
                 deploy=true
                 ;;
             esac

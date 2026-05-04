@@ -37,16 +37,21 @@ last_env_checksum=$(cat "$STATE_DIR/env.sha256" 2>/dev/null || true)
 desired_images=()
 while IFS= read -r line; do
   desired_images+=("$line")
-done < <(grep -E '^\s*image:\s*ghcr\.io/cleancentive/' "$DEPLOY_DIR/docker-compose.prod.yml" | sed -E 's/^[[:space:]]*image:[[:space:]]*//')
+done < <(grep -E '^\s*image:\s*(ghcr\.io/cleancentive/|docker\.getoutline\.com/outlinewiki/outline(:|@))' "$DEPLOY_DIR/docker-compose.prod.yml" | sed -E 's/^[[:space:]]*image:[[:space:]]*//')
 
 print_summary() {
   local status="$1"
   echo ""
   echo "=== Deployment Summary ==="
   for image in "${desired_images[@]}"; do
-    service="${image##*/cleancentive-}"
-    name="${service%%:*}"
-    tag="${service##*:}"
+    if [[ "$image" == ghcr.io/cleancentive/* ]]; then
+      service="${image##*/cleancentive-}"
+      name="${service%%:*}"
+      tag="${service##*:}"
+    else
+      name="outline"
+      tag="${image##*@}"
+    fi
     printf '  %-10s version %s %s\n' "$name" "$tag" "$status"
   done
   echo "=========================="
