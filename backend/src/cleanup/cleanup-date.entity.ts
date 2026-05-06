@@ -10,10 +10,10 @@ export class CleanupDate extends BaseEntity {
   @Column('uuid')
   cleanup_id: string;
 
-  @Column('timestamp')
+  @Column('timestamp with time zone')
   start_at: Date;
 
-  @Column('timestamp')
+  @Column('timestamp with time zone')
   end_at: Date;
 
   @Column('double precision')

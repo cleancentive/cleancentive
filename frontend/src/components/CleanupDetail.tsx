@@ -9,6 +9,7 @@ import { MemberList } from './MemberList'
 import { MessageBoard } from './MessageBoard'
 import { useUiStore } from '../stores/uiStore'
 import { ConfirmDialog } from './ConfirmDialog'
+import { isoToDatetimeLocal } from '../utils/datetime'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
@@ -34,17 +35,11 @@ function formatShortDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-function toDatetimeLocal(iso: string): string {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 function defaultStartFor(referenceDate?: string): string {
-  const today = toDatetimeLocal(new Date().toISOString()).split('T')[0]
+  const today = isoToDatetimeLocal(new Date().toISOString()).split('T')[0]
   const date = referenceDate ? referenceDate.split('T')[0] : today
   if (date === today) {
-    return toDatetimeLocal(new Date().toISOString())
+    return isoToDatetimeLocal(new Date().toISOString())
   }
   return date + 'T09:00'
 }
@@ -240,8 +235,8 @@ export function CleanupDetail() {
   const startEdit = (d: { id: string; start_at: string; end_at: string; latitude: number; longitude: number; location_name: string | null }) => {
     setEditDateId(d.id)
     setShowAddDate(false)
-    setFormStartAt(toDatetimeLocal(d.start_at))
-    setFormEndAt(toDatetimeLocal(d.end_at))
+    setFormStartAt(isoToDatetimeLocal(d.start_at))
+    setFormEndAt(isoToDatetimeLocal(d.end_at))
     setFormLat(String(d.latitude))
     setFormLon(String(d.longitude))
     setFormLocationName(d.location_name || '')
@@ -312,7 +307,7 @@ export function CleanupDetail() {
     ? generateRecurringDates(formStartAt, formEndAt, repeatFrequency, repeatCount)
     : []
 
-  const nowLocal = toDatetimeLocal(new Date().toISOString())
+  const nowLocal = isoToDatetimeLocal(new Date().toISOString())
 
   const dateForm = (
     onSubmit: (e: React.FormEvent) => void,
@@ -339,7 +334,7 @@ export function CleanupDetail() {
             type="datetime-local"
             value={formEndAt}
             min={formStartAt || nowLocal}
-            onChange={(e) => { if (formStartAt && e.target.value < formStartAt) return; setFormEndAt(e.target.value) }}
+            onChange={(e) => { if (formStartAt && new Date(e.target.value) < new Date(formStartAt)) return; setFormEndAt(e.target.value) }}
             onFocus={() => { if (!formEndAt) setFormEndAt(formStartAt ? defaultEndFrom(formStartAt) : '') }}
             required
           />

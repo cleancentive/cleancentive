@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import axios from 'axios'
 import { useAuthStore } from './authStore'
 import { trackEvent } from '../lib/analytics'
+import { datetimeLocalToIso } from '../utils/datetime'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 
@@ -161,8 +162,8 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
         name,
         description,
         date: {
-          startAt: date.startAt,
-          endAt: date.endAt,
+          startAt: datetimeLocalToIso(date.startAt),
+          endAt: datetimeLocalToIso(date.endAt),
           latitude: date.latitude,
           longitude: date.longitude,
           locationName: date.locationName,
@@ -222,8 +223,8 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
     set({ error: null })
     try {
       await axios.post(`${API_BASE}/cleanups/${id}/dates`, {
-        startAt: date.startAt,
-        endAt: date.endAt,
+        startAt: datetimeLocalToIso(date.startAt),
+        endAt: datetimeLocalToIso(date.endAt),
         latitude: date.latitude,
         longitude: date.longitude,
         locationName: date.locationName,
@@ -238,8 +239,8 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
     set({ error: null })
     try {
       await axios.put(`${API_BASE}/cleanups/dates/${cleanupDateId}`, {
-        startAt: date.startAt,
-        endAt: date.endAt,
+        startAt: datetimeLocalToIso(date.startAt),
+        endAt: datetimeLocalToIso(date.endAt),
         latitude: date.latitude,
         longitude: date.longitude,
         locationName: date.locationName,
@@ -265,7 +266,14 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   addDatesBulk: async (cleanupId, recurrenceId, dates) => {
     set({ error: null })
     try {
-      await axios.post(`${API_BASE}/cleanups/${cleanupId}/dates/bulk`, { recurrenceId, dates }, { headers: getHeaders() })
+      const normalized = dates.map((d) => ({
+        startAt: datetimeLocalToIso(d.startAt),
+        endAt: datetimeLocalToIso(d.endAt),
+        latitude: d.latitude,
+        longitude: d.longitude,
+        locationName: d.locationName,
+      }))
+      await axios.post(`${API_BASE}/cleanups/${cleanupId}/dates/bulk`, { recurrenceId, dates: normalized }, { headers: getHeaders() })
       await get().fetchCleanup(cleanupId)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to create dates' })

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -16,6 +17,19 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { CleanupService } from './cleanup.service';
 import { AdminService } from '../admin/admin.service';
+
+const ISO_WITH_OFFSET = /T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/;
+
+function parseIsoWithOffset(field: string, value: string | undefined): Date {
+  if (!value || !ISO_WITH_OFFSET.test(value)) {
+    throw new BadRequestException(`${field} must be an ISO 8601 datetime with timezone offset (Z or ±HH:MM)`);
+  }
+  const d = new Date(value);
+  if (isNaN(d.getTime())) {
+    throw new BadRequestException(`${field} is not a valid datetime`);
+  }
+  return d;
+}
 
 @Controller('cleanups')
 @ApiBearerAuth('Bearer')
@@ -47,8 +61,8 @@ export class CleanupController {
       name: body.name || '',
       description: body.description || '',
       date: {
-        startAt: new Date(body.date?.startAt || ''),
-        endAt: new Date(body.date?.endAt || ''),
+        startAt: parseIsoWithOffset('date.startAt', body.date?.startAt),
+        endAt: parseIsoWithOffset('date.endAt', body.date?.endAt),
         latitude: Number(body.date?.latitude),
         longitude: Number(body.date?.longitude),
         locationName: body.date?.locationName,
@@ -156,8 +170,8 @@ export class CleanupController {
     },
   ) {
     return this.cleanupService.addDate(cleanupId, req.user.userId, {
-      startAt: new Date(body.startAt || ''),
-      endAt: new Date(body.endAt || ''),
+      startAt: parseIsoWithOffset('startAt', body.startAt),
+      endAt: parseIsoWithOffset('endAt', body.endAt),
       latitude: Number(body.latitude),
       longitude: Number(body.longitude),
       locationName: body.locationName,
@@ -184,8 +198,8 @@ export class CleanupController {
     return this.cleanupService.addDatesBulk(cleanupId, req.user.userId, {
       recurrenceId: body.recurrenceId,
       dates: (body.dates || []).map((d) => ({
-        startAt: new Date(d.startAt || ''),
-        endAt: new Date(d.endAt || ''),
+        startAt: parseIsoWithOffset('startAt', d.startAt),
+        endAt: parseIsoWithOffset('endAt', d.endAt),
         latitude: Number(d.latitude),
         longitude: Number(d.longitude),
         locationName: d.locationName,
@@ -219,8 +233,8 @@ export class CleanupController {
     },
   ) {
     return this.cleanupService.updateDate(cleanupDateId, req.user.userId, {
-      startAt: new Date(body.startAt || ''),
-      endAt: new Date(body.endAt || ''),
+      startAt: parseIsoWithOffset('startAt', body.startAt),
+      endAt: parseIsoWithOffset('endAt', body.endAt),
       latitude: Number(body.latitude),
       longitude: Number(body.longitude),
       locationName: body.locationName,

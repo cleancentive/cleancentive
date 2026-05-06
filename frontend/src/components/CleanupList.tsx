@@ -7,19 +7,14 @@ import { useInsightsFilterStore } from '../stores/insightsFilterStore'
 import { CommunityList } from './CommunityList'
 import { CommunityCard } from './CommunityCard'
 import { LocationPicker } from './LocationPicker'
-
-function toDatetimeLocal(iso: string): string {
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
+import { isoToDatetimeLocal } from '../utils/datetime'
 
 function defaultStartFor(referenceDate?: string): string {
-  const today = toDatetimeLocal(new Date().toISOString()).split('T')[0]
+  const today = isoToDatetimeLocal(new Date().toISOString()).split('T')[0]
   const date = referenceDate ? referenceDate.split('T')[0] : today
   if (date === today) {
     // Today: use current time (don't default to 9am in the past)
-    return toDatetimeLocal(new Date().toISOString())
+    return isoToDatetimeLocal(new Date().toISOString())
   }
   return date + 'T09:00'
 }
@@ -166,7 +161,7 @@ export function CleanupList() {
                 id="cleanup-start"
                 type="datetime-local"
                 value={startAt}
-                min={toDatetimeLocal(new Date().toISOString())}
+                min={isoToDatetimeLocal(new Date().toISOString())}
                 onChange={(e) => setStartAt(e.target.value)}
                 onFocus={() => { if (!startAt) setStartAt(defaultStartFor(endAt || undefined)) }}
                 required
@@ -178,8 +173,8 @@ export function CleanupList() {
                 id="cleanup-end"
                 type="datetime-local"
                 value={endAt}
-                min={startAt || toDatetimeLocal(new Date().toISOString())}
-                onChange={(e) => { if (startAt && e.target.value < startAt) return; setEndAt(e.target.value) }}
+                min={startAt || isoToDatetimeLocal(new Date().toISOString())}
+                onChange={(e) => { if (startAt && new Date(e.target.value) < new Date(startAt)) return; setEndAt(e.target.value) }}
                 onFocus={() => { if (!endAt) setEndAt(startAt ? defaultEndFrom(startAt) : '') }}
                 required
               />
