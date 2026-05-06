@@ -79,9 +79,10 @@ export function TeamDetail() {
     )
   }
 
-  const { team, members, userRole, isPartner } = currentTeam
+  const { team, members, userRole, isPartner, systemKey, membershipManagedBy } = currentTeam
   const isMember = userRole !== null
   const isOrganizer = userRole === 'organizer'
+  const isStewardsTeam = systemKey === 'stewards' || membershipManagedBy === 'steward-role'
   const activeTeamId = user?.active_team_id
 
   const handleJoin = () => { if (id) joinTeam(id) }
@@ -123,7 +124,7 @@ export function TeamDetail() {
           <>
             <legend>
               {team.name}
-              {isOrganizer && <button className="link-button legend-edit-button" onClick={() => { setEditName(team.name); setEditDescription(team.description); setEditing(true) }}>Edit</button>}
+              {isOrganizer && !isStewardsTeam && <button className="link-button legend-edit-button" onClick={() => { setEditName(team.name); setEditDescription(team.description); setEditing(true) }}>Edit</button>}
               {currentTeam?.outlineCollectionId && (
                 <a
                   className="link-button legend-edit-button"
@@ -144,21 +145,28 @@ export function TeamDetail() {
           </div>
         )}
 
-        {!user && (
+        {!user && !isStewardsTeam && (
           <div className="community-guest-cta">
             <span>Sign in to join this team</span>
             <button className="sign-in-cta-button" onClick={openSignInModal}>Sign In</button>
           </div>
         )}
 
-        {isPartner && (
+        {isStewardsTeam && (
+          <p className="partner-notice">
+            <span className="badge steward-badge">Stewards</span>
+            {' '}Membership is managed by the steward role.
+          </p>
+        )}
+
+        {isPartner && !isStewardsTeam && (
           <p className="partner-notice">
             <span className="badge" style={{ background: 'var(--color-badge-partner)' }}>Partner</span>
             {' '}Membership is managed automatically based on your email domain.
           </p>
         )}
 
-        {user && !isMember && !isPartner && (
+        {user && !isMember && !isPartner && !isStewardsTeam && (
           <button className="primary-button" onClick={handleJoin} disabled={!isOnline}>
             Join Team
           </button>
@@ -175,7 +183,7 @@ export function TeamDetail() {
                 Set as Active Team
               </button>
             )}
-            {!isPartner && (
+            {!isPartner && !isStewardsTeam && (
               <button className="danger-button" onClick={handleLeave} disabled={!isOnline}>
                 Leave Team
               </button>
@@ -183,7 +191,7 @@ export function TeamDetail() {
           </div>
         )}
 
-        {isOrganizer && (
+        {isOrganizer && !isStewardsTeam && (
           <div className="community-admin-actions">
             <h3>Organizer Actions</h3>
             <button
@@ -198,7 +206,7 @@ export function TeamDetail() {
         )}
       </fieldset>
 
-      {isPlatformAdmin && (
+      {isPlatformAdmin && !isStewardsTeam && (
         <fieldset className="page-card">
           <details className="partner-settings-collapsible" open={isPartner}>
             <summary><legend style={{ display: 'inline' }}>Partner Settings (Steward)</legend></summary>
@@ -231,7 +239,7 @@ export function TeamDetail() {
         <legend>Members ({members.length})</legend>
         <MemberList
           members={members}
-          canPromote={isOrganizer}
+          canPromote={isOrganizer && !isStewardsTeam}
           onPromote={(userId) => id && promoteMember(id, userId)}
         />
       </fieldset>

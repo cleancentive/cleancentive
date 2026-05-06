@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not } from 'typeorm';
 import { Client as PgClient } from 'pg';
@@ -9,6 +9,7 @@ import { AdminService } from '../admin/admin.service';
 import { Team } from '../team/team.entity';
 import { TeamOutlineCollection } from '../team/team-outline-collection.entity';
 import { OutlineWebhookConfig } from './outline-webhook-config.entity';
+import { OutlineMaintenanceState } from './outline-maintenance-state.entity';
 
 /**
  * Pushes cleancentive state into Outline's Postgres database in real-time so
@@ -46,6 +47,9 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     'documents.archive',
     'comments.create',
   ];
+  private static readonly WIPE_CONFIRMATION = 'WIPE_OUTLINE_CONTENT';
+  private static readonly WIPE_STATE_KEY = 'outline-content-wiped';
+  private static readonly INIT_STATE_KEY = 'outline-content-initialized';
   constructor(
     private readonly userService: UserService,
     private readonly adminService: AdminService,
@@ -54,6 +58,8 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     private readonly teamCollectionRepository: Repository<TeamOutlineCollection>,
     @InjectRepository(OutlineWebhookConfig)
     private readonly webhookConfigRepository: Repository<OutlineWebhookConfig>,
+    @InjectRepository(OutlineMaintenanceState)
+    private readonly maintenanceStateRepository: Repository<OutlineMaintenanceState>,
   ) {
     this.pg = new PgClient({
       host: process.env.DB_HOST ?? 'localhost',
@@ -370,7 +376,6 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       if (!email) return;
       const outlineUserId = await this.findOutlineUserId(email);
       if (!outlineUserId) return;
-      await this.ensureTeamGroup(payload.teamId, payload.teamName);
       await this.addToGroup(outlineUserId, payload.teamId);
       this.logger.debug(`Added ${email} to Outline group for team ${payload.teamName}`);
     } catch (e) {
@@ -407,19 +412,6 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
         this.logger.warn(`Group rename failed: ${e instanceof Error ? e.message : e}`);
       }
     }
-
-    const mapping = await this.teamCollectionRepository.findOne({ where: { team_id: payload.teamId } });
-    if (mapping) {
-      try {
-        await this.callOutlineApi('/collections.update', {
-          id: mapping.outline_collection_id,
-          name: payload.newName,
-        });
-        this.logger.log(`Renamed Outline collection for team ${payload.teamId}: "${payload.oldName}" → "${payload.newName}"`);
-      } catch (e) {
-        this.logger.warn(`Collection rename failed: ${e instanceof Error ? e.message : e}`);
-      }
-    }
   }
 
   async handleTeamArchived(payload: { teamId: string; teamName: string }): Promise<void> {
@@ -439,19 +431,6 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
         }
       }
       this.logger.log(`Team ${payload.teamName} archived — removed ${users.length} members from Outline group`);
-
-      const mapping = await this.teamCollectionRepository.findOne({ where: { team_id: payload.teamId } });
-      if (mapping) {
-        try {
-          await this.callOutlineApi('/collections.remove_group', {
-            id: mapping.outline_collection_id,
-            groupId,
-          });
-          this.logger.log(`Revoked team group access on Outline collection for archived team ${payload.teamName}`);
-        } catch (e) {
-          this.logger.warn(`Collection group removal failed: ${e instanceof Error ? e.message : e}`);
-        }
-      }
     } catch (e) {
       this.logger.warn(`Team archive sync failed: ${e instanceof Error ? e.message : e}`);
     }
@@ -577,6 +556,206 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(`Provisioned Outline webhook subscription → ${webhookUrl}`);
   }
 
+  async wipeOutlineContentOnce(confirmation: string): Promise<{
+    confirmation: string;
+    outline: Record<string, number>;
+    cleancentive: { teamOutlineCollections: number };
+  }> {
+    if (confirmation !== OutlineSyncService.WIPE_CONFIRMATION) {
+      throw new BadRequestException('Confirmation must be WIPE_OUTLINE_CONTENT');
+    }
+    await this.ensureMaintenanceNotCompleted(OutlineSyncService.WIPE_STATE_KEY, 'Outline content has already been wiped');
+
+    const outline: Record<string, number> = {};
+    const mappings = await this.teamCollectionRepository.find();
+    const activeTeams = await this.teamRepository.find({ where: { archived_at: IsNull() } });
+    const cleancentiveGroupExternalIds = [
+      'stewards',
+      ...new Set([
+        ...mappings.map((mapping) => mapping.team_id),
+        ...activeTeams.map((team) => team.id),
+      ]),
+    ];
+    await this.pg.query('BEGIN');
+    try {
+      const mappingCount = await this.countAndDeleteCleancentiveMappings();
+      const cleancentiveGroupIds = await this.findOutlineGroupIdsByExternalIds(cleancentiveGroupExternalIds);
+
+      outline.shares = await this.countAndDeleteIfTableExists('shares', 'shares', `DELETE FROM shares`);
+      outline.documentGroupMemberships = await this.countAndDeleteIfTableExists('group_memberships', 'documentGroupMemberships', `DELETE FROM group_memberships WHERE "documentId" IS NOT NULL`);
+      outline.collectionGroupMemberships = await this.countAndDeleteIfTableExists('group_memberships', 'collectionGroupMemberships', `DELETE FROM group_memberships WHERE "collectionId" IS NOT NULL OR "groupId" = ANY($1)`, [cleancentiveGroupIds]);
+      outline.documentMemberships = await this.countAndDeleteIfTableExists('user_memberships', 'documentMemberships', `DELETE FROM user_memberships WHERE "documentId" IS NOT NULL`);
+      outline.collectionMemberships = await this.countAndDeleteIfTableExists('user_memberships', 'collectionMemberships', `DELETE FROM user_memberships WHERE "collectionId" IS NOT NULL`);
+      outline.userMemberships = await this.countAndDeleteIfTableExists('user_memberships', 'userMemberships', `DELETE FROM user_memberships`);
+      outline.documentAttachments = await this.countAndDeleteIfTableExists('attachments', 'documentAttachments', `DELETE FROM attachments WHERE "documentId" IS NOT NULL`);
+      outline.events = await this.countAndDeleteIfTableExists('events', 'events', `DELETE FROM events WHERE "documentId" IS NOT NULL OR "collectionId" IS NOT NULL`);
+      outline.comments = await this.countAndDeleteIfTableExists('comments', 'comments', `DELETE FROM comments`);
+      outline.revisions = await this.countAndDeleteIfTableExists('revisions', 'revisions', `DELETE FROM revisions`);
+      outline.views = await this.countAndDeleteIfTableExists('views', 'views', `DELETE FROM views`);
+      outline.stars = await this.countAndDeleteIfTableExists('stars', 'stars', `DELETE FROM stars WHERE "documentId" IS NOT NULL OR "collectionId" IS NOT NULL`);
+      outline.pins = await this.countAndDeleteIfTableExists('pins', 'pins', `DELETE FROM pins WHERE "documentId" IS NOT NULL OR "collectionId" IS NOT NULL`);
+      outline.relationships = await this.countAndDeleteIfTableExists('relationships', 'relationships', `DELETE FROM relationships`);
+      outline.documents = await this.countAndDeleteIfTableExists('documents', 'documents', `DELETE FROM documents`);
+      outline.collections = await this.countAndDeleteIfTableExists('collections', 'collections', `DELETE FROM collections`);
+      outline.groups = await this.countAndDeleteIfTableExists(
+        'groups',
+        'groups',
+        `DELETE FROM groups WHERE "externalId" = ANY($1) AND "teamId" = $2`,
+        [cleancentiveGroupExternalIds, this.outlineTeamId],
+      );
+
+      await this.pg.query('COMMIT');
+      await this.clearCleancentiveMappingsAfterOutlineCommit();
+      await this.recordMaintenanceCompleted(OutlineSyncService.WIPE_STATE_KEY);
+
+      return {
+        confirmation,
+        outline,
+        cleancentive: { teamOutlineCollections: mappingCount },
+      };
+    } catch (e) {
+      await this.pg.query('ROLLBACK');
+      throw e;
+    }
+  }
+
+  async initializeOutlineContentOnce(): Promise<{
+    gettingStarted: { created: boolean };
+    teams: { created: number; skipped: number };
+    stewards: { publicCreated: boolean; confidentialCreated: boolean };
+  }> {
+    if (!this.isReady() || !this.outlineApiKey) {
+      throw new BadRequestException('Outline sync is not ready');
+    }
+    await this.ensureMaintenanceNotCompleted(OutlineSyncService.INIT_STATE_KEY, 'Outline content has already been initialized');
+
+    await this.ensureStewardsGroup();
+    await this.syncExistingAdmins();
+
+    const gettingStartedCreated = await this.createSystemCollectionWithStarterDoc({
+      name: 'Getting Started',
+      permission: 'read_write',
+      title: 'Getting started with the CleanCentive wiki',
+      text: this.gettingStartedDocText(),
+    });
+
+    let created = 0;
+    let skipped = 0;
+    const activeTeams = await this.teamRepository.find({ where: { archived_at: IsNull(), system_key: IsNull() } });
+    for (const team of activeTeams) {
+      const existing = await this.teamCollectionRepository.findOne({ where: { team_id: team.id } });
+      if (existing) {
+        await this.completeMissingInitialShare(existing, true);
+        skipped++;
+        continue;
+      }
+      await this.ensureTeamGroup(team.id, team.name);
+      const groupId = await this.findGroupIdByExternalId(team.id);
+      const collectionId = await this.createCollection({
+        name: team.name,
+        permission: 'read',
+      });
+      await this.saveTeamCollectionMapping(team.id, collectionId, groupId, null);
+      await this.addGroupToCollection(collectionId, groupId, 'read_write');
+      await this.createStarterDoc(collectionId, `Welcome to the ${team.name} wiki`, this.starterDocText(team.name));
+      const shareId = await this.createInitialCollectionShare(collectionId);
+      await this.updateTeamCollectionMapping(team.id, { outline_share_id: shareId });
+      created++;
+    }
+
+    const stewardsTeam = await this.teamRepository.findOne({ where: { system_key: 'stewards' } });
+    if (stewardsTeam) {
+      const existing = await this.teamCollectionRepository.findOne({ where: { team_id: stewardsTeam.id } });
+      if (!existing) {
+        const stewardsGroupId = await this.findGroupIdByExternalId('stewards');
+        const collectionId = await this.createCollection({
+          name: 'Stewards',
+          permission: 'read',
+        });
+        await this.saveTeamCollectionMapping(stewardsTeam.id, collectionId, stewardsGroupId, null);
+        await this.addGroupToCollection(collectionId, stewardsGroupId, 'admin');
+        await this.createStarterDoc(collectionId, 'Welcome to the Stewards wiki', this.starterDocText('Stewards'));
+        const shareId = await this.createInitialCollectionShare(collectionId);
+        await this.updateTeamCollectionMapping(stewardsTeam.id, { outline_share_id: shareId });
+      } else {
+        await this.completeMissingInitialShare(existing, true);
+      }
+
+      const stewardsGroupId = await this.findGroupIdByExternalId('stewards');
+      const confidentialCreated = await this.createSystemCollectionWithStarterDoc({
+        name: 'Stewards Confidential',
+        permission: null,
+        title: 'Stewards Confidential',
+        text: this.starterDocText('Stewards Confidential'),
+        groupId: stewardsGroupId,
+        groupPermission: 'admin',
+      });
+
+      const result = {
+        gettingStarted: { created: gettingStartedCreated },
+        teams: { created, skipped },
+        stewards: { publicCreated: !existing, confidentialCreated },
+      };
+      await this.recordMaintenanceCompleted(OutlineSyncService.INIT_STATE_KEY);
+      return result;
+    }
+
+    await this.recordMaintenanceCompleted(OutlineSyncService.INIT_STATE_KEY);
+
+    return {
+      gettingStarted: { created: gettingStartedCreated },
+      teams: { created, skipped },
+      stewards: { publicCreated: false, confidentialCreated: false },
+    };
+  }
+
+  private async countAndDeleteCleancentiveMappings(): Promise<number> {
+    const res = await this.countAndDeleteIfTableExists(
+      'team_outline_collections',
+      'teamOutlineCollections',
+      `DELETE FROM team_outline_collections`,
+    );
+    if (res > 0) return res;
+    return this.teamCollectionRepository.count();
+  }
+
+  private async ensureMaintenanceNotCompleted(key: string, message: string): Promise<void> {
+    const existing = await this.maintenanceStateRepository.findOne({ where: { key } });
+    if (existing) {
+      throw new BadRequestException(message);
+    }
+  }
+
+  private async recordMaintenanceCompleted(key: string): Promise<void> {
+    await this.maintenanceStateRepository.save(
+      this.maintenanceStateRepository.create({ key, completed_at: new Date() }),
+    );
+  }
+
+  private async clearCleancentiveMappingsAfterOutlineCommit(): Promise<void> {
+    await this.teamCollectionRepository.clear();
+  }
+
+  private async findOutlineGroupIdsByExternalIds(externalIds: string[]): Promise<string[]> {
+    if (externalIds.length === 0) return [];
+    const res = await this.pg.query<{ id: string }>(
+      `SELECT id FROM groups WHERE "externalId" = ANY($1) AND "teamId" = $2`,
+      [externalIds, this.outlineTeamId],
+    );
+    return res.rows.map((row) => row.id);
+  }
+
+  private async countAndDeleteIfTableExists(tableName: string, summaryKey: string, sql: string, params: any[] = []): Promise<number> {
+    const table = await this.pg.query<{ exists: boolean }>(`SELECT to_regclass($1) IS NOT NULL AS exists`, [tableName]);
+    if (!table.rows[0]?.exists) return 0;
+    return this.countAndDelete(summaryKey, sql, params);
+  }
+
+  private async countAndDelete(summaryKey: string, sql: string, params: any[] = []): Promise<number> {
+    const res = await this.pg.query<{ [key: string]: string | number }>(`WITH deleted AS (${sql} RETURNING 1) SELECT COUNT(*) AS "${summaryKey}" FROM deleted`, params);
+    return Number(res.rows[0]?.[summaryKey] ?? 0);
+  }
+
   /** Generate `length` characters from `[A-Za-z0-9_]`, matching Outline's `randomString`. */
   private randomWordChars(length: number): string {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_';
@@ -618,54 +797,174 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     if (existing) return;
 
     try {
-      const created = await this.callOutlineApi('/collections.create', {
-        name: teamName,
-        permission: null, // private — access granted only via group
-      });
-      const collectionId = created?.data?.id;
-      if (!collectionId) {
-        this.logger.warn(`Collection create returned no id for team ${teamName}`);
-        return;
-      }
-
       // Ensure the team group exists before attaching it. Groups are otherwise
       // created lazily on first team.member-joined; if we skipped this, the
       // collection would stay admin-only until a non-creator joined.
       await this.ensureTeamGroup(teamId, teamName);
       const groupId = await this.findGroupIdByExternalId(teamId);
-      if (groupId) {
-        try {
-          await this.callOutlineApi('/collections.add_group', {
-            id: collectionId,
-            groupId,
-            permission: 'read_write',
-          });
-        } catch (e) {
-          this.logger.warn(`Failed to grant team group access to new collection: ${e instanceof Error ? e.message : e}`);
-        }
-      }
-
-      await this.teamCollectionRepository.save(
-        this.teamCollectionRepository.create({ team_id: teamId, outline_collection_id: collectionId }),
-      );
-
-      // Seed a starter document so the collection is non-empty on first visit.
-      // Failure is non-fatal — users can still write content themselves.
-      try {
-        await this.callOutlineApi('/documents.create', {
-          collectionId,
-          title: `Welcome to the ${teamName} wiki`,
-          text: this.starterDocText(teamName),
-          publish: true,
-        });
-      } catch (e) {
-        this.logger.warn(`Seed doc create failed for team ${teamName}: ${e instanceof Error ? e.message : e}`);
-      }
-
+      const collectionId = await this.createCollection({
+        name: teamName,
+        permission: 'read',
+      });
+      await this.saveTeamCollectionMapping(teamId, collectionId, groupId, null);
+      await this.addGroupToCollection(collectionId, groupId, 'read_write');
+      await this.createStarterDoc(collectionId, `Welcome to the ${teamName} wiki`, this.starterDocText(teamName));
+      const shareId = await this.createInitialCollectionShare(collectionId);
+      await this.updateTeamCollectionMapping(teamId, { outline_share_id: shareId });
       this.logger.log(`Provisioned Outline collection for team ${teamName} (${collectionId})`);
     } catch (e) {
       this.logger.warn(`Team collection provisioning failed: ${e instanceof Error ? e.message : e}`);
     }
+  }
+
+  private async provisionTeamCollectionIfMissing(teamId: string, teamName: string): Promise<boolean> {
+    const existing = await this.teamCollectionRepository.findOne({ where: { team_id: teamId } });
+    if (existing) {
+      return false;
+    }
+
+    await this.provisionTeamCollection(teamId, teamName);
+    return true;
+  }
+
+  private async provisionInitialTeamCollection(teamId: string, teamName: string): Promise<void> {
+    if (!this.isReady() || !this.outlineApiKey) return;
+    const existing = await this.teamCollectionRepository.findOne({ where: { team_id: teamId } });
+    if (existing) return;
+    await this.provisionTeamCollection(teamId, teamName);
+  }
+
+  private async warnIfMappedCollectionMissing(mapping: TeamOutlineCollection, teamName: string): Promise<boolean> {
+    try {
+      const info = await this.callOutlineApi('/collections.info', { id: mapping.outline_collection_id });
+      if (!info?.data) {
+        this.logger.warn(`Outline collection ${mapping.outline_collection_id} for team ${teamName} is gone — not auto-recreating`);
+        return true;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('404')) {
+        this.logger.warn(`Outline collection ${mapping.outline_collection_id} for team ${teamName} is gone — not auto-recreating`);
+        return true;
+      }
+      this.logger.warn(`Reconciliation check failed for team ${teamName}: ${msg}`);
+    }
+    return false;
+  }
+
+  private async createCollectionWithStarterDoc(options: {
+    name: string;
+    permission: 'read' | 'read_write' | null;
+    title: string;
+    text: string;
+    groupId?: string | null;
+    groupPermission?: 'read_write' | 'admin';
+  }): Promise<string> {
+    const collectionId = await this.createCollection({
+      name: options.name,
+      permission: options.permission,
+    });
+    await this.addGroupToCollection(collectionId, options.groupId, options.groupPermission);
+    await this.createStarterDoc(collectionId, options.title, options.text);
+    return collectionId;
+  }
+
+  private async createCollection(options: {
+    name: string;
+    permission: 'read' | 'read_write' | null;
+  }): Promise<string> {
+    const created = await this.callOutlineApi('/collections.create', {
+      name: options.name,
+      permission: options.permission,
+    });
+    const collectionId = created?.data?.id;
+    if (!collectionId) throw new Error(`Collection create returned no id for ${options.name}`);
+    return collectionId;
+  }
+
+  private async addGroupToCollection(
+    collectionId: string,
+    groupId: string | null | undefined,
+    groupPermission: 'read_write' | 'admin' | undefined,
+  ): Promise<void> {
+    if (!groupId || !groupPermission) return;
+    await this.callOutlineApi('/collections.add_group', {
+      id: collectionId,
+      groupId,
+      permission: groupPermission,
+    });
+  }
+
+  private async createStarterDoc(collectionId: string, title: string, text: string): Promise<void> {
+    await this.callOutlineApi('/documents.create', {
+      collectionId,
+      title,
+      text,
+      publish: true,
+    });
+  }
+
+  private async createSystemCollectionWithStarterDoc(options: {
+    name: string;
+    permission: 'read' | 'read_write' | null;
+    title: string;
+    text: string;
+    groupId?: string | null;
+    groupPermission?: 'read_write' | 'admin';
+  }): Promise<boolean> {
+    const existing = await this.findCollectionIdByName(options.name);
+    if (existing) {
+      await this.addGroupToCollection(existing, options.groupId, options.groupPermission);
+      await this.createStarterDoc(existing, options.title, options.text);
+      return false;
+    }
+    await this.createCollectionWithStarterDoc(options);
+    return true;
+  }
+
+  private async findCollectionIdByName(name: string): Promise<string | null> {
+    if (!this.outlineTeamId) return null;
+    const res = await this.pg.query<{ id: string }>(
+      `SELECT id FROM collections WHERE name = $1 AND "teamId" = $2 AND "deletedAt" IS NULL LIMIT 1`,
+      [name, this.outlineTeamId],
+    );
+    return res.rows[0]?.id ?? null;
+  }
+
+  private async createInitialCollectionShare(collectionId: string): Promise<string | null> {
+    const share = await this.callOutlineApi('/shares.create', { collectionId, published: true });
+    return share?.data?.id ?? null;
+  }
+
+  private async saveTeamCollectionMapping(
+    teamId: string,
+    collectionId: string,
+    groupId: string | null,
+    shareId: string | null,
+  ): Promise<void> {
+    await this.teamCollectionRepository.save(
+      this.teamCollectionRepository.create({
+        team_id: teamId,
+        outline_collection_id: collectionId,
+        outline_group_id: groupId,
+        outline_share_id: shareId,
+        initialized_at: new Date(),
+      }),
+    );
+  }
+
+  private async updateTeamCollectionMapping(
+    teamId: string,
+    patch: { outline_group_id?: string | null; outline_share_id?: string | null },
+  ): Promise<void> {
+    await this.teamCollectionRepository.update({ team_id: teamId }, patch);
+  }
+
+  private async completeMissingInitialShare(mapping: TeamOutlineCollection, requireInitializerOwnedState = false): Promise<void> {
+    if (mapping.outline_share_id) return;
+    if (requireInitializerOwnedState && !mapping.initialized_at) return;
+    const shareId = await this.createInitialCollectionShare(mapping.outline_collection_id);
+    await this.updateTeamCollectionMapping(mapping.team_id, { outline_share_id: shareId });
   }
 
   private starterDocText(teamName: string): string {
@@ -682,12 +981,21 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     ].join('\n');
   }
 
+  private gettingStartedDocText(): string {
+    return [
+      'This wiki holds CleanCentive team knowledge, cleanup notes, and Steward documentation.',
+      '',
+      'Use team collections for operational notes that should stay editable by team members.',
+      'Use Steward spaces for platform-level guidance and public documentation.',
+    ].join('\n');
+  }
+
   /** Backfill: create Outline collections for teams that don't have one yet. */
   private async backfillTeamCollections(): Promise<void> {
     if (!this.isReady() || !this.outlineApiKey) return;
-    const teams = await this.teamRepository.find({ where: { archived_at: IsNull() } });
+    const teams = await this.teamRepository.find({ where: { archived_at: IsNull(), system_key: IsNull() } });
     for (const team of teams) {
-      await this.provisionTeamCollection(team.id, team.name);
+      await this.provisionInitialTeamCollection(team.id, team.name);
     }
   }
 
@@ -704,54 +1012,25 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    let provisioned = 0, renamed = 0, missing = 0, archivedRevoked = 0, orphans = 0;
+    let provisioned = 0, missing = 0, archivedMapped = 0, orphans = 0;
 
-    // 1. Active teams: ensure mapping exists and Outline collection matches.
-    const activeTeams = await this.teamRepository.find({ where: { archived_at: IsNull() } });
+    // 1. Active teams: initialize only teams that have never been mapped.
+    const activeTeams = await this.teamRepository.find({ where: { archived_at: IsNull(), system_key: IsNull() } });
     for (const team of activeTeams) {
       const mapping = await this.teamCollectionRepository.findOne({ where: { team_id: team.id } });
       if (!mapping) {
-        await this.provisionTeamCollection(team.id, team.name);
-        provisioned++;
+        if (await this.provisionTeamCollectionIfMissing(team.id, team.name)) provisioned++;
         continue;
       }
-      try {
-        const info = await this.callOutlineApi('/collections.info', { id: mapping.outline_collection_id });
-        const remote = info?.data;
-        if (!remote) continue;
-        if (remote.name !== team.name) {
-          await this.callOutlineApi('/collections.update', { id: mapping.outline_collection_id, name: team.name });
-          renamed++;
-        }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        if (msg.includes('404')) {
-          this.logger.warn(`Outline collection ${mapping.outline_collection_id} for team ${team.name} is gone — not auto-recreating`);
-          missing++;
-        } else {
-          this.logger.warn(`Reconciliation check failed for team ${team.name}: ${msg}`);
-        }
-      }
+      if (await this.warnIfMappedCollectionMissing(mapping, team.name)) missing++;
     }
 
-    // 2. Archived teams with mappings: ensure team group is detached from collection.
-    const archivedTeams = await this.teamRepository.find({ where: { archived_at: Not(IsNull()) } });
+    // 2. Archived teams with mappings: leave historical collection permissions intact.
+    const archivedTeams = await this.teamRepository.find({ where: { archived_at: Not(IsNull()), system_key: IsNull() } });
     for (const team of archivedTeams) {
       const mapping = await this.teamCollectionRepository.findOne({ where: { team_id: team.id } });
       if (!mapping) continue;
-      const groupId = await this.findGroupIdByExternalId(team.id);
-      if (!groupId) continue;
-      try {
-        // collections.remove_group is idempotent — calling on an already-removed
-        // group returns an error we can ignore. Cheaper than a list+diff.
-        await this.callOutlineApi('/collections.remove_group', {
-          id: mapping.outline_collection_id,
-          groupId,
-        });
-        archivedRevoked++;
-      } catch {
-        // Already detached or collection missing — fine.
-      }
+      archivedMapped++;
     }
 
     // 3. Mapping rows whose team is gone entirely.
@@ -765,7 +1044,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     }
 
     this.logger.log(
-      `Reconciliation finished: ${provisioned} provisioned, ${renamed} renamed, ${missing} missing-collection warnings, ${archivedRevoked} archived-team revocations, ${orphans} orphan mappings`,
+      `Reconciliation finished: ${provisioned} provisioned, ${missing} missing-collection warnings, ${archivedMapped} archived mapped teams left unchanged, ${orphans} orphan mappings`,
     );
   }
 }

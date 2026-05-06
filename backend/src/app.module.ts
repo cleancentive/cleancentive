@@ -43,6 +43,7 @@ import { OidcAuthorizationCode, OidcRefreshToken, OidcClient } from './oidc/oidc
 import { OutlineSyncModule } from './outline-sync/outline-sync.module';
 import { OutlineWebhookConfig } from './outline-sync/outline-webhook-config.entity';
 import { OutlineEvent } from './outline-sync/outline-event.entity';
+import { OutlineMaintenanceState } from './outline-sync/outline-maintenance-state.entity';
 import { ClientEventsModule } from './client-events/client-events.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 
@@ -86,6 +87,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
         OidcClient,
         OutlineWebhookConfig,
         OutlineEvent,
+        OutlineMaintenanceState,
       ],
       subscribers: [AuditSubscriber],
       synchronize: false,
