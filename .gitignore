@@ -76,7 +76,6 @@ docker-compose.override.yml
 .playwright-mcp
 
 # triagato
-docs/feedback-plans/*/
 infrastructure/.feedback-token.*
 
 # OpenCode local plugin install state

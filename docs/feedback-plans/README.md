@@ -38,15 +38,19 @@ triagato uses a device code flow to authenticate with PROD. On first run, it gen
 
 ```
 docs/feedback-plans/
-  README.md                           ← this file (committed)
-  cleancentive.org/               ← PROD plans (gitignored)
+  README.md                           ← this file
+  cleancentive.org/                   ← PROD plans
     {feedback-id}.md
-  localhost/                           ← local dev plans (gitignored)
+    fixed/{feedback-id}.md            ← closed by scripts/close-feedback.ts
+  localhost/                          ← local dev plans
     {feedback-id}.md
 ```
 
+## Closing a fixed feedback
+
+When a commit fixes a feedback item, mention the id in the commit body — `Fixes 019decd2` (case-insensitive, 8+ char prefix). On push to `main`, [.github/workflows/close-feedback.yml](../../.github/workflows/close-feedback.yml) updates the plan's frontmatter, moves it to `fixed/`, posts a comment on cleancentive.org, and sets the upstream status to `resolved`. See [docs/feedback-workflow.md](../feedback-workflow.md).
+
 ## Notes
 
-- Environment subfolders are **gitignored** — plans are local working documents
-- triagato is **read-only** — it never modifies feedback status upstream
+- triagato is **read-only** — it never modifies feedback status upstream. The closure flow above is what writes back.
 - Files are named `{feedback-id}.md` for easy cross-referencing
