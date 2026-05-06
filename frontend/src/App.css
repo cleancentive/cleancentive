@@ -2090,6 +2090,8 @@
 .status-filter-pills {
   display: flex;
   gap: 0.5rem;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .filter-pill {
@@ -2786,6 +2788,12 @@
 
   .community-list-header {
     flex-direction: column;
+  }
+
+  .community-list-filters {
+    width: 100%;
+    min-width: 0;
+    overflow-x: clip;
   }
 
   .community-create-form .form-row {
