@@ -276,6 +276,19 @@ export class SpotService {
     return spot;
   }
 
+  async getSpotPublic(spotId: string): Promise<Spot> {
+    const spot = await this.spotRepository.findOne({
+      where: { id: spotId },
+      relations: SpotService.ITEM_LABEL_RELATIONS,
+    });
+
+    if (!spot) {
+      throw new NotFoundException('Spot not found');
+    }
+
+    return spot;
+  }
+
   async listSpotsForUser(
     userId: string,
     limit: number,
@@ -457,7 +470,7 @@ export class SpotService {
     userId: string,
     input: { objectLabelId?: string; materialLabelId?: string; brandLabelId?: string; weightGrams?: number },
   ): Promise<DetectedItem> {
-    const spot = await this.spotRepository.findOne({ where: { id: spotId, user_id: userId } });
+    const spot = await this.spotRepository.findOne({ where: { id: spotId } });
     if (!spot) throw new NotFoundException('Spot not found');
 
     const labelFields: Array<{ field: string; labelId?: string; type: string }> = [
@@ -512,13 +525,67 @@ export class SpotService {
   }
 
   async deleteDetectedItem(itemId: string, spotId: string, userId: string): Promise<void> {
-    const spot = await this.spotRepository.findOne({ where: { id: spotId, user_id: userId } });
+    const spot = await this.spotRepository.findOne({ where: { id: spotId } });
     if (!spot) throw new NotFoundException('Spot not found');
 
     const item = await this.detectedItemRepository.findOne({ where: { id: itemId, spot_id: spotId } });
     if (!item) throw new NotFoundException('Detected item not found');
 
-    await this.detectedItemRepository.remove(item);
+    await this.dataSource.transaction(async (manager) => {
+      const fieldSnapshots: Array<{ field: string; value: string | null }> = [
+        { field: 'object_label_id', value: item.object_label_id },
+        { field: 'material_label_id', value: item.material_label_id },
+        { field: 'brand_label_id', value: item.brand_label_id },
+        { field: 'weight_grams', value: item.weight_grams !== null ? String(item.weight_grams) : null },
+      ];
+
+      for (const { field, value } of fieldSnapshots) {
+        if (value === null) continue;
+        const edit = this.detectedItemEditRepository.create({
+          detected_item_id: itemId,
+          field_changed: field,
+          old_value: value,
+          new_value: null,
+          created_by: userId,
+        });
+        await manager.save(edit);
+      }
+
+      const tombstone = this.detectedItemEditRepository.create({
+        detected_item_id: itemId,
+        field_changed: 'deleted',
+        old_value: itemId,
+        new_value: spotId,
+        created_by: userId,
+      });
+      await manager.save(tombstone);
+
+      await manager.remove(item);
+    });
+  }
+
+  async listSpotEditHistory(spotId: string): Promise<DetectedItemEdit[]> {
+    const spot = await this.spotRepository.findOne({ where: { id: spotId } });
+    if (!spot) throw new NotFoundException('Spot not found');
+
+    const liveItemIds = (await this.detectedItemRepository.find({
+      where: { spot_id: spotId },
+      select: ['id'],
+    })).map((row) => row.id);
+
+    const qb = this.detectedItemEditRepository
+      .createQueryBuilder('edit')
+      .leftJoinAndSelect('edit.user', 'user')
+      .where(`edit.field_changed = 'deleted' AND edit.new_value = :spotId`, { spotId });
+
+    if (liveItemIds.length > 0) {
+      qb.orWhere('edit.detected_item_id IN (:...liveItemIds)', { liveItemIds });
+    }
+
+    return qb
+      .orderBy('edit.created_at', 'DESC')
+      .addOrderBy('edit.id', 'DESC')
+      .getMany();
   }
 
   async deleteSpot(spotId: string, userId: string): Promise<void> {

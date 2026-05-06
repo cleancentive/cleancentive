@@ -269,6 +269,42 @@ export class SpotController {
     return this.toSpotDto(spot);
   }
 
+  @Get(':id/view')
+  async getSpotPublic(
+    @Param('id', ParseUUIDPipe) spotId: string,
+  ): Promise<SpotDto> {
+    const spot = await this.spotService.getSpotPublic(spotId);
+    return this.toSpotDto(spot);
+  }
+
+  @Get(':id/edit-history')
+  async getSpotEditHistory(
+    @Param('id', ParseUUIDPipe) spotId: string,
+  ): Promise<{ entries: Array<{
+    id: string;
+    detectedItemId: string | null;
+    fieldChanged: string;
+    oldValue: string | null;
+    newValue: string | null;
+    createdBy: string;
+    createdByName: string | null;
+    createdAt: Date;
+  }> }> {
+    const edits = await this.spotService.listSpotEditHistory(spotId);
+    return {
+      entries: edits.map((edit: any) => ({
+        id: edit.id,
+        detectedItemId: edit.detected_item_id,
+        fieldChanged: edit.field_changed,
+        oldValue: edit.old_value,
+        newValue: edit.new_value,
+        createdBy: edit.created_by,
+        createdByName: edit.user?.nickname ?? null,
+        createdAt: edit.created_at,
+      })),
+    };
+  }
+
   @Get()
   async listSpots(
     @Req() req: Request,

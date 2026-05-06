@@ -11,6 +11,7 @@ import { CleanupList } from './components/CleanupList'
 import { CleanupDetail } from './components/CleanupDetail'
 import { InsightsPage } from './components/InsightsPage'
 import { MapPage } from './components/MapPage'
+import { SpotDetail } from './components/SpotDetail'
 import { FeedbackPage } from './components/FeedbackPage'
 import { FeedbackNew } from './components/FeedbackNew'
 import { DeviceAuthPage } from './components/DeviceAuthPage'
@@ -57,6 +58,7 @@ function App() {
           <Route path="/cleanups/:id" element={<CleanupDetail />} />
           <Route path="/insights" element={<InsightsPage />} />
           <Route path="/map" element={<MapPage />} />
+          <Route path="/spots/:id" element={<SpotDetail />} />
           <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/feedback/new" element={<FeedbackNew />} />
           <Route path="/feedback/:id" element={<FeedbackPage />} />

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useMapStore } from '../stores/mapStore'
@@ -17,6 +18,7 @@ export function MapPage() {
   const { spotGeoJson, cleanupGeoJson, isLoading, error, fetchMapData } = useMapStore()
   const { user } = useAuthStore()
   const { datePreset, pickedUpFilter, myFilter } = useInsightsFilterStore()
+  const navigate = useNavigate()
 
   const teamId = user?.active_team_id ?? undefined
   const cleanupDateId = user?.active_cleanup_date_id ?? undefined
@@ -189,10 +191,19 @@ export function MapPage() {
               <strong>${p.topObject ? p.topObject.replace(/_/g, ' ') : (p.pickedUp === false ? 'Spot' : 'Pick')}</strong>
               <span>${formatDate(p.capturedAt)}</span>
               <span>${p.itemCount} item${p.itemCount !== 1 ? 's' : ''} detected</span>
+              <a class="map-popup-link" href="/spots/${p.id}" data-spot-id="${p.id}">Open spot &rarr;</a>
             </div>
           </div>
         `
-        new maplibregl.Popup({ offset: 10 }).setLngLat(coords).setHTML(html).addTo(map)
+        const popup = new maplibregl.Popup({ offset: 10 }).setLngLat(coords).setHTML(html).addTo(map)
+        const popupEl = popup.getElement()
+        const link = popupEl?.querySelector<HTMLAnchorElement>('.map-popup-link')
+        if (link) {
+          link.addEventListener('click', (ev) => {
+            ev.preventDefault()
+            navigate(`/spots/${link.dataset.spotId}`)
+          })
+        }
       })
 
       // Click: cleanup popup

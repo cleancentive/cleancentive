@@ -7,10 +7,10 @@ export class DetectedItemEdit {
   @PrimaryColumn('uuid')
   id: string;
 
-  @Column('uuid')
-  detected_item_id: string;
+  @Column('uuid', { nullable: true })
+  detected_item_id: string | null;
 
-  @ManyToOne('DetectedItem', { onDelete: 'CASCADE' })
+  @ManyToOne('DetectedItem', { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'detected_item_id' })
   detected_item: any;
 
