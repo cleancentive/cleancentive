@@ -18,12 +18,24 @@ import { AdminService } from '../admin/admin.service';
 import { UserEmail } from '../user/user-email.entity';
 import { EmailService } from '../email/email.service';
 
+const STEWARDS_SYSTEM_KEY = 'stewards';
+const SYSTEM_MEMBERSHIP_MANAGED_BY_STEWARD_ROLE = 'steward-role';
+
 interface SearchTeamsInput {
   query?: string;
   includeArchived?: boolean;
   memberOnly?: boolean;
   currentUserIsPlatformAdmin: boolean;
   userId?: string;
+}
+
+export interface TeamListItem {
+  team: Team;
+  userRole: string | null;
+  isPartner: boolean;
+  isSystem: boolean;
+  systemKey: string | null;
+  membershipManagedBy: string | null;
 }
 
 interface CreateTeamInput {
@@ -117,7 +129,67 @@ export class TeamService {
     }
   }
 
-  async searchTeams(input: SearchTeamsInput): Promise<Array<{ team: Team; userRole: string | null; isPartner: boolean }>> {
+  private isStewardsTeam(team: Team): boolean {
+    return team.system_key === STEWARDS_SYSTEM_KEY;
+  }
+
+  private ensureTeamNotSystemManaged(team: Team): void {
+    if (this.isStewardsTeam(team)) {
+      throw new BadRequestException('Stewards team membership is managed by the steward role');
+    }
+  }
+
+  private getSystemTeamMetadata(team: Team): { isSystem: boolean; systemKey: string | null; membershipManagedBy: string | null } {
+    return {
+      isSystem: !!team.system_key,
+      systemKey: team.system_key,
+      membershipManagedBy: this.isStewardsTeam(team) ? SYSTEM_MEMBERSHIP_MANAGED_BY_STEWARD_ROLE : null,
+    };
+  }
+
+  async ensureStewardTeamMemberships(): Promise<void> {
+    const stewardsTeam = await this.teamRepository.findOne({ where: { system_key: STEWARDS_SYSTEM_KEY } });
+    if (!stewardsTeam) return;
+
+    const stewardUserIds = await this.adminService.getAdminUserIds();
+    const currentMemberships = await this.teamMembershipRepository.find({ where: { team_id: stewardsTeam.id } });
+    const stewardUserIdSet = new Set(stewardUserIds);
+    const membershipByUserId = new Map(currentMemberships.map((membership) => [membership.user_id, membership]));
+
+    for (const stewardUserId of stewardUserIds) {
+      const existingMembership = membershipByUserId.get(stewardUserId);
+      if (!existingMembership) {
+        const membership = this.teamMembershipRepository.create({
+          team_id: stewardsTeam.id,
+          user_id: stewardUserId,
+          role: 'organizer',
+        });
+        await this.teamMembershipRepository.save(membership);
+        continue;
+      }
+
+      if (existingMembership.role !== 'organizer') {
+        existingMembership.role = 'organizer';
+        await this.teamMembershipRepository.save(existingMembership);
+      }
+    }
+
+    for (const membership of currentMemberships) {
+      if (!stewardUserIdSet.has(membership.user_id)) {
+        await this.teamMembershipRepository.delete({ id: membership.id });
+        await this.userRepository.update(
+          { id: membership.user_id, active_team_id: stewardsTeam.id },
+          { active_team_id: null, updated_by: membership.user_id },
+        );
+      }
+    }
+  }
+
+  async searchTeams(input: SearchTeamsInput): Promise<TeamListItem[]> {
+    if (input.userId) {
+      await this.ensureStewardTeamMemberships();
+    }
+
     const qb = this.teamRepository.createQueryBuilder('team').orderBy('team.created_at', 'DESC');
     if (input.query?.trim()) {
       const query = `%${input.query.trim()}%`;
@@ -157,6 +229,7 @@ export class TeamService {
       team,
       userRole: membershipMap.get(team.id) || null,
       isPartner: partnerTeamIds.has(team.id),
+      ...this.getSystemTeamMetadata(team),
     }));
 
     if (input.memberOnly) {
@@ -214,9 +287,15 @@ export class TeamService {
     userRole: string | null;
     isPartner: boolean;
     outlineCollectionId: string | null;
+    isSystem: boolean;
+    systemKey: string | null;
+    membershipManagedBy: string | null;
     emailPatterns?: Array<{ id: string; email_pattern: string }>;
   }> {
     const team = await this.getTeam(teamId);
+    if (this.isStewardsTeam(team)) {
+      await this.ensureStewardTeamMemberships();
+    }
 
     const memberships = await this.teamMembershipRepository.find({
       where: { team_id: teamId },
@@ -250,7 +329,14 @@ export class TeamService {
     const outlineMapping = await this.teamOutlineCollectionRepository.findOne({ where: { team_id: teamId } });
     const outlineCollectionId = outlineMapping?.outline_collection_id ?? null;
 
-    const result: any = { team, members, userRole, isPartner, outlineCollectionId };
+    const result: any = {
+      team,
+      members,
+      userRole,
+      isPartner,
+      outlineCollectionId,
+      ...this.getSystemTeamMetadata(team),
+    };
 
     // Only expose email patterns and custom_css to platform admins
     if (isPlatformAdmin && isPartner) {
@@ -265,6 +351,7 @@ export class TeamService {
     await this.ensureRegisteredUser(actorUserId);
     const team = await this.getTeamOrThrow(teamId);
     await this.ensureTeamNotArchived(team);
+    this.ensureTeamNotSystemManaged(team);
     await this.ensureOrganizer(teamId, actorUserId);
 
     const oldName = team.name;
@@ -294,6 +381,7 @@ export class TeamService {
     await this.ensureRegisteredUser(userId);
     const team = await this.getTeamOrThrow(teamId);
     await this.ensureTeamNotArchived(team);
+    this.ensureTeamNotSystemManaged(team);
 
     if (await this.isPartnerTeam(teamId)) {
       throw new BadRequestException('Partner teams are managed automatically based on email domains');
@@ -316,6 +404,10 @@ export class TeamService {
 
   async leaveTeam(teamId: string, userId: string): Promise<{ left: boolean }> {
     await this.ensureRegisteredUser(userId);
+
+    const team = await this.getTeamOrThrow(teamId);
+    await this.ensureTeamNotArchived(team);
+    this.ensureTeamNotSystemManaged(team);
 
     if (await this.isPartnerTeam(teamId)) {
       throw new BadRequestException('Partner teams are managed automatically based on email domains');
@@ -413,6 +505,7 @@ export class TeamService {
     await this.ensureRegisteredUser(actorUserId);
     const team = await this.getTeamOrThrow(teamId);
     await this.ensureTeamNotArchived(team);
+    this.ensureTeamNotSystemManaged(team);
     await this.ensureOrganizer(teamId, actorUserId);
 
     const membership = await this.getMembership(teamId, targetUserId);
@@ -431,6 +524,7 @@ export class TeamService {
   async archiveTeam(teamId: string, actorUserId: string): Promise<void> {
     await this.ensureRegisteredUser(actorUserId);
     const team = await this.getTeamOrThrow(teamId);
+    this.ensureTeamNotSystemManaged(team);
     await this.ensureOrganizer(teamId, actorUserId);
     if (team.archived_at) {
       return;
@@ -518,7 +612,8 @@ export class TeamService {
   }
 
   async setEmailPatterns(teamId: string, patterns: string[]): Promise<TeamEmailPattern[]> {
-    await this.getTeamOrThrow(teamId);
+    const team = await this.getTeamOrThrow(teamId);
+    this.ensureTeamNotSystemManaged(team);
 
     // Replace all patterns for this team
     await this.teamEmailPatternRepository.delete({ team_id: teamId });
@@ -540,6 +635,7 @@ export class TeamService {
 
   async updateCustomCss(teamId: string, customCss: string | null): Promise<Team> {
     const team = await this.getTeamOrThrow(teamId);
+    this.ensureTeamNotSystemManaged(team);
     team.custom_css = customCss || null;
     return this.teamRepository.save(team);
   }
@@ -956,6 +1052,12 @@ export class TeamService {
       this.logger.warn(`User ${email} matches multiple partner teams: ${names}`);
       await this.alertAdminsMultiMatch(email, teamNames.map((t) => t.name));
     }
+  }
+
+  @OnEvent('admin.promoted')
+  @OnEvent('admin.demoted')
+  async reconcileStewardTeamMemberships(): Promise<void> {
+    await this.ensureStewardTeamMemberships();
   }
 
   private async findEmailsMatchingPattern(pattern: string): Promise<UserEmail[]> {

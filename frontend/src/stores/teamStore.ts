@@ -17,6 +17,8 @@ interface TeamSummary {
   created_at: string
 }
 
+type TeamMembershipManagedBy = 'steward-role' | 'email-domain' | null
+
 interface TeamMember {
   userId: string
   nickname: string
@@ -30,6 +32,9 @@ interface TeamDetail {
   userRole: string | null
   isPartner: boolean
   outlineCollectionId: string | null
+  isSystem: boolean
+  systemKey: string | null
+  membershipManagedBy: TeamMembershipManagedBy
   emailPatterns?: Array<{ id: string; email_pattern: string }>
 }
 
@@ -47,6 +52,9 @@ interface TeamSearchResult {
   team: TeamSummary
   userRole: string | null
   isPartner: boolean
+  isSystem: boolean
+  systemKey: string | null
+  membershipManagedBy: TeamMembershipManagedBy
 }
 
 interface TeamState {

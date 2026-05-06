@@ -9,4 +9,13 @@ export class TeamOutlineCollection extends BaseEntity {
 
   @Column('varchar')
   outline_collection_id: string;
+
+  @Column('varchar', { nullable: true })
+  outline_group_id: string | null;
+
+  @Column('varchar', { nullable: true })
+  outline_share_id: string | null;
+
+  @Column('timestamp', { nullable: true })
+  initialized_at: Date | null;
 }

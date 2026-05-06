@@ -135,8 +135,9 @@ export function TeamList() {
         if (myFilter && t.userRole === null) return false
         if (user?.active_team_id && t.team.id !== user.active_team_id) return false
         return true
-      }).map(({ team, userRole, isPartner }) => {
+      }).map(({ team, userRole, isPartner, systemKey, membershipManagedBy }) => {
         const activeTeamId = user?.active_team_id
+        const isStewardsTeam = systemKey === 'stewards' || membershipManagedBy === 'steward-role'
         return (
           <CommunityCard
             key={team.id}
@@ -145,6 +146,8 @@ export function TeamList() {
             description={team.description}
             tags={
               <>
+                {isStewardsTeam && <span className="badge steward-badge">Stewards</span>}
+                {!isStewardsTeam && membershipManagedBy && <span className="badge">Managed</span>}
                 {isPartner && <span className="badge" style={{ background: 'var(--color-badge-partner)' }}>Partner</span>}
                 {userRole && <span className={`badge ${userRole === 'admin' ? 'admin-badge' : ''}`}>{userRole}</span>}
                 {activeTeamId === team.id && <span className="badge" style={{ background: 'var(--color-badge-active)' }}>Active</span>}

@@ -61,6 +61,13 @@ A group of users who pick litter together. Unchanged from current usage.
 
 - **UI examples:** "Create a team", "Join a team", "Team members"
 
+### System Team
+
+A team managed by Cleancentive instead of by ordinary team organizers. System teams can be listed in Teams, but membership and management actions are controlled by platform rules.
+
+- **Current system team:** `Stewards`
+- **UI examples:** "Membership is managed by the steward role."
+
 ### Cleanup
 
 An organized, community-scale litter removal activity. This is what the wider litter-picking community universally calls these (beach cleanup, park cleanup, community cleanup). Replaces "Event" in all contexts.
@@ -90,6 +97,7 @@ A volunteer who maintains the CleanCentive platform and responds to user feedbac
 
 - **UI examples:** "Steward" nav link, "Steward" badge in feedback conversations
 - **Route:** `/steward`
+- **Team:** Stewards are members of the system-managed `Stewards` team.
 - **Distinct from:** Organizer (community role within teams/cleanups), Admin (internal code concept — `AdminGuard`, `adminStore`)
 
 ### Feedback
