@@ -1,14 +1,18 @@
 import {
+  ArgumentsHost,
   BadRequestException,
   Body,
+  Catch,
   Controller,
   Delete,
+  ExceptionFilter,
   Get,
   HttpCode,
   NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
+  PayloadTooLargeException,
   Post,
   Query,
   Req,
@@ -16,11 +20,25 @@ import {
   StreamableFile,
   UnauthorizedException,
   UploadedFiles,
+  UseFilters,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import { BaseExceptionFilter } from '@nestjs/core';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { MulterError } from 'multer';
 import type { Request, Response } from 'express';
+
+@Catch(MulterError)
+class MulterExceptionFilter extends BaseExceptionFilter implements ExceptionFilter {
+  catch(error: MulterError, host: ArgumentsHost) {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      super.catch(new PayloadTooLargeException(`Upload exceeds maximum allowed size`), host);
+      return;
+    }
+    super.catch(new BadRequestException(error.message || 'Upload failed'), host);
+  }
+}
 import { SpotService } from './spot.service';
 import { AuthService } from '../auth/auth.service';
 import { UserService } from '../user/user.service';
@@ -162,6 +180,7 @@ export class SpotController {
 
   @Post()
   @HttpCode(202)
+  @UseFilters(MulterExceptionFilter)
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -187,7 +206,7 @@ export class SpotController {
     }
 
     if (image.size > this.maxUploadSizeBytes) {
-      throw new BadRequestException(`image exceeds max size of ${this.maxUploadSizeBytes} bytes`);
+      throw new PayloadTooLargeException(`image exceeds max size of ${this.maxUploadSizeBytes} bytes`);
     }
 
     const body = req.body as Record<string, string | undefined>;

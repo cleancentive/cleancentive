@@ -3,7 +3,16 @@
 
   @api path /api/*
   handle @api {
-    reverse_proxy backend:3000
+    request_body {
+      max_size 32MB
+    }
+    reverse_proxy backend:3000 {
+      transport http {
+        read_timeout 120s
+        write_timeout 120s
+        response_header_timeout 60s
+      }
+    }
   }
 
   handle {

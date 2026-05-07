@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } f
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useCleanupStore } from '../stores/cleanupStore'
-import { flushOutbox, queueCapture } from '../lib/pendingPicks'
+import { cancelScheduledFlush, flushOutbox, queueCapture } from '../lib/pendingPicks'
 import { extractImageMetadata } from '../lib/imageMetadata'
 import { trackEvent } from '../lib/analytics'
 import { createBlobFromCanvas, createThumbnailFromCanvas, createThumbnailFromBlob } from '../lib/thumbnail'
@@ -54,7 +54,6 @@ export function CapturePanel() {
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const syncInProgressRef = useRef(false)
   const [isCameraActive, setIsCameraActive] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
   const [isImportingFile, setIsImportingFile] = useState(false)
@@ -69,42 +68,25 @@ export function CapturePanel() {
   const locationAccepted = Boolean(location && (DISABLE_LOCATION_ACCURACY_CHECK || locationWithinAccuracy))
 
   const runSync = useCallback(async () => {
-    if (!useConnectivityStore.getState().isOnline || syncInProgressRef.current) {
+    if (!useConnectivityStore.getState().isOnline) {
+      cancelScheduledFlush()
       return
     }
 
-    syncInProgressRef.current = true
-
-    try {
-      await flushOutbox({
-        apiBase: API_BASE,
-        sessionToken,
-        currentUserId: user?.id || null,
-        currentGuestId: guestId,
-      })
-      notifyPicksChanged()
-    } finally {
-      syncInProgressRef.current = false
-    }
+    await flushOutbox({
+      apiBase: API_BASE,
+      sessionToken,
+      currentUserId: user?.id || null,
+      currentGuestId: guestId,
+      isOnline: () => useConnectivityStore.getState().isOnline,
+    })
   }, [guestId, sessionToken, user?.id])
 
-  // Sync on mount and when going online
   useEffect(() => {
-    runSync()
-  }, [runSync])
-
-  useEffect(() => {
-    if (!isOnline) return
-
-    // Came online — trigger sync immediately
-    runSync()
-
-    const interval = window.setInterval(() => {
-      runSync()
-    }, 15000)
-
-    return () => {
-      window.clearInterval(interval)
+    if (isOnline) {
+      void runSync()
+    } else {
+      cancelScheduledFlush()
     }
   }, [isOnline, runSync])
 

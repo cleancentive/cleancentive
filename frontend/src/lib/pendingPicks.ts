@@ -52,6 +52,7 @@ interface FlushContext {
   sessionToken: string | null
   currentUserId: string | null
   currentGuestId: string | null
+  isOnline?: () => boolean
 }
 
 class UploadRequestError extends Error {
@@ -63,13 +64,114 @@ class UploadRequestError extends Error {
   }
 }
 
+const PROXY_HICCUP_STATUSES = new Set([502, 503, 504])
+const PROXY_HICCUP_SCHEDULE_MS = [15_000, 30_000, 60_000]
+
 function getRetryDelayMs(attempt: number, status?: number): number {
   if (status && status >= 400 && status < 500 && status !== 429) {
     return 24 * 60 * 60 * 1000
   }
 
+  if (status && PROXY_HICCUP_STATUSES.has(status) && attempt - 1 < PROXY_HICCUP_SCHEDULE_MS.length) {
+    return PROXY_HICCUP_SCHEDULE_MS[attempt - 1]
+  }
+
   const exponential = 5000 * 2 ** Math.min(attempt, 8)
   return Math.min(exponential, 15 * 60 * 1000)
+}
+
+function shouldReportFailure(attempt: number, status: number | null, alreadyReported: boolean): boolean {
+  if (alreadyReported) return false
+  if (status !== null && PROXY_HICCUP_STATUSES.has(status)) return true
+  return attempt >= REPORT_ATTEMPT_THRESHOLD
+}
+
+function isContextOnline(context: FlushContext): boolean {
+  if (context.isOnline) return context.isOnline()
+  if (typeof navigator === 'undefined') return true
+  return navigator.onLine !== false
+}
+
+function isTabVisible(): boolean {
+  if (typeof document === 'undefined') return true
+  return document.visibilityState !== 'hidden'
+}
+
+function emitPicksChanged(): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new Event('picks-changed'))
+}
+
+let scheduledTimerId: ReturnType<typeof setTimeout> | null = null
+let listenersRegistered = false
+let lastContext: FlushContext | null = null
+let flushInFlight = false
+
+function clearScheduledFlush(): void {
+  if (scheduledTimerId !== null) {
+    clearTimeout(scheduledTimerId)
+    scheduledTimerId = null
+  }
+}
+
+export function cancelScheduledFlush(): void {
+  clearScheduledFlush()
+}
+
+function ensureListeners(): void {
+  if (listenersRegistered) return
+  if (typeof window === 'undefined' || typeof document === 'undefined') return
+  listenersRegistered = true
+
+  window.addEventListener('online', () => {
+    if (lastContext) void flushOutbox(lastContext)
+  })
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      clearScheduledFlush()
+    } else if (lastContext) {
+      void flushOutbox(lastContext)
+    }
+  })
+}
+
+export async function scheduleNextFlush(context: FlushContext): Promise<void> {
+  lastContext = context
+  ensureListeners()
+  clearScheduledFlush()
+
+  if (!isContextOnline(context) || !isTabVisible()) {
+    return
+  }
+
+  const items = await getOutboxItems()
+  const now = Date.now()
+
+  const dueNow = items.some(
+    (item) => item.status === 'pending' || (item.status === 'failed' && item.nextRetryAt <= now),
+  )
+  if (dueNow) {
+    void flushOutbox(context)
+    return
+  }
+
+  let nextAt = Number.POSITIVE_INFINITY
+  for (const item of items) {
+    if (item.status === 'failed' && item.nextRetryAt > now && item.nextRetryAt < nextAt) {
+      nextAt = item.nextRetryAt
+    }
+  }
+
+  if (!Number.isFinite(nextAt)) {
+    return
+  }
+
+  const delay = Math.max(1000, Math.min(nextAt - now, 15 * 60 * 1000))
+  scheduledTimerId = setTimeout(() => {
+    scheduledTimerId = null
+    if (lastContext) void flushOutbox(lastContext)
+  }, delay)
 }
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -277,65 +379,85 @@ async function uploadItem(item: OutboxItem, context: FlushContext): Promise<void
 }
 
 export async function flushOutbox(context: FlushContext): Promise<void> {
-  const items = await getOutboxItems()
-  const now = Date.now()
+  lastContext = context
+  ensureListeners()
 
-  for (const item of items) {
-    const retryReady = item.status === 'failed' && (item.nextRetryAt <= now || !item.nextRetryAt)
-    if (item.status !== 'pending' && !retryReady) {
-      continue
-    }
+  if (flushInFlight) return
+  if (!isContextOnline(context)) {
+    clearScheduledFlush()
+    return
+  }
 
-    if (!canCurrentIdentityUpload(item, context)) {
-      const ageMs = now - item.createdAt
-      if ((item.reportedAt ?? null) === null && ageMs >= REPORT_IDENTITY_MISMATCH_MIN_AGE_MS) {
-        reportClientEvent({
-          eventType: 'pick.upload.skipped.identity-mismatch',
-          itemId: item.id,
-          attempts: item.attempts,
-          ageMs,
-          identityHint: identityHintFor(item, context),
-        })
-        await updateOutboxItem(item.id, (current) => ({ ...current, reportedAt: Date.now() }))
+  flushInFlight = true
+  let stateChanged = false
+
+  try {
+    const items = await getOutboxItems()
+    const now = Date.now()
+
+    for (const item of items) {
+      const retryReady = item.status === 'failed' && (item.nextRetryAt <= now || !item.nextRetryAt)
+      if (item.status !== 'pending' && !retryReady) {
+        continue
       }
-      continue
-    }
 
-    await updateOutboxItem(item.id, (current) => ({
-      ...current,
-      status: 'uploading',
-      lastError: null,
-    }))
-
-    try {
-      await uploadItem(item, context)
-      await removeOutboxItem(item.id)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Upload failed'
-      const status = error instanceof UploadRequestError ? error.status : null
-      const nextAttempts = item.attempts + 1
-      const shouldReport = nextAttempts >= REPORT_ATTEMPT_THRESHOLD && (item.reportedAt ?? null) === null
-      const reportedAt = shouldReport ? Date.now() : (item.reportedAt ?? null)
+      if (!canCurrentIdentityUpload(item, context)) {
+        const ageMs = now - item.createdAt
+        if ((item.reportedAt ?? null) === null && ageMs >= REPORT_IDENTITY_MISMATCH_MIN_AGE_MS) {
+          reportClientEvent({
+            eventType: 'pick.upload.skipped.identity-mismatch',
+            itemId: item.id,
+            attempts: item.attempts,
+            ageMs,
+            identityHint: identityHintFor(item, context),
+          })
+          await updateOutboxItem(item.id, (current) => ({ ...current, reportedAt: Date.now() }))
+        }
+        continue
+      }
 
       await updateOutboxItem(item.id, (current) => ({
         ...current,
-        status: 'failed',
-        attempts: current.attempts + 1,
-        lastError: message,
-        nextRetryAt: Date.now() + getRetryDelayMs(current.attempts + 1, status ?? undefined),
-        reportedAt,
+        status: 'uploading',
+        lastError: null,
       }))
+      stateChanged = true
 
-      if (shouldReport) {
-        reportClientEvent({
-          eventType: 'pick.upload.failed',
-          itemId: item.id,
-          attempts: nextAttempts,
-          ageMs: Date.now() - item.createdAt,
-          status,
-          message,
-        })
+      try {
+        await uploadItem(item, context)
+        await removeOutboxItem(item.id)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Upload failed'
+        const status = error instanceof UploadRequestError ? error.status : null
+        const nextAttempts = item.attempts + 1
+        const alreadyReported = (item.reportedAt ?? null) !== null
+        const shouldReport = shouldReportFailure(nextAttempts, status, alreadyReported)
+        const reportedAt = shouldReport ? Date.now() : (item.reportedAt ?? null)
+
+        await updateOutboxItem(item.id, (current) => ({
+          ...current,
+          status: 'failed',
+          attempts: current.attempts + 1,
+          lastError: message,
+          nextRetryAt: Date.now() + getRetryDelayMs(current.attempts + 1, status ?? undefined),
+          reportedAt,
+        }))
+
+        if (shouldReport) {
+          reportClientEvent({
+            eventType: 'pick.upload.failed',
+            itemId: item.id,
+            attempts: nextAttempts,
+            ageMs: Date.now() - item.createdAt,
+            status,
+            message,
+          })
+        }
       }
     }
+  } finally {
+    flushInFlight = false
+    if (stateChanged) emitPicksChanged()
+    void scheduleNextFlush(context)
   }
 }

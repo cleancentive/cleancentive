@@ -41,6 +41,14 @@ interface StageState {
   status: StageStatus
 }
 
+function formatRetryCountdown(ms: number): string {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000))
+  if (totalSeconds < 60) return `${totalSeconds}s`
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`
+}
+
 function mapRowToStages(row: Row): { stages: [StageState, StageState, StageState]; errorMessage: string | null } {
   if (row.kind === 'local') {
     const s = row.item.status
@@ -126,10 +134,11 @@ function stageIcon(status: StageStatus) {
   return <DotIcon />
 }
 
-function LifecycleStepper({ stages, errorMessage, onRetry }: {
+function LifecycleStepper({ stages, errorMessage, onRetry, retryInMs }: {
   stages: [StageState, StageState, StageState]
   errorMessage: string | null
   onRetry: (() => void) | null
+  retryInMs: number | null
 }) {
   return (
     <div className="lifecycle-stepper">
@@ -149,9 +158,12 @@ function LifecycleStepper({ stages, errorMessage, onRetry }: {
         ))}
       </div>
       {errorMessage && <p className="history-error">{errorMessage}</p>}
+      {retryInMs !== null && retryInMs > 0 && (
+        <p className="history-retry-countdown">Retrying in {formatRetryCountdown(retryInMs)}</p>
+      )}
       {onRetry && (
         <button className="secondary-button history-retry-button" onClick={onRetry}>
-          Retry
+          Retry now
         </button>
       )}
     </div>
@@ -183,7 +195,19 @@ export function HistoryPanel() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [editingSpotId, setEditingSpotId] = useState<string | null>(null)
+  const [tickNow, setTickNow] = useState(() => Date.now())
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const hasFutureRetry = useMemo(
+    () => outboxItems.some((item) => item.status === 'failed' && item.nextRetryAt > tickNow),
+    [outboxItems, tickNow],
+  )
+
+  useEffect(() => {
+    if (!hasFutureRetry) return
+    const id = window.setInterval(() => setTickNow(Date.now()), 1000)
+    return () => window.clearInterval(id)
+  }, [hasFutureRetry])
 
   const { pickedUpFilter, datePreset } = useInsightsFilterStore()
 
@@ -385,6 +409,9 @@ export function HistoryPanel() {
                 ? () => { void retrySync() }
                 : () => { void retryDetection(row.item.id) }
               : null
+            const retryInMs = row.kind === 'local' && row.item.status === 'failed' && row.item.nextRetryAt > tickNow
+              ? row.item.nextRetryAt - tickNow
+              : null
 
             const thumbSrc = row.kind === 'local'
               ? localThumbnails.get(row.item.id) ?? null
@@ -431,7 +458,7 @@ export function HistoryPanel() {
                       )}
                     </span>
 
-                    <LifecycleStepper stages={stages} errorMessage={errorMessage} onRetry={onRetry} />
+                    <LifecycleStepper stages={stages} errorMessage={errorMessage} onRetry={onRetry} retryInMs={retryInMs} />
 
                     <p className="history-meta">
                       {formatCoordinate(row.item.latitude)}, {formatCoordinate(row.item.longitude)} | accuracy {Math.round(row.item.accuracyMeters)}m

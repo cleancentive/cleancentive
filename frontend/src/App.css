@@ -1282,6 +1282,13 @@
   font-size: 0.86rem;
 }
 
+.history-retry-countdown {
+  margin: 0.25rem 0 0;
+  color: var(--color-text-muted, #6b7280);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .history-retry-button {
   margin-top: 0.5rem;
   width: auto;
