@@ -50,6 +50,10 @@ const UMAMI_WIKI_DOMAIN = process.env.UMAMI_WIKI_DOMAIN ?? new URL(OUTLINE_PUBLI
 
 const TEAM_LOGO_URL =
   process.env.OUTLINE_TEAM_LOGO_URL ?? 'https://cleancentive.local/icon.svg';
+const TEAM_NAME = process.env.OUTLINE_TEAM_NAME ?? 'CleanCentive Wiki';
+// Source of truth: --app-primary in frontend/src/index.css.
+const TEAM_THEME_ACCENT = process.env.OUTLINE_TEAM_THEME_ACCENT ?? '#2563eb';
+const TEAM_THEME_ACCENT_TEXT = process.env.OUTLINE_TEAM_THEME_ACCENT_TEXT ?? '#ffffff';
 const OUTLINE_S3_BUCKET = process.env.OUTLINE_S3_BUCKET ?? 'cleancentive-wiki';
 
 const PG_OUTLINE = {
@@ -109,13 +113,20 @@ async function getOrCreateUmamiWikiWebsite(): Promise<string> {
 // --- Outline DB: provision Umami + branding --------------------------------
 // Avatar sync and admin role sync are now handled in real-time by the
 // backend's OutlineSyncService (backend/src/outline-sync/).
-type TeamRow = { id: string; avatarUrl: string | null };
+type TeamRow = {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  preferences: { customTheme?: { accent?: string; accentText?: string } } | null;
+};
 
 async function provisionInOutline(websiteId: string): Promise<void> {
   const pg = new PgClient(PG_OUTLINE);
   await pg.connect();
   try {
-    const teams = await pg.query<TeamRow>(`SELECT id, "avatarUrl" FROM teams LIMIT 1`);
+    const teams = await pg.query<TeamRow>(
+      `SELECT id, name, "avatarUrl", preferences FROM teams LIMIT 1`,
+    );
     const team = teams.rows[0];
     if (!team) {
       console.log('Outline: no team yet (no SSO sign-in has happened) — skipping provisioning.');
@@ -124,13 +135,38 @@ async function provisionInOutline(websiteId: string): Promise<void> {
       return;
     }
 
-    // Branding
+    // Branding: avatar
     if (team.avatarUrl !== TEAM_LOGO_URL) {
       await pg.query(`UPDATE teams SET "avatarUrl" = $1, "updatedAt" = NOW() WHERE id = $2`, [
         TEAM_LOGO_URL,
         team.id,
       ]);
       console.log(`Outline: set workspace avatar → ${TEAM_LOGO_URL}`);
+    }
+
+    // Branding: workspace name (shown in sidebar header and browser tab title)
+    if (team.name !== TEAM_NAME) {
+      await pg.query(`UPDATE teams SET "name" = $1, "updatedAt" = NOW() WHERE id = $2`, [
+        TEAM_NAME,
+        team.id,
+      ]);
+      console.log(`Outline: set workspace name → ${TEAM_NAME}`);
+    }
+
+    // Branding: accent color (overrides Outline's default on buttons, links, active sidebar)
+    const currentTheme = team.preferences?.customTheme;
+    if (
+      currentTheme?.accent !== TEAM_THEME_ACCENT ||
+      currentTheme?.accentText !== TEAM_THEME_ACCENT_TEXT
+    ) {
+      await pg.query(
+        `UPDATE teams
+         SET preferences = jsonb_set(COALESCE(preferences, '{}'::jsonb), '{customTheme}', $1::jsonb, true),
+             "updatedAt" = NOW()
+         WHERE id = $2`,
+        [JSON.stringify({ accent: TEAM_THEME_ACCENT, accentText: TEAM_THEME_ACCENT_TEXT }), team.id],
+      );
+      console.log(`Outline: set custom theme accent → ${TEAM_THEME_ACCENT}`);
     }
 
     // Umami integration
