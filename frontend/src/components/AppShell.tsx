@@ -7,6 +7,7 @@ import { UserMenuButton } from './UserMenuButton'
 import { GuestBanner } from './GuestBanner'
 import { SignInModal } from './SignInModal'
 import { FeedbackModal } from './FeedbackModal'
+import { AboutModal } from './AboutModal'
 import { ErrorBoundary } from './ErrorBoundary'
 import { ContextBar } from './ContextBar'
 import { useFeedbackStore } from '../stores/feedbackStore'
@@ -183,6 +184,7 @@ export function AppShell() {
 
       <SignInModal />
       <FeedbackModal />
+      <AboutModal />
     </div>
   )
 }

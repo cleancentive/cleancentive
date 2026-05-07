@@ -21,6 +21,16 @@ function FeedbackIcon() {
   )
 }
 
+function InfoIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="10" cy="10" r="8" />
+      <path d="M10 9v5" />
+      <circle cx="10" cy="6.5" r="0.5" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 function LogoutIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -33,7 +43,7 @@ function LogoutIcon() {
 
 export function UserMenuButton() {
   const { user, logout } = useAuthStore()
-  const { openSignInModal, pickCount } = useUiStore()
+  const { openSignInModal, openAboutModal, pickCount } = useUiStore()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
@@ -100,6 +110,13 @@ export function UserMenuButton() {
           >
             <FeedbackIcon />
             My Feedback
+          </button>
+          <button
+            className="user-menu-dropdown-item"
+            onClick={() => { setOpen(false); openAboutModal() }}
+          >
+            <InfoIcon />
+            About
           </button>
           {(user.active_team_name || user.active_cleanup_name) && (
             <>
