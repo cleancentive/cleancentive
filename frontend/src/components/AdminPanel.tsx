@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { useAdminStore } from '../stores/adminStore'
+import { useVersionStore } from '../stores/versionStore'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { formatTimestamp } from '../utils/formatTimestamp'
@@ -8,6 +9,19 @@ import { CountdownButton } from './CountdownButton'
 import { UMAMI_SHARE_URL } from '../lib/analytics'
 import { Avatar } from './Avatar'
 import { FEEDBACK_STATUS_COLORS } from '../lib/statusColors'
+
+const REPO_URL = 'https://github.com/cleancentive/cleancentive'
+
+function renderCommit(commit: string | undefined, commitShort: string | undefined) {
+  if (!commit || !commitShort || commit === 'dev') {
+    return commitShort ?? '-'
+  }
+  return (
+    <a href={`${REPO_URL}/commit/${commit}`} target="_blank" rel="noopener noreferrer" title={commit}>
+      {commitShort}
+    </a>
+  )
+}
 
 function formatAge(seconds: number | null) {
   if (seconds === null) {
@@ -79,9 +93,8 @@ export function AdminPanel() {
     updateFeedbackStatus,
     addAdminResponse,
     toggleFeedbackStatus,
-    versionInfo,
-    fetchVersionInfo,
   } = useAdminStore()
+  const { versionInfo, fetchVersionInfo } = useVersionStore()
 
   const [searchInput, setSearchInput] = useState(search)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -287,17 +300,17 @@ export function AdminPanel() {
           <tbody>
             <tr>
               <td>Backend</td>
-              <td className="ops-version-hash">{versionInfo?.backend.version ?? '-'}</td>
+              <td className="ops-version-hash">{renderCommit(versionInfo?.backend?.commit, versionInfo?.backend?.commitShort)}</td>
               <td>{versionInfo?.backend.buildTime ? formatTimestamp(new Date(versionInfo.backend.buildTime * 1000).toISOString()) : '-'}</td>
             </tr>
             <tr>
               <td>Frontend</td>
-              <td className="ops-version-hash">{__APP_VERSION__}</td>
+              <td className="ops-version-hash">{renderCommit(__APP_COMMIT__, __APP_COMMIT_SHORT__)}</td>
               <td>{__APP_BUILD_TIME__ ? formatTimestamp(new Date(__APP_BUILD_TIME__ * 1000).toISOString()) : '-'}</td>
             </tr>
             <tr>
               <td>Worker</td>
-              <td className="ops-version-hash">{versionInfo?.worker?.version ?? '-'}</td>
+              <td className="ops-version-hash">{renderCommit(versionInfo?.worker?.commit, versionInfo?.worker?.commitShort)}</td>
               <td>{versionInfo?.worker?.buildTime ? formatTimestamp(new Date(versionInfo.worker.buildTime * 1000).toISOString()) : '-'}</td>
             </tr>
           </tbody>

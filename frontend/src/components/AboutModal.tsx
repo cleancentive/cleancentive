@@ -1,22 +1,35 @@
 import { useEffect } from 'react'
 import { useUiStore } from '../stores/uiStore'
+import { useVersionStore } from '../stores/versionStore'
 
 const REPO_URL = 'https://github.com/cleancentive/cleancentive'
 const LICENSE_URL = `${REPO_URL}/blob/main/LICENSE`
 
 export function AboutModal() {
   const { aboutModalOpen, closeAboutModal } = useUiStore()
+  const { versionInfo, fetchVersionInfo } = useVersionStore()
 
   useEffect(() => {
     if (!aboutModalOpen) return
+    fetchVersionInfo()
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeAboutModal()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [aboutModalOpen, closeAboutModal])
+  }, [aboutModalOpen, closeAboutModal, fetchVersionInfo])
 
   if (!aboutModalOpen) return null
+
+  const frontShort = __APP_COMMIT_SHORT__
+  const backShort = versionInfo?.backend?.commitShort ?? '?'
+  const workerShort = versionInfo?.worker?.commitShort ?? '?'
+  const combinedVersion = `${frontShort}-${backShort}-${workerShort}`
+  const versionTitle = [
+    `frontend ${__APP_COMMIT__}`,
+    `backend ${versionInfo?.backend?.commit ?? '?'}`,
+    `worker ${versionInfo?.worker?.commit ?? '?'}`,
+  ].join('\n')
 
   return (
     <div className="about-modal-overlay" onClick={closeAboutModal}>
@@ -24,12 +37,12 @@ export function AboutModal() {
         <button className="about-modal-close" onClick={closeAboutModal} aria-label="Close">
           ×
         </button>
-        <h2 className="about-modal-title">About CleanCentive</h2>
-        <p className="about-modal-description">Gamified neighborhood cleanup tracking.</p>
+        <h2 className="about-modal-title">CleanCentive</h2>
+        <p className="about-modal-description">Empowering communities to make the world visibly cleaner.</p>
         <dl className="about-modal-rows">
           <div className="about-modal-row">
             <dt>Version</dt>
-            <dd>{__APP_VERSION__}</dd>
+            <dd title={versionTitle}>{combinedVersion}</dd>
           </div>
           <div className="about-modal-row">
             <dt>Source</dt>

@@ -12,17 +12,20 @@ FROM deps AS build
 WORKDIR /app
 
 ARG SOURCE_COMMIT=unknown
+ARG SOURCE_COMMIT_SHORT=unknown
 COPY frontend frontend
 RUN bun -e "\
   const fs = require('fs');\
   const p = JSON.parse(fs.readFileSync('frontend/package.json', 'utf8'));\
-  p.version = process.argv[1];\
+  p.commit = process.argv[1];\
+  p.commitShort = process.argv[2];\
   p.buildTime = Math.floor(Date.now() / 1000);\
-  fs.writeFileSync('frontend/package.json', JSON.stringify(p, null, 2));" "$SOURCE_COMMIT"
+  fs.writeFileSync('frontend/package.json', JSON.stringify(p, null, 2));" "$SOURCE_COMMIT" "$SOURCE_COMMIT_SHORT"
 RUN bun run --filter '@cleancentive/frontend' build
 
 FROM nginx:1.27-alpine AS runtime
 ARG SOURCE_COMMIT=unknown
+ARG SOURCE_COMMIT_SHORT=unknown
 
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
@@ -30,6 +33,7 @@ COPY frontend/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 LABEL org.opencontainers.image.revision=$SOURCE_COMMIT
+LABEL org.opencontainers.image.version=$SOURCE_COMMIT_SHORT
 
 EXPOSE 80
 ENTRYPOINT ["/docker-entrypoint.sh"]

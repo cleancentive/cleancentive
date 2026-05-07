@@ -97,16 +97,6 @@ interface FeedbackItem {
   }>
 }
 
-interface ArtifactVersion {
-  version: string
-  buildTime: number
-}
-
-interface VersionInfo {
-  backend: ArtifactVersion
-  worker: ArtifactVersion | null
-}
-
 interface AdminState {
   isAdmin: boolean
   users: AdminUser[]
@@ -133,10 +123,8 @@ interface AdminState {
   isLoadingFeedback: boolean
   isSubmittingResponse: boolean
   activeFeedbackItem: FeedbackItem | null
-  versionInfo: VersionInfo | null
 
   checkAdminStatus: () => Promise<void>
-  fetchVersionInfo: () => Promise<void>
   fetchUsers: (loadMore?: boolean) => Promise<void>
   fetchOpsOverview: () => Promise<void>
   fetchStorageInsights: () => Promise<void>
@@ -191,19 +179,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   isLoadingFeedback: false,
   isSubmittingResponse: false,
   activeFeedbackItem: null,
-  versionInfo: null,
-
-  fetchVersionInfo: async () => {
-    const headers = getHeaders()
-    if (!headers.Authorization) return
-
-    try {
-      const response = await axios.get(`${API_BASE}/admin/ops/version`, { headers })
-      set({ versionInfo: response.data })
-    } catch {
-      // version info is non-critical, silently ignore
-    }
-  },
 
   checkAdminStatus: async () => {
     const sessionToken = useAuthStore.getState().sessionToken
@@ -471,7 +446,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     isLoadingPurge: false,
     isRetryingFailedSpots: false,
     retryFailedSpotsResult: null,
-    versionInfo: null,
     error: null,
   }),
 }))

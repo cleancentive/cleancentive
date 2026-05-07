@@ -9,8 +9,6 @@ import { S3Client, HeadBucketCommand, DeleteObjectCommand } from '@aws-sdk/clien
 import { StorageService } from '../storage/storage.service';
 import { PurgeService } from '../purge/purge.service';
 
-const pkg = require(require('path').join(process.cwd(), 'package.json'));
-
 type HealthStatus = 'ok' | 'degraded' | 'down';
 
 interface WorkerOpsState {
@@ -23,7 +21,8 @@ interface WorkerOpsState {
   concurrency: number;
   hostname: string;
   pid: number;
-  version?: string;
+  commit?: string;
+  commitShort?: string;
   buildTime?: number;
 }
 
@@ -222,19 +221,6 @@ export class AdminOpsService implements OnModuleDestroy {
       queuedSpotIds,
       skippedSpotIds,
       errors,
-    };
-  }
-
-  async getVersion() {
-    const workerState = await this.getWorkerOpsState();
-    return {
-      backend: {
-        version: pkg.version || 'unknown',
-        buildTime: pkg.buildTime ?? 0,
-      },
-      worker: workerState
-        ? { version: workerState.version || 'unknown', buildTime: workerState.buildTime ?? 0 }
-        : null,
     };
   }
 

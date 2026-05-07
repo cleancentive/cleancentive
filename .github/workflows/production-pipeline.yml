@@ -130,6 +130,10 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute short commit
+        if: matrix.changed == 'true'
+        id: short_commit
+        run: echo "value=$(git rev-parse --short=4 ${{ github.sha }})" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v7
         if: matrix.changed == 'true'
         with:
@@ -139,6 +143,7 @@ jobs:
           tags: ghcr.io/cleancentive/cleancentive-${{ matrix.workspace }}:${{ github.sha }}
           build-args: |
             SOURCE_COMMIT=${{ github.sha }}
+            SOURCE_COMMIT_SHORT=${{ steps.short_commit.outputs.value }}
 
   reconcile-production:
     runs-on: ubuntu-latest

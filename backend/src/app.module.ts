@@ -46,6 +46,7 @@ import { OutlineEvent } from './outline-sync/outline-event.entity';
 import { OutlineMaintenanceState } from './outline-sync/outline-maintenance-state.entity';
 import { ClientEventsModule } from './client-events/client-events.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { SystemModule } from './system/system.module';
 
 @Module({
   imports: [
@@ -110,6 +111,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
     OutlineSyncModule,
     IntegrationsModule,
     ClientEventsModule,
+    SystemModule,
   ],
   providers: [
     {
