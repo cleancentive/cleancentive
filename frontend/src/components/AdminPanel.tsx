@@ -71,6 +71,7 @@ export function AdminPanel() {
     feedbackStatusFilter,
     feedbackCounts,
     isLoadingFeedback,
+    isSubmittingResponse,
     activeFeedbackItem,
     fetchFeedback,
     fetchFeedbackCounts,
@@ -590,6 +591,7 @@ export function AdminPanel() {
                     onSubmit={async (e) => {
                       e.preventDefault()
                       if (!adminReply.trim()) return
+                      if (isSubmittingResponse) return
                       await addAdminResponse(f.id, adminReply.trim())
                       setAdminReply('')
                     }}
@@ -600,8 +602,8 @@ export function AdminPanel() {
                       placeholder="Reply to this feedback..."
                       rows={2}
                     />
-                    <button type="submit" className="primary-button" disabled={!adminReply.trim()}>
-                      Send Reply
+                    <button type="submit" className="primary-button" disabled={!adminReply.trim() || isSubmittingResponse}>
+                      {isSubmittingResponse ? 'Sending…' : 'Send Reply'}
                     </button>
                   </form>
                 </div>

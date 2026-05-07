@@ -131,6 +131,7 @@ interface AdminState {
   feedbackStatusFilter: Set<string>
   feedbackCounts: Record<string, number> | null
   isLoadingFeedback: boolean
+  isSubmittingResponse: boolean
   activeFeedbackItem: FeedbackItem | null
   versionInfo: VersionInfo | null
 
@@ -188,6 +189,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   feedbackStatusFilter: new Set(['new', 'acknowledged', 'in_progress', 'resolved']),
   feedbackCounts: null,
   isLoadingFeedback: false,
+  isSubmittingResponse: false,
   activeFeedbackItem: null,
   versionInfo: null,
 
@@ -429,13 +431,17 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   addAdminResponse: async (id, message) => {
     const headers = getHeaders()
     if (!headers.Authorization) return
+    if (get().isSubmittingResponse) return
 
+    set({ isSubmittingResponse: true })
     try {
       await axios.post(`${API_BASE}/feedback/${id}/responses`, { message }, { headers })
       await get().fetchFeedbackDetail(id)
       await get().fetchFeedback()
     } catch (error: any) {
       set({ error: error.response?.data?.message || 'Failed to send response' })
+    } finally {
+      set({ isSubmittingResponse: false })
     }
   },
 
