@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useUiStore } from '../stores/uiStore'
+import { buildQrCodeSvg } from '../lib/qrCode'
 import { Avatar } from './Avatar'
 
 function UserIcon({ size = 16 }: { size?: number }) {
@@ -17,6 +18,20 @@ function FeedbackIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 4a2 2 0 012-2h12a2 2 0 012 2v9a2 2 0 01-2 2H7l-4 3v-3a1 1 0 01-1-1V4z" />
+    </svg>
+  )
+}
+
+function QrCodeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 3h5v5H3V3z" />
+      <path d="M12 3h5v5h-5V3z" />
+      <path d="M3 12h5v5H3v-5z" />
+      <path d="M12 12h2" />
+      <path d="M16 12h1v1" />
+      <path d="M12 15h1v2" />
+      <path d="M15 15h2v2" />
     </svg>
   )
 }
@@ -45,8 +60,30 @@ export function UserMenuButton() {
   const { user, logout } = useAuthStore()
   const { openSignInModal, openAboutModal, pickCount } = useUiStore()
   const [open, setOpen] = useState(false)
+  const [shareQrOpen, setShareQrOpen] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
   const ref = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+  const instanceUrl = window.location.origin
+  const qrCodeSvg = buildQrCodeSvg(instanceUrl)
+
+  const handleCopyInstanceUrl = async () => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(instanceUrl)
+      } else {
+        copyTextWithFallback(instanceUrl)
+      }
+      setCopyStatus('copied')
+    } catch {
+      try {
+        copyTextWithFallback(instanceUrl)
+        setCopyStatus('copied')
+      } catch {
+        setCopyStatus('failed')
+      }
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -113,6 +150,13 @@ export function UserMenuButton() {
           </button>
           <button
             className="user-menu-dropdown-item"
+            onClick={() => { setOpen(false); setCopyStatus('idle'); setShareQrOpen(true) }}
+          >
+            <QrCodeIcon />
+            Share
+          </button>
+          <button
+            className="user-menu-dropdown-item"
             onClick={() => { setOpen(false); openAboutModal() }}
           >
             <InfoIcon />
@@ -143,6 +187,35 @@ export function UserMenuButton() {
           </button>
         </div>
       )}
+      {shareQrOpen && (
+        <div className="share-qr-modal-overlay" role="presentation" onClick={() => setShareQrOpen(false)}>
+          <div className="share-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="share-qr-title" onClick={(e) => e.stopPropagation()}>
+            <button className="share-qr-close" onClick={() => setShareQrOpen(false)} aria-label="Close QR code dialog">×</button>
+            <h2 id="share-qr-title">Share CleanCentive</h2>
+            <div className="share-qr-code" dangerouslySetInnerHTML={{ __html: qrCodeSvg }} />
+            <button className="share-qr-url" onClick={handleCopyInstanceUrl} type="button">
+              <span>{instanceUrl}</span>
+            </button>
+            <p className="share-qr-copy-status" aria-live="polite">
+              {copyStatus === 'copied' ? 'Copied to clipboard' : copyStatus === 'failed' ? 'Copy failed' : 'Tap URL to copy'}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
+}
+
+function copyTextWithFallback(text: string) {
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.top = '-1000px'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const copied = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  if (!copied) throw new Error('Copy command failed')
 }
