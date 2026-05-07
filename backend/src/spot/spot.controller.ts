@@ -331,7 +331,8 @@ export class SpotController {
     @Query('limit') limitQuery?: string,
     @Query('picked_up') pickedUpQuery?: string,
     @Query('since') sinceQuery?: string,
-  ): Promise<{ spots: SpotDto[] }> {
+    @Query('before') beforeQuery?: string,
+  ): Promise<{ spots: SpotDto[]; nextCursor: string | null }> {
     const parsedLimit = parseInt(limitQuery || '20', 10);
     const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
       ? Math.min(parsedLimit, 100)
@@ -339,21 +340,23 @@ export class SpotController {
 
     const pickedUp = this.parseBooleanParam(pickedUpQuery);
     const since = sinceQuery && !Number.isNaN(new Date(sinceQuery).getTime()) ? sinceQuery : undefined;
+    const before = beforeQuery && beforeQuery.includes('|') ? beforeQuery : undefined;
 
-    const spots = req.headers.authorization?.startsWith('Bearer ')
+    const page = req.headers.authorization?.startsWith('Bearer ')
       ? await this.spotService.listSpotsForUser(
         await this.resolveAuthUserId(req.headers.authorization),
         limit,
-        { pickedUp, since },
+        { pickedUp, since, before },
       )
       : await this.spotService.listSpotsForGuest(
         this.requireGuestId(guestId),
         limit,
-        { pickedUp, since },
+        { pickedUp, since, before },
       );
 
     return {
-      spots: spots.map((spot) => this.toSpotDto(spot)),
+      spots: page.items.map((spot) => this.toSpotDto(spot)),
+      nextCursor: page.nextCursor,
     };
   }
 

@@ -30,6 +30,17 @@ interface CreateSpotResult {
   warning: string | null;
 }
 
+export interface SpotListFilters {
+  pickedUp?: boolean;
+  since?: string;
+  before?: string;
+}
+
+export interface SpotListPage {
+  items: Spot[];
+  nextCursor: string | null;
+}
+
 @Injectable()
 export class SpotService {
   private readonly logger = new Logger(SpotService.name);
@@ -292,24 +303,24 @@ export class SpotService {
   async listSpotsForUser(
     userId: string,
     limit: number,
-    filters?: { pickedUp?: boolean; since?: string },
-  ): Promise<Spot[]> {
+    filters?: SpotListFilters,
+  ): Promise<SpotListPage> {
     return this.listSpotsWithFilters(userId, limit, filters);
   }
 
   async listSpotsForGuest(
     guestId: string,
     limit: number,
-    filters?: { pickedUp?: boolean; since?: string },
-  ): Promise<Spot[]> {
+    filters?: SpotListFilters,
+  ): Promise<SpotListPage> {
     return this.listSpotsWithFilters(guestId, limit, filters);
   }
 
   private async listSpotsWithFilters(
     userId: string,
     limit: number,
-    filters?: { pickedUp?: boolean; since?: string },
-  ): Promise<Spot[]> {
+    filters?: SpotListFilters,
+  ): Promise<SpotListPage> {
     const qb = this.spotRepository.createQueryBuilder('spot')
       .leftJoinAndSelect('spot.items', 'items')
       .leftJoinAndSelect('items.object_label', 'objectLabel')
@@ -320,7 +331,8 @@ export class SpotService {
       .leftJoinAndSelect('brandLabel.translations', 'brandLabelTranslations')
       .where('spot.user_id = :userId', { userId })
       .orderBy('spot.captured_at', 'DESC')
-      .take(limit);
+      .addOrderBy('spot.id', 'DESC')
+      .take(limit + 1);
 
     if (filters?.pickedUp !== undefined) {
       qb.andWhere('spot.picked_up = :pickedUp', { pickedUp: filters.pickedUp });
@@ -328,8 +340,29 @@ export class SpotService {
     if (filters?.since) {
       qb.andWhere('spot.captured_at >= :since', { since: filters.since });
     }
+    if (filters?.before) {
+      const sep = filters.before.indexOf('|');
+      if (sep > 0) {
+        const beforeAt = filters.before.slice(0, sep);
+        const beforeId = filters.before.slice(sep + 1);
+        if (beforeAt && beforeId && !Number.isNaN(new Date(beforeAt).getTime())) {
+          qb.andWhere(
+            '(spot.captured_at, spot.id) < (:beforeAt, :beforeId)',
+            { beforeAt, beforeId },
+          );
+        }
+      }
+    }
 
-    return qb.getMany();
+    const rows = await qb.getMany();
+    const hasMore = rows.length > limit;
+    const items = hasMore ? rows.slice(0, limit) : rows;
+    const last = items.at(-1);
+    const nextCursor = hasMore && last
+      ? `${last.captured_at.toISOString()}|${last.id}`
+      : null;
+
+    return { items, nextCursor };
   }
 
   async getThumbnailStream(spotId: string): Promise<{ body: NodeJS.ReadableStream; contentType: string } | null> {

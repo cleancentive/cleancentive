@@ -187,6 +187,7 @@ export function HistoryPanel() {
   const { sessionToken, guestId, user } = useAuthStore()
   const { isOnline } = useConnectivityStore()
   const [reports, setReports] = useState<HistoryItem[]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([])
   const [localThumbnails, setLocalThumbnails] = useState<Map<string, string>>(new Map())
   const [isLoading, setIsLoading] = useState(false)
@@ -211,7 +212,7 @@ export function HistoryPanel() {
 
   const { pickedUpFilter, datePreset } = useInsightsFilterStore()
 
-  const requestUrl = useMemo(() => {
+  const buildRequestUrl = useCallback((cursor?: string) => {
     const params = new URLSearchParams({ limit: '50' })
     if (!sessionToken && guestId) {
       params.set('guestId', guestId)
@@ -220,13 +221,15 @@ export function HistoryPanel() {
     if (pu) params.set('picked_up', pu)
     const since = presetToSince(datePreset)
     if (since) params.set('since', since)
+    if (cursor) params.set('before', cursor)
 
     return `${API_BASE}/spots?${params.toString()}`
   }, [sessionToken, guestId, pickedUpFilter, datePreset])
 
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (cursor?: string) => {
     if (!sessionToken && !guestId) {
       setReports([])
+      setNextCursor(null)
       return
     }
 
@@ -239,21 +242,32 @@ export function HistoryPanel() {
         headers.Authorization = `Bearer ${sessionToken}`
       }
 
-      const response = await fetch(requestUrl, { headers })
+      const response = await fetch(buildRequestUrl(cursor), { headers })
       if (!response.ok) {
         const body = await response.text()
         throw new Error(body || `${response.status} ${response.statusText}`)
       }
 
-      const payload = (await response.json()) as { spots?: HistoryItem[] }
-      setReports(payload.spots || [])
+      const payload = (await response.json()) as { spots?: HistoryItem[]; nextCursor?: string | null }
+      const spots = payload.spots || []
+      if (cursor) {
+        setReports((prev) => [...prev, ...spots])
+      } else {
+        setReports(spots)
+      }
+      setNextCursor(payload.nextCursor ?? null)
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : 'Failed to load pick history'
       setError(message)
     } finally {
       setIsLoading(false)
     }
-  }, [guestId, requestUrl, sessionToken])
+  }, [guestId, buildRequestUrl, sessionToken])
+
+  const loadMore = useCallback(() => {
+    if (!nextCursor || isLoading) return
+    void loadHistory(nextCursor)
+  }, [nextCursor, isLoading, loadHistory])
 
   const loadOutbox = useCallback(async () => {
     const all = await getOutboxItems()
@@ -502,6 +516,19 @@ export function HistoryPanel() {
             )
           })}
         </ul>
+      )}
+
+      {nextCursor && (
+        <div className="history-load-more">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={loadMore}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Loading...' : 'Load more'}
+          </button>
+        </div>
       )}
 
       {confirmDeleteId && (

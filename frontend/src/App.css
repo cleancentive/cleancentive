@@ -987,6 +987,17 @@
   gap: 0.75rem;
 }
 
+.history-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
+.history-load-more .secondary-button {
+  width: auto;
+  margin-top: 0;
+}
+
 .history-card {
   border: 1px solid var(--color-border);
   border-radius: 0.5rem;
