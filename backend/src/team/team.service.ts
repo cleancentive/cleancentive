@@ -232,11 +232,17 @@ export class TeamService {
       ...this.getSystemTeamMetadata(team),
     }));
 
+    const visible = results.filter((r) => {
+      if (!r.team.is_unlisted) return true;
+      if (input.currentUserIsPlatformAdmin) return true;
+      return r.userRole !== null;
+    });
+
     if (input.memberOnly) {
-      return results.filter((r) => r.userRole !== null);
+      return visible.filter((r) => r.userRole !== null);
     }
 
-    return results;
+    return visible;
   }
 
   async createTeam(userId: string, input: CreateTeamInput): Promise<Team> {
@@ -322,6 +328,10 @@ export class TeamService {
     if (userId) {
       const membership = memberships.find((m) => m.user_id === userId);
       userRole = membership?.role || null;
+    }
+
+    if (team.is_unlisted && userRole === null && !isPlatformAdmin) {
+      throw new NotFoundException('Team not found');
     }
 
     const isPartner = await this.isPartnerTeam(teamId);
@@ -631,6 +641,21 @@ export class TeamService {
 
     await this.reconcileTeamMemberships(teamId);
     return entities;
+  }
+
+  async setTeamUnlisted(teamId: string, actorUserId: string, isUnlisted: boolean): Promise<Team> {
+    await this.ensureRegisteredUser(actorUserId);
+    const team = await this.getTeamOrThrow(teamId);
+    await this.ensureTeamNotArchived(team);
+    this.ensureTeamNotSystemManaged(team);
+    await this.ensureOrganizer(teamId, actorUserId);
+
+    if (!(await this.isPartnerTeam(teamId))) {
+      throw new BadRequestException('Unlisted mode is only available for partner teams');
+    }
+
+    team.is_unlisted = isUnlisted;
+    return this.teamRepository.save(team);
   }
 
   async updateCustomCss(teamId: string, customCss: string | null): Promise<Team> {

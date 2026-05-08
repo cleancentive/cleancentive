@@ -68,6 +68,13 @@ A team managed by Cleancentive instead of by ordinary team organizers. System te
 - **Current system team:** `Stewards`
 - **UI examples:** "Membership is managed by the steward role."
 
+### Unlisted Team
+
+A partner team whose visibility is restricted to its own members and organizers, plus stewards. Hidden from the public team list and from team detail for non-members. Toggled by an organizer. Available only for partner teams.
+
+- **UI examples:** "Unlist Team" / "List Team" buttons in Organizer Actions, "Unlisted" badge
+- **DB column:** `teams.is_unlisted`
+
 ### Cleanup
 
 An organized, community-scale litter removal activity. This is what the wider litter-picking community universally calls these (beach cleanup, park cleanup, community cleanup). Replaces "Event" in all contexts.

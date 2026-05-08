@@ -35,6 +35,7 @@ export function TeamDetail() {
     promoteMember,
     updateTeam,
     archiveTeam,
+    setTeamUnlisted,
     fetchMessages,
     postMessage,
     updateEmailPatterns,
@@ -145,7 +146,7 @@ export function TeamDetail() {
           </div>
         )}
 
-        {!user && !isStewardsTeam && (
+        {!user && !isStewardsTeam && !isPartner && (
           <div className="community-guest-cta">
             <span>Sign in to join this team</span>
             <button className="sign-in-cta-button" onClick={openSignInModal}>Sign In</button>
@@ -194,6 +195,16 @@ export function TeamDetail() {
         {isOrganizer && !isStewardsTeam && (
           <div className="community-admin-actions">
             <h3>Organizer Actions</h3>
+            {isPartner && (
+              <button
+                className="secondary-button"
+                onClick={() => id && setTeamUnlisted(id, !team.is_unlisted)}
+                disabled={!isOnline}
+                title="Unlisted teams are hidden from the public team list. Only team members and stewards can see them."
+              >
+                {team.is_unlisted ? 'List Team' : 'Unlist Team'}
+              </button>
+            )}
             <button
               className="danger-button"
               onClick={() => setShowArchiveConfirm(true)}

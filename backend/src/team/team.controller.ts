@@ -119,6 +119,16 @@ export class TeamController {
     return { success: true };
   }
 
+  @Put(':id/unlisted')
+  @UseGuards(JwtAuthGuard)
+  async setUnlisted(
+    @Request() req: any,
+    @Param('id', ParseUUIDPipe) teamId: string,
+    @Body() body: { is_unlisted: boolean },
+  ) {
+    return this.teamService.setTeamUnlisted(teamId, req.user.userId, !!body.is_unlisted);
+  }
+
   @Get(':id/messages')
   @UseGuards(JwtAuthGuard)
   async listMessages(@Request() req: any, @Param('id', ParseUUIDPipe) teamId: string) {

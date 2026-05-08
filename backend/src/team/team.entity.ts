@@ -26,4 +26,7 @@ export class Team extends BaseEntity {
 
   @Column('text', { nullable: true })
   custom_css: string | null;
+
+  @Column('boolean', { default: false })
+  is_unlisted: boolean;
 }

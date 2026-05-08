@@ -149,6 +149,7 @@ export function TeamList() {
                 {isStewardsTeam && <span className="badge steward-badge">Stewards</span>}
                 {!isStewardsTeam && membershipManagedBy && <span className="badge">Managed</span>}
                 {isPartner && <span className="badge" style={{ background: 'var(--color-badge-partner)' }}>Partner</span>}
+                {team.is_unlisted && <span className="badge">Unlisted</span>}
                 {userRole && <span className={`badge ${userRole === 'admin' ? 'admin-badge' : ''}`}>{userRole}</span>}
                 {activeTeamId === team.id && <span className="badge" style={{ background: 'var(--color-badge-active)' }}>Active</span>}
               </>

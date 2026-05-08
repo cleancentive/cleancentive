@@ -15,6 +15,7 @@ interface TeamSummary {
   name: string
   description: string
   created_at: string
+  is_unlisted?: boolean
 }
 
 type TeamMembershipManagedBy = 'steward-role' | 'email-domain' | null
@@ -77,6 +78,7 @@ interface TeamState {
   deactivateTeam: () => Promise<void>
   promoteMember: (teamId: string, userId: string) => Promise<void>
   archiveTeam: (id: string) => Promise<void>
+  setTeamUnlisted: (id: string, isUnlisted: boolean) => Promise<void>
   fetchMessages: (id: string) => Promise<void>
   postMessage: (id: string, audience: 'members' | 'organizers', subject: string, body: string) => Promise<void>
   updateEmailPatterns: (teamId: string, patterns: string[]) => Promise<void>
@@ -222,6 +224,17 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
       await useAuthStore.getState().refreshProfile()
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to archive team' })
+    }
+  },
+
+  setTeamUnlisted: async (id: string, isUnlisted: boolean) => {
+    set({ error: null })
+    try {
+      await axios.put(`${API_BASE}/teams/${id}/unlisted`, { is_unlisted: isUnlisted }, { headers: getHeaders() })
+      await get().fetchTeam(id)
+      await get().searchTeams()
+    } catch (err: any) {
+      set({ error: err.response?.data?.message || 'Failed to update visibility' })
     }
   },
 

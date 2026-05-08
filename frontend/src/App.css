@@ -2268,15 +2268,26 @@
 }
 
 .community-admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   margin-top: 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--color-border);
 }
 
 .community-admin-actions h3 {
-  margin: 0 0 0.75rem;
+  flex-basis: 100%;
+  margin: 0 0 0.25rem;
   color: var(--color-text);
   font-size: 0.9rem;
+}
+
+.community-admin-actions .secondary-button {
+  width: auto;
+  margin-top: 0;
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
 }
 
 /* Status Filter Pills */
