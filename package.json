@@ -21,6 +21,9 @@
     "browse": "bun run dev:infra:start && bun run --filter '@cleancentive/frontend' browse &"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@aws-sdk/client-s3": "3.1045.0",
+    "@types/bun": "latest",
+    "@types/pg": "8.20.0",
+    "pg": "8.20.0"
   }
 }
