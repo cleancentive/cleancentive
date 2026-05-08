@@ -76,8 +76,16 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   async bootstrap(): Promise<void> {
+    // Bucket presence check is best-effort: Backblaze B2 (and many S3-
+    // compatible providers) reject HeadBucket/CreateBucket when the app key
+    // is scoped to a single existing bucket. The bucket exists in prod, so a
+    // failure here must not abort the rest of the bootstrap.
     try {
       await this.ensureWikiBucket();
+    } catch (e) {
+      this.logger.warn(`Wiki bucket check skipped (${e instanceof Error ? e.message : e})`);
+    }
+    try {
       if (!this.isPgConnected) {
         await this.pg.connect();
         this.isPgConnected = true;
