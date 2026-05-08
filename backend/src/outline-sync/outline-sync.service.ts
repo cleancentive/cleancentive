@@ -821,6 +821,11 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
         headers: {
           Authorization: `Bearer ${this.outlineApiKey}`,
           'Content-Type': 'application/json',
+          // Outline runs with FORCE_HTTPS=true on prod and rejects POSTs that
+          // appear to be HTTP (returns 405 with "Allow: GET, HEAD"). Inside
+          // the docker network we connect via http://outline:3000, so spoof
+          // the proto header that Caddy normally adds.
+          'X-Forwarded-Proto': 'https',
         },
         body: body ? JSON.stringify(body) : undefined,
       });
