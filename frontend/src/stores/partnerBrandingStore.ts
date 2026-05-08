@@ -1,7 +1,7 @@
 import { useAuthStore } from './authStore'
 
 const STYLE_ELEMENT_ID = 'partner-css'
-const DEFAULT_FAVICON_HREF = '/favicon.ico'
+const DEFAULT_FAVICON_HREF = '/favicon.svg'
 
 let currentFaviconHref = DEFAULT_FAVICON_HREF
 

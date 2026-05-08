@@ -14,6 +14,14 @@ export const pwaConfig = {
     background_color: '#f8fafc',
     display: 'standalone',
     start_url: '/',
+    icons: [
+      {
+        src: '/favicon.svg',
+        sizes: 'any',
+        type: 'image/svg+xml',
+        purpose: 'any maskable',
+      },
+    ],
   },
   workbox: {
     globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
