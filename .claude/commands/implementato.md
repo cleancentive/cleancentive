@@ -101,41 +101,20 @@ Show the user the proposed commit message and the file list. On approval, commit
 
 Do **not** push — pushing is the user's call, and pushing triggers the upstream closure workflow.
 
-## Step 10: Archive locally and propose upstream closure
+## Step 10: Wrap up
 
-Run `bun scripts/close-feedback.ts HEAD` to handle the archival flow consistently with the deploy workflow:
+For prod (`cleancentive.org`), closure is handled by CI on push — do **not** run `scripts/close-feedback.ts` locally. When the user pushes `main`, [.github/workflows/close-feedback.yml](.github/workflows/close-feedback.yml) parses the `Fixes {id}` tag from the commit body and runs the script with the org-scoped token. It archives the plan to `fixed/`, updates frontmatter, posts the closure comment, sets upstream status to `resolved`, and commits the moved plan back to `main` as `chore(feedback): mark resolved tickets [skip ci]`.
 
-- Updates plan frontmatter (`status: implemented`, `closure_commits`, `fixed_at`)
-- Moves the plan from `docs/feedback-plans/{env}/` to `docs/feedback-plans/{env}/fixed/`
-- Posts a closure comment on the upstream feedback referencing the commit
-- Sets upstream feedback status to `resolved`
-
-The script targets `cleancentive.org` by default. For other environments, override via env vars:
-
-```
-FEEDBACK_API_BASE={base_url}/api/v1 bun scripts/close-feedback.ts HEAD
-```
-
-If the env isn't `cleancentive.org`, the script's hard-coded `PLANS_DIR` won't match — fall back to performing the archive steps inline:
-
-1. Move `docs/feedback-plans/{env}/{id}.md` → `docs/feedback-plans/{env}/fixed/{id}.md`.
-2. Update frontmatter: `status: implemented`, `last_updated: {today}`, `fixed_at: {today}`, append the short SHA to `closure_commits`.
-3. `POST {base_url}/api/v1/feedback/{id}/responses` with `{ "message": "Fix shipped in [{shortSha}]({repo_url}/commit/{sha}): {subject}" }`.
-4. `PATCH {base_url}/api/v1/feedback/{id}/status` with `{ "status": "resolved" }`.
-
-Pause before the upstream calls and confirm with the user — these write to PROD and are user-visible.
-
-## Step 11: Wrap up
+For non-prod environments there is no equivalent CI workflow. Pause and ask the user whether they want to close upstream manually (the plan file move + frontmatter update + `POST /feedback/{id}/responses` + `PATCH /feedback/{id}/status` to `resolved`). Do nothing without explicit approval.
 
 Report what was done:
 
 - Files changed and the commit short SHA
-- Plan file new location (`fixed/`)
-- Whether upstream was updated (and to what status)
-- A reminder that pushing the commit will re-trigger the close-feedback workflow, which is idempotent (the script skips already-closed entries)
+- For prod: a reminder that `git push origin main` will trigger CI to archive the plan and close upstream
+- For non-prod: whether upstream was updated and the new plan file location
 
 ## Notes
 
-- `/implementato` writes to upstream — it is **not** read-only like `/triagato`. Always confirm before status changes and closure comments.
+- `/implementato` only calls upstream itself in Step 5 (set `in_progress`). All closure writes happen via CI on push to `main` — implementato never closes upstream from the developer machine for prod.
 - The plan file in `docs/feedback-plans/{env}/` is the canonical implementation record — refine it in Step 6 rather than working from a scratch plan.
 - If the user wants to drop a plan as `wont-fix` instead of implementing it, that's out of scope for this command — they should edit the frontmatter manually.
