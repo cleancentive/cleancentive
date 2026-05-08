@@ -16,6 +16,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { CleanupService } from './cleanup.service';
+import { parseCleanupStatuses } from './cleanup-query';
 import { AdminService } from '../admin/admin.service';
 
 const ISO_WITH_OFFSET = /T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/;
@@ -75,7 +76,7 @@ export class CleanupController {
   async searchCleanups(
     @Request() req: any,
     @Query('q') query?: string,
-    @Query('status') status?: 'past' | 'ongoing' | 'future',
+    @Query('status') status?: string,
     @Query('date') date?: string,
     @Query('includeArchived') includeArchived?: string,
     @Query('member_only') memberOnly?: string,
@@ -84,7 +85,7 @@ export class CleanupController {
     const isPlatformAdmin = userId ? await this.adminService.isAdmin(userId) : false;
     return this.cleanupService.searchCleanups({
       query,
-      status,
+      statuses: parseCleanupStatuses(status),
       date: date ? new Date(date) : undefined,
       includeArchived: includeArchived === 'true',
       memberOnly: memberOnly === 'true',

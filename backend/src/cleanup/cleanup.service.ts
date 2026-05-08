@@ -14,6 +14,7 @@ import { User } from '../user/user.entity';
 import { UserEmail } from '../user/user-email.entity';
 import { AdminService } from '../admin/admin.service';
 import { EmailService } from '../email/email.service';
+import type { CleanupStatus } from './cleanup-query';
 
 interface CreateCleanupInput {
   name: string;
@@ -29,12 +30,25 @@ interface CreateCleanupInput {
 
 interface SearchCleanupsInput {
   query?: string;
-  status?: 'past' | 'ongoing' | 'future';
+  statuses?: CleanupStatus[];
   date?: Date;
   includeArchived?: boolean;
   memberOnly?: boolean;
   currentUserIsPlatformAdmin: boolean;
   userId?: string;
+}
+
+function cleanupDateMatchesStatus(d: CleanupDate, status: CleanupStatus, now: Date): boolean {
+  if (status === 'past') return d.end_at < now;
+  if (status === 'ongoing') return d.start_at <= now && d.end_at >= now;
+  return d.start_at > now;
+}
+
+function classifyNearestDate(d: CleanupDate | null, now: Date): CleanupStatus | null {
+  if (!d) return null;
+  if (d.start_at <= now && d.end_at >= now) return 'ongoing';
+  if (d.start_at > now) return 'future';
+  return 'past';
 }
 
 interface CreateCleanupMessageInput {
@@ -270,7 +284,11 @@ export class CleanupService {
     return { cleanup, dates, participants, userRole };
   }
 
-  async searchCleanups(input: SearchCleanupsInput): Promise<Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null }>> {
+  async searchCleanups(input: SearchCleanupsInput): Promise<{
+    items: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null; userRole: string | null }>;
+    total: number;
+    counts: { past: number; ongoing: number; future: number };
+  }> {
     const qb = this.cleanupRepository.createQueryBuilder('cleanup');
     qb.orderBy('cleanup.created_at', 'DESC');
 
@@ -290,6 +308,8 @@ export class CleanupService {
     const cleanups = await qb.getMany();
     const now = new Date();
     const date = input.date;
+    const statuses = input.statuses;
+    const filterByStatus = !!statuses && statuses.length > 0;
 
     let participantMap = new Map<string, string>();
     if (input.userId && cleanups.length > 0) {
@@ -299,49 +319,43 @@ export class CleanupService {
       participantMap = new Map(participations.map((p) => [p.cleanup_id, p.role]));
     }
 
-    const result: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null; userRole: string | null }> = [];
+    const items: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null; userRole: string | null }> = [];
+    const counts = { past: 0, ongoing: 0, future: 0 };
+
     for (const cleanup of cleanups) {
       const dates = await this.cleanupDateRepository.find({
         where: { cleanup_id: cleanup.id },
         order: { start_at: 'ASC' },
       });
 
-      const statusMatches = dates.some((cleanupDate) => {
-        if (!input.status && !date) return true;
-
-        if (input.status === 'past') {
-          return cleanupDate.end_at < now;
-        }
-        if (input.status === 'ongoing') {
-          return cleanupDate.start_at <= now && cleanupDate.end_at >= now;
-        }
-        if (input.status === 'future') {
-          return cleanupDate.start_at > now;
-        }
-        if (date) {
-          const dayStart = new Date(date);
-          dayStart.setHours(0, 0, 0, 0);
-          const dayEnd = new Date(dayStart);
-          dayEnd.setDate(dayEnd.getDate() + 1);
-          return cleanupDate.start_at < dayEnd && cleanupDate.end_at >= dayStart;
-        }
-
-        return true;
-      });
-
-      if (!statusMatches) {
-        continue;
-      }
-
       const userRole = participantMap.get(cleanup.id) || null;
       if (input.memberOnly && !userRole) continue;
+
+      if (date && !filterByStatus) {
+        const dayStart = new Date(date);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+        const dateMatches = dates.some((d) => d.start_at < dayEnd && d.end_at >= dayStart);
+        if (!dateMatches) continue;
+      }
+
       const ongoingDate = dates.find((d) => d.start_at <= now && d.end_at >= now);
       const upcomingDate = dates.find((d) => d.start_at > now);
       const nearestDate = ongoingDate || upcomingDate || dates[dates.length - 1] || null;
-      result.push({ cleanup, nearestDate, userRole });
+
+      const classification = classifyNearestDate(nearestDate, now);
+      if (classification) counts[classification]++;
+
+      if (filterByStatus) {
+        const passes = dates.some((d) => statuses!.some((s) => cleanupDateMatchesStatus(d, s, now)));
+        if (!passes) continue;
+      }
+
+      items.push({ cleanup, nearestDate, userRole });
     }
 
-    return result;
+    return { items, total: items.length, counts };
   }
 
   async findSimilarCleanups(input: SimilarCleanupsInput): Promise<Array<{ cleanup: Cleanup; score: number; reason: string }>> {

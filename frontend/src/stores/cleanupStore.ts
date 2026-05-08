@@ -58,12 +58,16 @@ interface CleanupMessage {
   author?: { nickname: string; avatarEmailId: string | null }
 }
 
+export type CleanupStatus = 'past' | 'ongoing' | 'future'
+
 interface CleanupState {
   cleanups: CleanupSearchResult[]
+  cleanupTotal: number
+  cleanupCounts: { past: number; ongoing: number; future: number } | null
   myCleanups: CleanupSearchResult[]
   currentCleanup: CleanupDetail | null
   messages: CleanupMessage[]
-  statusFilter: 'past' | 'ongoing' | 'future' | null
+  statusFilter: Set<CleanupStatus>
   isLoading: boolean
   isLoadingMessages: boolean
   error: string | null
@@ -106,16 +110,18 @@ interface CleanupState {
   archiveCleanup: (id: string) => Promise<void>
   fetchMessages: (id: string) => Promise<void>
   postMessage: (id: string, audience: 'members' | 'organizers', subject: string, body: string) => Promise<void>
-  setStatusFilter: (status: 'past' | 'ongoing' | 'future' | null) => void
+  toggleStatusFilter: (status: CleanupStatus) => void
   clearError: () => void
 }
 
 export const useCleanupStore = create<CleanupState>()((set, get) => ({
   cleanups: [],
+  cleanupTotal: 0,
+  cleanupCounts: null,
   myCleanups: [],
   currentCleanup: null,
   messages: [],
-  statusFilter: null,
+  statusFilter: new Set<CleanupStatus>(['ongoing', 'future']),
   isLoading: false,
   isLoadingMessages: false,
   error: null,
@@ -126,10 +132,11 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
     try {
       const params = new URLSearchParams()
       if (query?.trim()) params.set('q', query.trim())
-      const status = get().statusFilter
-      if (status) params.set('status', status)
+      const statuses = get().statusFilter
+      if (statuses.size > 0) params.set('status', Array.from(statuses).join(','))
       const response = await axios.get(`${API_BASE}/cleanups/search?${params}`, { headers: getHeaders() })
-      set({ cleanups: response.data, isLoading: false })
+      const { items, total, counts } = response.data
+      set({ cleanups: items, cleanupTotal: total, cleanupCounts: counts, isLoading: false })
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to load cleanups', isLoading: false })
     }
@@ -139,7 +146,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
     try {
       const params = new URLSearchParams({ member_only: 'true' })
       const response = await axios.get(`${API_BASE}/cleanups/search?${params}`, { headers: getHeaders() })
-      set({ myCleanups: response.data })
+      set({ myCleanups: response.data.items })
     } catch {
       // Silently fail — ContextBar dropdowns will just be empty
     }
@@ -349,8 +356,11 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
     }
   },
 
-  setStatusFilter: (status) => {
-    set({ statusFilter: status })
+  toggleStatusFilter: (status) => {
+    const next = new Set(get().statusFilter)
+    if (next.has(status)) next.delete(status)
+    else next.add(status)
+    set({ statusFilter: next })
   },
 
   clearError: () => set({ error: null }),

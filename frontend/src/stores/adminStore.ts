@@ -174,7 +174,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   retryFailedSpotsResult: null,
   feedbackItems: [],
   feedbackTotal: 0,
-  feedbackStatusFilter: new Set(['new', 'acknowledged', 'in_progress', 'resolved']),
+  feedbackStatusFilter: new Set(['new', 'acknowledged', 'in_progress']),
   feedbackCounts: null,
   isLoadingFeedback: false,
   isSubmittingResponse: false,

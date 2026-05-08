@@ -32,7 +32,6 @@ function durationHours(startAt: string, endAt: string): number | null {
 }
 
 const STATUS_OPTIONS = [
-  { value: null, label: 'All' },
   { value: 'ongoing' as const, label: 'Ongoing' },
   { value: 'future' as const, label: 'Future' },
   { value: 'past' as const, label: 'Past' },
@@ -51,7 +50,7 @@ function formatDateRange(startAt: string, endAt: string): string {
 export function CleanupList() {
   const { user } = useAuthStore()
   const { isOnline } = useConnectivityStore()
-  const { cleanups, statusFilter, isLoading, error, searchCleanups, createCleanup, setStatusFilter, clearError } = useCleanupStore()
+  const { cleanups, cleanupCounts, statusFilter, isLoading, error, searchCleanups, createCleanup, toggleStatusFilter, clearError } = useCleanupStore()
   const { myFilter } = useInsightsFilterStore()
   const navigate = useNavigate()
   const activeCleanupDateId = (user as any)?.active_cleanup_date_id as string | null
@@ -82,8 +81,8 @@ export function CleanupList() {
     setShowCreate(!showCreate)
   }
 
-  const handleStatusChange = (status: 'past' | 'ongoing' | 'future' | null) => {
-    setStatusFilter(status)
+  const handleStatusToggle = (status: 'past' | 'ongoing' | 'future') => {
+    toggleStatusFilter(status)
   }
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -108,9 +107,16 @@ export function CleanupList() {
     }
   }
 
+  const visibleCleanups = cleanups.filter(c => {
+    if (myFilter && c.userRole === null) return false
+    if (activeCleanupDateId && c.nearestDate?.id !== activeCleanupDateId) return false
+    return true
+  })
+
   return (
     <CommunityList
       title="Cleanups"
+      count={visibleCleanups.length}
       searchPlaceholder="Search cleanups..."
       onSearchChange={handleSearch}
       isLoading={isLoading}
@@ -118,11 +124,7 @@ export function CleanupList() {
       hideSearch={showCreate}
       onClearError={clearError}
       emptyMessage="No cleanups found"
-      isEmpty={cleanups.filter(c => {
-        if (myFilter && c.userRole === null) return false
-        if (activeCleanupDateId && c.nearestDate?.id !== activeCleanupDateId) return false
-        return true
-      }).length === 0}
+      isEmpty={visibleCleanups.length === 0}
       actions={
         user && (
           <button className="primary-button" onClick={handleToggleCreate}>
@@ -132,15 +134,18 @@ export function CleanupList() {
       }
       filters={
         <div className="status-filter-pills">
-          {STATUS_OPTIONS.map((opt) => (
-            <button
-              key={opt.label}
-              className={`filter-pill ${statusFilter === opt.value ? 'filter-pill--active' : ''}`}
-              onClick={() => handleStatusChange(opt.value)}
-            >
-              {opt.label}
-            </button>
-          ))}
+          {STATUS_OPTIONS.map((opt) => {
+            const count = cleanupCounts?.[opt.value]
+            return (
+              <button
+                key={opt.value}
+                className={`filter-pill ${statusFilter.has(opt.value) ? 'filter-pill--active' : ''}`}
+                onClick={() => handleStatusToggle(opt.value)}
+              >
+                {opt.label}{count != null ? ` (${count})` : ''}
+              </button>
+            )
+          })}
         </div>
       }
     >

@@ -2,6 +2,7 @@ import { useState, useRef, type ReactNode } from 'react'
 
 interface CommunityListProps {
   title: string
+  count?: number
   searchPlaceholder: string
   onSearchChange: (query: string) => void
   isLoading: boolean
@@ -17,6 +18,7 @@ interface CommunityListProps {
 
 export function CommunityList({
   title,
+  count,
   searchPlaceholder,
   onSearchChange,
   isLoading,
@@ -43,7 +45,7 @@ export function CommunityList({
   return (
     <div className="community-list">
       <fieldset className="page-card">
-        <legend>{title}</legend>
+        <legend>{title}{count != null ? ` (${count})` : ''}</legend>
 
         <div className="community-list-header">
           {!hideSearch && (
