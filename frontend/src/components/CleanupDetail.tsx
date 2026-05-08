@@ -431,7 +431,7 @@ export function CleanupDetail() {
               {cleanup.name}
               {isOrganizer && <button className="link-button legend-edit-button" onClick={() => { setEditName(cleanup.name); setEditDescription(cleanup.description); setEditing(true) }}>Edit</button>}
             </legend>
-            {cleanup.description && <p>{cleanup.description}</p>}
+            {cleanup.description && <p className="cleanup-description-display">{cleanup.description}</p>}
           </>
         )}
 

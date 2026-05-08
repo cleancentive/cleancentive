@@ -3611,6 +3611,12 @@ textarea.mono {
   margin: 0.5rem 0;
 }
 
+.cleanup-description-display {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0.5rem 0;
+}
+
 .feedback-detail-date {
   font-size: 0.75rem;
   color: var(--color-text-faint);
