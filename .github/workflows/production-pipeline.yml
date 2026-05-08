@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Services to rebuild — "all" or comma-separated (backend,frontend,worker)'
+        required: false
+        default: 'all'
 
 permissions:
   contents: read
@@ -29,8 +35,35 @@ jobs:
 
       - id: detect
         shell: bash
+        env:
+          DISPATCH_SERVICES: ${{ inputs.services }}
         run: |
           set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            services="${DISPATCH_SERVICES:-all}"
+            backend=false
+            frontend=false
+            worker=false
+            if [[ "$services" == "all" ]]; then
+              backend=true
+              frontend=true
+              worker=true
+            else
+              [[ ",$services," == *,backend,* ]] && backend=true
+              [[ ",$services," == *,frontend,* ]] && frontend=true
+              [[ ",$services," == *,worker,* ]] && worker=true
+            fi
+            {
+              echo "backend_changed=$backend"
+              echo "frontend_changed=$frontend"
+              echo "worker_changed=$worker"
+              echo "deploy_bundle_changed=false"
+              echo "docs_only=false"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           before="${{ github.event.before }}"
           after="${{ github.sha }}"
 
