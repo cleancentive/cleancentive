@@ -4,6 +4,9 @@ import { useAuthStore } from '../stores/authStore'
 import { useUiStore } from '../stores/uiStore'
 import { buildQrCodeSvg } from '../lib/qrCode'
 import { Avatar } from './Avatar'
+import faviconSvg from '../../public/favicon.svg?raw'
+
+const FAVICON_DATA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(faviconSvg)}`
 
 function UserIcon({ size = 16 }: { size?: number }) {
   return (
@@ -65,7 +68,7 @@ export function UserMenuButton() {
   const ref = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const instanceUrl = window.location.origin
-  const qrCodeSvg = buildQrCodeSvg(instanceUrl)
+  const qrCodeSvg = buildQrCodeSvg(instanceUrl, { centerImage: { href: FAVICON_DATA_URI, sizeModules: 5 } })
 
   const handleCopyInstanceUrl = async () => {
     try {

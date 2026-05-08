@@ -9,7 +9,11 @@ const LOW_ERROR_CORRECTION_FORMAT_BITS = 1
 
 type Cell = boolean | null
 
-export function buildQrCodeSvg(value: string): string {
+export interface QrCodeOptions {
+  centerImage?: { href: string; sizeModules?: number }
+}
+
+export function buildQrCodeSvg(value: string, options?: QrCodeOptions): string {
   const codewords = encodeCodewords(value)
   const errorCorrection = calculateErrorCorrection(codewords)
   const bits = [...codewords, ...errorCorrection].flatMap(byteToBits)
@@ -17,8 +21,19 @@ export function buildQrCodeSvg(value: string): string {
   const matrix = chooseBestMask(baseMatrix, bits)
   const svgSize = QR_SIZE + QUIET_ZONE * 2
   const modules = matrix.flatMap((row, y) => row.map((isDark, x) => isDark ? `<rect x="${x + QUIET_ZONE}" y="${y + QUIET_ZONE}" width="1" height="1"/>` : '')).join('')
+  const overlay = options?.centerImage ? buildCenterOverlay(svgSize, options.centerImage) : ''
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgSize} ${svgSize}" role="img" shape-rendering="crispEdges"><title>QR code for ${escapeHtml(value)}</title><rect width="100%" height="100%" fill="#fff"/><g fill="#111827">${modules}</g></svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgSize} ${svgSize}" role="img" shape-rendering="crispEdges"><title>QR code for ${escapeHtml(value)}</title><rect width="100%" height="100%" fill="#fff"/><g fill="#111827">${modules}</g>${overlay}</svg>`
+}
+
+function buildCenterOverlay(svgSize: number, image: { href: string; sizeModules?: number }): string {
+  const size = image.sizeModules ?? 7
+  const padding = 1
+  const backdropSize = size + padding * 2
+  const center = svgSize / 2
+  const backdropXY = center - backdropSize / 2
+  const imageXY = center - size / 2
+  return `<rect x="${backdropXY}" y="${backdropXY}" width="${backdropSize}" height="${backdropSize}" rx="1" fill="#fff"/><image href="${image.href}" x="${imageXY}" y="${imageXY}" width="${size}" height="${size}" preserveAspectRatio="xMidYMid meet"/>`
 }
 
 function encodeCodewords(value: string): number[] {
