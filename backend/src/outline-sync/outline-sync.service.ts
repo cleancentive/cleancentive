@@ -200,7 +200,16 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`Set Outline workspace name → "${this.outlineWorkspaceName}"`);
     }
 
-    const websiteId = await this.getOrCreateUmamiWikiWebsite();
+    // Umami integration is best-effort — if Umami is unreachable or creds are
+    // wrong on prod, we still want the rest of the bootstrap (API key,
+    // collections, avatars) to run.
+    let websiteId: string;
+    try {
+      websiteId = await this.getOrCreateUmamiWikiWebsite();
+    } catch (e) {
+      this.logger.warn(`Umami integration skipped (${e instanceof Error ? e.message : e})`);
+      return;
+    }
     const settings = { measurementId: websiteId, instanceUrl: this.umamiBaseUrl, scriptName: '/script.js' };
     const existing = await this.pg.query<{ id: string; settings: any }>(
       `SELECT id, settings FROM integrations WHERE service = 'umami' AND "teamId" = $1 LIMIT 1`,
