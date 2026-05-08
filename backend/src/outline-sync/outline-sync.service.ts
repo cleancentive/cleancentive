@@ -35,6 +35,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   private readonly umamiAdminUrl = process.env.UMAMI_URL ?? 'http://localhost:3001';
   private readonly umamiWikiDomain = process.env.UMAMI_WIKI_DOMAIN ?? new URL(this.outlinePublicUrl).hostname;
   private readonly outlineTeamLogoUrl = process.env.OUTLINE_TEAM_LOGO_URL ?? 'https://cleancentive.local/icon.svg';
+  private readonly outlineWorkspaceName = process.env.OUTLINE_TEAM_NAME ?? 'CleanCentive Wiki';
   private readonly outlineS3Bucket = process.env.OUTLINE_S3_BUCKET ?? 'cleancentive-wiki';
   private outlineApiKey = '';
   private static readonly API_KEY_NAME = 'cleancentive-sync';
@@ -88,6 +89,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       await this.ensureStewardsGroup();
       await this.syncExistingAdmins();
       await this.backfillTeamCollections();
+      await this.backfillUserAvatars();
     } catch (e) {
       this.logger.warn(`Outline sync disabled (${e instanceof Error ? e.message : e}). Wiki integration will not sync until the outline DB is reachable.`);
     }
@@ -171,8 +173,8 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const teams = await this.pg.query<{ avatarUrl: string | null }>(
-      `SELECT "avatarUrl" FROM teams WHERE id = $1 LIMIT 1`,
+    const teams = await this.pg.query<{ avatarUrl: string | null; name: string | null }>(
+      `SELECT "avatarUrl", name FROM teams WHERE id = $1 LIMIT 1`,
       [this.outlineTeamId],
     );
     const team = teams.rows[0];
@@ -181,6 +183,13 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
         this.outlineTeamLogoUrl,
         this.outlineTeamId,
       ]);
+    }
+    if (team && team.name !== this.outlineWorkspaceName) {
+      await this.pg.query(`UPDATE teams SET name = $1, "updatedAt" = NOW() WHERE id = $2`, [
+        this.outlineWorkspaceName,
+        this.outlineTeamId,
+      ]);
+      this.logger.log(`Set Outline workspace name → "${this.outlineWorkspaceName}"`);
     }
 
     const websiteId = await this.getOrCreateUmamiWikiWebsite();
@@ -265,6 +274,19 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     return res.rows[0]?.id ?? null;
   }
 
+  /**
+   * Ensures bootstrap has completed successfully, attempting one re-bootstrap
+   * if not. Returns true when the sync can act on Outline. Use as the gate at
+   * the top of every event handler and reconciliation entry point so the sync
+   * self-heals when the backend started before any Outline user existed.
+   */
+  private async ensureReady(): Promise<boolean> {
+    if (this.isReady() && this.outlineApiKey) return true;
+    this.logger.log('Outline sync not ready; attempting re-bootstrap');
+    await this.bootstrap();
+    return this.isReady() && !!this.outlineApiKey;
+  }
+
   private isReady(): boolean {
     return this.outlineTeamId !== null && this.outlineAdminUserId !== null;
   }
@@ -272,6 +294,10 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   // --- Event Handlers ------------------------------------------------------
 
   async processEvent(eventName: string, payload: unknown): Promise<void> {
+    if (!(await this.ensureReady())) {
+      this.logger.warn(`Outline sync still not ready after re-bootstrap; dropping event ${eventName}`);
+      return;
+    }
     switch (eventName) {
       case 'user.profile-changed':
         return this.handleProfileChanged(payload as { userId: string });
@@ -624,7 +650,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     teams: { created: number; skipped: number };
     stewards: { publicCreated: boolean; confidentialCreated: boolean };
   }> {
-    if (!this.isReady() || !this.outlineApiKey) {
+    if (!(await this.ensureReady())) {
       throw new BadRequestException('Outline sync is not ready');
     }
     await this.ensureMaintenanceNotCompleted(OutlineSyncService.INIT_STATE_KEY, 'Outline content has already been initialized');
@@ -999,6 +1025,38 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Backfill avatar URLs for Outline users whose CleanCentive account has a
+   * Gravatar email selected. Closes the gap created when avatar-changed events
+   * fired before bootstrap had provisioned the API key (the queued event was
+   * silently dropped) — affected users would otherwise stay avatar-less until
+   * they re-select their Gravatar email.
+   */
+  private async backfillUserAvatars(): Promise<void> {
+    if (!this.isReady() || !this.outlineApiKey) return;
+    const appBaseUrl = (process.env.OIDC_ISSUER_URL ?? 'https://cleancentive.local/api/v1/oidc')
+      .replace(/\/api\/v1\/oidc\/?$/, '');
+    const users = await this.userService.findUsersWithAvatar();
+    let updated = 0;
+    for (const user of users) {
+      try {
+        const outlineRow = await this.pg.query<{ id: string; avatarUrl: string | null }>(
+          `SELECT id, "avatarUrl" FROM users WHERE LOWER(email) = LOWER($1) AND "teamId" = $2 LIMIT 1`,
+          [user.email, this.outlineTeamId],
+        );
+        const row = outlineRow.rows[0];
+        if (!row) continue;
+        const desiredUrl = `${appBaseUrl}/api/v1/user/${user.id}/avatar?v=${user.avatarEmailId}`;
+        if (row.avatarUrl === desiredUrl) continue;
+        await this.callOutlineApi('/users.update', { id: row.id, avatarUrl: desiredUrl });
+        updated++;
+      } catch (e) {
+        this.logger.warn(`Avatar backfill failed for ${user.email}: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    if (updated > 0) this.logger.log(`Backfilled ${updated} Outline user avatar(s)`);
+  }
+
   // --- Reconciliation -----------------------------------------------------
 
   /**
@@ -1007,8 +1065,8 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
    * unambiguous; logs warnings where it isn't.
    */
   async reconcileTeamCollections(): Promise<void> {
-    if (!this.isReady() || !this.outlineApiKey) {
-      this.logger.warn('Reconciliation skipped: Outline sync not ready');
+    if (!(await this.ensureReady())) {
+      this.logger.warn('Reconciliation skipped: Outline sync not ready after re-bootstrap');
       return;
     }
 

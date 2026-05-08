@@ -49,6 +49,17 @@ export class UserService {
     });
   }
 
+  /** Users who have selected a Gravatar email — used by Outline sync to backfill avatars. */
+  async findUsersWithAvatar(): Promise<Array<{ id: string; email: string; avatarEmailId: string }>> {
+    const rows = await this.userRepository.query(
+      `SELECT u.id AS id, ue.email AS email, u.avatar_email_id AS "avatarEmailId"
+       FROM users u
+       JOIN user_emails ue ON ue.id = u.avatar_email_id
+       WHERE u.avatar_email_id IS NOT NULL`,
+    );
+    return rows;
+  }
+
   private async transferCleanupOwnership(sourceUserId: string, targetUserId: string): Promise<void> {
     await this.userRepository.query(
       `
