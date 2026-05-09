@@ -69,6 +69,14 @@ export function MapPage() {
     })
 
     map.addControl(new maplibregl.NavigationControl(), 'top-right')
+    map.addControl(
+      new maplibregl.GeolocateControl({
+        positionOptions: { enableHighAccuracy: true },
+        trackUserLocation: true,
+        showUserLocation: true,
+      }),
+      'top-right',
+    )
 
     map.on('mousedown', () => { userInteractedRef.current = true })
     map.on('wheel', () => { userInteractedRef.current = true })
