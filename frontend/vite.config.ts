@@ -25,6 +25,12 @@ export const pwaConfig = {
   },
   workbox: {
     globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+    // config.js is a placeholder at build time and gets rewritten by
+    // docker-entrypoint.sh at container start with the real runtime values
+    // (UMAMI_*, WIKI_URL). Precaching it would freeze it as the empty
+    // build-time stub, masking every per-deploy config change behind the
+    // service worker.
+    globIgnores: ['**/config.js'],
     navigateFallbackDenylist: [/^\/api\//],
   },
 }

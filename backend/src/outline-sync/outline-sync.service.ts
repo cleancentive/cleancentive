@@ -1003,7 +1003,11 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
 
   private async updateTeamCollectionMapping(
     teamId: string,
-    patch: { outline_group_id?: string | null; outline_share_id?: string | null },
+    patch: {
+      outline_group_id?: string | null;
+      outline_share_id?: string | null;
+      outline_confidential_collection_id?: string | null;
+    },
   ): Promise<void> {
     await this.teamCollectionRepository.update({ team_id: teamId }, patch);
   }
@@ -1044,6 +1048,56 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     const teams = await this.teamRepository.find({ where: { archived_at: IsNull(), system_key: IsNull() } });
     for (const team of teams) {
       await this.provisionInitialTeamCollection(team.id, team.name);
+    }
+    await this.backfillStewardsCollections();
+  }
+
+  /**
+   * The Stewards system team is special: its public collection works like a
+   * normal team collection (mapped in team_outline_collections so the team
+   * detail page can render a Wiki link), but it ALSO has a private
+   * "Stewards Confidential" collection that only the stewards group can see.
+   * Both are provisioned here so the bootstrap is self-sufficient — the
+   * one-shot initializeOutlineContentOnce admin endpoint is no longer the
+   * only place that sets these up.
+   */
+  private async backfillStewardsCollections(): Promise<void> {
+    const stewardsTeam = await this.teamRepository.findOne({ where: { system_key: 'stewards' } });
+    if (!stewardsTeam) return;
+
+    const stewardsGroupId = await this.findGroupIdByExternalId('stewards');
+    if (!stewardsGroupId) return;
+
+    let mapping = await this.teamCollectionRepository.findOne({ where: { team_id: stewardsTeam.id } });
+
+    // Public Stewards collection — same shape as a normal team mapping so the
+    // existing TeamDetail wiki link works without special-casing.
+    if (!mapping) {
+      const publicCollectionId = await this.createCollection({ name: 'Stewards', permission: 'read' });
+      await this.saveTeamCollectionMapping(stewardsTeam.id, publicCollectionId, stewardsGroupId, null);
+      await this.addGroupToCollection(publicCollectionId, stewardsGroupId, 'admin');
+      await this.createStarterDoc(publicCollectionId, 'Welcome to the Stewards wiki', this.starterDocText('Stewards'));
+      const shareId = await this.createInitialCollectionShare(publicCollectionId);
+      await this.updateTeamCollectionMapping(stewardsTeam.id, { outline_share_id: shareId });
+      mapping = await this.teamCollectionRepository.findOne({ where: { team_id: stewardsTeam.id } });
+      this.logger.log(`Provisioned public Stewards collection (${publicCollectionId})`);
+    }
+
+    // Confidential Stewards collection — private, only stewards see it.
+    // Outline-only (not exposed via TeamDetail), but we persist the id for
+    // idempotence so subsequent boots don't re-create it.
+    if (!mapping?.outline_confidential_collection_id) {
+      const existingId = await this.findCollectionIdByName('Stewards Confidential');
+      const confidentialCollectionId = existingId
+        ?? (await this.createCollection({ name: 'Stewards Confidential', permission: null }));
+      if (!existingId) {
+        await this.addGroupToCollection(confidentialCollectionId, stewardsGroupId, 'admin');
+        await this.createStarterDoc(confidentialCollectionId, 'Stewards Confidential', this.starterDocText('Stewards Confidential'));
+        this.logger.log(`Provisioned confidential Stewards collection (${confidentialCollectionId})`);
+      }
+      await this.updateTeamCollectionMapping(stewardsTeam.id, {
+        outline_confidential_collection_id: confidentialCollectionId,
+      });
     }
   }
 
@@ -1122,6 +1176,11 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
         orphans++;
       }
     }
+
+    // 4. Stewards system team — separate provisioning path because it has
+    // an extra confidential collection and uses the existing 'stewards' group
+    // rather than a per-team group.
+    await this.backfillStewardsCollections();
 
     this.logger.log(
       `Reconciliation finished: ${provisioned} provisioned, ${missing} missing-collection warnings, ${archivedMapped} archived mapped teams left unchanged, ${orphans} orphan mappings`,
