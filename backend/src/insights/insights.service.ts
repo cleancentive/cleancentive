@@ -80,7 +80,15 @@ export class InsightsService {
     }
 
     const { where, params } = this.buildSpotWhere(filter);
-    const { and, params: andParams } = this.buildSpotAnd(filter);
+    const { and, params: andParams, nextIdx } = this.buildSpotAnd(filter);
+    const cleanupFilter = this.buildCleanupFilterParts(filter, nextIdx);
+    const participantJoin = cleanupFilter.userId$
+      ? `JOIN cleanup_participants cp ON cp.cleanup_id = c.id AND cp.user_id = ${cleanupFilter.userId$}`
+      : '';
+    const cleanupExtraWhere = cleanupFilter.dateConditions.length
+      ? ' AND ' + cleanupFilter.dateConditions.join(' AND ')
+      : '';
+    const cleanupParams = [...andParams, ...cleanupFilter.params];
 
     const [spotRows, cleanupRows] = await Promise.all([
       this.spotRepository.query(
@@ -104,10 +112,11 @@ export class InsightsService {
                 COUNT(s.id)::int AS spot_count
          FROM cleanup_dates cd
          JOIN cleanups c ON c.id = cd.cleanup_id AND c.archived_at IS NULL
+         ${participantJoin}
          LEFT JOIN spots s ON s.cleanup_date_id = cd.id ${and}
-         WHERE cd.latitude IS NOT NULL
+         WHERE cd.latitude IS NOT NULL${cleanupExtraWhere}
          GROUP BY cd.id, cd.longitude, cd.latitude, cd.location_name, c.name, cd.start_at`,
-        andParams,
+        cleanupParams,
       ),
     ]);
 
@@ -240,6 +249,30 @@ export class InsightsService {
     };
   }
 
+  // Building blocks for cleanup-scoped SQL. Aliases are fixed: cleanups `c`, cleanup_dates `cd`.
+  private buildCleanupFilterParts(
+    filter: StatsFilter,
+    startIdx = 1,
+  ): { userId$: string | null; dateConditions: string[]; params: any[]; nextIdx: number } {
+    const params: any[] = [];
+    const dateConditions: string[] = [];
+    let idx = startIdx;
+    let userId$: string | null = null;
+    if (filter.userId) {
+      userId$ = `$${idx++}`;
+      params.push(filter.userId);
+    }
+    if (filter.cleanupDateId) {
+      dateConditions.push(`cd.id = $${idx++}`);
+      params.push(filter.cleanupDateId);
+    }
+    if (filter.since) {
+      dateConditions.push(`cd.start_at >= $${idx++}`);
+      params.push(filter.since);
+    }
+    return { userId$, dateConditions, params, nextIdx: idx };
+  }
+
   private hasFilter(filter: StatsFilter): boolean {
     return !!(filter.teamId || filter.cleanupDateId || filter.since || filter.pickedUp !== undefined || filter.userId);
   }
@@ -332,6 +365,40 @@ export class InsightsService {
     const { where, params } = this.buildSpotWhere(filter);
     const { and, params: andParams } = this.buildSpotAnd(filter);
 
+    let cleanupTotalSql: string;
+    let cleanupTotalParams: any[];
+    let cleanupTSSql: string;
+    let cleanupTSParams: any[];
+
+    if (filter.userId) {
+      const cf = this.buildCleanupFilterParts(filter, 1);
+      const dateClause = cf.dateConditions.length ? ' AND ' + cf.dateConditions.join(' AND ') : '';
+      const dateJoin = cf.dateConditions.length ? 'JOIN cleanup_dates cd ON cd.cleanup_id = c.id' : '';
+      cleanupTotalSql = `SELECT COUNT(DISTINCT c.id)::int AS count
+         FROM cleanups c
+         JOIN cleanup_participants cp ON cp.cleanup_id = c.id AND cp.user_id = ${cf.userId$}
+         ${dateJoin}
+         WHERE c.archived_at IS NULL${dateClause}`;
+      cleanupTotalParams = cf.params;
+      cleanupTSSql = `SELECT TO_CHAR(date_trunc('week', cd.start_at), 'YYYY-MM-DD') AS week,
+                COUNT(DISTINCT c.id)::int AS count
+         FROM cleanup_participants cp
+         JOIN cleanups c ON c.id = cp.cleanup_id AND c.archived_at IS NULL
+         JOIN cleanup_dates cd ON cd.cleanup_id = c.id
+         WHERE cp.user_id = ${cf.userId$}${dateClause}
+         GROUP BY date_trunc('week', cd.start_at) ORDER BY date_trunc('week', cd.start_at)`;
+      cleanupTSParams = cf.params;
+    } else {
+      cleanupTotalSql = `SELECT COUNT(DISTINCT cd.cleanup_id)::int AS count
+         FROM spots s JOIN cleanup_dates cd ON cd.id = s.cleanup_date_id ${where}`;
+      cleanupTotalParams = params;
+      cleanupTSSql = `SELECT TO_CHAR(date_trunc('week', s.captured_at), 'YYYY-MM-DD') AS week,
+                COUNT(DISTINCT cd.cleanup_id)::int AS count
+         FROM spots s JOIN cleanup_dates cd ON cd.id = s.cleanup_date_id ${where}
+         GROUP BY date_trunc('week', s.captured_at) ORDER BY date_trunc('week', s.captured_at)`;
+      cleanupTSParams = params;
+    }
+
     const [
       totalCleanups,
       totalUsers,
@@ -348,12 +415,7 @@ export class InsightsService {
       topMaterials,
       topBrands,
     ] = await Promise.all([
-      // When filtered, derive counts from spots table
-      this.spotRepository.query(
-        `SELECT COUNT(DISTINCT cd.cleanup_id)::int AS count
-         FROM spots s JOIN cleanup_dates cd ON cd.id = s.cleanup_date_id ${where}`,
-        params,
-      ),
+      this.spotRepository.query(cleanupTotalSql, cleanupTotalParams),
       this.spotRepository.query(
         `SELECT COUNT(DISTINCT s.user_id)::int AS count FROM spots s ${where}`,
         params,
@@ -386,14 +448,7 @@ export class InsightsService {
          GROUP BY date_trunc('week', s.captured_at) ORDER BY date_trunc('week', s.captured_at)`,
         params,
       ),
-      // Cleanups time series: derive from spots when filtered
-      this.spotRepository.query(
-        `SELECT TO_CHAR(date_trunc('week', s.captured_at), 'YYYY-MM-DD') AS week,
-                COUNT(DISTINCT cd.cleanup_id)::int AS count
-         FROM spots s JOIN cleanup_dates cd ON cd.id = s.cleanup_date_id ${where}
-         GROUP BY date_trunc('week', s.captured_at) ORDER BY date_trunc('week', s.captured_at)`,
-        params,
-      ),
+      this.spotRepository.query(cleanupTSSql, cleanupTSParams),
       this.spotRepository.query(
         `SELECT TO_CHAR(date_trunc('week', s.captured_at), 'YYYY-MM-DD') AS week, COALESCE(SUM(di.weight_grams), 0) AS total
          FROM detected_items di JOIN spots s ON di.spot_id = s.id ${where}
