@@ -10,6 +10,7 @@ interface CleancentiveConfig {
   umamiWebsiteId?: string;
   umamiShareUrl?: string;
   wikiUrl?: string;
+  stadiaApiKey?: string;
 }
 
 interface Window {

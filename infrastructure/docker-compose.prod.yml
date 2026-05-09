@@ -29,6 +29,7 @@ services:
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
       UMAMI_SHARE_URL: ${UMAMI_SHARE_URL:-}
       WIKI_URL: https://wiki.${DOMAIN}
+      STADIA_API_KEY: ${STADIA_API_KEY:-}
     healthcheck:
       test: ["CMD-SHELL", "test -f /usr/share/nginx/html/index.html"]
       interval: 30s

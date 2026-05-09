@@ -4040,6 +4040,164 @@ textarea.mono {
   font-size: 0.85rem;
 }
 
+/* Basemap switcher — floating button + bottom sheet (mobile) / popover (desktop) */
+.basemap-trigger {
+  position: absolute;
+  right: 12px;
+  bottom: 24px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: var(--gray-800);
+  border: 1px solid var(--gray-300);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  z-index: 5;
+  padding: 0;
+}
+.basemap-trigger:hover {
+  background: var(--gray-100);
+}
+.basemap-trigger:focus-visible {
+  outline: 2px solid var(--color-primary, #2563eb);
+  outline-offset: 2px;
+}
+
+.basemap-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1000;
+  animation: basemap-fade-in 0.15s ease-out;
+}
+
+@keyframes basemap-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.basemap-sheet {
+  background: #fff;
+  width: 100%;
+  max-height: 75vh;
+  border-radius: 16px 16px 0 0;
+  padding: 0.75rem 1rem 1.25rem;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+  overflow-y: auto;
+  animation: basemap-slide-up 0.2s ease-out;
+  -webkit-overflow-scrolling: touch;
+}
+
+@keyframes basemap-slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.basemap-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.25rem 0 0.5rem;
+  border-bottom: 1px solid var(--gray-200);
+  margin-bottom: 0.5rem;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+
+.basemap-sheet-title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--gray-900);
+}
+
+.basemap-sheet-close {
+  background: transparent;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--gray-700);
+  padding: 0;
+}
+.basemap-sheet-close:hover {
+  background: var(--gray-100);
+}
+
+.basemap-section-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--gray-500);
+  padding: 0.75rem 0.25rem 0.35rem;
+}
+
+.basemap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.basemap-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.7rem 0.75rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: var(--gray-800);
+  cursor: pointer;
+  text-align: left;
+  min-height: 44px;
+}
+.basemap-row:hover {
+  background: var(--gray-100);
+}
+.basemap-row--selected {
+  background: var(--gray-100);
+  border-color: var(--color-primary, #2563eb);
+  color: var(--gray-900);
+  font-weight: 600;
+}
+.basemap-row-check {
+  color: var(--color-primary, #2563eb);
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+@media (min-width: 720px) {
+  .basemap-sheet-backdrop {
+    background: transparent;
+    align-items: flex-end;
+    justify-content: flex-end;
+    pointer-events: none;
+  }
+  .basemap-sheet {
+    pointer-events: auto;
+    width: 320px;
+    max-height: 70vh;
+    margin: 0 12px 76px 0;
+    border-radius: 12px;
+    animation: basemap-fade-in 0.15s ease-out;
+  }
+}
+
 /* Batch Import Dialog */
 .batch-import-dialog {
   max-width: 600px;
