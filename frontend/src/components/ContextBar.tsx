@@ -4,7 +4,8 @@ import { useAuthStore } from '../stores/authStore'
 import { useTeamStore } from '../stores/teamStore'
 import { useCleanupStore } from '../stores/cleanupStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
-import { useInsightsFilterStore, type DatePreset, type PickedUpFilter } from '../stores/insightsFilterStore'
+import { useInsightsFilterStore, type CleanupFilter, type DatePreset, type PickedUpFilter } from '../stores/insightsFilterStore'
+import { CleanupFilterDropdown } from './CleanupFilterDropdown'
 
 const PICKED_UP_PRESETS: Array<{ value: PickedUpFilter; label: string }> = [
   { value: 'picked', label: 'Picked' },
@@ -24,6 +25,7 @@ const REFRESH_INTERVAL_MS = 5 * 60 * 1000
 interface RouteConfig {
   dropdownsEnabled: boolean
   dropdownsAreFilters: boolean
+  cleanupFilterEnabled: boolean
   myEnabled: boolean
   myForcedOn: boolean
   pickedUpEnabled: boolean
@@ -35,6 +37,7 @@ function getRouteConfig(pathname: string): RouteConfig {
     return {
       dropdownsEnabled: true,
       dropdownsAreFilters: false,
+      cleanupFilterEnabled: false,
       myEnabled: false,
       myForcedOn: true,
       pickedUpEnabled: true,
@@ -45,6 +48,7 @@ function getRouteConfig(pathname: string): RouteConfig {
     return {
       dropdownsEnabled: true,
       dropdownsAreFilters: true,
+      cleanupFilterEnabled: true,
       myEnabled: true,
       myForcedOn: false,
       pickedUpEnabled: true,
@@ -55,6 +59,7 @@ function getRouteConfig(pathname: string): RouteConfig {
     return {
       dropdownsEnabled: true,
       dropdownsAreFilters: true,
+      cleanupFilterEnabled: false,
       myEnabled: true,
       myForcedOn: false,
       pickedUpEnabled: false,
@@ -65,6 +70,7 @@ function getRouteConfig(pathname: string): RouteConfig {
   return {
     dropdownsEnabled: false,
     dropdownsAreFilters: false,
+    cleanupFilterEnabled: false,
     myEnabled: false,
     myForcedOn: false,
     pickedUpEnabled: false,
@@ -152,9 +158,11 @@ function isDateOngoing(startAt: string, endAt: string): boolean {
 
 function hasActiveFilters(
   myFilter: boolean, pickedUpFilter: PickedUpFilter, datePreset: DatePreset,
+  cleanupFilter: CleanupFilter,
   activeTeamId?: string | null, activeCleanupDateId?: string | null,
 ): boolean {
   return myFilter || pickedUpFilter !== 'all' || datePreset !== 'all'
+    || !!cleanupFilter
     || !!activeTeamId || !!activeCleanupDateId
 }
 
@@ -167,6 +175,7 @@ export function ContextBar() {
     datePreset, setDatePreset,
     pickedUpFilter, setPickedUpFilter,
     myFilter, setMyFilter,
+    cleanupFilter,
     clearFilters,
   } = useInsightsFilterStore()
   const autoActivatedRef = useRef(false)
@@ -273,7 +282,7 @@ export function ContextBar() {
 
   const dropdownEmptyLabel = config.dropdownsAreFilters ? 'All' : 'None'
   const filterMode = config.dropdownsAreFilters
-  const anyFiltersActive = hasActiveFilters(myFilter, pickedUpFilter, datePreset, user.active_team_id, user.active_cleanup_date_id)
+  const anyFiltersActive = hasActiveFilters(myFilter, pickedUpFilter, datePreset, cleanupFilter, user.active_team_id, user.active_cleanup_date_id)
   const anyFilterEnabled = config.myEnabled || config.pickedUpEnabled || config.dateEnabled
 
   // Compound summary: "My picks in [TeamName]"
@@ -306,15 +315,20 @@ export function ContextBar() {
           emptyLabel={dropdownEmptyLabel}
           disabled={!config.dropdownsEnabled}
         />
-        <Dropdown
-          items={myCleanups}
-          activeId={user.active_cleanup_date_id || null}
-          onSelect={(id) => activateDate(id)}
-          onClear={() => deactivateDate()}
-          label="Cleanup"
-          emptyLabel={dropdownEmptyLabel}
-          disabled={!config.dropdownsEnabled}
-        />
+        {config.dropdownsAreFilters && config.cleanupFilterEnabled && (
+          <CleanupFilterDropdown disabled={!config.dropdownsEnabled} />
+        )}
+        {!config.dropdownsAreFilters && (
+          <Dropdown
+            items={myCleanups}
+            activeId={user.active_cleanup_date_id || null}
+            onSelect={(id) => activateDate(id)}
+            onClear={() => deactivateDate()}
+            label="Cleanup"
+            emptyLabel={dropdownEmptyLabel}
+            disabled={!config.dropdownsEnabled}
+          />
+        )}
       </div>
 
       <div
@@ -364,11 +378,11 @@ export function ContextBar() {
 
         {anyFiltersActive && (
           <button
-            className={`context-clear-button${user.active_team_id || user.active_cleanup_date_id ? ' context-clear-button--highlight' : ''}`}
+            className={`context-clear-button${user.active_team_id || cleanupFilter ? ' context-clear-button--highlight' : ''}`}
             onClick={() => {
               clearFilters()
               if (user.active_team_id) deactivateTeam()
-              if (user.active_cleanup_date_id) deactivateDate()
+              if (!filterMode && user.active_cleanup_date_id) deactivateDate()
             }}
             title="Clear all filters"
           >

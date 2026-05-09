@@ -11,19 +11,21 @@ export class InsightsController {
   @ApiOperation({ summary: 'Get spot and cleanup locations as GeoJSON for map display' })
   @ApiOkResponse({ description: 'Returns GeoJSON FeatureCollections for spots and cleanup locations.' })
   @ApiQuery({ name: 'team_id', required: false, description: 'Filter by team UUID' })
-  @ApiQuery({ name: 'cleanup_date_id', required: false, description: 'Filter by cleanup date UUID' })
+  @ApiQuery({ name: 'cleanup_id', required: false, description: 'Filter by cleanup UUID (all dates of this cleanup)' })
+  @ApiQuery({ name: 'cleanup_date_id', required: false, description: 'Filter by cleanup date UUID (takes precedence over cleanup_id)' })
   @ApiQuery({ name: 'since', required: false, description: 'Filter spots captured on or after this ISO 8601 date' })
   @ApiQuery({ name: 'picked_up', required: false, description: 'Filter by picked_up status (true or false)' })
   @ApiQuery({ name: 'user_id', required: false, description: 'Filter by user UUID (for "My" filter)' })
   async getMapData(
     @Query('team_id') teamId?: string,
+    @Query('cleanup_id') cleanupId?: string,
     @Query('cleanup_date_id') cleanupDateId?: string,
     @Query('since') since?: string,
     @Query('picked_up') pickedUp?: string,
     @Query('user_id') userId?: string,
   ) {
     return this.insightsService.getMapData({
-      teamId, cleanupDateId, since,
+      teamId, cleanupId, cleanupDateId, since,
       pickedUp: this.parseBooleanParam(pickedUp),
       userId,
     });
@@ -33,19 +35,21 @@ export class InsightsController {
   @ApiOperation({ summary: 'Get community statistics, optionally filtered by team, cleanup date, or time range' })
   @ApiOkResponse({ description: 'Returns aggregate stats and time series for cleanups, users, teams, spots, and items.' })
   @ApiQuery({ name: 'team_id', required: false, description: 'Filter by team UUID' })
-  @ApiQuery({ name: 'cleanup_date_id', required: false, description: 'Filter by cleanup date UUID' })
+  @ApiQuery({ name: 'cleanup_id', required: false, description: 'Filter by cleanup UUID (all dates of this cleanup)' })
+  @ApiQuery({ name: 'cleanup_date_id', required: false, description: 'Filter by cleanup date UUID (takes precedence over cleanup_id)' })
   @ApiQuery({ name: 'since', required: false, description: 'Filter spots captured on or after this ISO 8601 date' })
   @ApiQuery({ name: 'picked_up', required: false, description: 'Filter by picked_up status (true or false)' })
   @ApiQuery({ name: 'user_id', required: false, description: 'Filter by user UUID (for "My" filter)' })
   async getStats(
     @Query('team_id') teamId?: string,
+    @Query('cleanup_id') cleanupId?: string,
     @Query('cleanup_date_id') cleanupDateId?: string,
     @Query('since') since?: string,
     @Query('picked_up') pickedUp?: string,
     @Query('user_id') userId?: string,
   ) {
     return this.insightsService.getPublicStats({
-      teamId, cleanupDateId, since,
+      teamId, cleanupId, cleanupDateId, since,
       pickedUp: this.parseBooleanParam(pickedUp),
       userId,
     });

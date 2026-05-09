@@ -38,6 +38,7 @@ interface CleanupParticipant {
 interface CleanupSearchResult {
   cleanup: CleanupSummary
   nearestDate: CleanupDate | null
+  dates: CleanupDate[]
   userRole: string | null
 }
 

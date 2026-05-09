@@ -59,20 +59,22 @@ function RankTable({ rows, labelKey, countKey, emptyText }: { rows: Array<Record
 export function InsightsPage() {
   const { stats, isLoading, error, fetchStats } = useInsightsStore()
   const { user } = useAuthStore()
-  const { datePreset, pickedUpFilter, myFilter } = useInsightsFilterStore()
+  const { datePreset, pickedUpFilter, myFilter, cleanupFilter } = useInsightsFilterStore()
 
   const teamId = user?.active_team_id ?? undefined
-  const cleanupDateId = user?.active_cleanup_date_id ?? undefined
+  const cleanupDateId = cleanupFilter?.kind === 'date' ? cleanupFilter.cleanupDateId : undefined
+  const cleanupId = cleanupFilter?.kind === 'cleanup' ? cleanupFilter.cleanupId : undefined
 
   useEffect(() => {
     fetchStats({
       team_id: teamId,
+      cleanup_id: cleanupId,
       cleanup_date_id: cleanupDateId,
       since: presetToSince(datePreset),
       picked_up: pickedUpFilterToParam(pickedUpFilter),
       user_id: myFilter ? user?.id : undefined,
     })
-  }, [fetchStats, teamId, cleanupDateId, datePreset, pickedUpFilter, myFilter, user?.id])
+  }, [fetchStats, teamId, cleanupId, cleanupDateId, datePreset, pickedUpFilter, myFilter, user?.id])
 
   const scopeLabel = user?.active_team_name
     ? `${user.active_team_name} Insights`

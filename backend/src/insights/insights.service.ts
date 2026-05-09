@@ -43,6 +43,7 @@ export interface PublicStats {
 
 export interface StatsFilter {
   teamId?: string;
+  cleanupId?: string;
   cleanupDateId?: string;
   since?: string;
   pickedUp?: boolean;
@@ -172,6 +173,7 @@ export class InsightsService {
     const parts = ['insights:stats'];
     if (filter.teamId) parts.push(`t:${filter.teamId}`);
     if (filter.cleanupDateId) parts.push(`cd:${filter.cleanupDateId}`);
+    else if (filter.cleanupId) parts.push(`c:${filter.cleanupId}`);
     if (filter.since) parts.push(`s:${filter.since}`);
     if (filter.pickedUp !== undefined) parts.push(`pu:${filter.pickedUp}`);
     if (filter.userId) parts.push(`u:${filter.userId}`);
@@ -182,6 +184,7 @@ export class InsightsService {
     const parts = ['insights:map'];
     if (filter.teamId) parts.push(`t:${filter.teamId}`);
     if (filter.cleanupDateId) parts.push(`cd:${filter.cleanupDateId}`);
+    else if (filter.cleanupId) parts.push(`c:${filter.cleanupId}`);
     if (filter.since) parts.push(`s:${filter.since}`);
     if (filter.pickedUp !== undefined) parts.push(`pu:${filter.pickedUp}`);
     if (filter.userId) parts.push(`u:${filter.userId}`);
@@ -199,6 +202,9 @@ export class InsightsService {
     if (filter.cleanupDateId) {
       conditions.push(`${alias}.cleanup_date_id = $${idx++}`);
       params.push(filter.cleanupDateId);
+    } else if (filter.cleanupId) {
+      conditions.push(`${alias}.cleanup_date_id IN (SELECT id FROM cleanup_dates WHERE cleanup_id = $${idx++})`);
+      params.push(filter.cleanupId);
     }
     if (filter.since) {
       conditions.push(`${alias}.captured_at >= $${idx++}`);
@@ -229,6 +235,9 @@ export class InsightsService {
     if (filter.cleanupDateId) {
       conditions.push(`${alias}.cleanup_date_id = $${idx++}`);
       params.push(filter.cleanupDateId);
+    } else if (filter.cleanupId) {
+      conditions.push(`${alias}.cleanup_date_id IN (SELECT id FROM cleanup_dates WHERE cleanup_id = $${idx++})`);
+      params.push(filter.cleanupId);
     }
     if (filter.since) {
       conditions.push(`${alias}.captured_at >= $${idx++}`);
@@ -265,6 +274,9 @@ export class InsightsService {
     if (filter.cleanupDateId) {
       dateConditions.push(`cd.id = $${idx++}`);
       params.push(filter.cleanupDateId);
+    } else if (filter.cleanupId) {
+      dateConditions.push(`cd.cleanup_id = $${idx++}`);
+      params.push(filter.cleanupId);
     }
     if (filter.since) {
       dateConditions.push(`cd.start_at >= $${idx++}`);
@@ -274,7 +286,7 @@ export class InsightsService {
   }
 
   private hasFilter(filter: StatsFilter): boolean {
-    return !!(filter.teamId || filter.cleanupDateId || filter.since || filter.pickedUp !== undefined || filter.userId);
+    return !!(filter.teamId || filter.cleanupId || filter.cleanupDateId || filter.since || filter.pickedUp !== undefined || filter.userId);
   }
 
   private async computeStats(filter: StatsFilter = {}): Promise<PublicStats> {

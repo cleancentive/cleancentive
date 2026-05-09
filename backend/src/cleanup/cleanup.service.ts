@@ -285,7 +285,7 @@ export class CleanupService {
   }
 
   async searchCleanups(input: SearchCleanupsInput): Promise<{
-    items: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null; userRole: string | null }>;
+    items: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null; dates: Array<CleanupDate & { spotCount: number }>; userRole: string | null }>;
     total: number;
     counts: { past: number; ongoing: number; future: number };
   }> {
@@ -319,14 +319,41 @@ export class CleanupService {
       participantMap = new Map(participations.map((p) => [p.cleanup_id, p.role]));
     }
 
-    const items: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null; userRole: string | null }> = [];
+    const items: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null; dates: Array<CleanupDate & { spotCount: number }>; userRole: string | null }> = [];
     const counts = { past: 0, ongoing: 0, future: 0 };
 
-    for (const cleanup of cleanups) {
-      const dates = await this.cleanupDateRepository.find({
-        where: { cleanup_id: cleanup.id },
+    const allDatesByCleanup = new Map<string, CleanupDate[]>();
+    if (cleanups.length > 0) {
+      const allDates = await this.cleanupDateRepository.find({
+        where: { cleanup_id: In(cleanups.map((c) => c.id)) },
         order: { start_at: 'ASC' },
       });
+      for (const d of allDates) {
+        const list = allDatesByCleanup.get(d.cleanup_id) || [];
+        list.push(d);
+        allDatesByCleanup.set(d.cleanup_id, list);
+      }
+    }
+
+    const allDateIds = Array.from(allDatesByCleanup.values()).flat().map((d) => d.id);
+    const spotCountByDateId = new Map<string, number>();
+    if (allDateIds.length > 0) {
+      const rows = await this.cleanupDateRepository.query(
+        `SELECT cleanup_date_id, COUNT(*)::int AS count
+         FROM spots WHERE cleanup_date_id IS NOT NULL AND cleanup_date_id = ANY($1)
+         GROUP BY cleanup_date_id`,
+        [allDateIds],
+      );
+      for (const r of rows as Array<{ cleanup_date_id: string; count: number }>) {
+        spotCountByDateId.set(r.cleanup_date_id, Number(r.count));
+      }
+    }
+
+    for (const cleanup of cleanups) {
+      const baseDates = allDatesByCleanup.get(cleanup.id) || [];
+      const dates: Array<CleanupDate & { spotCount: number }> = baseDates.map(
+        (d) => Object.assign(d, { spotCount: spotCountByDateId.get(d.id) || 0 }),
+      );
 
       const userRole = participantMap.get(cleanup.id) || null;
       if (input.memberOnly && !userRole) continue;
@@ -352,7 +379,7 @@ export class CleanupService {
         if (!passes) continue;
       }
 
-      items.push({ cleanup, nearestDate, userRole });
+      items.push({ cleanup, nearestDate, dates, userRole });
     }
 
     return { items, total: items.length, counts };

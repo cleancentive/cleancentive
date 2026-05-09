@@ -36,6 +36,7 @@ interface PublicStats {
 
 export interface StatsFilterParams {
   team_id?: string
+  cleanup_id?: string
   cleanup_date_id?: string
   since?: string
   picked_up?: string
@@ -62,6 +63,7 @@ export const useInsightsStore = create<InsightsState>((set) => ({
       const searchParams = new URLSearchParams()
       if (params?.team_id) searchParams.set('team_id', params.team_id)
       if (params?.cleanup_date_id) searchParams.set('cleanup_date_id', params.cleanup_date_id)
+      else if (params?.cleanup_id) searchParams.set('cleanup_id', params.cleanup_id)
       if (params?.since) searchParams.set('since', params.since)
       if (params?.picked_up) searchParams.set('picked_up', params.picked_up)
       if (params?.user_id) searchParams.set('user_id', params.user_id)

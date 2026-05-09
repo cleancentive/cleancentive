@@ -3,6 +3,11 @@ import { create } from 'zustand'
 export type DatePreset = '7d' | '30d' | '1y' | 'all'
 export type PickedUpFilter = 'picked' | 'spotted' | 'all'
 
+export type CleanupFilter =
+  | { kind: 'date'; cleanupDateId: string; cleanupId: string; cleanupName: string }
+  | { kind: 'cleanup'; cleanupId: string; cleanupName: string }
+  | null
+
 interface InsightsFilterState {
   datePreset: DatePreset
   setDatePreset: (preset: DatePreset) => void
@@ -10,6 +15,8 @@ interface InsightsFilterState {
   setPickedUpFilter: (filter: PickedUpFilter) => void
   myFilter: boolean
   setMyFilter: (value: boolean) => void
+  cleanupFilter: CleanupFilter
+  setCleanupFilter: (filter: CleanupFilter) => void
   clearFilters: () => void
 }
 
@@ -32,6 +39,7 @@ const FILTER_DEFAULTS = {
   myFilter: false,
   pickedUpFilter: 'all' as PickedUpFilter,
   datePreset: 'all' as DatePreset,
+  cleanupFilter: null as CleanupFilter,
 }
 
 export const useInsightsFilterStore = create<InsightsFilterState>((set) => ({
@@ -39,5 +47,6 @@ export const useInsightsFilterStore = create<InsightsFilterState>((set) => ({
   setDatePreset: (preset) => set({ datePreset: preset }),
   setPickedUpFilter: (filter) => set({ pickedUpFilter: filter }),
   setMyFilter: (value) => set({ myFilter: value }),
+  setCleanupFilter: (filter) => set({ cleanupFilter: filter }),
   clearFilters: () => set(FILTER_DEFAULTS),
 }))
