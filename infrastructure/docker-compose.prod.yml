@@ -22,7 +22,7 @@ services:
       - caddy_config:/config
 
   frontend:
-    image: ghcr.io/cleancentive/cleancentive-frontend:51e6283bc84329443e07640fd40224db03524a73
+    image: ghcr.io/cleancentive/cleancentive-frontend:af5da3df1eeb8a563c310e4a4611fc58a8ad8829
     restart: unless-stopped
     environment:
       UMAMI_SCRIPT_URL: https://analytics.${DOMAIN}/script.js
@@ -37,7 +37,7 @@ services:
       retries: 3
 
   backend:
-    image: ghcr.io/cleancentive/cleancentive-backend:51e6283bc84329443e07640fd40224db03524a73
+    image: ghcr.io/cleancentive/cleancentive-backend:af5da3df1eeb8a563c310e4a4611fc58a8ad8829
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
@@ -59,7 +59,7 @@ services:
       retries: 5
 
   worker:
-    image: ghcr.io/cleancentive/cleancentive-worker:4c90b578aec0effbf127bc17687e5c00274dc6f3
+    image: ghcr.io/cleancentive/cleancentive-worker:af5da3df1eeb8a563c310e4a4611fc58a8ad8829
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
