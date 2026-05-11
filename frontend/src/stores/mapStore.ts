@@ -11,9 +11,7 @@ interface MapState {
   error: string | null
   fetchMapData: (params?: StatsFilterParams) => Promise<void>
   heatMetric: HeatMetric
-  heatUnpickedOnly: boolean
   setHeatMetric: (m: HeatMetric) => void
-  setHeatUnpickedOnly: (v: boolean) => void
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
@@ -24,9 +22,7 @@ export const useMapStore = create<MapState>((set) => ({
   isLoading: false,
   error: null,
   heatMetric: 'items',
-  heatUnpickedOnly: false,
   setHeatMetric: (m) => set({ heatMetric: m }),
-  setHeatUnpickedOnly: (v) => set({ heatUnpickedOnly: v }),
 
   fetchMapData: async (params?: StatsFilterParams) => {
     set({ isLoading: true, error: null })

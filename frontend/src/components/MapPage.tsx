@@ -17,9 +17,84 @@ function getCssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
+function openSpotPopup(
+  map: maplibregl.Map,
+  feature: GeoJSON.Feature,
+  navigate: (path: string) => void,
+  popupCoord?: [number, number],
+) {
+  const geometry = feature.geometry as GeoJSON.Point
+  const coords = popupCoord ?? (geometry.coordinates.slice() as [number, number])
+  const p = feature.properties || {}
+  const html = `
+    <div class="map-popup">
+      <img src="${import.meta.env.VITE_API_URL || '/api/v1'}/spots/${p.id}/thumbnail" alt="" class="map-popup-thumb" />
+      <div class="map-popup-info">
+        <strong>${p.topObject ? String(p.topObject).replace(/_/g, ' ') : (p.pickedUp === false ? 'Spot' : 'Pick')}</strong>
+        <span>${formatDate(p.capturedAt)}</span>
+        <span>${p.itemCount} item${p.itemCount !== 1 ? 's' : ''} detected</span>
+        <a class="map-popup-link" href="/spots/${p.id}" data-spot-id="${p.id}">Open spot &rarr;</a>
+      </div>
+    </div>
+  `
+  const popup = new maplibregl.Popup({ offset: 10 }).setLngLat(coords).setHTML(html).addTo(map)
+  const popupEl = popup.getElement()
+  const link = popupEl?.querySelector<HTMLAnchorElement>('.map-popup-link')
+  if (link) {
+    link.addEventListener('click', (ev) => {
+      ev.preventDefault()
+      navigate(`/spots/${link.dataset.spotId}`)
+    })
+  }
+}
+
+function allLeavesShareCoords(leaves: GeoJSON.Feature[]): boolean {
+  if (leaves.length < 2) return false
+  const first = leaves[0].geometry as GeoJSON.Point
+  const [refLng, refLat] = first.coordinates as [number, number]
+  const eps = 1e-6
+  return leaves.every((f) => {
+    const [lng, lat] = (f.geometry as GeoJSON.Point).coordinates as [number, number]
+    return Math.abs(lng - refLng) < eps && Math.abs(lat - refLat) < eps
+  })
+}
+
+// Tag each feature with stackCount (how many features share its exact coords)
+// and stackPrimary (true on one representative per stack). The map uses
+// stackPrimary + stackCount > 1 to render a single "+N" badge per stacked
+// location at zoom levels above the cluster ceiling.
+function annotateStacks(fc: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
+  const byKey = new Map<string, GeoJSON.Feature[]>()
+  for (const f of fc.features) {
+    if (f.geometry.type !== 'Point') continue
+    const [lng, lat] = f.geometry.coordinates as [number, number]
+    const key = `${lng.toFixed(6)}:${lat.toFixed(6)}`
+    const list = byKey.get(key) ?? []
+    list.push(f)
+    byKey.set(key, list)
+  }
+  const result: GeoJSON.Feature[] = []
+  for (const list of byKey.values()) {
+    list.forEach((f, i) => {
+      result.push({
+        ...f,
+        properties: {
+          ...(f.properties ?? {}),
+          stackCount: list.length,
+          stackPrimary: i === 0,
+        },
+      })
+    })
+  }
+  return { ...fc, features: result }
+}
+
 function buildStyle(basemap: BasemapDef): maplibregl.StyleSpecification {
   return {
     version: 8,
+    // Glyph endpoint required for any text-symbol layer (cluster counts, pick check,
+    // cleanup star). Without this, text-field renders nothing — silently.
+    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
     sources: {
       basemap: {
         type: 'raster',
@@ -36,7 +111,7 @@ function buildStyle(basemap: BasemapDef): maplibregl.StyleSpecification {
 export function MapPage() {
   const {
     spotGeoJson, cleanupGeoJson, isLoading, error, fetchMapData,
-    heatMetric, heatUnpickedOnly, setHeatMetric, setHeatUnpickedOnly,
+    heatMetric, setHeatMetric,
   } = useMapStore()
   const { user } = useAuthStore()
   const { datePreset, pickedUpFilter, myFilter, cleanupFilter } = useInsightsFilterStore()
@@ -54,6 +129,8 @@ export function MapPage() {
   const selectedBasemapId = useBasemapStore((s) => s.selectedId)
   const activeBasemapIdRef = useRef<string>(selectedBasemapId)
   const setupOverlaysRef = useRef<(() => void) | null>(null)
+  const spiderRef = useRef<{ markers: maplibregl.Marker[]; openedAtZoom: number } | null>(null)
+  const closeSpiderRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     fetchMapData({
@@ -104,11 +181,12 @@ export function MapPage() {
     // re-adds them; if sources already exist, this is a no-op.
     function setupOverlays() {
       if (map.getSource('spots-source')) return
-      const spotBase = getCssVar('--color-entity-spot')
-      const spotLight = getCssVar('--color-entity-spot-light')
-      const spotDark = getCssVar('--color-entity-spot-dark')
       const pickBase = getCssVar('--color-entity-pick')
+      const pickDark = getCssVar('--color-entity-pick-dark')
       const cleanupBase = getCssVar('--color-entity-cleanup')
+      const cleanupDark = getCssVar('--color-entity-cleanup-dark')
+      const gray500 = getCssVar('--gray-500')
+      const gray800 = getCssVar('--gray-800')
 
       map.addSource('spots-source', {
         type: 'geojson',
@@ -116,6 +194,10 @@ export function MapPage() {
         cluster: true,
         clusterMaxZoom: 14,
         clusterRadius: 50,
+        // Aggregate pickCount per cluster so we can color the cluster by composition.
+        clusterProperties: {
+          pickCount: ['+', ['case', ['==', ['get', 'pickedUp'], true], 1, 0]],
+        },
       })
 
       // Separate non-clustered source for the heat layer so weights (itemCount,
@@ -125,23 +207,29 @@ export function MapPage() {
         data: { type: 'FeatureCollection', features: [] },
       })
 
-      const { heatMetric: hm, heatUnpickedOnly: hu } = useMapStore.getState()
+      const { heatMetric: hm } = useMapStore.getState()
       const heatProp = hm === 'mass' ? 'totalWeight' : 'itemCount'
 
       map.addLayer({
         id: 'spots-heat',
         type: 'heatmap',
         source: 'spots-heat-source',
-        maxzoom: 11,
-        ...(hu ? { filter: ['==', ['get', 'pickedUp'], false] } : {}),
         paint: {
           'heatmap-weight': ['coalesce', ['get', heatProp], 1],
-          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.4, 11, 2],
-          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 6, 11, 30],
-          'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0.85, 11, 0],
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.4, 11, 2, 22, 3],
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 6, 11, 30, 22, 60],
+          'heatmap-opacity': ['interpolate', ['linear'], ['zoom'],
+            0, 0.85,
+            9, 0.85,
+            14, 0.20,
+            22, 0.15,
+          ],
         },
       })
 
+      // Cluster fill reflects composition: green if mostly picks, dark gray if
+      // mostly unpicked, mid-gray for mixed clusters. Density signal moves to
+      // the radius step (still scales with point_count).
       map.addLayer({
         id: 'clusters',
         type: 'circle',
@@ -150,10 +238,15 @@ export function MapPage() {
         minzoom: 11,
         paint: {
           'circle-color': [
-            'step', ['get', 'point_count'],
-            spotLight, 10,
-            spotBase, 50,
-            spotDark,
+            'case',
+            // All picks
+            ['==', ['get', 'pickCount'], ['get', 'point_count']], pickDark,
+            // No picks (all unpicked)
+            ['==', ['get', 'pickCount'], 0], gray800,
+            // Majority picks (>50%)
+            ['>', ['*', ['get', 'pickCount'], 2], ['get', 'point_count']], pickBase,
+            // Otherwise: mixed but majority unpicked
+            gray500,
           ],
           'circle-radius': [
             'step', ['get', 'point_count'],
@@ -174,33 +267,90 @@ export function MapPage() {
         minzoom: 11,
         layout: {
           'text-field': '{point_count_abbreviated}',
+          'text-font': ['Open Sans Semibold'],
           'text-size': 13,
         },
         paint: {
-          'text-color': '#333',
+          'text-color': '#ffffff',
         },
       })
 
+      // Picks: filled dark-green circle with white check glyph on top.
       map.addLayer({
-        id: 'unclustered-spot',
+        id: 'unclustered-pick',
         type: 'circle',
         source: 'spots-source',
-        filter: ['!', ['has', 'point_count']],
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'pickedUp'], true]],
         paint: {
-          'circle-color': [
-            'case',
-            ['==', ['get', 'pickedUp'], true],
-            pickBase,
-            spotBase,
-          ],
-          'circle-radius': 9,
+          'circle-color': pickDark,
+          'circle-radius': 11,
           'circle-stroke-width': 2,
           'circle-stroke-color': '#fff',
         },
       })
 
+      // Spots (unpicked): white fill + dark stroke. White center pops against any
+      // basemap and the heat layer. Differentiated from picks by fill color (white
+      // vs green) and the absence of a glyph.
+      map.addLayer({
+        id: 'unclustered-spot',
+        type: 'circle',
+        source: 'spots-source',
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'pickedUp'], false]],
+        paint: {
+          'circle-color': '#ffffff',
+          'circle-radius': 11,
+          'circle-stroke-width': 3,
+          'circle-stroke-color': gray800,
+        },
+      })
+
+      // Pick check glyph. allow-overlap + ignore-placement so every pick keeps
+      // its glyph; without these MapLibre's collision detection drops most.
+      map.addLayer({
+        id: 'unclustered-pick-glyph',
+        type: 'symbol',
+        source: 'spots-source',
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'pickedUp'], true]],
+        layout: {
+          'text-field': '✓',
+          'text-font': ['Open Sans Semibold'],
+          'text-size': 13,
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: { 'text-color': '#ffffff' },
+      })
+
+      // Stack-count badge for unclustered points that share exact coords with
+      // siblings. Renders once per stack (filtered to stackPrimary), top-right
+      // of the marker. Tells the user "click here to fan N spots out."
+      map.addLayer({
+        id: 'unclustered-stack-badge',
+        type: 'symbol',
+        source: 'spots-source',
+        filter: ['all',
+          ['!', ['has', 'point_count']],
+          ['==', ['get', 'stackPrimary'], true],
+          ['>', ['get', 'stackCount'], 1],
+        ],
+        layout: {
+          'text-field': ['get', 'stackCount'],
+          'text-font': ['Open Sans Semibold'],
+          'text-size': 11,
+          'text-offset': [0.9, -0.9],
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': '#1f2937',
+          'text-halo-width': 2,
+        },
+      })
+
       // Invisible larger hit target for tap accessibility (esp. iOS).
-      // Sits on top of the visible dot; clicks within ~36px diameter open the popup.
+      // Sits on top of the visible markers; clicks within ~36px diameter open the popup.
       map.addLayer({
         id: 'unclustered-spot-hit',
         type: 'circle',
@@ -223,18 +373,50 @@ export function MapPage() {
         type: 'circle',
         source: 'cleanups-source',
         paint: {
-          'circle-color': cleanupBase,
-          'circle-radius': 10,
+          'circle-color': cleanupDark || cleanupBase,
+          'circle-radius': 12,
           'circle-stroke-width': 3,
           'circle-stroke-color': '#fff',
+        },
+      })
+
+      map.addLayer({
+        id: 'cleanup-glyph',
+        type: 'symbol',
+        source: 'cleanups-source',
+        layout: {
+          'text-field': '★',
+          'text-font': ['Open Sans Semibold'],
+          'text-size': 14,
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: { 'text-color': '#ffffff' },
+      })
+
+      // Spider-fan leader-lines source + layer (drawn last so it sits above other
+      // map layers; DOM markers are always above the canvas regardless).
+      map.addSource('spider-lines-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+      map.addLayer({
+        id: 'spider-lines',
+        type: 'line',
+        source: 'spider-lines-source',
+        paint: {
+          'line-color': '#ffffff',
+          'line-width': 1.5,
+          'line-opacity': 0.7,
         },
       })
 
       // Re-apply current data after a setStyle wipe.
       const current = useMapStore.getState()
       if (current.spotGeoJson) {
-        ;(map.getSource('spots-source') as maplibregl.GeoJSONSource | undefined)?.setData(current.spotGeoJson)
-        ;(map.getSource('spots-heat-source') as maplibregl.GeoJSONSource | undefined)?.setData(current.spotGeoJson)
+        const annotated = annotateStacks(current.spotGeoJson)
+        ;(map.getSource('spots-source') as maplibregl.GeoJSONSource | undefined)?.setData(annotated)
+        ;(map.getSource('spots-heat-source') as maplibregl.GeoJSONSource | undefined)?.setData(annotated)
       }
       if (current.cleanupGeoJson) {
         ;(map.getSource('cleanups-source') as maplibregl.GeoJSONSource | undefined)?.setData(current.cleanupGeoJson)
@@ -245,49 +427,114 @@ export function MapPage() {
     map.on('style.load', setupOverlays)
     map.on('styledata', setupOverlays)
 
+    // Close any open spider-fan and clear its leader lines + markers.
+    function closeSpider() {
+      if (!spiderRef.current) return
+      for (const m of spiderRef.current.markers) m.remove()
+      spiderRef.current = null
+      const src = map.getSource('spider-lines-source') as maplibregl.GeoJSONSource | undefined
+      src?.setData({ type: 'FeatureCollection', features: [] })
+    }
+    closeSpiderRef.current = closeSpider
+
+    // Fan a set of co-located features out radially around a centroid in pixel
+    // space. Used both when a cluster won't expand (co-located leaves) AND when
+    // zoom > clusterMaxZoom and individual features stack at identical coords.
+    function spiderFan(leaves: GeoJSON.Feature[], center: [number, number]) {
+      closeSpider()
+      const radius = Math.min(80, 36 + Math.max(0, leaves.length - 4) * 5)
+      const centerPx = map.project(center)
+      const markers: maplibregl.Marker[] = []
+      const lines: GeoJSON.Feature<GeoJSON.LineString>[] = []
+      leaves.forEach((leaf, i) => {
+        const angle = (2 * Math.PI * i) / leaves.length - Math.PI / 2
+        const x = centerPx.x + Math.cos(angle) * radius
+        const y = centerPx.y + Math.sin(angle) * radius
+        const offset = map.unproject([x, y])
+        const offsetCoord: [number, number] = [offset.lng, offset.lat]
+        const props = leaf.properties || {}
+        const isPick = props.pickedUp !== false
+        const el = document.createElement('div')
+        el.className = `map-spider-marker map-spider-marker--${isPick ? 'pick' : 'spot'}`
+        el.textContent = isPick ? '✓' : ''
+        const marker = new maplibregl.Marker({ element: el, anchor: 'center' })
+          .setLngLat(offsetCoord)
+          .addTo(map)
+        el.addEventListener('click', (ev) => {
+          ev.stopPropagation()
+          openSpotPopup(map, leaf, navigate, offsetCoord)
+        })
+        markers.push(marker)
+        lines.push({
+          type: 'Feature',
+          geometry: { type: 'LineString', coordinates: [center, offsetCoord] },
+          properties: {},
+        })
+      })
+      spiderRef.current = { markers, openedAtZoom: map.getZoom() }
+      const src = map.getSource('spider-lines-source') as maplibregl.GeoJSONSource | undefined
+      src?.setData({ type: 'FeatureCollection', features: lines })
+    }
+
     // Click + cursor handlers — bound once. MapLibre matches by layer id, so they
     // continue to fire correctly after layers are removed/re-added by setStyle.
-    map.on('click', 'clusters', (e) => {
+    map.on('click', 'clusters', async (e) => {
       const features = map.queryRenderedFeatures(e.point, { layers: ['clusters'] })
       if (!features.length) return
-      const clusterId = features[0].properties.cluster_id
+      const clusterId = features[0].properties.cluster_id as number
       const source = map.getSource('spots-source') as maplibregl.GeoJSONSource
-      source.getClusterExpansionZoom(clusterId).then((zoom) => {
-        const geometry = features[0].geometry as GeoJSON.Point
-        map.easeTo({ center: geometry.coordinates as [number, number], zoom })
-      })
+      const center = (features[0].geometry as GeoJSON.Point).coordinates as [number, number]
+      // If all leaves share coords, zoom won't separate them — fan them out instead.
+      const leaves = (await source.getClusterLeaves(clusterId, Infinity, 0)) as GeoJSON.Feature[]
+      if (allLeavesShareCoords(leaves)) {
+        spiderFan(leaves, center)
+        return
+      }
+      // Zooming into a normal cluster — close any prior spider first.
+      closeSpider()
+      const zoom = await source.getClusterExpansionZoom(clusterId)
+      map.easeTo({ center, zoom })
+    })
+
+    // Spider persists across pan/zoom-in (markers float with the map). On
+    // zoom-OUT past 0.5 levels below where it opened, collapse so the user
+    // sees the cluster badge again instead of stale fanned markers.
+    map.on('zoom', () => {
+      if (!spiderRef.current) return
+      if (map.getZoom() < spiderRef.current.openedAtZoom - 0.5) closeSpider()
+    })
+
+    // Closes on explicit user actions: canvas click, Escape, or clicking a
+    // non-stacked marker (handled in the layer-specific handlers below).
+    map.on('click', (e) => {
+      const hit = map.queryRenderedFeatures(e.point, { layers: ['clusters', 'unclustered-spot-hit', 'cleanup-locations'] })
+      if (hit.length === 0) closeSpider()
     })
 
     map.on('click', 'unclustered-spot-hit', (e) => {
       if (!e.features?.length) return
-      const f = e.features[0]
-      const geometry = f.geometry as GeoJSON.Point
-      const coords = geometry.coordinates.slice() as [number, number]
-      const p = f.properties
-      const html = `
-        <div class="map-popup">
-          <img src="${import.meta.env.VITE_API_URL || '/api/v1'}/spots/${p.id}/thumbnail" alt="" class="map-popup-thumb" />
-          <div class="map-popup-info">
-            <strong>${p.topObject ? p.topObject.replace(/_/g, ' ') : (p.pickedUp === false ? 'Spot' : 'Pick')}</strong>
-            <span>${formatDate(p.capturedAt)}</span>
-            <span>${p.itemCount} item${p.itemCount !== 1 ? 's' : ''} detected</span>
-            <a class="map-popup-link" href="/spots/${p.id}" data-spot-id="${p.id}">Open spot &rarr;</a>
-          </div>
-        </div>
-      `
-      const popup = new maplibregl.Popup({ offset: 10 }).setLngLat(coords).setHTML(html).addTo(map)
-      const popupEl = popup.getElement()
-      const link = popupEl?.querySelector<HTMLAnchorElement>('.map-popup-link')
-      if (link) {
-        link.addEventListener('click', (ev) => {
-          ev.preventDefault()
-          navigate(`/spots/${link.dataset.spotId}`)
-        })
+      const clicked = e.features[0]
+      const clickedCoord = (clicked.geometry as GeoJSON.Point).coordinates as [number, number]
+      // Above clusterMaxZoom, points are unclustered. If multiple share the exact
+      // click coord they render as one visual marker — fan them out so the user
+      // can reach the underlying spots.
+      const all = useMapStore.getState().spotGeoJson?.features ?? []
+      const stacked = all.filter((f) => {
+        if (f.geometry.type !== 'Point') return false
+        const [lng, lat] = f.geometry.coordinates as [number, number]
+        return Math.abs(lng - clickedCoord[0]) < 1e-6 && Math.abs(lat - clickedCoord[1]) < 1e-6
+      })
+      if (stacked.length > 1) {
+        spiderFan(stacked, clickedCoord)
+        return
       }
+      closeSpider()
+      openSpotPopup(map, clicked, navigate)
     })
 
     map.on('click', 'cleanup-locations', (e) => {
       if (!e.features?.length) return
+      closeSpider()
       const f = e.features[0]
       const geometry = f.geometry as GeoJSON.Point
       const coords = geometry.coordinates.slice() as [number, number]
@@ -364,10 +611,11 @@ export function MapPage() {
     if (!map || !mapReady) return
 
     if (spotGeoJson) {
+      const annotated = annotateStacks(spotGeoJson)
       const source = map.getSource('spots-source') as maplibregl.GeoJSONSource | undefined
-      if (source) source.setData(spotGeoJson)
+      if (source) source.setData(annotated)
       const heatSource = map.getSource('spots-heat-source') as maplibregl.GeoJSONSource | undefined
-      if (heatSource) heatSource.setData(spotGeoJson)
+      if (heatSource) heatSource.setData(annotated)
     }
 
     if (cleanupGeoJson) {
@@ -382,15 +630,23 @@ export function MapPage() {
     }
   }, [spotGeoJson, cleanupGeoJson, fitToData, mapReady])
 
-  // Apply heat-metric / unpicked-only changes to the heat layer.
+  // Escape key collapses any open spider-fan.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeSpiderRef.current?.()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Apply heat-metric changes to the heat layer.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady) return
     if (!map.getLayer('spots-heat')) return
     const heatProp = heatMetric === 'mass' ? 'totalWeight' : 'itemCount'
     map.setPaintProperty('spots-heat', 'heatmap-weight', ['coalesce', ['get', heatProp], 1])
-    map.setFilter('spots-heat', heatUnpickedOnly ? ['==', ['get', 'pickedUp'], false] : null)
-  }, [heatMetric, heatUnpickedOnly, mapReady])
+  }, [heatMetric, mapReady])
 
   const hasData = (spotGeoJson?.features.length ?? 0) > 0 || (cleanupGeoJson?.features.length ?? 0) > 0
 
@@ -419,14 +675,6 @@ export function MapPage() {
             Mass
           </button>
         </div>
-        <label className="map-heat-control__toggle">
-          <input
-            type="checkbox"
-            checked={heatUnpickedOnly}
-            onChange={(e) => setHeatUnpickedOnly(e.target.checked)}
-          />
-          <span>Unpicked only</span>
-        </label>
       </div>
       {isLoading && (
         <div className="map-overlay">Loading...</div>
