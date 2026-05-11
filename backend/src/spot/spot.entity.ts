@@ -90,6 +90,12 @@ export class Spot extends BaseEntity {
   @Column('boolean', { default: true })
   picked_up: boolean;
 
+  @Column('uuid', { nullable: true })
+  pick_session_id: string | null;
+
+  @Column('char', { length: 64, nullable: true })
+  image_sha256: string | null;
+
   @OneToMany('DetectedItem', (item: any) => item.spot)
   items: any[];
 }

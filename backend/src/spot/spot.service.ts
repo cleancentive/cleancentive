@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnav
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Queue } from 'bullmq';
+import { createHash, randomUUID } from 'node:crypto';
 import { S3Client, PutObjectCommand, HeadBucketCommand, CreateBucketCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Spot } from './spot.entity';
 import { DetectedItem } from './detected-item.entity';
@@ -118,6 +119,22 @@ export class SpotService {
       return { spot: existing, warning: null };
     }
 
+    // Image dedup: same user + same image bytes uploaded within the last 24h
+    // returns the prior spot, matching the (user_id, upload_id) idempotency idiom.
+    const imageSha256 = createHash('sha256').update(input.imageBuffer).digest('hex');
+    const since24hIso = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
+    const dupeRows = await this.spotRepository.query(
+      `SELECT id FROM spots
+       WHERE user_id = $1 AND image_sha256 = $2 AND created_at >= $3
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [input.userId, imageSha256, since24hIso],
+    );
+    if (dupeRows[0]?.id) {
+      const dupe = await this.spotRepository.findOne({ where: { id: dupeRows[0].id } });
+      if (dupe) return { spot: dupe, warning: null };
+    }
+
     await this.ensureBucketExists();
 
     const fileExt = this.getFileExtension(input.mimeType);
@@ -152,6 +169,32 @@ export class SpotService {
       warning = activeCleanup.warning;
     }
 
+    // Pick Session grouping: same user, uploaded within the last 60s, within
+    // ~20m of the new coords reuses the prior session id; otherwise a fresh one.
+    // Bbox-only proximity is good enough at 20m precision (no haversine).
+    const sessionSinceIso = new Date(Date.now() - 60_000).toISOString();
+    const latDelta = 0.0002;
+    const lngDelta = 0.0003;
+    const recentSession = await this.spotRepository.query(
+      `SELECT pick_session_id FROM spots
+       WHERE user_id = $1
+         AND created_at >= $2
+         AND latitude  BETWEEN $3 AND $4
+         AND longitude BETWEEN $5 AND $6
+         AND pick_session_id IS NOT NULL
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [
+        input.userId,
+        sessionSinceIso,
+        input.latitude - latDelta,
+        input.latitude + latDelta,
+        input.longitude - lngDelta,
+        input.longitude + lngDelta,
+      ],
+    );
+    const pickSessionId: string = recentSession[0]?.pick_session_id ?? randomUUID();
+
     const spot = this.spotRepository.create({
       user_id: input.userId,
       team_id: activeTeam?.id || null,
@@ -167,6 +210,8 @@ export class SpotService {
       upload_id: input.uploadId,
       processing_status: 'queued',
       picked_up: input.pickedUp ?? true,
+      pick_session_id: pickSessionId,
+      image_sha256: imageSha256,
     });
 
     const savedSpot = await this.spotRepository.save(spot);
