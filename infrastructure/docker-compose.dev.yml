@@ -108,10 +108,12 @@ services:
       retries: 3
 
   outline:
-    image: docker.getoutline.com/outlinewiki/outline:latest
+    image: ${OUTLINE_IMAGE:-ghcr.io/cleancentive/outline:latest}
     container_name: cleancentive-outline
     environment:
       - PORT=3000
+      - APP_NAME=CleanCentive Wiki
+      - BRANDING_ENABLED=false
       - URL=https://wiki.cleancentive.local
       - DATABASE_URL=postgres://cleancentive:cleancentive_dev_password@postgres:5432/outline
       - PGSSLMODE=disable

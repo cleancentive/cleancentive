@@ -49,7 +49,7 @@ const UMAMI_WIKI_WEBSITE_NAME = 'Cleancentive Wiki';
 const UMAMI_WIKI_DOMAIN = process.env.UMAMI_WIKI_DOMAIN ?? new URL(OUTLINE_PUBLIC_URL).hostname;
 
 const TEAM_LOGO_URL =
-  process.env.OUTLINE_TEAM_LOGO_URL ?? 'https://cleancentive.local/icon.svg';
+  process.env.OUTLINE_TEAM_LOGO_URL ?? 'https://cleancentive.local/favicon.svg';
 const TEAM_NAME = process.env.OUTLINE_TEAM_NAME ?? 'CleanCentive Wiki';
 // Source of truth: --app-primary in frontend/src/index.css.
 const TEAM_THEME_ACCENT = process.env.OUTLINE_TEAM_THEME_ACCENT ?? '#2563eb';
@@ -117,7 +117,10 @@ type TeamRow = {
   id: string;
   name: string;
   avatarUrl: string | null;
-  preferences: { customTheme?: { accent?: string; accentText?: string } } | null;
+  preferences: {
+    customTheme?: { accent?: string; accentText?: string };
+    publicBranding?: boolean;
+  } | null;
 };
 
 async function provisionInOutline(websiteId: string): Promise<void> {
@@ -167,6 +170,20 @@ async function provisionInOutline(websiteId: string): Promise<void> {
         [JSON.stringify({ accent: TEAM_THEME_ACCENT, accentText: TEAM_THEME_ACCENT_TEXT }), team.id],
       );
       console.log(`Outline: set custom theme accent → ${TEAM_THEME_ACCENT}`);
+    }
+
+    // Public branding: makes the team logo/name appear on the login page and
+    // in public share-page metadata (Open Graph etc.) instead of the
+    // OutlineIcon fallback. Default in Outline is false.
+    if (team.preferences?.publicBranding !== true) {
+      await pg.query(
+        `UPDATE teams
+         SET preferences = jsonb_set(COALESCE(preferences, '{}'::jsonb), '{publicBranding}', 'true'::jsonb, true),
+             "updatedAt" = NOW()
+         WHERE id = $1`,
+        [team.id],
+      );
+      console.log('Outline: enabled publicBranding (team logo on login + share metadata)');
     }
 
     // Umami integration

@@ -43,7 +43,7 @@ services:
       - ${PRIVATE_ENV_FILE:-../private/.env}
     environment:
       OUTLINE_PUBLIC_URL: https://wiki.${DOMAIN}
-      OUTLINE_TEAM_LOGO_URL: https://${DOMAIN}/icon.svg
+      OUTLINE_TEAM_LOGO_URL: https://${DOMAIN}/favicon.svg
       UMAMI_URL: http://umami:3000
       UMAMI_PUBLIC_URL: https://analytics.${DOMAIN}
       UMAMI_WIKI_DOMAIN: wiki.${DOMAIN}
@@ -114,12 +114,14 @@ services:
         condition: service_healthy
 
   outline:
-    image: docker.getoutline.com/outlinewiki/outline@sha256:3afb97340dd792c72dabdb0ab78deaf24a895b21d7abdc62ef9dd353ae861a13
+    image: ghcr.io/cleancentive/outline:5175ded6924600fe600ffd9b2ff5c74a45711df4
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
     environment:
       PORT: 3000
+      APP_NAME: CleanCentive Wiki
+      BRANDING_ENABLED: "false"
       URL: https://wiki.${DOMAIN}
       DATABASE_URL: postgresql://${DB_USERNAME:-cleancentive}:${DB_PASSWORD}@postgres:5432/outline
       PGSSLMODE: disable
