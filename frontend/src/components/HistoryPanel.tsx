@@ -16,7 +16,7 @@ interface HistoryItem {
   capturedAt: string
   latitude: number
   longitude: number
-  accuracyMeters: number
+  accuracyMeters: number | null
   pickedUp: boolean
   processingError: string | null
   detectionCompletedAt: string | null
@@ -475,7 +475,7 @@ export function HistoryPanel() {
                     <LifecycleStepper stages={stages} errorMessage={errorMessage} onRetry={onRetry} retryInMs={retryInMs} />
 
                     <p className="history-meta">
-                      {formatCoordinate(row.item.latitude)}, {formatCoordinate(row.item.longitude)} | accuracy {Math.round(row.item.accuracyMeters)}m
+                      {formatCoordinate(row.item.latitude)}, {formatCoordinate(row.item.longitude)} | accuracy {row.item.accuracyMeters !== null ? `±${Math.round(row.item.accuracyMeters)}m` : 'unknown'}
                     </p>
 
                     {row.kind === 'local' && row.item.attempts > 0 && (

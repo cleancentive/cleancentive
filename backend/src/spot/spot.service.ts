@@ -20,7 +20,7 @@ interface CreateSpotInput {
   capturedAt: Date;
   latitude: number;
   longitude: number;
-  accuracyMeters: number;
+  accuracyMeters: number | null;
   pickedUp?: boolean;
   cleanupId?: string | null;
   cleanupDateId?: string | null;

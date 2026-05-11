@@ -14,8 +14,6 @@ import {
   type MatchResult,
 } from '../lib/cleanupMatching'
 
-const IMPORT_DEFAULT_ACCURACY_METERS = Number(import.meta.env.VITE_IMPORT_DEFAULT_ACCURACY_METERS || '200')
-
 interface BatchImportDialogProps {
   files: File[]
   pickedUp: boolean
@@ -73,7 +71,7 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
           const accuracyMeters =
             metadata.accuracyMeters && Number.isFinite(metadata.accuracyMeters) && metadata.accuracyMeters > 0
               ? metadata.accuracyMeters
-              : IMPORT_DEFAULT_ACCURACY_METERS
+              : null
 
           const thumbnailUrl = URL.createObjectURL(file)
 
@@ -181,7 +179,7 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
           capturedAt: photo.capturedAt || new Date().toISOString(),
           latitude: photo.latitude,
           longitude: photo.longitude,
-          accuracyMeters: photo.accuracyMeters ?? IMPORT_DEFAULT_ACCURACY_METERS,
+          accuracyMeters: photo.accuracyMeters,
           mimeType: photo.file.type || 'image/jpeg',
           imageBlob: photo.file,
           thumbnailBlob: await createThumbnailFromBlob(photo.file),
@@ -221,7 +219,7 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
             capturedAt: photo.capturedAt || new Date().toISOString(),
             latitude: photo.latitude,
             longitude: photo.longitude,
-            accuracyMeters: photo.accuracyMeters ?? IMPORT_DEFAULT_ACCURACY_METERS,
+            accuracyMeters: photo.accuracyMeters,
             mimeType: photo.file.type || 'image/jpeg',
             imageBlob: photo.file,
             thumbnailBlob: null,

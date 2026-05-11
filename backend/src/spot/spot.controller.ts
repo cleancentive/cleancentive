@@ -75,7 +75,7 @@ interface SpotDto {
   capturedAt: Date;
   latitude: number;
   longitude: number;
-  accuracyMeters: number;
+  accuracyMeters: number | null;
   pickedUp: boolean;
   processingError: string | null;
   detectionCompletedAt: Date | null;
@@ -86,26 +86,7 @@ interface SpotDto {
 @ApiTags('spots')
 export class SpotController {
   private readonly maxUploadSizeBytes = parseInt(process.env.UPLOAD_MAX_SIZE_BYTES || `${15 * 1024 * 1024}`, 10);
-  private readonly maxAcceptedAccuracyMeters = parseFloat(
-    process.env.LOCATION_MAX_ACCURACY_METERS || (process.env.NODE_ENV === 'development' ? '5000' : '200'),
-  );
-  private readonly disableAccuracyCheck =
-    process.env.NODE_ENV === 'development' &&
-    ['true', '1', 'yes', 'on'].includes((process.env.LOCATION_DISABLE_ACCURACY_CHECK || 'false').toLowerCase());
-
-  private isLocalhostRequest(req: Request): boolean {
-    const hostHeader = (req.headers.host || '').split(':')[0].toLowerCase();
-    const origin = (req.headers.origin || '').toLowerCase();
-
-    return (
-      hostHeader === 'localhost' ||
-      hostHeader === '127.0.0.1' ||
-      hostHeader === '::1' ||
-      origin.startsWith('http://localhost') ||
-      origin.startsWith('http://127.0.0.1') ||
-      origin.startsWith('http://[::1]')
-    );
-  }
+  private readonly accuracySanityBoundMeters = parseFloat(process.env.LOCATION_ACCURACY_SANITY_BOUND_METERS || '10000');
 
   constructor(
     private readonly spotService: SpotService,
@@ -214,7 +195,11 @@ export class SpotController {
     const uploadId = body.uploadId?.trim();
     const latitude = parseFloat(body.latitude || '');
     const longitude = parseFloat(body.longitude || '');
-    const accuracy = parseFloat(body.accuracyMeters || '');
+    const rawAccuracy = body.accuracyMeters?.trim();
+    const accuracy: number | null =
+      rawAccuracy && rawAccuracy.length > 0 && Number.isFinite(parseFloat(rawAccuracy))
+        ? parseFloat(rawAccuracy)
+        : null;
     const capturedAt = new Date(body.capturedAt || '');
     const guestId = body.guestId?.trim();
     const pickedUp = body.pickedUp === undefined ? true : body.pickedUp !== 'false';
@@ -229,14 +214,10 @@ export class SpotController {
       throw new BadRequestException('latitude and longitude are required numeric values');
     }
 
-    if (!Number.isFinite(accuracy) || accuracy <= 0) {
-      throw new BadRequestException('accuracyMeters is required and must be greater than 0');
-    }
-
-    const skipAccuracyCheck = this.disableAccuracyCheck || this.isLocalhostRequest(req);
-
-    if (!skipAccuracyCheck && accuracy > this.maxAcceptedAccuracyMeters) {
-      throw new BadRequestException(`location accuracy must be <= ${this.maxAcceptedAccuracyMeters} meters`);
+    if (accuracy !== null && (accuracy <= 0 || accuracy > this.accuracySanityBoundMeters)) {
+      throw new BadRequestException(
+        `accuracyMeters must be between 0 and ${this.accuracySanityBoundMeters} meters when provided`,
+      );
     }
 
     if (Number.isNaN(capturedAt.getTime())) {

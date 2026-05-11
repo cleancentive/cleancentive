@@ -12,7 +12,7 @@ interface SpotData {
   capturedAt: string
   latitude: number
   longitude: number
-  accuracyMeters: number
+  accuracyMeters: number | null
   pickedUp: boolean
   items: DetectedItemData[]
 }
@@ -108,7 +108,7 @@ export function SpotDetail() {
             {!spot.pickedUp && <span className="history-spotted-badge">Spotted</span>}
           </p>
           <p className="history-meta">
-            {formatCoord(spot.latitude)}, {formatCoord(spot.longitude)} | accuracy {Math.round(spot.accuracyMeters)}m
+            {formatCoord(spot.latitude)}, {formatCoord(spot.longitude)} | accuracy {spot.accuracyMeters !== null ? `±${Math.round(spot.accuracyMeters)}m` : 'unknown'}
           </p>
         </div>
       </div>

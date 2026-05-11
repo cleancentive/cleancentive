@@ -17,7 +17,7 @@ export interface OutboxItem {
   capturedAt: string
   latitude: number
   longitude: number
-  accuracyMeters: number
+  accuracyMeters: number | null
   mimeType: string
   imageBlob: Blob
   thumbnailBlob: Blob | null
@@ -38,7 +38,7 @@ interface QueueCaptureInput {
   capturedAt: string
   latitude: number
   longitude: number
-  accuracyMeters: number
+  accuracyMeters: number | null
   mimeType: string
   imageBlob: Blob
   thumbnailBlob: Blob | null
@@ -346,7 +346,9 @@ async function uploadItem(item: OutboxItem, context: FlushContext): Promise<void
   formData.append('capturedAt', item.capturedAt)
   formData.append('latitude', String(item.latitude))
   formData.append('longitude', String(item.longitude))
-  formData.append('accuracyMeters', String(item.accuracyMeters))
+  if (item.accuracyMeters !== null) {
+    formData.append('accuracyMeters', String(item.accuracyMeters))
+  }
   formData.append('pickedUp', String(item.pickedUp ?? true))
 
   if (item.cleanupId) {

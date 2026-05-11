@@ -45,8 +45,8 @@ export class Spot extends BaseEntity {
   @Column('double precision')
   longitude: number;
 
-  @Column('double precision')
-  location_accuracy_meters: number;
+  @Column('double precision', { nullable: true })
+  location_accuracy_meters: number | null;
 
   @Column('timestamp')
   captured_at: Date;

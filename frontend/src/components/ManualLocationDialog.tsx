@@ -1,0 +1,101 @@
+import { useEffect, useRef, useState } from 'react'
+import maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
+
+interface ManualLocationDialogProps {
+  initialLatitude: number | null
+  initialLongitude: number | null
+  onConfirm: (latitude: number, longitude: number) => void
+  onCancel: () => void
+}
+
+export function ManualLocationDialog({
+  initialLatitude,
+  initialLongitude,
+  onConfirm,
+  onCancel,
+}: ManualLocationDialogProps) {
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<maplibregl.Map | null>(null)
+  const markerRef = useRef<maplibregl.Marker | null>(null)
+  const [picked, setPicked] = useState<{ latitude: number; longitude: number } | null>(
+    initialLatitude !== null && initialLongitude !== null
+      ? { latitude: initialLatitude, longitude: initialLongitude }
+      : null,
+  )
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return
+
+    const hasInitial = initialLatitude !== null && initialLongitude !== null
+    const map = new maplibregl.Map({
+      container: mapContainerRef.current,
+      style: {
+        version: 8,
+        sources: {
+          osm: {
+            type: 'raster',
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          },
+        },
+        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+      },
+      center: hasInitial ? [initialLongitude!, initialLatitude!] : [0, 20],
+      zoom: hasInitial ? 14 : 2,
+    })
+
+    map.addControl(new maplibregl.NavigationControl(), 'top-right')
+
+    const marker = new maplibregl.Marker({ draggable: true })
+    if (hasInitial) {
+      marker.setLngLat([initialLongitude!, initialLatitude!]).addTo(map)
+    }
+
+    marker.on('dragend', () => {
+      const pos = marker.getLngLat()
+      setPicked({ latitude: pos.lat, longitude: pos.lng })
+    })
+
+    map.on('click', (e) => {
+      marker.setLngLat([e.lngLat.lng, e.lngLat.lat]).addTo(map)
+      setPicked({ latitude: e.lngLat.lat, longitude: e.lngLat.lng })
+    })
+
+    mapRef.current = map
+    markerRef.current = marker
+
+    return () => {
+      map.remove()
+      mapRef.current = null
+      markerRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <div className="sign-in-overlay" onClick={onCancel}>
+      <div className="sign-in-dialog manual-location-dialog" onClick={(e) => e.stopPropagation()}>
+        <button className="sign-in-close" onClick={onCancel} aria-label="Close">
+          &times;
+        </button>
+        <h2>Pick location on map</h2>
+        <p className="capture-detail">Tap the map to drop a pin. Accuracy will be marked as unknown.</p>
+        <div className="manual-location-map" ref={mapContainerRef} />
+        <div className="manual-location-actions">
+          <button className="secondary-button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button
+            className="primary-button"
+            onClick={() => picked && onConfirm(picked.latitude, picked.longitude)}
+            disabled={!picked}
+          >
+            Use this location
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

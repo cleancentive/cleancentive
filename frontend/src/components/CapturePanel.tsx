@@ -2,33 +2,32 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } f
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useCleanupStore } from '../stores/cleanupStore'
+import { useLocationStore } from '../stores/locationStore'
 import { cancelScheduledFlush, flushOutbox, queueCapture } from '../lib/pendingPicks'
 import { extractImageMetadata } from '../lib/imageMetadata'
 import { trackEvent } from '../lib/analytics'
 import { createBlobFromCanvas, createThumbnailFromCanvas, createThumbnailFromBlob } from '../lib/thumbnail'
 import { BatchImportDialog } from './BatchImportDialog'
+import { ManualLocationDialog } from './ManualLocationDialog'
 
-const DEFAULT_MAX_LOCATION_ACCURACY_METERS = import.meta.env.DEV ? 5000 : 200
-const MAX_LOCATION_ACCURACY_METERS = Number(
-  import.meta.env.VITE_LOCATION_MAX_ACCURACY_METERS || DEFAULT_MAX_LOCATION_ACCURACY_METERS,
-)
+const LOCATION_GOOD_THRESHOLD_METERS = Number(import.meta.env.VITE_LOCATION_GOOD_THRESHOLD_METERS || '50')
+const LOCATION_WARN_THRESHOLD_METERS = Number(import.meta.env.VITE_LOCATION_WARN_THRESHOLD_METERS || '500')
 const LOCALHOST_HOSTNAMES = new Set(['localhost', '127.0.0.1', '::1'])
 const IS_LOCALHOST =
   typeof window !== 'undefined' && LOCALHOST_HOSTNAMES.has(window.location.hostname)
-const DISABLE_LOCATION_ACCURACY_CHECK =
+const AUTO_ACCEPT_LOW_CONFIDENCE =
   IS_LOCALHOST ||
   (import.meta.env.DEV &&
     String(import.meta.env.VITE_DISABLE_LOCATION_ACCURACY_CHECK || 'false').toLowerCase() === 'true')
 const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
-const IMPORT_DEFAULT_ACCURACY_METERS = Number(import.meta.env.VITE_IMPORT_DEFAULT_ACCURACY_METERS || '200')
 
-interface LocationSnapshot {
-  latitude: number
-  longitude: number
-  accuracy: number
-  timestamp: number
+type LocationTier = 'unknown' | 'good' | 'warning' | 'low'
+
+function classifyAccuracy(accuracy: number): LocationTier {
+  if (accuracy <= LOCATION_GOOD_THRESHOLD_METERS) return 'good'
+  if (accuracy <= LOCATION_WARN_THRESHOLD_METERS) return 'warning'
+  return 'low'
 }
-
 
 function notifyPicksChanged() {
   window.dispatchEvent(new Event('picks-changed'))
@@ -57,15 +56,37 @@ export function CapturePanel() {
   const [isCameraActive, setIsCameraActive] = useState(false)
   const [isCapturing, setIsCapturing] = useState(false)
   const [isImportingFile, setIsImportingFile] = useState(false)
-  const [location, setLocation] = useState<LocationSnapshot | null>(null)
-  const [locationError, setLocationError] = useState<string | null>(null)
   const [captureError, setCaptureError] = useState<string | null>(null)
   const [showLocationDetail, setShowLocationDetail] = useState(false)
   const [pickedUp, setPickedUp] = useState(true)
   const [batchFiles, setBatchFiles] = useState<File[] | null>(null)
+  const [manualLocation, setManualLocation] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [showManualPicker, setShowManualPicker] = useState(false)
 
-  const locationWithinAccuracy = Boolean(location && location.accuracy <= MAX_LOCATION_ACCURACY_METERS)
-  const locationAccepted = Boolean(location && (DISABLE_LOCATION_ACCURACY_CHECK || locationWithinAccuracy))
+  const latestLocation = useLocationStore((s) => s.latest)
+  const bestRecentLocation = useLocationStore((s) => s.bestRecent)
+  const locationError = useLocationStore((s) => s.errorMessage)
+  const openCaptureWindow = useLocationStore((s) => s.openCaptureWindow)
+  const closeCaptureWindow = useLocationStore((s) => s.closeCaptureWindow)
+
+  // Manual pick (if set) wins; otherwise prefer the filtered best fix; finally fall back to the raw latest fix.
+  const gpsLocation = bestRecentLocation ?? latestLocation
+  const location = manualLocation
+    ? { latitude: manualLocation.latitude, longitude: manualLocation.longitude, accuracy: null as number | null }
+    : gpsLocation
+      ? { latitude: gpsLocation.latitude, longitude: gpsLocation.longitude, accuracy: gpsLocation.accuracy as number | null }
+      : null
+
+  const locationTier: LocationTier | 'manual' = manualLocation
+    ? 'manual'
+    : location && location.accuracy !== null
+      ? classifyAccuracy(location.accuracy)
+      : 'unknown'
+
+  useEffect(() => {
+    openCaptureWindow()
+    return () => closeCaptureWindow()
+  }, [openCaptureWindow, closeCaptureWindow])
 
   const runSync = useCallback(async () => {
     if (!useConnectivityStore.getState().isOnline) {
@@ -89,63 +110,6 @@ export function CapturePanel() {
       cancelScheduledFlush()
     }
   }, [isOnline, runSync])
-
-  useEffect(() => {
-    if (typeof navigator === 'undefined') return
-    if (!navigator.geolocation) {
-      setLocationError('Geolocation is not supported in this browser.')
-      return
-    }
-
-    let watchId: number | undefined
-    let cancelled = false
-    let permissionStatus: PermissionStatus | null = null
-
-    const startWatch = () => {
-      if (cancelled) return
-      watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          setLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            timestamp: Date.now(),
-          })
-          setLocationError(null)
-        },
-        (error) => {
-          setLocationError(error.message)
-        },
-        { enableHighAccuracy: true, maximumAge: 30000, timeout: 30000 },
-      )
-    }
-
-    if (navigator.permissions) {
-      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
-        if (cancelled) return
-        if (result.state === 'denied') {
-          setLocationError('Location access was denied. Enable it in your browser site settings.')
-          return
-        }
-        startWatch()
-        permissionStatus = result
-        result.onchange = () => {
-          if (result.state === 'denied') {
-            setLocationError('Location access was denied. Enable it in your browser site settings.')
-            if (watchId !== undefined) navigator.geolocation.clearWatch(watchId)
-          }
-        }
-      })
-    } else {
-      startWatch()
-    }
-
-    return () => {
-      cancelled = true
-      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId)
-      if (permissionStatus) permissionStatus.onchange = null
-    }
-  }, [])
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -255,9 +219,17 @@ export function CapturePanel() {
       return
     }
 
-    if (!location || (!DISABLE_LOCATION_ACCURACY_CHECK && !locationWithinAccuracy)) {
-      setCaptureError(`Location is unavailable or less accurate than ${MAX_LOCATION_ACCURACY_METERS}m. Capture rejected.`)
+    if (!location) {
+      setCaptureError('Waiting for a GPS fix. Please wait a few seconds, or set the location manually.')
       return
+    }
+
+    if (locationTier === 'low' && location.accuracy !== null && !AUTO_ACCEPT_LOW_CONFIDENCE) {
+      const confirmed = window.confirm(
+        `GPS confidence is low (±${Math.round(location.accuracy)}m). ` +
+          `Save anyway? Your true position is likely within this radius.`,
+      )
+      if (!confirmed) return
     }
 
     setIsCapturing(true)
@@ -320,7 +292,7 @@ export function CapturePanel() {
       const accuracyMeters =
         metadata.accuracyMeters && Number.isFinite(metadata.accuracyMeters) && metadata.accuracyMeters > 0
           ? metadata.accuracyMeters
-          : IMPORT_DEFAULT_ACCURACY_METERS
+          : null
 
       const imageBlob = file
       const thumbnailBlob = await createThumbnailFromBlob(file)
@@ -374,23 +346,42 @@ export function CapturePanel() {
       <legend>{pickedUp ? 'Log a Pick' : 'Log a Spot'}</legend>
       <div className="capture-toolbar">
         <span
-          className={`capture-status-pill ${locationAccepted ? 'capture-status-pill--good' : 'capture-status-pill--warning'}`}
+          className={`capture-status-pill capture-status-pill--${locationTier === 'unknown' ? 'warning' : locationTier}`}
           onClick={() => setShowLocationDetail(prev => !prev)}
+          title="GPS confidence radius — your true location is likely within this distance, not off by it."
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M7 1C4.5 1 3 3 3 5.25 3 8.5 7 13 7 13s4-4.5 4-7.75C11 3 9.5 1 7 1z" /><circle cx="7" cy="5.25" r="1.5" />
           </svg>
-          {location ? `${Math.round(location.accuracy)}m` : 'Waiting...'}
+          {locationTier === 'manual'
+            ? 'Manual'
+            : location && location.accuracy !== null
+              ? `±${Math.round(location.accuracy)}m`
+              : 'Waiting...'}
         </span>
       </div>
 
-      {showLocationDetail && location && (
+      {showLocationDetail && (
         <p className="capture-detail">
-          {DISABLE_LOCATION_ACCURACY_CHECK
-            ? `Accuracy: ${Math.round(location.accuracy)}m (accuracy check disabled)`
-            : locationWithinAccuracy
-              ? `Accuracy: ${Math.round(location.accuracy)}m`
-              : `Not accurate enough: ${Math.round(location.accuracy)}m > ${Math.round(MAX_LOCATION_ACCURACY_METERS)}m`}
+          {locationTier === 'manual' && location && (
+            <>
+              Manual location: {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}.{' '}
+              <button className="link-button" onClick={() => setManualLocation(null)}>Use GPS instead</button>
+            </>
+          )}
+          {locationTier === 'good' && location && location.accuracy !== null &&
+            `Accuracy: ±${Math.round(location.accuracy)}m`}
+          {locationTier === 'warning' && location && location.accuracy !== null &&
+            `Accuracy: ±${Math.round(location.accuracy)}m — slight uncertainty`}
+          {locationTier === 'low' && location && location.accuracy !== null &&
+            `Low GPS confidence: ±${Math.round(location.accuracy)}m. Your true position is likely within this radius.`}
+          {locationTier === 'unknown' && 'Waiting for a GPS fix.'}
+          {locationTier !== 'manual' && (
+            <>
+              {' '}
+              <button className="link-button" onClick={() => setShowManualPicker(true)}>Set location manually</button>
+            </>
+          )}
         </p>
       )}
 
@@ -427,15 +418,32 @@ export function CapturePanel() {
                 <button
                   className="primary-button"
                   onClick={captureAndQueue}
-                  disabled={isCapturing || !locationAccepted}
+                  disabled={isCapturing || locationTier === 'unknown'}
                 >
-                {isCapturing ? 'Capturing...' : pickedUp ? 'Log Pick' : 'Log Spot'}
+                {isCapturing
+                  ? 'Capturing...'
+                  : locationTier === 'low' && !AUTO_ACCEPT_LOW_CONFIDENCE
+                    ? pickedUp ? 'Log Pick anyway' : 'Log Spot anyway'
+                    : pickedUp ? 'Log Pick' : 'Log Spot'}
               </button>
             </div>
           </>
         )}
         <canvas ref={captureCanvasRef} className="capture-canvas" />
       </div>
+
+      {showManualPicker && (
+        <ManualLocationDialog
+          initialLatitude={location?.latitude ?? null}
+          initialLongitude={location?.longitude ?? null}
+          onConfirm={(latitude, longitude) => {
+            setManualLocation({ latitude, longitude })
+            setShowManualPicker(false)
+            setShowLocationDetail(true)
+          }}
+          onCancel={() => setShowManualPicker(false)}
+        />
+      )}
 
       <p className="capture-picked-up-toggle">
         <button className="link-button" onClick={() => setPickedUp(prev => !prev)}>
