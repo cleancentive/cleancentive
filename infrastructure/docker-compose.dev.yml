@@ -132,7 +132,6 @@ services:
       - OIDC_CLIENT_SECRET=outline-dev-secret
       - OIDC_ISSUER_URL=https://cleancentive.local/api/v1/oidc
       - OIDC_SCOPES=openid profile email offline_access
-      - OIDC_DISABLE_REDIRECT=true
       - OIDC_DISPLAY_NAME=CleanCentive
       - FORCE_HTTPS=true
       # Trust the mkcert-issued dev CA so Outline's server-side OIDC discovery

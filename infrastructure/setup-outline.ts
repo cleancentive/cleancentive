@@ -117,6 +117,7 @@ type TeamRow = {
   id: string;
   name: string;
   avatarUrl: string | null;
+  guestSignin: boolean;
   preferences: {
     customTheme?: { accent?: string; accentText?: string };
     publicBranding?: boolean;
@@ -128,7 +129,7 @@ async function provisionInOutline(websiteId: string): Promise<void> {
   await pg.connect();
   try {
     const teams = await pg.query<TeamRow>(
-      `SELECT id, name, "avatarUrl", preferences FROM teams LIMIT 1`,
+      `SELECT id, name, "avatarUrl", "guestSignin", preferences FROM teams LIMIT 1`,
     );
     const team = teams.rows[0];
     if (!team) {
@@ -184,6 +185,21 @@ async function provisionInOutline(websiteId: string): Promise<void> {
         [team.id],
       );
       console.log('Outline: enabled publicBranding (team logo on login + share metadata)');
+    }
+
+    // Disable email magic-link signin: cleancentive is OIDC-only, every user
+    // is auto-provisioned via cleancentive OIDC, so the email signin button
+    // has no legitimate use case. Removing it leaves OIDC as the only
+    // provider so Outline's built-in single-provider auto-redirect kicks in
+    // and wiki deep-links from cleancentive land directly on target without
+    // an intermediate login click. Does not affect outbound notification
+    // emails (those depend on env.EMAIL_ENABLED, not on team.guestSignin).
+    if (team.guestSignin !== false) {
+      await pg.query(
+        `UPDATE teams SET "guestSignin" = false, "updatedAt" = NOW() WHERE id = $1`,
+        [team.id],
+      );
+      console.log('Outline: disabled email magic-link signin (guestSignin=false)');
     }
 
     // Umami integration
