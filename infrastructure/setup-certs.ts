@@ -7,10 +7,10 @@
  * Copies mkcert's rootCA.pem alongside it so containers (Outline) can mount
  * it and trust our CA when making server-side calls.
  *
- * On a fresh macOS machine with Homebrew present this script is end-to-end
- * automatic (the user only sees a sudo prompt from `mkcert -install`). On
- * Linux we print exact commands — too many distro variants to auto-install
- * safely. Idempotent — safe to run on every `bun dev`.
+ * Auto-installs mkcert on macOS (Homebrew) and common Linux distros
+ * (Debian/Ubuntu, Arch, Fedora) when missing — prompts before any sudo
+ * call. Falls back to printing install instructions on unknown distros.
+ * Idempotent — safe to run on every `bun dev`.
  */
 import { existsSync, mkdirSync, copyFileSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -53,12 +53,60 @@ function printLinuxInstallHint(): void {
   console.error('');
   console.error('`mkcert` is required to issue dev TLS certs.');
   console.error('Install it for your distro (examples):');
-  console.error('  Debian/Ubuntu: sudo apt install libnss3-tools && download mkcert from');
-  console.error('                 https://github.com/FiloSottile/mkcert/releases');
+  console.error('  Debian/Ubuntu: sudo apt install mkcert libnss3-tools');
   console.error('  Arch:          sudo pacman -S mkcert nss');
   console.error('  Fedora:        sudo dnf install mkcert nss-tools');
   console.error('Then run: mkcert -install');
   console.error('');
+}
+
+type LinuxInstaller = { label: string; cmd: string; args: string[] };
+
+function detectLinuxInstaller(): LinuxInstaller | null {
+  let release = '';
+  try {
+    release = readFileSync('/etc/os-release', 'utf-8');
+  } catch {
+    return null;
+  }
+  const id = (release.match(/^ID=(.+)$/m)?.[1] ?? '').replace(/["']/g, '');
+  const idLike = (release.match(/^ID_LIKE=(.+)$/m)?.[1] ?? '').replace(/["']/g, '');
+  const family = `${id} ${idLike}`.toLowerCase();
+  if (/\b(debian|ubuntu)\b/.test(family) && have('apt-get')) {
+    return { label: 'Debian/Ubuntu', cmd: 'apt-get', args: ['install', '-y', 'mkcert', 'libnss3-tools'] };
+  }
+  if (/\barch\b/.test(family) && have('pacman')) {
+    return { label: 'Arch', cmd: 'pacman', args: ['-S', '--noconfirm', 'mkcert', 'nss'] };
+  }
+  if (/\b(fedora|rhel|centos)\b/.test(family) && have('dnf')) {
+    return { label: 'Fedora', cmd: 'dnf', args: ['install', '-y', 'mkcert', 'nss-tools'] };
+  }
+  return null;
+}
+
+function installMkcertLinux(): boolean {
+  const inst = detectLinuxInstaller();
+  if (!inst) {
+    printLinuxInstallHint();
+    return false;
+  }
+  if (!have('sudo')) {
+    console.error('`sudo` not found — cannot install mkcert automatically.');
+    printLinuxInstallHint();
+    return false;
+  }
+  const cmdStr = `sudo ${inst.cmd} ${inst.args.join(' ')}`;
+  console.log('');
+  console.log(`mkcert not found — needed to issue trusted dev TLS certs (${inst.label} detected).`);
+  console.log('You will be asked for your sudo password.');
+  if (!promptYes(`Run: ${cmdStr}`)) {
+    printLinuxInstallHint();
+    return false;
+  }
+  run('sudo', [inst.cmd, ...inst.args], { inherit: true });
+  // Don't trust exit status — package managers can report failure for
+  // unrelated packages in a broken state. Re-check PATH instead.
+  return have('mkcert');
 }
 
 function ensureMkcert(): boolean {
@@ -67,6 +115,9 @@ function ensureMkcert(): boolean {
     console.log('');
     console.log('mkcert not found — needed to issue trusted dev TLS certs.');
     return installMkcertMacOS();
+  }
+  if (process.platform === 'linux') {
+    return installMkcertLinux();
   }
   printLinuxInstallHint();
   return false;
