@@ -28,6 +28,7 @@ import { TeamEmailPattern } from './team/team-email-pattern.entity';
 import { TeamOutlineCollection } from './team/team-outline-collection.entity';
 import { TeamModule } from './team/team.module';
 import { CleanupModule } from './cleanup/cleanup.module';
+import { CalendarModule } from './calendar/calendar.module';
 import { StorageModule } from './storage/storage.module';
 import { PurgeModule } from './purge/purge.module';
 import { InsightsModule } from './insights/insights.module';
@@ -102,6 +103,7 @@ import { SystemModule } from './system/system.module';
     SpotModule,
     TeamModule,
     CleanupModule,
+    CalendarModule,
     StorageModule,
     PurgeModule,
     InsightsModule,

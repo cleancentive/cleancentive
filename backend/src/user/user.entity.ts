@@ -21,6 +21,9 @@ export class User extends BaseEntity {
   @Column('uuid', { nullable: true })
   avatar_email_id: string | null;
 
+  @Column('timestamp with time zone', { nullable: true })
+  calendar_feed_last_fetched_at: Date | null;
+
   @OneToMany('UserEmail', (email: any) => email.user)
   emails: any[];
 }

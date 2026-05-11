@@ -10,12 +10,14 @@ import { User } from '../user/user.entity';
 import { UserEmail } from '../user/user-email.entity';
 import { AdminModule } from '../admin/admin.module';
 import { EmailModule } from '../email/email.module';
+import { CalendarModule } from '../calendar/calendar.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Cleanup, CleanupDate, CleanupParticipant, CleanupMessage, User, UserEmail]),
     AdminModule,
     EmailModule,
+    CalendarModule,
   ],
   providers: [CleanupService],
   controllers: [CleanupController],

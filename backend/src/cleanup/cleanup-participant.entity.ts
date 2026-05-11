@@ -17,6 +17,15 @@ export class CleanupParticipant extends BaseEntity {
   @Column('varchar', { default: 'member' })
   role: 'member' | 'organizer';
 
+  @Column('integer', { default: 0 })
+  email_sequence: number;
+
+  @Column('timestamp with time zone', { nullable: true })
+  last_email_sent_at: Date | null;
+
+  @Column('varchar', { length: 8, nullable: true })
+  last_email_method: 'REQUEST' | 'CANCEL' | null;
+
   @ManyToOne(() => Cleanup, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'cleanup_id' })
   cleanup: Cleanup;

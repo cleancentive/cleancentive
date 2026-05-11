@@ -9,6 +9,7 @@ interface UserEmail {
   id: string
   email: string
   is_selected_for_login: boolean
+  calendar_emails_enabled: boolean
 }
 
 interface User {
@@ -48,6 +49,8 @@ interface AuthState {
   removeEmail: (emailId: string) => Promise<void>
   updateEmailSelection: (emailIds: string[]) => Promise<void>
   updateAvatarEmail: (emailId: string | null) => Promise<void>
+  updateCalendarEmailSelection: (emailIds: string[]) => Promise<void>
+  getCalendarUrls: () => Promise<{ joinedHttp: string; joinedWebcal: string; discoverHttp: string; discoverWebcal: string } | null>
   deleteAccount: () => Promise<void>
   anonymizeAccount: () => Promise<void>
   deleteGuestData: (mode: 'delete' | 'anonymize') => Promise<void>
@@ -343,6 +346,32 @@ export const useAuthStore = create<AuthState>()(
           set({ user: response.data })
         } catch {
           // Silent fail
+        }
+      },
+
+      updateCalendarEmailSelection: async (emailIds: string[]) => {
+        const { sessionToken } = get()
+        if (!sessionToken) return
+        try {
+          await axios.put(`${API_BASE}/user/profile/emails/calendar-selection`, { emailIds }, {
+            headers: { Authorization: `Bearer ${sessionToken}` }
+          })
+          await get().refreshProfile()
+        } catch (error: any) {
+          set({ error: error.response?.data?.message || 'Failed to update calendar email selection' })
+        }
+      },
+
+      getCalendarUrls: async () => {
+        const { sessionToken } = get()
+        if (!sessionToken) return null
+        try {
+          const response = await axios.get(`${API_BASE}/calendar/me/urls`, {
+            headers: { Authorization: `Bearer ${sessionToken}` }
+          })
+          return response.data
+        } catch {
+          return null
         }
       },
 

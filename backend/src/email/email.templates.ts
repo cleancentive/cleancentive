@@ -20,6 +20,7 @@ const magicLinkTpl = loadTemplate('magic-link');
 const recoveryTpl = loadTemplate('recovery');
 const mergeWarningTpl = loadTemplate('merge-warning');
 const communityMessageTpl = loadTemplate('community-message');
+const cleanupInviteTpl = loadTemplate('cleanup-invite');
 
 export function magicLinkMd(link: string): string {
   return interpolate(magicLinkTpl, { link });
@@ -31,6 +32,18 @@ export function recoveryMd(link: string): string {
 
 export function mergeWarningMd(link: string, requesterNickname: string): string {
   return interpolate(mergeWarningTpl, { link, requesterNickname });
+}
+
+export function cleanupInviteMd(payload: {
+  title: string;
+  intro: string;
+  when: string;
+  locationLine: string;
+  cleanupLink: string;
+  feedUrl: string;
+  profileLink: string;
+}): string {
+  return interpolate(cleanupInviteTpl, payload);
 }
 
 export function communityMessageMd(payload: {

@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, MoreThan, Repository } from 'typeorm';
 import { Cleanup } from './cleanup.entity';
 import { CleanupDate } from './cleanup-date.entity';
 import { CleanupParticipant } from './cleanup-participant.entity';
@@ -14,6 +14,7 @@ import { User } from '../user/user.entity';
 import { UserEmail } from '../user/user-email.entity';
 import { AdminService } from '../admin/admin.service';
 import { EmailService } from '../email/email.service';
+import { CalendarService } from '../calendar/calendar.service';
 import type { CleanupStatus } from './cleanup-query';
 
 interface CreateCleanupInput {
@@ -91,6 +92,7 @@ export class CleanupService {
     private readonly userEmailRepository: Repository<UserEmail>,
     private readonly adminService: AdminService,
     private readonly emailService: EmailService,
+    private readonly calendarService: CalendarService,
   ) {}
 
   normalizeName(name: string): string {
@@ -469,7 +471,8 @@ export class CleanupService {
       user_id: userId,
       role: 'member',
     });
-    await this.cleanupParticipantRepository.save(participant);
+    const saved = await this.cleanupParticipantRepository.save(participant);
+    await this.fireCalendarEmailsForFutureDates(cleanupId, userId, saved, 'REQUEST', cleanup.name);
     return { joined: true };
   }
 
@@ -480,12 +483,16 @@ export class CleanupService {
       return { left: false };
     }
 
+    const cleanup = await this.getCleanupOrThrow(cleanupId);
+
     if (participant.role === 'organizer') {
       const organizerCount = await this.cleanupParticipantRepository.count({ where: { cleanup_id: cleanupId, role: 'organizer' } });
       if (organizerCount <= 1) {
         await this.promoteStewards(cleanupId, userId);
       }
     }
+
+    await this.fireCalendarEmailsForFutureDates(cleanupId, userId, participant, 'CANCEL', cleanup.name);
 
     await this.cleanupParticipantRepository.delete({ id: participant.id });
 
@@ -503,6 +510,76 @@ export class CleanupService {
     }
 
     return { left: true };
+  }
+
+  private async fireCalendarEmailsForFutureDates(
+    cleanupId: string,
+    userId: string,
+    participant: CleanupParticipant,
+    method: 'REQUEST' | 'CANCEL',
+    cleanupName: string,
+  ): Promise<void> {
+    try {
+      const recipientEmails = await this.userEmailRepository.find({
+        where: { user_id: userId, calendar_emails_enabled: true },
+      });
+      if (recipientEmails.length === 0) return;
+
+      const futureDates = await this.cleanupDateRepository.find({
+        where: { cleanup_id: cleanupId, start_at: MoreThan(new Date()) },
+        order: { start_at: 'ASC' },
+      });
+      if (futureDates.length === 0) return;
+
+      const urls = this.calendarService.feedUrls(userId);
+      const appBaseUrl = this.calendarService.getAppBaseUrl();
+      const profileLink = `${appBaseUrl}/profile`;
+
+      let sequence = participant.email_sequence ?? 0;
+      for (const cleanupDate of futureDates) {
+        sequence += 1;
+        const { ics } = await this.calendarService.buildSingleEventForEmail(cleanupDate.id, method, sequence);
+        const when = this.formatWhen(cleanupDate.start_at, cleanupDate.end_at);
+        for (const recipient of recipientEmails) {
+          await this.emailService.sendCleanupInvite(recipient.email, {
+            method,
+            cleanupName,
+            when,
+            locationName: cleanupDate.location_name,
+            cleanupLink: `${appBaseUrl}/cleanups/${cleanupId}`,
+            feedUrl: urls.joinedWebcal,
+            profileLink,
+            icsContent: ics,
+          });
+        }
+      }
+
+      await this.cleanupParticipantRepository.update(
+        { id: participant.id },
+        { email_sequence: sequence, last_email_sent_at: new Date(), last_email_method: method },
+      );
+    } catch (err) {
+      // Email failures must never block join/leave.
+      // eslint-disable-next-line no-console
+      console.error(`Failed to send calendar ${method} emails for user ${userId} cleanup ${cleanupId}:`, err);
+    }
+  }
+
+  private formatWhen(start: Date, end: Date): string {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone: 'UTC',
+    });
+    const sameDay =
+      start.getUTCFullYear() === end.getUTCFullYear() &&
+      start.getUTCMonth() === end.getUTCMonth() &&
+      start.getUTCDate() === end.getUTCDate();
+    if (sameDay) {
+      const endTime = new Intl.DateTimeFormat('en-US', { timeStyle: 'short', timeZone: 'UTC' }).format(end);
+      return `${fmt.format(start)} – ${endTime} UTC`;
+    }
+    return `${fmt.format(start)} – ${fmt.format(end)} UTC`;
   }
 
   private async promoteStewards(cleanupId: string, leavingUserId: string): Promise<void> {

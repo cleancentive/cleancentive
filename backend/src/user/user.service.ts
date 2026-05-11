@@ -264,11 +264,22 @@ export class UserService {
 
     // Check if this is the first email for the user (claiming guest account)
     const existingEmails = await this.userEmailRepository.count({ where: { user_id: userId } });
+    const isFirstEmail = existingEmails === 0;
+
+    let autoEnableCalendar = false;
+    if (isFirstEmail) {
+      const user = await this.userRepository.findOne({
+        where: { id: userId },
+        select: ['id', 'calendar_feed_last_fetched_at'],
+      });
+      autoEnableCalendar = !user?.calendar_feed_last_fetched_at;
+    }
 
     const userEmail = this.userEmailRepository.create({
       email,
       user_id: userId,
-      is_selected_for_login: existingEmails === 0,
+      is_selected_for_login: isFirstEmail,
+      calendar_emails_enabled: autoEnableCalendar,
     });
 
     return this.userEmailRepository.save(userEmail);
@@ -321,6 +332,22 @@ export class UserService {
     return this.userEmailRepository.find({
       where: { user_id: userId },
     });
+  }
+
+  async updateCalendarEmailSelection(userId: string, emailIds: string[]): Promise<UserEmail[]> {
+    await this.userEmailRepository.update(
+      { user_id: userId },
+      { calendar_emails_enabled: false, updated_by: userId },
+    );
+
+    for (const emailId of emailIds) {
+      await this.userEmailRepository.update(
+        { id: emailId, user_id: userId },
+        { calendar_emails_enabled: true, updated_by: userId },
+      );
+    }
+
+    return this.userEmailRepository.find({ where: { user_id: userId } });
   }
 
   async getSelectedEmailsForLogin(userId: string): Promise<UserEmail[]> {

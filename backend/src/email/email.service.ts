@@ -9,6 +9,7 @@ import {
   recoveryMd,
   mergeWarningMd,
   communityMessageMd,
+  cleanupInviteMd,
 } from './email.templates';
 
 @Injectable()
@@ -98,6 +99,71 @@ export class EmailService {
     } catch (error) {
       this.logger.error(`Failed to send merge warning to ${email}`, error.stack);
       throw new Error('Failed to send merge warning email');
+    }
+  }
+
+  async sendCleanupInvite(
+    email: string,
+    payload: {
+      method: 'REQUEST' | 'CANCEL';
+      cleanupName: string;
+      when: string;
+      locationName: string | null;
+      cleanupLink: string;
+      feedUrl: string;
+      profileLink: string;
+      icsContent: string;
+    },
+  ): Promise<void> {
+    const fromAddress = this.configService.get<string>('SMTP_FROM', 'noreply@cleancentive.local');
+    const isCancel = payload.method === 'CANCEL';
+    const title = isCancel
+      ? `Cancelled: ${payload.cleanupName}`
+      : `You're going: ${payload.cleanupName}`;
+    const intro = isCancel
+      ? `Your participation in **${payload.cleanupName}** has been removed. This event will be cancelled in your calendar.`
+      : `Thanks for joining **${payload.cleanupName}**. We've attached a calendar invite so you don't miss it.`;
+    const locationLine = payload.locationName ? `**Where:** ${payload.locationName}` : '';
+    const subject = `${title} — ${payload.when}`;
+
+    const { html, text } = render(
+      cleanupInviteMd({
+        title,
+        intro,
+        when: payload.when,
+        locationLine,
+        cleanupLink: payload.cleanupLink,
+        feedUrl: payload.feedUrl,
+        profileLink: payload.profileLink,
+      }),
+      { theme: defaultTheme },
+    );
+
+    try {
+      await this.transporter.sendMail({
+        from: fromAddress,
+        to: email,
+        subject,
+        text,
+        html,
+        // Inline + attached: many clients honour the inline calendar part and surface a native "Add to calendar" button.
+        alternatives: [
+          {
+            contentType: `text/calendar; charset=utf-8; method=${payload.method}`,
+            content: payload.icsContent,
+          },
+        ],
+        attachments: [
+          {
+            filename: isCancel ? 'cancel.ics' : 'invite.ics',
+            content: payload.icsContent,
+            contentType: `text/calendar; charset=utf-8; method=${payload.method}`,
+          },
+        ],
+      } as any);
+      this.logger.log(`Cleanup ${payload.method} sent to ${email} for ${payload.cleanupName}`);
+    } catch (error) {
+      this.logger.error(`Failed to send cleanup ${payload.method} to ${email}`, error.stack);
     }
   }
 

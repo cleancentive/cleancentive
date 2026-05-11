@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { v7 as uuidv7 } from 'uuid'
 import { useCleanupStore } from '../stores/cleanupStore'
 import { useAuthStore } from '../stores/authStore'
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { LocationPicker } from './LocationPicker'
 import { MemberList } from './MemberList'
@@ -95,7 +96,7 @@ function recurrenceColor(index: number, total: number): string {
 export function CleanupDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { user, getCalendarUrls } = useAuthStore()
   const { isOnline } = useConnectivityStore()
   const { openSignInModal } = useUiStore()
   const {
@@ -144,10 +145,20 @@ export function CleanupDetail() {
   // Selection
   const [selectedDateIds, setSelectedDateIds] = useState<Set<string>>(new Set())
   const [hoveredRecurrenceId, setHoveredRecurrenceId] = useState<string | null>(null)
+  const [joinedWebcal, setJoinedWebcal] = useState<string | null>(null)
 
   useEffect(() => {
     if (id) fetchCleanup(id)
   }, [id, fetchCleanup])
+
+  useEffect(() => {
+    if (!user) { setJoinedWebcal(null); return }
+    let cancelled = false
+    getCalendarUrls().then((urls) => {
+      if (!cancelled) setJoinedWebcal(urls?.joinedWebcal ?? null)
+    })
+    return () => { cancelled = true }
+  }, [user?.id, getCalendarUrls])
 
   useEffect(() => {
     if (id && currentCleanup?.userRole) {
@@ -463,6 +474,23 @@ export function CleanupDetail() {
           </div>
         )}
 
+        {user && isParticipant && (
+          <div className="cleanup-add-to-calendar">
+            <strong>Add to your calendar</strong>
+            <div className="calendar-actions">
+              {joinedWebcal && (
+                <a className="secondary-button" href={joinedWebcal}>
+                  Subscribe (all joined cleanups)
+                </a>
+              )}
+              <span className="calendar-hint">
+                Subscribing keeps Google / Apple / Outlook in sync as you join, leave, or organizers update dates.
+                Or use the per-date links below to add a single event.
+              </span>
+            </div>
+          </div>
+        )}
+
         {isOrganizer && (
           <div className="community-admin-actions">
             <h3>Organizer Actions</h3>
@@ -566,6 +594,13 @@ export function CleanupDetail() {
                     Deactivate
                   </button>
                 )}
+                <a
+                  className="link-button"
+                  href={`${API_BASE}/calendar/cleanup-dates/${d.id}.ics`}
+                  title="Download .ics for this date"
+                >
+                  Add to calendar
+                </a>
                 {isOrganizer && (
                   <>
                     <button className="link-button" onClick={() => startEdit(d)}>Edit</button>

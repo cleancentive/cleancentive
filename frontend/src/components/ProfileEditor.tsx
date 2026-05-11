@@ -12,6 +12,7 @@ export function ProfileEditor() {
   const {
     user, logout, deleteGuestData, updateProfile, addEmail, confirmMerge, removeEmail,
     updateEmailSelection, updateAvatarEmail, deleteAccount, anonymizeAccount,
+    updateCalendarEmailSelection, getCalendarUrls,
     isLoading, error, clearError
   } = useAuthStore()
 
@@ -24,6 +25,8 @@ export function ProfileEditor() {
   const [conflictEmail, setConflictEmail] = useState<string | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [showAccountDelete, setShowAccountDelete] = useState(false)
+  const [calendarUrls, setCalendarUrls] = useState<{ joinedHttp: string; joinedWebcal: string; discoverHttp: string; discoverWebcal: string } | null>(null)
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
 
   const sortedEmails = useMemo(
     () => [...(user?.emails ?? [])].sort((a, b) => a.id.localeCompare(b.id)),
@@ -36,6 +39,32 @@ export function ProfileEditor() {
       setFullName(user.full_name || '')
     }
   }, [user])
+
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    getCalendarUrls().then((urls) => {
+      if (!cancelled && urls) {
+        setCalendarUrls({
+          joinedHttp: urls.joinedHttp,
+          joinedWebcal: urls.joinedWebcal,
+          discoverHttp: urls.discoverHttp,
+          discoverWebcal: urls.discoverWebcal,
+        })
+      }
+    })
+    return () => { cancelled = true }
+  }, [user?.id, getCalendarUrls])
+
+  const handleCopy = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedUrl(url)
+      setTimeout(() => setCopiedUrl((current) => (current === url ? null : current)), 2000)
+    } catch {
+      setCopiedUrl(null)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -132,6 +161,18 @@ export function ProfileEditor() {
 
     clearError()
     await updateEmailSelection(newSelection)
+  }
+
+  const handleToggleCalendarEmail = async (emailId: string, currentlyEnabled: boolean) => {
+    if (!user) return
+    const newSelection = currentlyEnabled
+      ? user.emails.filter(e => e.calendar_emails_enabled && e.id !== emailId).map(e => e.id)
+      : [
+          ...user.emails.filter(e => e.calendar_emails_enabled).map(e => e.id),
+          emailId,
+        ]
+    clearError()
+    await updateCalendarEmailSelection(newSelection)
   }
 
   if (!user) return (
@@ -325,6 +366,15 @@ export function ProfileEditor() {
                   <span className="login-email">login</span>
                 )}
               </label>
+              <label className="email-checkbox calendar-toggle" title="Receive cleanup invites at this address">
+                <input
+                  type="checkbox"
+                  checked={email.calendar_emails_enabled}
+                  onChange={() => handleToggleCalendarEmail(email.id, email.calendar_emails_enabled)}
+                  disabled={!isOnline || isLoading}
+                />
+                <span>calendar</span>
+              </label>
               <button
                 onClick={() => handleRemoveEmail(email.id)}
                 disabled={!isOnline || isLoading}
@@ -368,6 +418,43 @@ export function ProfileEditor() {
         {error && !isEditing && (
           <div className="error-message">
             {error}
+          </div>
+        )}
+      </fieldset>
+
+      <fieldset className="page-card" disabled={!isOnline || isLoading}>
+        <legend>Calendar</legend>
+        <p className="calendar-hint">
+          Keep your personal calendar in sync with the cleanups you join. Subscribe once and updates appear automatically — the first time you pull the feed we'll silently turn off the calendar emails above. Re-tick any email to start receiving invites again.
+        </p>
+
+        {calendarUrls && (
+          <div className="calendar-feeds">
+            <div className="calendar-feed">
+              <div className="calendar-feed-label">My joined cleanups</div>
+              <code className="calendar-feed-url">{calendarUrls.joinedWebcal}</code>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => handleCopy(calendarUrls.joinedWebcal)}
+              >
+                {copiedUrl === calendarUrls.joinedWebcal ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            <div className="calendar-feed">
+              <div className="calendar-feed-label">Discover (upcoming, not joined)</div>
+              <code className="calendar-feed-url">{calendarUrls.discoverWebcal}</code>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => handleCopy(calendarUrls.discoverWebcal)}
+              >
+                {copiedUrl === calendarUrls.discoverWebcal ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            <p className="calendar-hint">
+              Add the link in Google Calendar &rarr; Other calendars &rarr; From URL, Apple Calendar &rarr; File &rarr; New Calendar Subscription, or Outlook &rarr; Add calendar &rarr; Subscribe from web.
+            </p>
           </div>
         )}
       </fieldset>

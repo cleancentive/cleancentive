@@ -50,6 +50,15 @@ export class UserProfileController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Put('profile/emails/calendar-selection')
+  async updateCalendarEmailSelection(
+    @Request() req: any,
+    @Body('emailIds') emailIds: string[],
+  ): Promise<any> {
+    return this.userService.updateCalendarEmailSelection(req.user.userId, emailIds || []);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Put('profile/avatar')
   async updateAvatarEmail(
     @Request() req: any,

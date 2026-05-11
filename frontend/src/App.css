@@ -572,6 +572,86 @@
   padding: 0.5rem 1rem;
 }
 
+/* Calendar integration */
+.calendar-hint {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.calendar-mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.calendar-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.calendar-radio input[type="radio"] {
+  margin-top: 0.2rem;
+}
+
+.calendar-feeds {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border, #e5e7eb);
+}
+
+.calendar-feed {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.calendar-feed-label {
+  font-weight: 500;
+  font-size: 0.85rem;
+  flex-basis: 100%;
+}
+
+.calendar-feed-url {
+  flex: 1 1 14rem;
+  min-width: 0;
+  font-size: 0.75rem;
+  background: var(--color-surface-subtle, #f3f4f6);
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.25rem;
+  word-break: break-all;
+}
+
+.calendar-feed .secondary-button {
+  padding: 0.4rem 0.85rem;
+}
+
+.cleanup-add-to-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.cleanup-add-to-calendar .calendar-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cleanup-add-to-calendar a.secondary-button,
+.cleanup-add-to-calendar a.link-button {
+  text-decoration: none;
+}
+
 .success-message {
   color: var(--color-success);
   font-size: 0.875rem;

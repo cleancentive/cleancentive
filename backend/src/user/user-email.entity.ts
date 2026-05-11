@@ -10,6 +10,9 @@ export class UserEmail extends BaseEntity {
   @Column('boolean', { default: false })
   is_selected_for_login: boolean;
 
+  @Column('boolean', { default: false })
+  calendar_emails_enabled: boolean;
+
   @ManyToOne('User', { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user: any;
