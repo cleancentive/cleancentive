@@ -19,7 +19,7 @@ cleancentive.local {
 
 wiki.cleancentive.local {
   tls /certs/cleancentive.local.pem /certs/cleancentive.local-key.pem
-  reverse_proxy host.docker.internal:3010
+  reverse_proxy outline:3000
 }
 
 analytics.cleancentive.local {
