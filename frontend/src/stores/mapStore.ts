@@ -2,12 +2,18 @@ import { create } from 'zustand'
 import axios from 'axios'
 import type { StatsFilterParams } from './insightsStore'
 
+export type HeatMetric = 'items' | 'mass'
+
 interface MapState {
   spotGeoJson: GeoJSON.FeatureCollection | null
   cleanupGeoJson: GeoJSON.FeatureCollection | null
   isLoading: boolean
   error: string | null
   fetchMapData: (params?: StatsFilterParams) => Promise<void>
+  heatMetric: HeatMetric
+  heatUnpickedOnly: boolean
+  setHeatMetric: (m: HeatMetric) => void
+  setHeatUnpickedOnly: (v: boolean) => void
 }
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
@@ -17,6 +23,10 @@ export const useMapStore = create<MapState>((set) => ({
   cleanupGeoJson: null,
   isLoading: false,
   error: null,
+  heatMetric: 'items',
+  heatUnpickedOnly: false,
+  setHeatMetric: (m) => set({ heatMetric: m }),
+  setHeatUnpickedOnly: (v) => set({ heatUnpickedOnly: v }),
 
   fetchMapData: async (params?: StatsFilterParams) => {
     set({ isLoading: true, error: null })

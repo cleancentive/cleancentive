@@ -4013,6 +4013,56 @@ textarea.mono {
   color: var(--color-danger);
 }
 
+.map-heat-control {
+  position: absolute;
+  bottom: 16px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  font-size: 0.85rem;
+  z-index: 2;
+}
+
+.map-heat-control__row {
+  display: flex;
+  gap: 4px;
+}
+
+.map-heat-control__btn {
+  flex: 1;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--gray-300);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--gray-700);
+  cursor: pointer;
+  font-size: 0.8rem;
+  min-height: 32px;
+}
+
+.map-heat-control__btn.is-active {
+  background: var(--color-entity-spot, #b91c1c);
+  color: #fff;
+  border-color: var(--color-entity-spot, #b91c1c);
+}
+
+.map-heat-control__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  color: var(--gray-700);
+}
+
+.map-heat-control__toggle input {
+  margin: 0;
+}
+
 .map-popup {
   display: flex;
   gap: 0.5rem;

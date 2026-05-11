@@ -34,7 +34,10 @@ function buildStyle(basemap: BasemapDef): maplibregl.StyleSpecification {
 }
 
 export function MapPage() {
-  const { spotGeoJson, cleanupGeoJson, isLoading, error, fetchMapData } = useMapStore()
+  const {
+    spotGeoJson, cleanupGeoJson, isLoading, error, fetchMapData,
+    heatMetric, heatUnpickedOnly, setHeatMetric, setHeatUnpickedOnly,
+  } = useMapStore()
   const { user } = useAuthStore()
   const { datePreset, pickedUpFilter, myFilter, cleanupFilter } = useInsightsFilterStore()
   const navigate = useNavigate()
@@ -115,11 +118,36 @@ export function MapPage() {
         clusterRadius: 50,
       })
 
+      // Separate non-clustered source for the heat layer so weights (itemCount,
+      // totalWeight) reflect actual per-spot values instead of cluster counts.
+      map.addSource('spots-heat-source', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] },
+      })
+
+      const { heatMetric: hm, heatUnpickedOnly: hu } = useMapStore.getState()
+      const heatProp = hm === 'mass' ? 'totalWeight' : 'itemCount'
+
+      map.addLayer({
+        id: 'spots-heat',
+        type: 'heatmap',
+        source: 'spots-heat-source',
+        maxzoom: 11,
+        ...(hu ? { filter: ['==', ['get', 'pickedUp'], false] } : {}),
+        paint: {
+          'heatmap-weight': ['coalesce', ['get', heatProp], 1],
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.4, 11, 2],
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 6, 11, 30],
+          'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0.85, 11, 0],
+        },
+      })
+
       map.addLayer({
         id: 'clusters',
         type: 'circle',
         source: 'spots-source',
         filter: ['has', 'point_count'],
+        minzoom: 11,
         paint: {
           'circle-color': [
             'step', ['get', 'point_count'],
@@ -143,6 +171,7 @@ export function MapPage() {
         type: 'symbol',
         source: 'spots-source',
         filter: ['has', 'point_count'],
+        minzoom: 11,
         layout: {
           'text-field': '{point_count_abbreviated}',
           'text-size': 13,
@@ -164,9 +193,23 @@ export function MapPage() {
             pickBase,
             spotBase,
           ],
-          'circle-radius': 7,
+          'circle-radius': 9,
           'circle-stroke-width': 2,
           'circle-stroke-color': '#fff',
+        },
+      })
+
+      // Invisible larger hit target for tap accessibility (esp. iOS).
+      // Sits on top of the visible dot; clicks within ~36px diameter open the popup.
+      map.addLayer({
+        id: 'unclustered-spot-hit',
+        type: 'circle',
+        source: 'spots-source',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': '#000',
+          'circle-opacity': 0,
+          'circle-radius': 18,
         },
       })
 
@@ -191,6 +234,7 @@ export function MapPage() {
       const current = useMapStore.getState()
       if (current.spotGeoJson) {
         ;(map.getSource('spots-source') as maplibregl.GeoJSONSource | undefined)?.setData(current.spotGeoJson)
+        ;(map.getSource('spots-heat-source') as maplibregl.GeoJSONSource | undefined)?.setData(current.spotGeoJson)
       }
       if (current.cleanupGeoJson) {
         ;(map.getSource('cleanups-source') as maplibregl.GeoJSONSource | undefined)?.setData(current.cleanupGeoJson)
@@ -214,7 +258,7 @@ export function MapPage() {
       })
     })
 
-    map.on('click', 'unclustered-spot', (e) => {
+    map.on('click', 'unclustered-spot-hit', (e) => {
       if (!e.features?.length) return
       const f = e.features[0]
       const geometry = f.geometry as GeoJSON.Point
@@ -263,8 +307,8 @@ export function MapPage() {
 
     map.on('mouseenter', 'clusters', () => { map.getCanvas().style.cursor = 'pointer' })
     map.on('mouseleave', 'clusters', () => { map.getCanvas().style.cursor = '' })
-    map.on('mouseenter', 'unclustered-spot', () => { map.getCanvas().style.cursor = 'pointer' })
-    map.on('mouseleave', 'unclustered-spot', () => { map.getCanvas().style.cursor = '' })
+    map.on('mouseenter', 'unclustered-spot-hit', () => { map.getCanvas().style.cursor = 'pointer' })
+    map.on('mouseleave', 'unclustered-spot-hit', () => { map.getCanvas().style.cursor = '' })
     map.on('mouseenter', 'cleanup-locations', () => { map.getCanvas().style.cursor = 'pointer' })
     map.on('mouseleave', 'cleanup-locations', () => { map.getCanvas().style.cursor = '' })
 
@@ -322,6 +366,8 @@ export function MapPage() {
     if (spotGeoJson) {
       const source = map.getSource('spots-source') as maplibregl.GeoJSONSource | undefined
       if (source) source.setData(spotGeoJson)
+      const heatSource = map.getSource('spots-heat-source') as maplibregl.GeoJSONSource | undefined
+      if (heatSource) heatSource.setData(spotGeoJson)
     }
 
     if (cleanupGeoJson) {
@@ -336,12 +382,52 @@ export function MapPage() {
     }
   }, [spotGeoJson, cleanupGeoJson, fitToData, mapReady])
 
+  // Apply heat-metric / unpicked-only changes to the heat layer.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    if (!map.getLayer('spots-heat')) return
+    const heatProp = heatMetric === 'mass' ? 'totalWeight' : 'itemCount'
+    map.setPaintProperty('spots-heat', 'heatmap-weight', ['coalesce', ['get', heatProp], 1])
+    map.setFilter('spots-heat', heatUnpickedOnly ? ['==', ['get', 'pickedUp'], false] : null)
+  }, [heatMetric, heatUnpickedOnly, mapReady])
+
   const hasData = (spotGeoJson?.features.length ?? 0) > 0 || (cleanupGeoJson?.features.length ?? 0) > 0
 
   return (
     <div className="map-page">
       <div className="map-container" ref={mapContainerRef} />
       <BasemapSwitcher />
+      <div className="map-heat-control">
+        <div className="map-heat-control__row" role="radiogroup" aria-label="Heat map metric">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={heatMetric === 'items'}
+            className={`map-heat-control__btn${heatMetric === 'items' ? ' is-active' : ''}`}
+            onClick={() => setHeatMetric('items')}
+          >
+            Items
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={heatMetric === 'mass'}
+            className={`map-heat-control__btn${heatMetric === 'mass' ? ' is-active' : ''}`}
+            onClick={() => setHeatMetric('mass')}
+          >
+            Mass
+          </button>
+        </div>
+        <label className="map-heat-control__toggle">
+          <input
+            type="checkbox"
+            checked={heatUnpickedOnly}
+            onChange={(e) => setHeatUnpickedOnly(e.target.checked)}
+          />
+          <span>Unpicked only</span>
+        </label>
+      </div>
       {isLoading && (
         <div className="map-overlay">Loading...</div>
       )}

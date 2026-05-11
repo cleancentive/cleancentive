@@ -95,6 +95,7 @@ export class InsightsService {
       this.spotRepository.query(
         `SELECT s.id, s.longitude, s.latitude, s.captured_at, s.processing_status, s.picked_up,
                 COUNT(di.id)::int AS item_count,
+                COALESCE(SUM(di.weight_grams), 0) AS total_weight,
                 (SELECT lt2.name FROM detected_items di2
                  JOIN labels l2 ON l2.id = di2.object_label_id
                  JOIN label_translations lt2 ON lt2.label_id = l2.id AND lt2.locale = 'en'
@@ -130,6 +131,7 @@ export class InsightsService {
           id: r.id,
           capturedAt: r.captured_at,
           itemCount: Number(r.item_count),
+          totalWeight: Number(r.total_weight),
           topObject: r.top_category,
           status: r.processing_status,
           pickedUp: r.picked_up,
