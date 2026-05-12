@@ -525,8 +525,11 @@ export class CleanupService {
       });
       if (recipientEmails.length === 0) return;
 
+      // Skip events less than 6h away: invite/cancel is too late to be useful,
+      // and the webcal feed already covers active subscribers.
+      const cutoff = new Date(Date.now() + 6 * 60 * 60 * 1000);
       const futureDates = await this.cleanupDateRepository.find({
-        where: { cleanup_id: cleanupId, start_at: MoreThan(new Date()) },
+        where: { cleanup_id: cleanupId, start_at: MoreThan(cutoff) },
         order: { start_at: 'ASC' },
       });
       if (futureDates.length === 0) return;
