@@ -187,12 +187,13 @@ export class FeedbackController {
   @Patch(':id/status')
   @UseGuards(JwtAuthGuard, AdminGuard)
   async updateStatus(
+    @Request() req: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: { status?: string },
   ) {
     if (!body.status || !VALID_STATUSES.includes(body.status as Status)) {
       throw new BadRequestException('status must be one of: new, acknowledged, in_progress, resolved');
     }
-    return this.feedbackService.updateStatus(id, body.status as Status);
+    return this.feedbackService.updateStatus(id, body.status as Status, req.user?.userId);
   }
 }

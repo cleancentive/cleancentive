@@ -45,7 +45,7 @@ export class FeedbackService {
     });
     const saved = await this.feedbackRepository.save(feedback);
 
-    await this.notifyStewards(saved);
+    await this.notifyStewards(saved, undefined, undefined, input.userId);
     return saved;
   }
 
@@ -63,9 +63,9 @@ export class FeedbackService {
     const saved = await this.responseRepository.save(response);
 
     if (isFromSteward && feedback.contact_email) {
-      await this.notifyUser(feedback, message, saved.id);
+      await this.notifyUser(feedback, message, saved.id, actorUserId);
     } else if (!isFromSteward) {
-      await this.notifyStewards(feedback, message, saved.id);
+      await this.notifyStewards(feedback, message, saved.id, actorUserId);
     }
 
     return saved;
@@ -178,7 +178,7 @@ export class FeedbackService {
     return feedback;
   }
 
-  async updateStatus(id: string, status: 'new' | 'acknowledged' | 'in_progress' | 'resolved'): Promise<Feedback> {
+  async updateStatus(id: string, status: 'new' | 'acknowledged' | 'in_progress' | 'resolved', actorUserId?: string): Promise<Feedback> {
     const feedback = await this.feedbackRepository.findOne({ where: { id } });
     if (!feedback) {
       throw new NotFoundException('Feedback not found');
@@ -188,7 +188,7 @@ export class FeedbackService {
     const saved = await this.feedbackRepository.save(feedback);
 
     if (feedback.contact_email) {
-      await this.notifyUser(feedback, `Your feedback status has been updated to: ${status.replace('_', ' ')}`);
+      await this.notifyUser(feedback, `Your feedback status has been updated to: ${status.replace('_', ' ')}`, undefined, actorUserId);
     }
 
     return saved;
@@ -206,9 +206,20 @@ export class FeedbackService {
     return responseId ? `${path}#response-${responseId}` : path;
   }
 
-  private async notifyStewards(feedback: Feedback, followUpMessage?: string, responseId?: string): Promise<void> {
+  private async getActorEmailsLower(actorUserId?: string): Promise<Set<string>> {
+    if (!actorUserId) return new Set();
+    const rows = await this.userEmailRepository.find({
+      where: { user_id: actorUserId },
+      select: ['email'],
+    });
+    return new Set(rows.map((r) => r.email.toLowerCase()));
+  }
+
+  private async notifyStewards(feedback: Feedback, followUpMessage?: string, responseId?: string, actorUserId?: string): Promise<void> {
     const notifyEmail = this.configService.get<string>('FEEDBACK_NOTIFY_EMAIL');
-    const recipients = notifyEmail ? [notifyEmail] : this.adminService.getAdminEmails();
+    const baseRecipients = notifyEmail ? [notifyEmail] : this.adminService.getAdminEmails();
+    const actorEmails = await this.getActorEmailsLower(actorUserId);
+    const recipients = baseRecipients.filter((e) => !actorEmails.has(e.toLowerCase()));
     if (recipients.length === 0) return;
 
     const subject = followUpMessage
@@ -231,8 +242,11 @@ export class FeedbackService {
     }
   }
 
-  private async notifyUser(feedback: Feedback, message: string, responseId?: string): Promise<void> {
+  private async notifyUser(feedback: Feedback, message: string, responseId?: string, actorUserId?: string): Promise<void> {
     if (!feedback.contact_email) return;
+
+    const actorEmails = await this.getActorEmailsLower(actorUserId);
+    if (actorEmails.has(feedback.contact_email.toLowerCase())) return;
 
     const link = this.feedbackUrl(feedback.id, responseId);
     const body = `${message}\n\nView conversation: ${link}`;
