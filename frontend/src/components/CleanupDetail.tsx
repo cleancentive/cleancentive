@@ -10,67 +10,19 @@ import { MessageBoard } from './MessageBoard'
 import { useUiStore } from '../stores/uiStore'
 import { ConfirmDialog } from './ConfirmDialog'
 import { isoToDatetimeLocal, formatDateRange } from '../utils/datetime'
+import {
+  type Frequency,
+  defaultStartFor,
+  defaultEndFrom,
+  durationHours,
+  isOngoing,
+  generateRecurringDates,
+  recurrenceColor,
+} from '../lib/cleanupDates'
 import { useCleanupSelection } from '../hooks/useCleanupSelection'
 import { DateCard } from './cleanup/DateCard'
 import { BulkDateActions } from './cleanup/BulkDateActions'
 import { CleanupCalendarSection } from './cleanup/CleanupCalendarSection'
-
-function defaultStartFor(referenceDate?: string): string {
-  const today = isoToDatetimeLocal(new Date().toISOString()).split('T')[0]
-  const date = referenceDate ? referenceDate.split('T')[0] : today
-  if (date === today) {
-    return isoToDatetimeLocal(new Date().toISOString())
-  }
-  return date + 'T09:00'
-}
-
-function defaultEndFrom(startAt: string): string {
-  if (!startAt) return ''
-  return startAt.split('T')[0] + 'T17:00'
-}
-
-function durationHours(startAt: string, endAt: string): number | null {
-  if (!startAt || !endAt) return null
-  const ms = new Date(endAt).getTime() - new Date(startAt).getTime()
-  return ms / (1000 * 60 * 60)
-}
-
-function isOngoing(startAt: string, endAt: string): boolean {
-  const now = Date.now()
-  return new Date(startAt).getTime() <= now && now <= new Date(endAt).getTime()
-}
-
-type Frequency = 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
-
-function addOffset(date: Date, frequency: Frequency): Date {
-  const d = new Date(date)
-  switch (frequency) {
-    case 'weekly': d.setDate(d.getDate() + 7); break
-    case 'biweekly': d.setDate(d.getDate() + 14); break
-    case 'monthly': d.setMonth(d.getMonth() + 1); break
-    case 'quarterly': d.setMonth(d.getMonth() + 3); break
-    case 'yearly': d.setFullYear(d.getFullYear() + 1); break
-  }
-  return d
-}
-
-function generateRecurringDates(startAt: string, endAt: string, frequency: Frequency, count: number): Array<{ startAt: string; endAt: string }> {
-  const results: Array<{ startAt: string; endAt: string }> = []
-  let s = new Date(startAt)
-  let e = new Date(endAt)
-  for (let i = 0; i < count; i++) {
-    results.push({ startAt: s.toISOString(), endAt: e.toISOString() })
-    s = addOffset(s, frequency)
-    e = addOffset(e, frequency)
-  }
-  return results
-}
-
-// Assign distinct hue per recurrence_id
-function recurrenceColor(index: number, total: number): string {
-  const hue = (index * 360 / Math.max(total, 1)) % 360
-  return `hsl(${hue}, 70%, 55%)`
-}
 
 export function CleanupDetail() {
   const { id } = useParams<{ id: string }>()
