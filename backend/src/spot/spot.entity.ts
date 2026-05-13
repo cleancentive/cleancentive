@@ -2,6 +2,7 @@ import { Entity, Column, ManyToOne, JoinColumn, OneToMany, Index } from 'typeorm
 import { BaseEntity } from '../common/base.entity';
 import { User } from '../user/user.entity';
 import { Team } from '../team/team.entity';
+import type { ProcessingStatus } from '@cleancentive/shared';
 
 @Entity('spots')
 @Index('IDX_spots_upload_id', ['upload_id'], { unique: true })
@@ -64,7 +65,7 @@ export class Spot extends BaseEntity {
   upload_id: string;
 
   @Column('varchar', { default: 'queued' })
-  processing_status: 'queued' | 'processing' | 'completed' | 'failed';
+  processing_status: ProcessingStatus;
 
   @Column('timestamp', { nullable: true })
   detection_started_at: Date | null;

@@ -6,26 +6,8 @@ import { v7 as uuidv7 } from 'uuid';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { hostname } from 'os';
 import sharp from 'sharp';
-
-interface LitterDetectionJobData {
-  spotId: string;
-  userId: string;
-  imageKey: string;
-  mimeType: string;
-}
-
-interface DetectedObject {
-  category: string | null;
-  material: string | null;
-  brand: string | null;
-  weightGrams: number | null;
-  confidence: number | null;
-}
-
-interface DetectionResult {
-  objects: DetectedObject[];
-  notes: string | null;
-}
+import { PROCESSING_STATUS } from '@cleancentive/shared';
+import type { LitterDetectionJobData, DetectedObject, DetectionResult } from '@cleancentive/shared';
 
 interface WorkerOpsState {
   name: string;

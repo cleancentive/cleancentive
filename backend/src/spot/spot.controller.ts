@@ -44,6 +44,7 @@ import { AuthService } from '../auth/auth.service';
 import { UserService } from '../user/user.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ApiTags } from '@nestjs/swagger';
+import { PROCESSING_STATUS } from '@cleancentive/shared';
 
 type UploadFiles = {
   image?: Array<{ buffer: Buffer; mimetype: string; size: number }>;
@@ -358,7 +359,7 @@ export class SpotController {
       ? await this.resolveAuthUserId(req.headers.authorization)
       : this.requireGuestId(guestId);
     await this.spotService.retryDetection(id, userId);
-    return { status: 'queued' };
+    return { status: PROCESSING_STATUS.QUEUED };
   }
 
   @Delete(':id')

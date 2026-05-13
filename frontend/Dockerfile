@@ -5,6 +5,7 @@ COPY package.json bun.lock ./
 COPY backend/package.json backend/package.json
 COPY frontend/package.json frontend/package.json
 COPY worker/package.json worker/package.json
+COPY shared/package.json shared/package.json
 
 RUN bun install --frozen-lockfile
 
@@ -13,6 +14,7 @@ WORKDIR /app
 
 ARG SOURCE_COMMIT=unknown
 ARG SOURCE_COMMIT_SHORT=unknown
+COPY shared shared
 COPY frontend frontend
 RUN bun -e "\
   const fs = require('fs');\

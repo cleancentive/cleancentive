@@ -10,6 +10,7 @@ import { StorageService } from '../storage/storage.service';
 import { PurgeService } from '../purge/purge.service';
 import { redisConnection } from '../common/redis-connection';
 import { createS3Client } from '../common/s3-client';
+import { PROCESSING_STATUS } from '@cleancentive/shared';
 
 type HealthStatus = 'ok' | 'degraded' | 'down';
 
@@ -493,11 +494,11 @@ export class AdminOpsService implements OnModuleDestroy {
       throw new Error('Spot not found');
     }
 
-    if (spot.processing_status !== 'failed') {
+    if (spot.processing_status !== PROCESSING_STATUS.FAILED) {
       throw new Error('Only failed spots can be retried');
     }
 
-    spot.processing_status = 'queued';
+    spot.processing_status = PROCESSING_STATUS.QUEUED;
     spot.processing_error = null;
     spot.detection_started_at = null;
     await this.spotRepository.save(spot);

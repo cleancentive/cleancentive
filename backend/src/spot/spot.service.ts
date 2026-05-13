@@ -12,6 +12,7 @@ import { CleanupService } from '../cleanup/cleanup.service';
 import { LabelService } from '../label/label.service';
 import { redisConnection } from '../common/redis-connection';
 import { createS3Client } from '../common/s3-client';
+import { PROCESSING_STATUS } from '@cleancentive/shared';
 
 interface CreateSpotInput {
   userId: string;
@@ -199,7 +200,7 @@ export class SpotService {
       image_key: '',
       thumbnail_key: null,
       upload_id: input.uploadId,
-      processing_status: 'queued',
+      processing_status: PROCESSING_STATUS.QUEUED,
       picked_up: input.pickedUp ?? true,
       pick_session_id: pickSessionId,
       image_sha256: imageSha256,
@@ -271,7 +272,7 @@ export class SpotService {
         },
       );
     } catch {
-      savedSpot.processing_status = 'failed';
+      savedSpot.processing_status = PROCESSING_STATUS.FAILED;
       savedSpot.processing_error = 'Failed to enqueue litter detection job';
       await this.spotRepository.save(savedSpot);
 
@@ -682,9 +683,9 @@ export class SpotService {
   }
 
   private async retryFailedSpot(spot: Spot, updatedBy: string): Promise<void> {
-    if (spot.processing_status !== 'failed') throw new BadRequestException('Only failed spots can be retried');
+    if (spot.processing_status !== PROCESSING_STATUS.FAILED) throw new BadRequestException('Only failed spots can be retried');
 
-    spot.processing_status = 'queued';
+    spot.processing_status = PROCESSING_STATUS.QUEUED;
     spot.processing_error = null;
     spot.detection_started_at = null;
     await this.spotRepository.save(spot);

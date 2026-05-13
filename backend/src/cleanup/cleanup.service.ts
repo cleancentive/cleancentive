@@ -16,6 +16,7 @@ import { AdminService } from '../admin/admin.service';
 import { EmailService } from '../email/email.service';
 import { CalendarService } from '../calendar/calendar.service';
 import type { CleanupStatus } from './cleanup-query';
+import { haversineKm } from '@cleancentive/shared';
 
 interface CreateCleanupInput {
   name: string;
@@ -438,7 +439,7 @@ export class CleanupService {
         Number.isFinite(input.latitude) &&
         Number.isFinite(input.longitude)
       ) {
-        const distance = this.distanceKm(
+        const distance = haversineKm(
           input.latitude as number,
           input.longitude as number,
           upcomingDate.latitude,
@@ -952,7 +953,7 @@ export class CleanupService {
       return { cleanupId: null, cleanupDateId: null, warning: null };
     }
 
-    const distanceKm = this.distanceKm(spotLatitude, spotLongitude, cleanupDate.latitude, cleanupDate.longitude);
+    const distanceKm = haversineKm(spotLatitude, spotLongitude, cleanupDate.latitude, cleanupDate.longitude);
     const warning = distanceKm > this.warningThresholdKm
       ? `Your spot is ${distanceKm.toFixed(1)}km away from the active cleanup location.`
       : null;
@@ -1052,15 +1053,4 @@ export class CleanupService {
     return { valid: true, warning: null };
   }
 
-  private distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const toRadians = (degrees: number) => degrees * (Math.PI / 180);
-    const earthRadiusKm = 6371;
-    const dLat = toRadians(lat2 - lat1);
-    const dLon = toRadians(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return earthRadiusKm * c;
-  }
 }

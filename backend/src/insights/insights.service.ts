@@ -8,6 +8,7 @@ import { User } from '../user/user.entity';
 import { Team } from '../team/team.entity';
 import { Cleanup } from '../cleanup/cleanup.entity';
 import { redisConnection } from '../common/redis-connection';
+import type { ProcessingStatus } from '@cleancentive/shared';
 
 interface TimeSeriesEntry {
   week: string;
@@ -35,7 +36,7 @@ export interface PublicStats {
     estimatedWeightGrams: WeightTimeSeriesEntry[];
   };
   spotStats: {
-    byStatus: { queued: number; processing: number; completed: number; failed: number };
+    byStatus: Record<ProcessingStatus, number>;
     topObjects: Array<{ object: string; count: number }>;
     topMaterials: Array<{ material: string; count: number }>;
     topBrands: Array<{ brand: string; count: number }>;

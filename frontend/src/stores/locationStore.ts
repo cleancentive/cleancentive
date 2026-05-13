@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { haversineMeters } from '@cleancentive/shared'
 
 const PEDESTRIAN_MAX_M_PER_S = 3
 const GAP_BYPASS_SECONDS = 60
@@ -30,17 +31,6 @@ interface LocationState {
   closeCaptureWindow: () => void
 }
 
-function haversineMeters(a: LocationFix, b: LocationFix): number {
-  const earthRadius = 6_371_000
-  const toRad = (deg: number) => (deg * Math.PI) / 180
-  const dLat = toRad(b.latitude - a.latitude)
-  const dLon = toRad(b.longitude - a.longitude)
-  const lat1 = toRad(a.latitude)
-  const lat2 = toRad(b.latitude)
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
-  return 2 * earthRadius * Math.asin(Math.sqrt(h))
-}
-
 function median(values: number[]): number {
   if (values.length === 0) return 0
   const sorted = [...values].sort((a, b) => a - b)
@@ -55,7 +45,7 @@ function shouldAccept(fix: LocationFix, buffer: LocationFix[]): boolean {
   // Signal-loss recovery: long gap (tunnel, cable car) — accept as fresh anchor.
   if (dtSec >= GAP_BYPASS_SECONDS) return true
   if (dtSec <= 0) return false
-  const distance = haversineMeters(previous, fix)
+  const distance = haversineMeters(previous.latitude, previous.longitude, fix.latitude, fix.longitude)
   const impliedSpeed = distance / dtSec
   if (impliedSpeed > PEDESTRIAN_MAX_M_PER_S) return false
   const recentAccuracies = buffer.slice(-10).map((f) => f.accuracy)
