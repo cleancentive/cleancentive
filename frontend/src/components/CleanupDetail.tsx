@@ -13,8 +13,8 @@ import { useCleanupSelection } from '../hooks/useCleanupSelection'
 import { useCleanupDateForm } from '../hooks/useCleanupDateForm'
 import { DateCard } from './cleanup/DateCard'
 import { BulkDateActions } from './cleanup/BulkDateActions'
-import { CleanupCalendarSection } from './cleanup/CleanupCalendarSection'
 import { DateForm } from './cleanup/DateForm'
+import { CleanupHeaderCard } from './cleanup/CleanupHeaderCard'
 
 export function CleanupDetail() {
   const { id } = useParams<{ id: string }>()
@@ -47,9 +47,6 @@ export function CleanupDetail() {
   } = useCleanupStore()
 
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
-  const [editing, setEditing] = useState(false)
-  const [editName, setEditName] = useState('')
-  const [editDescription, setEditDescription] = useState('')
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [deleteDateId, setDeleteDateId] = useState<string | null>(null)
   const [showAddDate, setShowAddDate] = useState(false)
@@ -187,80 +184,24 @@ export function CleanupDetail() {
     <div className="community-detail">
       <Link to="/cleanups" className="back-link">&larr; Back to cleanups</Link>
 
-      <fieldset className="page-card">
-        {editing ? (
-          <div className="community-edit-form">
-            <div className="form-group">
-              <label>Name</label>
-              <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} required />
-            </div>
-            <div className="form-group">
-              <label>Description</label>
-              <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={4} />
-            </div>
-            <div className="community-actions">
-              <button className="primary-button" disabled={!editName.trim() || !isOnline} onClick={async () => {
-                if (!id) return
-                await updateCleanup(id, { name: editName, description: editDescription })
-                setEditing(false)
-              }}>Save</button>
-              <button className="secondary-button" onClick={() => setEditing(false)}>Cancel</button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <legend>
-              {cleanup.name}
-              {isOrganizer && <button className="link-button legend-edit-button" onClick={() => { setEditName(cleanup.name); setEditDescription(cleanup.description); setEditing(true) }}>Edit</button>}
-            </legend>
-            {cleanup.description && <p className="cleanup-description-display">{cleanup.description}</p>}
-          </>
-        )}
-
-        {error && (
-          <div className="error-message">
-            {error}
-            <button onClick={clearError}>&times;</button>
-          </div>
-        )}
-
-        {!user && (
-          <div className="community-guest-cta">
-            <span>Sign in to join this cleanup</span>
-            <button className="sign-in-cta-button" onClick={openSignInModal}>Sign In</button>
-          </div>
-        )}
-
-        {user && !isParticipant && (
-          <button className="primary-button" onClick={handleJoin} disabled={!isOnline}>
-            Join Cleanup
-          </button>
-        )}
-
-        {user && isParticipant && (
-          <div className="community-actions">
-            <button className="danger-button" onClick={handleLeave} disabled={!isOnline}>
-              Leave Cleanup
-            </button>
-          </div>
-        )}
-
-        {user && isParticipant && <CleanupCalendarSection joinedWebcal={joinedWebcal} />}
-
-        {isOrganizer && (
-          <div className="community-admin-actions">
-            <h3>Organizer Actions</h3>
-            <button
-              className="danger-button"
-              onClick={() => setShowArchiveConfirm(true)}
-              disabled={!isOnline}
-              title="Hides the cleanup from search and prevents new activity. Existing data is preserved."
-            >
-              Archive Cleanup
-            </button>
-          </div>
-        )}
-      </fieldset>
+      <CleanupHeaderCard
+        cleanup={cleanup}
+        hasUser={!!user}
+        isParticipant={isParticipant}
+        isOrganizer={isOrganizer}
+        isOnline={isOnline}
+        error={error}
+        joinedWebcal={joinedWebcal}
+        onUpdate={async (name, description) => {
+          if (!id) return
+          await updateCleanup(id, { name, description })
+        }}
+        onJoin={handleJoin}
+        onLeave={handleLeave}
+        onArchiveRequest={() => setShowArchiveConfirm(true)}
+        onClearError={clearError}
+        onSignIn={openSignInModal}
+      />
 
       <fieldset className="page-card">
         <legend>Dates ({dates.length})</legend>
