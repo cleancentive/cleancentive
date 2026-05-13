@@ -3,39 +3,15 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { v7 as uuidv7 } from 'uuid'
 import { useCleanupStore } from '../stores/cleanupStore'
 import { useAuthStore } from '../stores/authStore'
-import { API_BASE } from '../lib/apiBase'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { LocationPicker } from './LocationPicker'
 import { MemberList } from './MemberList'
 import { MessageBoard } from './MessageBoard'
 import { useUiStore } from '../stores/uiStore'
 import { ConfirmDialog } from './ConfirmDialog'
-import { isoToDatetimeLocal } from '../utils/datetime'
+import { isoToDatetimeLocal, formatDateRange, formatShortDate } from '../utils/datetime'
 import { useCleanupSelection } from '../hooks/useCleanupSelection'
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    month: 'short', day: 'numeric', year: 'numeric',
-    hour: '2-digit', minute: '2-digit',
-  })
-}
-
-function formatDateRange(startIso: string, endIso: string): string {
-  const s = new Date(startIso)
-  const e = new Date(endIso)
-  const sameDay = s.getFullYear() === e.getFullYear() && s.getMonth() === e.getMonth() && s.getDate() === e.getDate()
-  if (sameDay) {
-    const day = s.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-    const startTime = s.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-    const endTime = e.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-    return `${day}, ${startTime} – ${endTime}`
-  }
-  return `${formatDate(startIso)} – ${formatDate(endIso)}`
-}
-
-function formatShortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
+import { DateCard } from './cleanup/DateCard'
 
 function defaultStartFor(referenceDate?: string): string {
   const today = isoToDatetimeLocal(new Date().toISOString()).split('T')[0]
@@ -513,61 +489,26 @@ export function CleanupDetail() {
           }
 
           return (
-            <div
+            <DateCard
               key={d.id}
-              className={`cleanup-date-card ${ongoing ? 'cleanup-date-card--ongoing' : ''} ${isSelected ? 'cleanup-date-card--selected' : ''} ${isGlowing ? 'cleanup-date-card--glow' : ''}`}
-              style={{
-                borderLeftWidth: borderColor ? '4px' : undefined,
-                borderLeftColor: borderColor,
-                '--recurrence-color': borderColor || 'transparent',
-              } as React.CSSProperties}
+              date={d}
+              isOrganizer={isOrganizer}
+              isParticipant={isParticipant}
+              isSelected={isSelected}
+              ongoing={ongoing}
+              isActive={isActive}
+              borderColor={borderColor}
+              isGlowing={isGlowing}
+              isOnline={isOnline}
               onMouseEnter={() => { if (d.recurrence_id) setHoveredRecurrenceId(d.recurrence_id) }}
               onMouseLeave={() => { if (d.recurrence_id === hoveredRecurrenceId) setHoveredRecurrenceId(null) }}
-              onDoubleClick={() => {
-                if (!isOrganizer) return
-                toggleRecurrenceGroup(d.id)
-              }}
-            >
-              {isOrganizer && (
-                <input
-                  type="checkbox"
-                  className="date-select-checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleSelect(d.id)}
-                />
-              )}
-              <div className="cleanup-date-info">
-                <strong>{formatDateRange(d.start_at, d.end_at)}</strong>
-                {d.location_name && <span className="cleanup-date-location"> · {d.location_name}</span>}
-                {ongoing && <span className="badge" style={{ marginLeft: '0.5rem' }}>Ongoing</span>}
-                {isActive && <span className="badge admin-badge" style={{ marginLeft: '0.25rem' }}>Active</span>}
-              </div>
-              <div className="cleanup-date-actions">
-                {isParticipant && ongoing && !isActive && (
-                  <button className="secondary-button" onClick={() => activateDate(d.id)} disabled={!isOnline}>
-                    Activate
-                  </button>
-                )}
-                {isParticipant && isActive && (
-                  <button className="secondary-button" onClick={() => deactivateDate()} disabled={!isOnline}>
-                    Deactivate
-                  </button>
-                )}
-                <a
-                  className="link-button"
-                  href={`${API_BASE}/calendar/cleanup-dates/${d.id}.ics`}
-                  title="Download .ics for this date"
-                >
-                  Add to calendar
-                </a>
-                {isOrganizer && (
-                  <>
-                    <button className="link-button" onClick={() => startEdit(d)}>Edit</button>
-                    <button className="link-button danger-text" onClick={() => setDeleteDateId(d.id)}>Delete</button>
-                  </>
-                )}
-              </div>
-            </div>
+              onDoubleClick={() => { if (isOrganizer) toggleRecurrenceGroup(d.id) }}
+              onToggleSelect={() => toggleSelect(d.id)}
+              onActivate={() => activateDate(d.id)}
+              onDeactivate={() => deactivateDate()}
+              onEdit={() => startEdit(d)}
+              onDelete={() => setDeleteDateId(d.id)}
+            />
           )
         })}
 
