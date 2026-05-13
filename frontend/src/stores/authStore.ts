@@ -4,7 +4,7 @@ import axios from 'axios'
 import { v7 as uuidv7 } from 'uuid'
 import { useUiStore } from './uiStore'
 import { trackEvent, identifyUser } from '../lib/analytics'
-import { API_BASE } from '../lib/apiBase'
+import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 
 interface UserEmail {
   id: string
@@ -97,7 +97,7 @@ function startPolling(
         clearPolling()
         const sessionToken = response.data.sessionToken as string
         const profileResponse = await axios.get(`${API_BASE}/user/profile`, {
-          headers: { Authorization: `Bearer ${sessionToken}` },
+          headers: getAuthHeaders(),
         })
         set({
           user: profileResponse.data,
@@ -187,7 +187,7 @@ export const useAuthStore = create<AuthState>()(
           const sessionToken = response.headers['x-session-token']
 
           const profileResponse = await axios.get(`${API_BASE}/user/profile`, {
-            headers: { Authorization: `Bearer ${sessionToken}` }
+            headers: getAuthHeaders()
           })
 
           set({
@@ -233,7 +233,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const response = await axios.put(`${API_BASE}/user/profile`, data, {
-            headers: { Authorization: `Bearer ${sessionToken}` }
+            headers: getAuthHeaders()
           })
 
           set({
@@ -256,7 +256,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const response = await axios.post(`${API_BASE}/auth/add-email`, { email }, {
-            headers: { Authorization: `Bearer ${sessionToken}` }
+            headers: getAuthHeaders()
           })
           set({ isLoading: false })
           return response.data
@@ -277,7 +277,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const response = await axios.post(`${API_BASE}/auth/add-email/confirm-merge`, { email }, {
-            headers: { Authorization: `Bearer ${sessionToken}` }
+            headers: getAuthHeaders()
           })
           set({ isLoading: false })
           return response.data.sent
@@ -298,7 +298,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const response = await axios.delete(`${API_BASE}/user/profile/email/${emailId}`, {
-            headers: { Authorization: `Bearer ${sessionToken}` }
+            headers: getAuthHeaders()
           })
           set({ user: response.data, isLoading: false })
           identifyUser((response.data as User).id, selectedEmails(response.data as User))
@@ -319,7 +319,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           await axios.put(`${API_BASE}/user/profile/emails/selection`, { emailIds }, {
-            headers: { Authorization: `Bearer ${sessionToken}` }
+            headers: getAuthHeaders()
           })
           // Refresh profile to get updated email flags
           await get().refreshProfile()
@@ -340,7 +340,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const response = await axios.put(`${API_BASE}/user/profile/avatar`, { emailId }, {
-            headers: { Authorization: `Bearer ${sessionToken}` }
+            headers: getAuthHeaders()
           })
           set({ user: response.data })
         } catch {
@@ -353,7 +353,7 @@ export const useAuthStore = create<AuthState>()(
         if (!sessionToken) return
         try {
           await axios.put(`${API_BASE}/user/profile/emails/calendar-selection`, { emailIds }, {
-            headers: { Authorization: `Bearer ${sessionToken}` }
+            headers: getAuthHeaders()
           })
           await get().refreshProfile()
         } catch (error: any) {
@@ -366,7 +366,7 @@ export const useAuthStore = create<AuthState>()(
         if (!sessionToken) return null
         try {
           const response = await axios.get(`${API_BASE}/calendar/me/urls`, {
-            headers: { Authorization: `Bearer ${sessionToken}` }
+            headers: getAuthHeaders()
           })
           return response.data
         } catch {
@@ -382,7 +382,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           await axios.delete(`${API_BASE}/user/profile?mode=delete`, {
-            headers: { Authorization: `Bearer ${sessionToken}` }
+            headers: getAuthHeaders()
           })
           clearPolling()
           set({
@@ -410,7 +410,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           await axios.delete(`${API_BASE}/user/profile?mode=anonymize`, {
-            headers: { Authorization: `Bearer ${sessionToken}` }
+            headers: getAuthHeaders()
           })
           clearPolling()
           set({
@@ -480,7 +480,7 @@ export const useAuthStore = create<AuthState>()(
 
         try {
           const response = await axios.get(`${API_BASE}/user/profile`, {
-            headers: { Authorization: `Bearer ${sessionToken}` }
+            headers: getAuthHeaders()
           })
           set({ user: response.data })
         } catch {
@@ -500,7 +500,7 @@ export const useAuthStore = create<AuthState>()(
 
           if (expiresAt - Date.now() < thirtyDays) {
             const response = await axios.post(`${API_BASE}/auth/refresh`, {}, {
-              headers: { Authorization: `Bearer ${sessionToken}` }
+              headers: getAuthHeaders()
             })
             set({ sessionToken: response.data.token })
           }
