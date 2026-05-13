@@ -9,9 +9,11 @@ import { MemberList } from './MemberList'
 import { MessageBoard } from './MessageBoard'
 import { useUiStore } from '../stores/uiStore'
 import { ConfirmDialog } from './ConfirmDialog'
-import { isoToDatetimeLocal, formatDateRange, formatShortDate } from '../utils/datetime'
+import { isoToDatetimeLocal, formatDateRange } from '../utils/datetime'
 import { useCleanupSelection } from '../hooks/useCleanupSelection'
 import { DateCard } from './cleanup/DateCard'
+import { BulkDateActions } from './cleanup/BulkDateActions'
+import { CleanupCalendarSection } from './cleanup/CleanupCalendarSection'
 
 function defaultStartFor(referenceDate?: string): string {
   const today = isoToDatetimeLocal(new Date().toISOString()).split('T')[0]
@@ -419,22 +421,7 @@ export function CleanupDetail() {
           </div>
         )}
 
-        {user && isParticipant && (
-          <div className="cleanup-add-to-calendar">
-            <strong>Add to your calendar</strong>
-            <div className="calendar-actions">
-              {joinedWebcal && (
-                <a className="secondary-button" href={joinedWebcal}>
-                  Subscribe (all joined cleanups)
-                </a>
-              )}
-              <span className="calendar-hint">
-                Subscribing keeps Google / Apple / Outlook in sync as you join, leave, or organizers update dates.
-                Or use the per-date links below to add a single event.
-              </span>
-            </div>
-          </div>
-        )}
+        {user && isParticipant && <CleanupCalendarSection joinedWebcal={joinedWebcal} />}
 
         {isOrganizer && (
           <div className="community-admin-actions">
@@ -456,20 +443,16 @@ export function CleanupDetail() {
         {dates.length === 0 && <p className="end-of-list">No dates scheduled</p>}
 
         {isOrganizer && selectedDateIds.size > 0 && (
-          <div className="bulk-actions">
-            {hasSelectedWithRecurrence && (
-              <button className="secondary-button" onClick={selectRelated}>Select related dates</button>
-            )}
-            {earliestSelected && (
-              <button className="secondary-button" onClick={selectAllAfter}>
-                Select all after {formatShortDate(earliestSelected.start_at)}
-              </button>
-            )}
-            <button className="danger-button" onClick={() => setShowBulkDeleteConfirm(true)} disabled={!isOnline}>
-              Delete {selectedDateIds.size} date{selectedDateIds.size > 1 ? 's' : ''}
-            </button>
-            <button className="link-button" onClick={clearSelection}>Clear selection</button>
-          </div>
+          <BulkDateActions
+            selectedCount={selectedDateIds.size}
+            earliestSelectedStartAt={earliestSelected?.start_at ?? null}
+            hasSelectedWithRecurrence={hasSelectedWithRecurrence}
+            isOnline={isOnline}
+            onSelectRelated={selectRelated}
+            onSelectAllAfter={selectAllAfter}
+            onRequestBulkDelete={() => setShowBulkDeleteConfirm(true)}
+            onClearSelection={clearSelection}
+          />
         )}
 
         {dates.map((d) => {
