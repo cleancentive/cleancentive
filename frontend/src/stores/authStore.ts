@@ -97,7 +97,7 @@ function startPolling(
         clearPolling()
         const sessionToken = response.data.sessionToken as string
         const profileResponse = await axios.get(`${API_BASE}/user/profile`, {
-          headers: getAuthHeaders(),
+          headers: { Authorization: `Bearer ${sessionToken}` },
         })
         set({
           user: profileResponse.data,
@@ -187,7 +187,7 @@ export const useAuthStore = create<AuthState>()(
           const sessionToken = response.headers['x-session-token']
 
           const profileResponse = await axios.get(`${API_BASE}/user/profile`, {
-            headers: getAuthHeaders()
+            headers: { Authorization: `Bearer ${sessionToken}` },
           })
 
           set({

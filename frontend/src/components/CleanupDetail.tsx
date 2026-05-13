@@ -96,6 +96,22 @@ export function CleanupDetail() {
     }
   }, [id, currentCleanup?.userRole, fetchMessages])
 
+  // Hooks must run unconditionally — compute `dates` (possibly empty) before any early return.
+  const dates = currentCleanup
+    ? [...currentCleanup.dates].sort((a, b) => a.start_at.localeCompare(b.start_at))
+    : []
+
+  const {
+    selectedDateIds,
+    toggleSelect,
+    toggleRecurrenceGroup,
+    selectRelated,
+    selectAllAfter,
+    clearSelection,
+    hasSelectedWithRecurrence,
+    earliestSelected,
+  } = useCleanupSelection(dates)
+
   if (isLoading) {
     return <div className="community-detail"><p className="loading">Loading...</p></div>
   }
@@ -110,21 +126,9 @@ export function CleanupDetail() {
   }
 
   const { cleanup, participants, userRole } = currentCleanup
-  const dates = [...currentCleanup.dates].sort((a, b) => a.start_at.localeCompare(b.start_at))
   const isParticipant = userRole !== null
   const isOrganizer = userRole === 'organizer'
   const activeCleanupDateId = (user as any)?.active_cleanup_date_id
-
-  const {
-    selectedDateIds,
-    toggleSelect,
-    toggleRecurrenceGroup,
-    selectRelated,
-    selectAllAfter,
-    clearSelection,
-    hasSelectedWithRecurrence,
-    earliestSelected,
-  } = useCleanupSelection(dates)
 
   // Build recurrence color map
   const recurrenceIds = [...new Set(dates.map((d) => d.recurrence_id).filter(Boolean))] as string[]
