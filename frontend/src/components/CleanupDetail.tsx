@@ -9,17 +9,10 @@ import { MemberList } from './MemberList'
 import { MessageBoard } from './MessageBoard'
 import { useUiStore } from '../stores/uiStore'
 import { ConfirmDialog } from './ConfirmDialog'
-import { isoToDatetimeLocal, formatDateRange } from '../utils/datetime'
-import {
-  type Frequency,
-  defaultStartFor,
-  defaultEndFrom,
-  durationHours,
-  isOngoing,
-  generateRecurringDates,
-  recurrenceColor,
-} from '../lib/cleanupDates'
+import { formatDateRange } from '../utils/datetime'
+import { type Frequency, isOngoing, recurrenceColor } from '../lib/cleanupDates'
 import { useCleanupSelection } from '../hooks/useCleanupSelection'
+import { useCleanupDateForm } from '../hooks/useCleanupDateForm'
 import { DateCard } from './cleanup/DateCard'
 import { BulkDateActions } from './cleanup/BulkDateActions'
 import { CleanupCalendarSection } from './cleanup/CleanupCalendarSection'
@@ -62,16 +55,7 @@ export function CleanupDetail() {
   const [deleteDateId, setDeleteDateId] = useState<string | null>(null)
   const [showAddDate, setShowAddDate] = useState(false)
   const [editDateId, setEditDateId] = useState<string | null>(null)
-  const [formStartAt, setFormStartAt] = useState('')
-  const [formEndAt, setFormEndAt] = useState('')
-  const [formLocationName, setFormLocationName] = useState('')
-  const [formLat, setFormLat] = useState('')
-  const [formLon, setFormLon] = useState('')
-
-  // Repeat
-  const [repeatEnabled, setRepeatEnabled] = useState(false)
-  const [repeatFrequency, setRepeatFrequency] = useState<Frequency>('weekly')
-  const [repeatCount, setRepeatCount] = useState(4)
+  const form = useCleanupDateForm()
 
   // Selection
   const [hoveredRecurrenceId, setHoveredRecurrenceId] = useState<string | null>(null)
@@ -143,64 +127,48 @@ export function CleanupDetail() {
     }
   }
 
-  const resetForm = () => {
-    setFormStartAt('')
-    setFormEndAt('')
-    setFormLocationName('')
-    setFormLat('')
-    setFormLon('')
-    setRepeatEnabled(false)
-    setRepeatFrequency('weekly')
-    setRepeatCount(4)
-  }
-
   const handleAddDate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!id) return
-    if (repeatEnabled && repeatCount > 1) {
-      const generated = generateRecurringDates(formStartAt, formEndAt, repeatFrequency, repeatCount)
-      await addDatesBulk(id, uuidv7(), generated.map((g) => ({
+    if (form.repeatEnabled && form.repeatCount > 1) {
+      await addDatesBulk(id, uuidv7(), form.repeatPreview.map((g) => ({
         startAt: g.startAt,
         endAt: g.endAt,
-        latitude: Number(formLat),
-        longitude: Number(formLon),
-        locationName: formLocationName.trim() || undefined,
+        latitude: Number(form.lat),
+        longitude: Number(form.lon),
+        locationName: form.locationName.trim() || undefined,
       })))
     } else {
       await addDate(id, {
-        startAt: formStartAt,
-        endAt: formEndAt,
-        latitude: Number(formLat),
-        longitude: Number(formLon),
-        locationName: formLocationName.trim() || undefined,
+        startAt: form.startAt,
+        endAt: form.endAt,
+        latitude: Number(form.lat),
+        longitude: Number(form.lon),
+        locationName: form.locationName.trim() || undefined,
       })
     }
     setShowAddDate(false)
-    resetForm()
+    form.reset()
   }
 
   const startEdit = (d: { id: string; start_at: string; end_at: string; latitude: number; longitude: number; location_name: string | null }) => {
     setEditDateId(d.id)
     setShowAddDate(false)
-    setFormStartAt(isoToDatetimeLocal(d.start_at))
-    setFormEndAt(isoToDatetimeLocal(d.end_at))
-    setFormLat(String(d.latitude))
-    setFormLon(String(d.longitude))
-    setFormLocationName(d.location_name || '')
+    form.populateFromDate(d)
   }
 
   const handleUpdateDate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editDateId) return
     await updateDate(editDateId, {
-      startAt: formStartAt,
-      endAt: formEndAt,
-      latitude: Number(formLat),
-      longitude: Number(formLon),
-      locationName: formLocationName.trim() || undefined,
+      startAt: form.startAt,
+      endAt: form.endAt,
+      latitude: Number(form.lat),
+      longitude: Number(form.lon),
+      locationName: form.locationName.trim() || undefined,
     })
     setEditDateId(null)
-    resetForm()
+    form.reset()
   }
 
   const handleDeleteDate = async () => {
@@ -216,13 +184,6 @@ export function CleanupDetail() {
     setShowBulkDeleteConfirm(false)
   }
 
-  // Preview for repeat
-  const repeatPreview = repeatEnabled && formStartAt && formEndAt
-    ? generateRecurringDates(formStartAt, formEndAt, repeatFrequency, repeatCount)
-    : []
-
-  const nowLocal = isoToDatetimeLocal(new Date().toISOString())
-
   const dateForm = (
     onSubmit: (e: React.FormEvent) => void,
     submitLabel: string,
@@ -235,10 +196,10 @@ export function CleanupDetail() {
           <label>Start</label>
           <input
             type="datetime-local"
-            value={formStartAt}
-            min={nowLocal}
-            onChange={(e) => setFormStartAt(e.target.value)}
-            onFocus={() => { if (!formStartAt) setFormStartAt(defaultStartFor(formEndAt || undefined)) }}
+            value={form.startAt}
+            min={form.nowLocal}
+            onChange={(e) => form.setStartAt(e.target.value)}
+            onFocus={form.handleStartFocus}
             required
           />
         </div>
@@ -246,32 +207,29 @@ export function CleanupDetail() {
           <label>End</label>
           <input
             type="datetime-local"
-            value={formEndAt}
-            min={formStartAt || nowLocal}
-            onChange={(e) => { if (formStartAt && new Date(e.target.value) < new Date(formStartAt)) return; setFormEndAt(e.target.value) }}
-            onFocus={() => { if (!formEndAt) setFormEndAt(formStartAt ? defaultEndFrom(formStartAt) : '') }}
+            value={form.endAt}
+            min={form.startAt || form.nowLocal}
+            onChange={(e) => form.handleEndChange(e.target.value)}
+            onFocus={form.handleEndFocus}
             required
           />
         </div>
       </div>
-      {(() => {
-        const hours = durationHours(formStartAt, formEndAt)
-        return hours !== null && hours > 0 && hours < 2 ? (
-          <p className="form-warning">Duration is less than 2 hours. Are you sure?</p>
-        ) : null
-      })()}
+      {form.durationHoursValue !== null && form.durationHoursValue > 0 && form.durationHoursValue < 2 ? (
+        <p className="form-warning">Duration is less than 2 hours. Are you sure?</p>
+      ) : null}
 
       {showRepeat && (
         <div className="repeat-section">
           <label className="repeat-toggle">
-            <input type="checkbox" checked={repeatEnabled} onChange={(e) => setRepeatEnabled(e.target.checked)} />
+            <input type="checkbox" checked={form.repeatEnabled} onChange={(e) => form.setRepeatEnabled(e.target.checked)} />
             Repeat
           </label>
-          {repeatEnabled && (
+          {form.repeatEnabled && (
             <div className="repeat-options">
               <label>
                 Frequency
-                <select value={repeatFrequency} onChange={(e) => setRepeatFrequency(e.target.value as Frequency)}>
+                <select value={form.repeatFrequency} onChange={(e) => form.setRepeatFrequency(e.target.value as Frequency)}>
                   <option value="weekly">Weekly</option>
                   <option value="biweekly">Biweekly</option>
                   <option value="monthly">Monthly</option>
@@ -281,15 +239,15 @@ export function CleanupDetail() {
               </label>
               <label>
                 Occurrences
-                <input type="number" min={2} max={52} value={repeatCount} onChange={(e) => setRepeatCount(Math.min(52, Math.max(2, Number(e.target.value))))} />
+                <input type="number" min={2} max={52} value={form.repeatCount} onChange={(e) => form.setRepeatCount(Number(e.target.value))} />
               </label>
             </div>
           )}
-          {repeatPreview.length > 1 && (
+          {form.repeatPreview.length > 1 && (
             <div className="repeat-preview">
-              <strong>{repeatPreview.length} dates:</strong>
+              <strong>{form.repeatPreview.length} dates:</strong>
               <ul>
-                {repeatPreview.map((p, i) => (
+                {form.repeatPreview.map((p, i) => (
                   <li key={i}>{formatDateRange(p.startAt, p.endAt)}</li>
                 ))}
               </ul>
@@ -299,16 +257,16 @@ export function CleanupDetail() {
       )}
 
       <LocationPicker
-        latitude={formLat}
-        longitude={formLon}
-        locationName={formLocationName}
-        onLatitudeChange={setFormLat}
-        onLongitudeChange={setFormLon}
-        onLocationNameChange={setFormLocationName}
+        latitude={form.lat}
+        longitude={form.lon}
+        locationName={form.locationName}
+        onLatitudeChange={form.setLat}
+        onLongitudeChange={form.setLon}
+        onLocationNameChange={form.setLocationName}
       />
       <div className="community-actions">
         <button type="submit" className="primary-button" disabled={!isOnline}>
-          {submitLabel}{repeatEnabled && repeatPreview.length > 1 ? ` (${repeatPreview.length})` : ''}
+          {submitLabel}{form.repeatEnabled && form.repeatPreview.length > 1 ? ` (${form.repeatPreview.length})` : ''}
         </button>
         <button type="button" className="secondary-button" onClick={onCancel}>Cancel</button>
       </div>
@@ -422,7 +380,7 @@ export function CleanupDetail() {
           if (isEditing) {
             return (
               <div key={d.id}>
-                {dateForm(handleUpdateDate, 'Save', () => { setEditDateId(null); resetForm() })}
+                {dateForm(handleUpdateDate, 'Save', () => { setEditDateId(null); form.reset() })}
               </div>
             )
           }
@@ -453,10 +411,10 @@ export function CleanupDetail() {
 
         {isOrganizer && (
           <>
-            <button className="link-button" onClick={() => { setShowAddDate(!showAddDate); setEditDateId(null); if (!showAddDate) resetForm() }}>
+            <button className="link-button" onClick={() => { setShowAddDate(!showAddDate); setEditDateId(null); if (!showAddDate) form.reset() }}>
               {showAddDate ? 'Cancel' : '+ Add date'}
             </button>
-            {showAddDate && dateForm(handleAddDate, 'Add Date', () => { setShowAddDate(false); resetForm() }, true)}
+            {showAddDate && dateForm(handleAddDate, 'Add Date', () => { setShowAddDate(false); form.reset() }, true)}
           </>
         )}
       </fieldset>
