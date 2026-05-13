@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { v7 as uuidv7 } from 'uuid'
 import { useCleanupStore } from '../stores/cleanupStore'
@@ -11,6 +11,7 @@ import { MessageBoard } from './MessageBoard'
 import { useUiStore } from '../stores/uiStore'
 import { ConfirmDialog } from './ConfirmDialog'
 import { isoToDatetimeLocal } from '../utils/datetime'
+import { useCleanupSelection } from '../hooks/useCleanupSelection'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
@@ -143,7 +144,6 @@ export function CleanupDetail() {
   const [repeatCount, setRepeatCount] = useState(4)
 
   // Selection
-  const [selectedDateIds, setSelectedDateIds] = useState<Set<string>>(new Set())
   const [hoveredRecurrenceId, setHoveredRecurrenceId] = useState<string | null>(null)
   const [joinedWebcal, setJoinedWebcal] = useState<string | null>(null)
 
@@ -166,15 +166,6 @@ export function CleanupDetail() {
     }
   }, [id, currentCleanup?.userRole, fetchMessages])
 
-  const toggleSelect = useCallback((dateId: string) => {
-    setSelectedDateIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(dateId)) next.delete(dateId)
-      else next.add(dateId)
-      return next
-    })
-  }, [])
-
   if (isLoading) {
     return <div className="community-detail"><p className="loading">Loading...</p></div>
   }
@@ -193,6 +184,17 @@ export function CleanupDetail() {
   const isParticipant = userRole !== null
   const isOrganizer = userRole === 'organizer'
   const activeCleanupDateId = (user as any)?.active_cleanup_date_id
+
+  const {
+    selectedDateIds,
+    toggleSelect,
+    toggleRecurrenceGroup,
+    selectRelated,
+    selectAllAfter,
+    clearSelection,
+    hasSelectedWithRecurrence,
+    earliestSelected,
+  } = useCleanupSelection(dates)
 
   // Build recurrence color map
   const recurrenceIds = [...new Set(dates.map((d) => d.recurrence_id).filter(Boolean))] as string[]
@@ -276,42 +278,9 @@ export function CleanupDetail() {
   const handleBulkDelete = async () => {
     if (!id || selectedDateIds.size === 0) return
     await deleteDatesBulk(id, [...selectedDateIds])
-    setSelectedDateIds(new Set())
+    clearSelection()
     setShowBulkDeleteConfirm(false)
   }
-
-  // Quick-select helpers
-  const selectRelated = () => {
-    const selectedRecurrenceIds = new Set(
-      dates.filter((d) => selectedDateIds.has(d.id) && d.recurrence_id).map((d) => d.recurrence_id!)
-    )
-    if (selectedRecurrenceIds.size === 0) return
-    setSelectedDateIds((prev) => {
-      const next = new Set(prev)
-      for (const d of dates) {
-        if (d.recurrence_id && selectedRecurrenceIds.has(d.recurrence_id)) next.add(d.id)
-      }
-      return next
-    })
-  }
-
-  const selectAllAfter = () => {
-    const selectedDates = dates.filter((d) => selectedDateIds.has(d.id))
-    if (selectedDates.length === 0) return
-    const earliest = selectedDates.reduce((a, b) => a.start_at < b.start_at ? a : b)
-    setSelectedDateIds((prev) => {
-      const next = new Set(prev)
-      for (const d of dates) {
-        if (d.start_at >= earliest.start_at) next.add(d.id)
-      }
-      return next
-    })
-  }
-
-  const hasSelectedWithRecurrence = dates.some((d) => selectedDateIds.has(d.id) && d.recurrence_id)
-  const earliestSelected = selectedDateIds.size > 0
-    ? dates.filter((d) => selectedDateIds.has(d.id)).reduce((a, b) => a.start_at < b.start_at ? a : b, dates[0])
-    : null
 
   // Preview for repeat
   const repeatPreview = repeatEnabled && formStartAt && formEndAt
@@ -523,7 +492,7 @@ export function CleanupDetail() {
             <button className="danger-button" onClick={() => setShowBulkDeleteConfirm(true)} disabled={!isOnline}>
               Delete {selectedDateIds.size} date{selectedDateIds.size > 1 ? 's' : ''}
             </button>
-            <button className="link-button" onClick={() => setSelectedDateIds(new Set())}>Clear selection</button>
+            <button className="link-button" onClick={clearSelection}>Clear selection</button>
           </div>
         )}
 
@@ -556,17 +525,7 @@ export function CleanupDetail() {
               onMouseLeave={() => { if (d.recurrence_id === hoveredRecurrenceId) setHoveredRecurrenceId(null) }}
               onDoubleClick={() => {
                 if (!isOrganizer) return
-                if (d.recurrence_id) {
-                  const relatedIds = dates.filter((x) => x.recurrence_id === d.recurrence_id).map((x) => x.id)
-                  const allSelected = relatedIds.every((rid) => selectedDateIds.has(rid))
-                  setSelectedDateIds((prev) => {
-                    const next = new Set(prev)
-                    for (const rid of relatedIds) { allSelected ? next.delete(rid) : next.add(rid) }
-                    return next
-                  })
-                } else {
-                  toggleSelect(d.id)
-                }
+                toggleRecurrenceGroup(d.id)
               }}
             >
               {isOrganizer && (
