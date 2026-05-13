@@ -2,12 +2,12 @@ import { Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
 import OpenAI from 'openai';
 import { Pool, PoolClient } from 'pg';
-import { v7 as uuidv7 } from 'uuid';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { hostname } from 'os';
 import sharp from 'sharp';
 import { PROCESSING_STATUS } from '@cleancentive/shared';
 import type { LitterDetectionJobData, DetectedObject, DetectionResult } from '@cleancentive/shared';
+import { persistDetection as persistDetectionToDb } from './detection';
 
 interface WorkerOpsState {
   name: string;
@@ -127,39 +127,6 @@ Rules:
 - category/material/brand may be null if uncertain.
 - weightGrams should be estimated as a number in grams when possible.
 - confidence is a number in [0,1].`;
-}
-
-async function resolveOrCreateLabel(
-  client: PoolClient,
-  type: string,
-  enName: string,
-  userId: string,
-): Promise<string> {
-  const existing = await client.query<{ id: string }>(
-    `SELECT l.id FROM labels l
-     JOIN label_translations lt ON lt.label_id = l.id
-     WHERE l.type = $1 AND lt.locale = 'en' AND LOWER(lt.name) = LOWER($2)`,
-    [type, enName],
-  );
-
-  if (existing.rows.length > 0) {
-    return existing.rows[0].id;
-  }
-
-  const labelId = uuidv7();
-  const translationId = uuidv7();
-  const titleCased = enName.replace(/\b\w/g, (c) => c.toUpperCase());
-
-  await client.query(
-    `INSERT INTO labels (id, type, created_at, updated_at, created_by, updated_by) VALUES ($1, $2, NOW(), NOW(), $3, $3)`,
-    [labelId, type, userId],
-  );
-  await client.query(
-    `INSERT INTO label_translations (id, label_id, locale, name, created_at, updated_at, created_by, updated_by) VALUES ($1, $2, 'en', $3, NOW(), NOW(), $4, $4)`,
-    [translationId, labelId, titleCased, userId],
-  );
-
-  return labelId;
 }
 
 function asOptionalString(value: unknown): string | null {
@@ -384,72 +351,7 @@ async function persistDetection(
   detection: DetectionResult,
   model: string,
 ): Promise<void> {
-  const detectionRaw = {
-    objects: detection.objects,
-    notes: detection.notes,
-    model,
-  };
-
-  await withTransaction(async (client) => {
-    await client.query(`DELETE FROM detected_items WHERE spot_id = $1`, [spotId]);
-
-    for (const object of detection.objects) {
-      const objectLabelId = object.category
-        ? await resolveOrCreateLabel(client, 'object', object.category, userId)
-        : null;
-      const materialLabelId = object.material
-        ? await resolveOrCreateLabel(client, 'material', object.material, userId)
-        : null;
-      const brandLabelId = object.brand
-        ? await resolveOrCreateLabel(client, 'brand', object.brand, userId)
-        : null;
-
-      await client.query(
-        `
-          INSERT INTO detected_items (
-            id,
-            created_at,
-            updated_at,
-            created_by,
-            updated_by,
-            spot_id,
-            object_label_id,
-            material_label_id,
-            brand_label_id,
-            weight_grams,
-            confidence,
-            source_model
-          )
-          VALUES ($1, NOW(), NOW(), $2, $2, $3, $4, $5, $6, $7, $8, $9)
-        `,
-        [
-          uuidv7(),
-          userId,
-          spotId,
-          objectLabelId,
-          materialLabelId,
-          brandLabelId,
-          object.weightGrams,
-          object.confidence,
-          model,
-        ],
-      );
-    }
-
-    await client.query(
-      `
-        UPDATE spots
-        SET processing_status = 'completed',
-            detection_completed_at = NOW(),
-            processing_error = NULL,
-            detection_raw = $1::jsonb,
-            updated_at = NOW(),
-            updated_by = $2
-        WHERE id = $3
-      `,
-      [JSON.stringify(detectionRaw), userId, spotId],
-    );
-  });
+  await withTransaction((client) => persistDetectionToDb(client, spotId, userId, detection, model));
 }
 
 const litterDetectionWorker = new Worker<LitterDetectionJobData>(
