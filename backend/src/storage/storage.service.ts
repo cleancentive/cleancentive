@@ -5,6 +5,7 @@ import Redis from 'ioredis';
 import { Spot } from '../spot/spot.entity';
 import { EmailService } from '../email/email.service';
 import { AdminService } from '../admin/admin.service';
+import { redisConnection } from '../common/redis-connection';
 
 interface StorageSummary {
   totalBytes: number;
@@ -31,10 +32,7 @@ export class StorageService {
     private readonly emailService: EmailService,
     private readonly adminService: AdminService,
   ) {
-    this.redis = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    });
+    this.redis = new Redis(redisConnection());
   }
 
   async getStorageSummary(): Promise<StorageSummary> {

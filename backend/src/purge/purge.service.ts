@@ -6,6 +6,8 @@ import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import Redis from 'ioredis';
 import { Spot } from '../spot/spot.entity';
 import { StorageService } from '../storage/storage.service';
+import { redisConnection } from '../common/redis-connection';
+import { createS3Client } from '../common/s3-client';
 
 interface PurgeStatus {
   enabled: boolean;
@@ -34,24 +36,11 @@ export class PurgeService implements OnModuleInit, OnModuleDestroy {
     private readonly spotRepository: Repository<Spot>,
     private readonly storageService: StorageService,
   ) {
-    const redisConnection = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    };
+    this.redis = new Redis(redisConnection());
 
-    this.redis = new Redis(redisConnection);
+    this.s3Client = createS3Client();
 
-    this.s3Client = new S3Client({
-      region: process.env.S3_REGION || 'us-east-1',
-      endpoint: process.env.S3_ENDPOINT || 'http://localhost:9002',
-      forcePathStyle: true,
-      credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY || 'minioadmin',
-        secretAccessKey: process.env.S3_SECRET_KEY || 'minioadmin',
-      },
-    });
-
-    this.queue = new Queue(this.queueName, { connection: redisConnection });
+    this.queue = new Queue(this.queueName, { connection: redisConnection() });
     this.worker = new Worker(
       this.queueName,
       async (job) => {
@@ -64,7 +53,7 @@ export class PurgeService implements OnModuleInit, OnModuleDestroy {
             break;
         }
       },
-      { connection: redisConnection, concurrency: 1 },
+      { connection: redisConnection(), concurrency: 1 },
     );
 
     this.worker.on('failed', (job, err) => {

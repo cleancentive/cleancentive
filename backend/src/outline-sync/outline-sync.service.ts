@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not } from 'typeorm';
 import { Client as PgClient } from 'pg';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { S3Client, HeadBucketCommand, CreateBucketCommand } from '@aws-sdk/client-s3';
+import { HeadBucketCommand, CreateBucketCommand } from '@aws-sdk/client-s3';
+import { createS3Client } from '../common/s3-client';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
 import { Team } from '../team/team.entity';
@@ -128,15 +129,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async ensureWikiBucket(): Promise<void> {
-    const client = new S3Client({
-      region: process.env.S3_REGION ?? 'us-east-1',
-      endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9002',
-      forcePathStyle: true,
-      credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY ?? 'minioadmin',
-        secretAccessKey: process.env.S3_SECRET_KEY ?? 'minioadmin',
-      },
-    });
+    const client = createS3Client();
 
     try {
       await client.send(new HeadBucketCommand({ Bucket: this.outlineS3Bucket }));

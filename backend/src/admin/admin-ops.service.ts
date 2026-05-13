@@ -8,6 +8,8 @@ import Redis from 'ioredis';
 import { S3Client, HeadBucketCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { StorageService } from '../storage/storage.service';
 import { PurgeService } from '../purge/purge.service';
+import { redisConnection } from '../common/redis-connection';
+import { createS3Client } from '../common/s3-client';
 
 type HealthStatus = 'ok' | 'degraded' | 'down';
 
@@ -45,26 +47,13 @@ export class AdminOpsService implements OnModuleDestroy {
     private readonly storageService: StorageService,
     private readonly purgeService: PurgeService,
   ) {
-    const redisConnection = {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    };
-
     this.detectionQueue = new Queue(this.queueName, {
-      connection: redisConnection,
+      connection: redisConnection(),
     });
 
-    this.redisClient = new Redis(redisConnection);
+    this.redisClient = new Redis(redisConnection());
 
-    this.s3Client = new S3Client({
-      region: process.env.S3_REGION || 'us-east-1',
-      endpoint: process.env.S3_ENDPOINT || 'http://localhost:9002',
-      forcePathStyle: true,
-      credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY || 'minioadmin',
-        secretAccessKey: process.env.S3_SECRET_KEY || 'minioadmin',
-      },
-    });
+    this.s3Client = createS3Client();
   }
 
   async onModuleDestroy(): Promise<void> {

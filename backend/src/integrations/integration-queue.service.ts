@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } f
 import { OnEvent } from '@nestjs/event-emitter';
 import { Queue, Worker, type Job, type JobsOptions } from 'bullmq';
 import { OutlineSyncService } from '../outline-sync/outline-sync.service';
+import { redisConnection } from '../common/redis-connection';
 
 export const INTEGRATION_QUEUE = 'cleancentive-integrations';
 export const INTEGRATION_QUEUE_INSTANCE = Symbol('INTEGRATION_QUEUE_INSTANCE');
@@ -21,11 +22,6 @@ type OutlineEventName =
   | 'team.archived'
   | 'user.anonymized'
   | 'user.deleted';
-
-const redisConnection = () => ({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379', 10),
-});
 
 const defaultOptions: JobsOptions = {
   attempts: 6,

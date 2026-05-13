@@ -10,6 +10,8 @@ import { DetectedItemEdit } from './detected-item-edit.entity';
 import { TeamService } from '../team/team.service';
 import { CleanupService } from '../cleanup/cleanup.service';
 import { LabelService } from '../label/label.service';
+import { redisConnection } from '../common/redis-connection';
+import { createS3Client } from '../common/s3-client';
 
 interface CreateSpotInput {
   userId: string;
@@ -64,21 +66,10 @@ export class SpotService {
     private readonly labelService: LabelService,
   ) {
     this.detectionQueue = new Queue(this.queueName, {
-      connection: {
-        host: process.env.REDIS_HOST || 'localhost',
-        port: parseInt(process.env.REDIS_PORT || '6379', 10),
-      },
+      connection: redisConnection(),
     });
 
-    this.s3Client = new S3Client({
-      region: process.env.S3_REGION || 'us-east-1',
-      endpoint: process.env.S3_ENDPOINT || 'http://localhost:9002',
-      forcePathStyle: true,
-      credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY || 'minioadmin',
-        secretAccessKey: process.env.S3_SECRET_KEY || 'minioadmin',
-      },
-    });
+    this.s3Client = createS3Client();
   }
 
   private getFileExtension(mimeType: string): string {
@@ -300,11 +291,11 @@ export class SpotService {
     'items.brand_label', 'items.brand_label.translations',
   ];
 
-  async getSpotStatus(spotId: string, userId: string): Promise<Spot> {
+  private async fetchSpotByOwner(spotId: string, ownerId: string): Promise<Spot> {
     const spot = await this.spotRepository.findOne({
       where: {
         id: spotId,
-        user_id: userId,
+        user_id: ownerId,
       },
       relations: SpotService.ITEM_LABEL_RELATIONS,
     });
@@ -316,20 +307,12 @@ export class SpotService {
     return spot;
   }
 
+  async getSpotStatus(spotId: string, userId: string): Promise<Spot> {
+    return this.fetchSpotByOwner(spotId, userId);
+  }
+
   async getSpotStatusForGuest(spotId: string, guestId: string): Promise<Spot> {
-    const spot = await this.spotRepository.findOne({
-      where: {
-        id: spotId,
-        user_id: guestId,
-      },
-      relations: SpotService.ITEM_LABEL_RELATIONS,
-    });
-
-    if (!spot) {
-      throw new NotFoundException('Spot not found');
-    }
-
-    return spot;
+    return this.fetchSpotByOwner(spotId, guestId);
   }
 
   async getSpotPublic(spotId: string): Promise<Spot> {

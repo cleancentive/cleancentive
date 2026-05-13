@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import Redis from 'ioredis';
+import { redisConnection } from '../common/redis-connection';
 
 const pkg = require(require('path').join(process.cwd(), 'package.json'));
 
@@ -22,10 +23,7 @@ export class SystemService {
   private readonly redisClient: Redis;
 
   constructor() {
-    this.redisClient = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    });
+    this.redisClient = new Redis(redisConnection());
   }
 
   async getVersion(): Promise<{ backend: ArtifactVersion; worker: ArtifactVersion | null }> {

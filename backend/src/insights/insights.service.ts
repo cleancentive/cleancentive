@@ -7,6 +7,7 @@ import { DetectedItem } from '../spot/detected-item.entity';
 import { User } from '../user/user.entity';
 import { Team } from '../team/team.entity';
 import { Cleanup } from '../cleanup/cleanup.entity';
+import { redisConnection } from '../common/redis-connection';
 
 interface TimeSeriesEntry {
   week: string;
@@ -67,10 +68,7 @@ export class InsightsService {
     @InjectRepository(Cleanup)
     private readonly cleanupRepository: Repository<Cleanup>,
   ) {
-    this.redis = new Redis({
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-    });
+    this.redis = new Redis(redisConnection());
   }
 
   async getMapData(filter: StatsFilter = {}) {
