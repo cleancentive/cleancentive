@@ -74,6 +74,8 @@ docker-compose.override.yml
 .worktrees/
 
 .playwright-mcp
+frontend/playwright-report/
+frontend/test-results/
 
 # triagato
 infrastructure/.feedback-token.*
