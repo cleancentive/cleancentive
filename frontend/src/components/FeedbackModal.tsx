@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useFeedbackStore } from '../stores/feedbackStore'
 import { useAuthStore } from '../stores/authStore'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 export function FeedbackModal() {
   const { isModalOpen, isSubmitting, isSubmitted, error, prefilled, closeFeedbackModal, submitFeedback } = useFeedbackStore()
@@ -30,14 +31,7 @@ export function FeedbackModal() {
     }
   }, [isModalOpen])
 
-  useEffect(() => {
-    if (!isModalOpen) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeFeedbackModal()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isModalOpen, closeFeedbackModal])
+  useEscapeKey(isModalOpen, closeFeedbackModal)
 
   if (!isModalOpen) return null
 

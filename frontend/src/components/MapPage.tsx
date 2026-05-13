@@ -8,6 +8,7 @@ import { useInsightsFilterStore, presetToSince, pickedUpFilterToParam } from '..
 import { useBasemapStore } from '../stores/basemapStore'
 import { getBasemapById, type BasemapDef } from '../config/basemaps'
 import { BasemapSwitcher } from './BasemapSwitcher'
+import { API_BASE } from '../lib/apiBase'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -28,7 +29,7 @@ function openSpotPopup(
   const p = feature.properties || {}
   const html = `
     <div class="map-popup">
-      <img src="${import.meta.env.VITE_API_URL || '/api/v1'}/spots/${p.id}/thumbnail" alt="" class="map-popup-thumb" />
+      <img src="${API_BASE}/spots/${p.id}/thumbnail" alt="" class="map-popup-thumb" />
       <div class="map-popup-info">
         <strong>${p.topObject ? String(p.topObject).replace(/_/g, ' ') : (p.pickedUp === false ? 'Spot' : 'Pick')}</strong>
         <span>${formatDate(p.capturedAt)}</span>

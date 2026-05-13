@@ -4,6 +4,7 @@ import { useUiStore } from '../stores/uiStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { SignIn } from './SignIn'
 import { ConfirmDialog } from './ConfirmDialog'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 export function SignInModal() {
   const { signInModalOpen, closeSignInModal, pickCount } = useUiStore()
@@ -17,15 +18,7 @@ export function SignInModal() {
     }
   }, [user, signInModalOpen, closeSignInModal])
 
-  useEffect(() => {
-    if (!signInModalOpen) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeSignInModal()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [signInModalOpen, closeSignInModal])
+  useEscapeKey(signInModalOpen, closeSignInModal)
 
   useEffect(() => {
     if (!signInModalOpen) setShowDeleteConfirm(false)

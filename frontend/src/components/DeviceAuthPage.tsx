@@ -4,7 +4,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useUiStore } from '../stores/uiStore'
 import axios from 'axios'
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
+import { API_BASE } from '../lib/apiBase'
 
 export function DeviceAuthPage() {
   const { sessionToken, user } = useAuthStore()

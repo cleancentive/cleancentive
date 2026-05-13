@@ -14,7 +14,7 @@ interface MapState {
   setHeatMetric: (m: HeatMetric) => void
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
+import { API_BASE } from '../lib/apiBase'
 
 export const useMapStore = create<MapState>((set) => ({
   spotGeoJson: null,

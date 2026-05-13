@@ -4,6 +4,7 @@ import axios from 'axios'
 import { v7 as uuidv7 } from 'uuid'
 import { useUiStore } from './uiStore'
 import { trackEvent, identifyUser } from '../lib/analytics'
+import { API_BASE } from '../lib/apiBase'
 
 interface UserEmail {
   id: string
@@ -59,8 +60,6 @@ interface AuthState {
   refreshTokenIfNeeded: () => Promise<void>
   clearError: () => void
 }
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 
 function selectedEmails(user: User): string[] {
   return user.emails.filter(e => e.is_selected_for_login).map(e => e.email)

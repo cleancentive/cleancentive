@@ -19,7 +19,7 @@ const AUTO_ACCEPT_LOW_CONFIDENCE =
   IS_LOCALHOST ||
   (import.meta.env.DEV &&
     String(import.meta.env.VITE_DISABLE_LOCATION_ACCURACY_CHECK || 'false').toLowerCase() === 'true')
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
+import { API_BASE } from '../lib/apiBase'
 
 type LocationTier = 'unknown' | 'good' | 'warning' | 'low'
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
+import { API_BASE } from '../lib/apiBase'
 
 interface EditEntry {
   id: string

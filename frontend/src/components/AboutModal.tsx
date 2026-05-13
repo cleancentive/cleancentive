@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useUiStore } from '../stores/uiStore'
 import { useVersionStore } from '../stores/versionStore'
+import { useEscapeKey } from '../hooks/useEscapeKey'
 
 const REPO_URL = 'https://github.com/cleancentive/cleancentive'
 const LICENSE_URL = `${REPO_URL}/blob/main/LICENSE`
@@ -10,14 +11,10 @@ export function AboutModal() {
   const { versionInfo, fetchVersionInfo } = useVersionStore()
 
   useEffect(() => {
-    if (!aboutModalOpen) return
-    fetchVersionInfo()
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeAboutModal()
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [aboutModalOpen, closeAboutModal, fetchVersionInfo])
+    if (aboutModalOpen) fetchVersionInfo()
+  }, [aboutModalOpen, fetchVersionInfo])
+
+  useEscapeKey(aboutModalOpen, closeAboutModal)
 
   if (!aboutModalOpen) return null
 

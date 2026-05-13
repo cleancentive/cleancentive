@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import axios from 'axios'
 import { useAuthStore } from './authStore'
+import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 
 interface UserEmail {
   id: string
@@ -145,13 +146,7 @@ interface AdminState {
   reset: () => void
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 const PAGE_SIZE = 10
-
-function getHeaders() {
-  const sessionToken = useAuthStore.getState().sessionToken
-  return sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}
-}
 
 export const useAdminStore = create<AdminState>((set, get) => ({
   isAdmin: false,
@@ -198,7 +193,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   fetchUsers: async (loadMore = false) => {
-    const headers = getHeaders()
+    const headers = getAuthHeaders()
     if (!headers.Authorization) return
 
     const { sort, order, search, currentPage, users } = get()
@@ -234,7 +229,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   fetchOpsOverview: async () => {
-    const headers = getHeaders()
+    const headers = getAuthHeaders()
     if (!headers.Authorization) return
 
     set({ isLoadingOps: true })
@@ -251,7 +246,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   fetchStorageInsights: async () => {
-    const headers = getHeaders()
+    const headers = getAuthHeaders()
     if (!headers.Authorization) return
 
     set({ isLoadingStorage: true })
@@ -268,7 +263,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   fetchPurgeStatus: async () => {
-    const headers = getHeaders()
+    const headers = getAuthHeaders()
     if (!headers.Authorization) return
 
     set({ isLoadingPurge: true })
@@ -285,7 +280,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   retryFailedSpots: async (limit) => {
-    const headers = getHeaders()
+    const headers = getAuthHeaders()
     if (!headers.Authorization) return
 
     set({ isRetryingFailedSpots: true, retryFailedSpotsResult: null, error: null })
@@ -322,7 +317,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   promoteUser: async (userId) => {
-    const headers = getHeaders()
+    const headers = getAuthHeaders()
     if (!headers.Authorization) return
 
     try {
@@ -337,7 +332,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   demoteUser: async (userId) => {
-    const headers = getHeaders()
+    const headers = getAuthHeaders()
     if (!headers.Authorization) return
 
     try {
@@ -351,7 +346,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   fetchFeedback: async (statusFilter) => {
-    const headers = getHeaders()
+    const headers = getAuthHeaders()
     if (!headers.Authorization) return
 
     const filter = statusFilter !== undefined ? statusFilter : get().feedbackStatusFilter
@@ -368,7 +363,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   fetchFeedbackCounts: async () => {
-    const headers = getHeaders()
+    const headers = getAuthHeaders()
     if (!headers.Authorization) return
 
     try {
@@ -380,7 +375,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   fetchFeedbackDetail: async (id) => {
-    const headers = getHeaders()
+    const headers = getAuthHeaders()
     if (!headers.Authorization) return
 
     try {
@@ -392,7 +387,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   updateFeedbackStatus: async (id, status) => {
-    const headers = getHeaders()
+    const headers = getAuthHeaders()
     if (!headers.Authorization) return
 
     try {
@@ -404,7 +399,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   addAdminResponse: async (id, message) => {
-    const headers = getHeaders()
+    const headers = getAuthHeaders()
     if (!headers.Authorization) return
     if (get().isSubmittingResponse) return
 

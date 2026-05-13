@@ -4,6 +4,7 @@ import { useAdminStore } from '../stores/adminStore'
 import { useUiStore } from '../stores/uiStore'
 import { CapturePanel } from './CapturePanel'
 import { HistoryPanel } from './HistoryPanel'
+import { API_BASE } from '../lib/apiBase'
 
 export function AppLayout() {
   const { user, guestId, initializeGuest, refreshTokenIfNeeded } = useAuthStore()
@@ -24,7 +25,6 @@ export function AppLayout() {
   }, [user, checkAdminStatus, refreshTokenIfNeeded])
 
   useEffect(() => {
-    const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
     const handleBeforeUnload = () => {
       const { sessionToken } = useAuthStore.getState()
       if (!sessionToken) return

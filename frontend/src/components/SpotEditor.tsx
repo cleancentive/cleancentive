@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { ItemEditor, type DetectedItemData } from './ItemEditor'
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
+import { API_BASE } from '../lib/apiBase'
 
 interface SpotEditorProps {
   spotId: string

@@ -2,13 +2,7 @@ import { create } from 'zustand'
 import axios from 'axios'
 import { useAuthStore } from './authStore'
 import { trackEvent } from '../lib/analytics'
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
-
-function getHeaders() {
-  const sessionToken = useAuthStore.getState().sessionToken
-  return sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}
-}
+import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 
 interface TeamSummary {
   id: string
@@ -103,7 +97,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
     try {
       const params = new URLSearchParams()
       if (query?.trim()) params.set('q', query.trim())
-      const response = await axios.get(`${API_BASE}/teams?${params}`, { headers: getHeaders() })
+      const response = await axios.get(`${API_BASE}/teams?${params}`, { headers: getAuthHeaders() })
       set({ teams: response.data, isLoading: false })
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to load teams', isLoading: false })
@@ -113,7 +107,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   fetchMyTeams: async () => {
     try {
       const params = new URLSearchParams({ member_only: 'true' })
-      const response = await axios.get(`${API_BASE}/teams?${params}`, { headers: getHeaders() })
+      const response = await axios.get(`${API_BASE}/teams?${params}`, { headers: getAuthHeaders() })
       set({ myTeams: response.data })
     } catch {
       // Silently fail — ContextBar dropdowns will just be empty
@@ -123,7 +117,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   fetchTeam: async (id: string) => {
     set({ isLoading: true, error: null, currentTeam: null, messages: [] })
     try {
-      const response = await axios.get(`${API_BASE}/teams/${id}`, { headers: getHeaders() })
+      const response = await axios.get(`${API_BASE}/teams/${id}`, { headers: getAuthHeaders() })
       set({ currentTeam: response.data, isLoading: false })
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to load team', isLoading: false })
@@ -133,7 +127,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   createTeam: async (name: string, description: string) => {
     set({ isLoading: true, error: null })
     try {
-      const response = await axios.post(`${API_BASE}/teams`, { name, description }, { headers: getHeaders() })
+      const response = await axios.post(`${API_BASE}/teams`, { name, description }, { headers: getAuthHeaders() })
       set({ isLoading: false })
       await get().fetchMyTeams()
       return response.data
@@ -146,7 +140,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   updateTeam: async (id: string, data: { name?: string; description?: string }) => {
     set({ error: null })
     try {
-      await axios.put(`${API_BASE}/teams/${id}`, data, { headers: getHeaders() })
+      await axios.put(`${API_BASE}/teams/${id}`, data, { headers: getAuthHeaders() })
       await get().fetchTeam(id)
       await get().searchTeams()
       await useAuthStore.getState().refreshProfile()
@@ -158,7 +152,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   joinTeam: async (id: string) => {
     set({ error: null })
     try {
-      const response = await axios.post(`${API_BASE}/teams/${id}/join`, {}, { headers: getHeaders() })
+      const response = await axios.post(`${API_BASE}/teams/${id}/join`, {}, { headers: getAuthHeaders() })
       if (response.data.joined) {
         trackEvent('team-joined', { team_id: id })
         await get().fetchTeam(id)
@@ -174,7 +168,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   leaveTeam: async (id: string) => {
     set({ error: null })
     try {
-      const response = await axios.post(`${API_BASE}/teams/${id}/leave`, {}, { headers: getHeaders() })
+      const response = await axios.post(`${API_BASE}/teams/${id}/leave`, {}, { headers: getAuthHeaders() })
       if (response.data.left) {
         await get().fetchTeam(id)
         await get().fetchMyTeams()
@@ -189,7 +183,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   activateTeam: async (id: string) => {
     set({ error: null })
     try {
-      await axios.post(`${API_BASE}/teams/${id}/activate`, {}, { headers: getHeaders() })
+      await axios.post(`${API_BASE}/teams/${id}/activate`, {}, { headers: getAuthHeaders() })
       await useAuthStore.getState().refreshProfile()
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to activate team' })
@@ -199,7 +193,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   deactivateTeam: async () => {
     set({ error: null })
     try {
-      await axios.delete(`${API_BASE}/teams/active`, { headers: getHeaders() })
+      await axios.delete(`${API_BASE}/teams/active`, { headers: getAuthHeaders() })
       await useAuthStore.getState().refreshProfile()
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to deactivate team' })
@@ -209,7 +203,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   promoteMember: async (teamId: string, userId: string) => {
     set({ error: null })
     try {
-      await axios.post(`${API_BASE}/teams/${teamId}/members/${userId}/promote`, {}, { headers: getHeaders() })
+      await axios.post(`${API_BASE}/teams/${teamId}/members/${userId}/promote`, {}, { headers: getAuthHeaders() })
       await get().fetchTeam(teamId)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to promote member' })
@@ -219,7 +213,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   archiveTeam: async (id: string) => {
     set({ error: null })
     try {
-      await axios.post(`${API_BASE}/teams/${id}/archive`, {}, { headers: getHeaders() })
+      await axios.post(`${API_BASE}/teams/${id}/archive`, {}, { headers: getAuthHeaders() })
       await get().fetchMyTeams()
       await useAuthStore.getState().refreshProfile()
     } catch (err: any) {
@@ -230,7 +224,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   setTeamUnlisted: async (id: string, isUnlisted: boolean) => {
     set({ error: null })
     try {
-      await axios.put(`${API_BASE}/teams/${id}/unlisted`, { is_unlisted: isUnlisted }, { headers: getHeaders() })
+      await axios.put(`${API_BASE}/teams/${id}/unlisted`, { is_unlisted: isUnlisted }, { headers: getAuthHeaders() })
       await get().fetchTeam(id)
       await get().searchTeams()
     } catch (err: any) {
@@ -241,7 +235,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   fetchMessages: async (id: string) => {
     set({ isLoadingMessages: true })
     try {
-      const response = await axios.get(`${API_BASE}/teams/${id}/messages`, { headers: getHeaders() })
+      const response = await axios.get(`${API_BASE}/teams/${id}/messages`, { headers: getAuthHeaders() })
       set({ messages: response.data, isLoadingMessages: false })
     } catch (err: any) {
       set({ isLoadingMessages: false })
@@ -251,7 +245,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   postMessage: async (id: string, audience: 'members' | 'organizers', subject: string, body: string) => {
     set({ error: null })
     try {
-      await axios.post(`${API_BASE}/teams/${id}/messages`, { audience, subject, body }, { headers: getHeaders() })
+      await axios.post(`${API_BASE}/teams/${id}/messages`, { audience, subject, body }, { headers: getAuthHeaders() })
       await get().fetchMessages(id)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to send message' })
@@ -261,7 +255,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   updateEmailPatterns: async (teamId: string, patterns: string[]) => {
     set({ error: null })
     try {
-      await axios.put(`${API_BASE}/teams/${teamId}/email-patterns`, { patterns }, { headers: getHeaders() })
+      await axios.put(`${API_BASE}/teams/${teamId}/email-patterns`, { patterns }, { headers: getAuthHeaders() })
       await get().fetchTeam(teamId)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to update email patterns' })
@@ -271,7 +265,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   updateCustomCss: async (teamId: string, customCss: string | null) => {
     set({ error: null })
     try {
-      await axios.put(`${API_BASE}/teams/${teamId}/custom-css`, { custom_css: customCss }, { headers: getHeaders() })
+      await axios.put(`${API_BASE}/teams/${teamId}/custom-css`, { custom_css: customCss }, { headers: getAuthHeaders() })
       await get().fetchTeam(teamId)
       await useAuthStore.getState().refreshProfile()
     } catch (err: any) {
@@ -282,7 +276,7 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
   importPartnerUrl: async (url: string) => {
     set({ error: null })
     try {
-      const response = await axios.post(`${API_BASE}/teams/import-partner-url`, { url }, { headers: getHeaders() })
+      const response = await axios.post(`${API_BASE}/teams/import-partner-url`, { url }, { headers: getAuthHeaders() })
       return response.data
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to import from URL' })

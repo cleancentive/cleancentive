@@ -50,7 +50,7 @@ interface InsightsState {
   fetchStats: (params?: StatsFilterParams) => Promise<void>
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
+import { API_BASE } from '../lib/apiBase'
 
 export const useInsightsStore = create<InsightsState>((set) => ({
   stats: null,

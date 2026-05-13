@@ -3,13 +3,7 @@ import axios from 'axios'
 import { useAuthStore } from './authStore'
 import { trackEvent } from '../lib/analytics'
 import { datetimeLocalToIso } from '../utils/datetime'
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
-
-function getHeaders() {
-  const sessionToken = useAuthStore.getState().sessionToken
-  return sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}
-}
+import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 
 interface CleanupSummary {
   id: string
@@ -135,7 +129,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
       if (query?.trim()) params.set('q', query.trim())
       const statuses = get().statusFilter
       if (statuses.size > 0) params.set('status', Array.from(statuses).join(','))
-      const response = await axios.get(`${API_BASE}/cleanups/search?${params}`, { headers: getHeaders() })
+      const response = await axios.get(`${API_BASE}/cleanups/search?${params}`, { headers: getAuthHeaders() })
       const { items, total, counts } = response.data
       set({ cleanups: items, cleanupTotal: total, cleanupCounts: counts, isLoading: false })
     } catch (err: any) {
@@ -146,7 +140,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   fetchMyCleanups: async () => {
     try {
       const params = new URLSearchParams({ member_only: 'true' })
-      const response = await axios.get(`${API_BASE}/cleanups/search?${params}`, { headers: getHeaders() })
+      const response = await axios.get(`${API_BASE}/cleanups/search?${params}`, { headers: getAuthHeaders() })
       set({ myCleanups: response.data.items })
     } catch {
       // Silently fail — ContextBar dropdowns will just be empty
@@ -156,7 +150,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   fetchCleanup: async (id: string) => {
     set({ isLoading: true, error: null, currentCleanup: null, messages: [] })
     try {
-      const response = await axios.get(`${API_BASE}/cleanups/${id}`, { headers: getHeaders() })
+      const response = await axios.get(`${API_BASE}/cleanups/${id}`, { headers: getAuthHeaders() })
       set({ currentCleanup: response.data, isLoading: false })
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to load cleanup', isLoading: false })
@@ -176,7 +170,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
           longitude: date.longitude,
           locationName: date.locationName,
         },
-      }, { headers: getHeaders() })
+      }, { headers: getAuthHeaders() })
       trackEvent('cleanup-created')
       set({ isLoading: false })
       return response.data.cleanup
@@ -189,7 +183,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   updateCleanup: async (id, data) => {
     set({ error: null })
     try {
-      await axios.put(`${API_BASE}/cleanups/${id}`, data, { headers: getHeaders() })
+      await axios.put(`${API_BASE}/cleanups/${id}`, data, { headers: getAuthHeaders() })
       await get().fetchCleanup(id)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to update cleanup' })
@@ -199,7 +193,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   joinCleanup: async (id: string) => {
     set({ error: null })
     try {
-      const response = await axios.post(`${API_BASE}/cleanups/${id}/join`, {}, { headers: getHeaders() })
+      const response = await axios.post(`${API_BASE}/cleanups/${id}/join`, {}, { headers: getAuthHeaders() })
       if (response.data.joined) {
         trackEvent('cleanup-joined', { cleanup_id: id })
         await get().fetchCleanup(id)
@@ -215,7 +209,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   leaveCleanup: async (id: string) => {
     set({ error: null })
     try {
-      const response = await axios.post(`${API_BASE}/cleanups/${id}/leave`, {}, { headers: getHeaders() })
+      const response = await axios.post(`${API_BASE}/cleanups/${id}/leave`, {}, { headers: getAuthHeaders() })
       if (response.data.left) {
         await get().fetchCleanup(id)
         await get().fetchMyCleanups()
@@ -236,7 +230,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
         latitude: date.latitude,
         longitude: date.longitude,
         locationName: date.locationName,
-      }, { headers: getHeaders() })
+      }, { headers: getAuthHeaders() })
       await get().fetchCleanup(id)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to add date' })
@@ -252,7 +246,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
         latitude: date.latitude,
         longitude: date.longitude,
         locationName: date.locationName,
-      }, { headers: getHeaders() })
+      }, { headers: getAuthHeaders() })
       // Refresh the cleanup to get updated dates
       const current = get().currentCleanup
       if (current) await get().fetchCleanup(current.cleanup.id)
@@ -264,7 +258,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   deleteDate: async (cleanupId: string, cleanupDateId: string) => {
     set({ error: null })
     try {
-      await axios.delete(`${API_BASE}/cleanups/dates/${cleanupDateId}`, { headers: getHeaders() })
+      await axios.delete(`${API_BASE}/cleanups/dates/${cleanupDateId}`, { headers: getAuthHeaders() })
       await get().fetchCleanup(cleanupId)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to delete date' })
@@ -281,7 +275,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
         longitude: d.longitude,
         locationName: d.locationName,
       }))
-      await axios.post(`${API_BASE}/cleanups/${cleanupId}/dates/bulk`, { recurrenceId, dates: normalized }, { headers: getHeaders() })
+      await axios.post(`${API_BASE}/cleanups/${cleanupId}/dates/bulk`, { recurrenceId, dates: normalized }, { headers: getAuthHeaders() })
       await get().fetchCleanup(cleanupId)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to create dates' })
@@ -291,7 +285,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   deleteDatesBulk: async (cleanupId, dateIds) => {
     set({ error: null })
     try {
-      await axios.delete(`${API_BASE}/cleanups/${cleanupId}/dates/bulk`, { headers: getHeaders(), data: { dateIds } })
+      await axios.delete(`${API_BASE}/cleanups/${cleanupId}/dates/bulk`, { headers: getAuthHeaders(), data: { dateIds } })
       await get().fetchCleanup(cleanupId)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to delete dates' })
@@ -301,7 +295,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   activateDate: async (cleanupDateId: string) => {
     set({ error: null })
     try {
-      await axios.post(`${API_BASE}/cleanups/dates/${cleanupDateId}/activate`, {}, { headers: getHeaders() })
+      await axios.post(`${API_BASE}/cleanups/dates/${cleanupDateId}/activate`, {}, { headers: getAuthHeaders() })
       await useAuthStore.getState().refreshProfile()
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to activate date' })
@@ -311,7 +305,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   deactivateDate: async () => {
     set({ error: null })
     try {
-      await axios.delete(`${API_BASE}/cleanups/dates/active`, { headers: getHeaders() })
+      await axios.delete(`${API_BASE}/cleanups/dates/active`, { headers: getAuthHeaders() })
       await useAuthStore.getState().refreshProfile()
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to deactivate date' })
@@ -321,7 +315,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   promoteParticipant: async (cleanupId: string, userId: string) => {
     set({ error: null })
     try {
-      await axios.post(`${API_BASE}/cleanups/${cleanupId}/participants/${userId}/promote`, {}, { headers: getHeaders() })
+      await axios.post(`${API_BASE}/cleanups/${cleanupId}/participants/${userId}/promote`, {}, { headers: getAuthHeaders() })
       await get().fetchCleanup(cleanupId)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to promote participant' })
@@ -331,7 +325,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   archiveCleanup: async (id: string) => {
     set({ error: null })
     try {
-      await axios.post(`${API_BASE}/cleanups/${id}/archive`, {}, { headers: getHeaders() })
+      await axios.post(`${API_BASE}/cleanups/${id}/archive`, {}, { headers: getAuthHeaders() })
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to archive cleanup' })
     }
@@ -340,7 +334,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   fetchMessages: async (id: string) => {
     set({ isLoadingMessages: true })
     try {
-      const response = await axios.get(`${API_BASE}/cleanups/${id}/messages`, { headers: getHeaders() })
+      const response = await axios.get(`${API_BASE}/cleanups/${id}/messages`, { headers: getAuthHeaders() })
       set({ messages: response.data, isLoadingMessages: false })
     } catch {
       set({ isLoadingMessages: false })
@@ -350,7 +344,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   postMessage: async (id: string, audience: 'members' | 'organizers', subject: string, body: string) => {
     set({ error: null })
     try {
-      await axios.post(`${API_BASE}/cleanups/${id}/messages`, { audience, subject, body }, { headers: getHeaders() })
+      await axios.post(`${API_BASE}/cleanups/${id}/messages`, { audience, subject, body }, { headers: getAuthHeaders() })
       await get().fetchMessages(id)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to send message' })

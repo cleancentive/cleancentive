@@ -4,7 +4,7 @@ import axios from 'axios'
 import { useAuthStore } from '../stores/authStore'
 import { useInsightsFilterStore, type CleanupFilter } from '../stores/insightsFilterStore'
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
+import { API_BASE } from '../lib/apiBase'
 const MOBILE_BREAKPOINT = '(max-width: 640px)'
 
 type Scope = 'mine' | 'all'
