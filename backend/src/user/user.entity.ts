@@ -21,6 +21,12 @@ export class User extends BaseEntity {
   @Column('uuid', { nullable: true })
   avatar_email_id: string | null;
 
+  @Column('varchar', { nullable: true })
+  uploaded_avatar_key: string | null;
+
+  @Column('timestamp with time zone', { nullable: true })
+  uploaded_avatar_updated_at: Date | null;
+
   @Column('timestamp with time zone', { nullable: true })
   calendar_feed_last_fetched_at: Date | null;
 

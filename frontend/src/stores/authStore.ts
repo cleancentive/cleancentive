@@ -18,6 +18,8 @@ interface User {
   nickname: string
   full_name?: string
   avatar_email_id?: string | null
+  uploaded_avatar_key?: string | null
+  uploaded_avatar_updated_at?: string | null
   emails: UserEmail[]
   active_team_id?: string | null
   active_cleanup_date_id?: string | null
@@ -50,6 +52,8 @@ interface AuthState {
   removeEmail: (emailId: string) => Promise<void>
   updateEmailSelection: (emailIds: string[]) => Promise<void>
   updateAvatarEmail: (emailId: string | null) => Promise<void>
+  uploadAvatar: (file: File) => Promise<void>
+  removeUploadedAvatar: () => Promise<void>
   updateCalendarEmailSelection: (emailIds: string[]) => Promise<void>
   getCalendarUrls: () => Promise<{ joinedHttp: string; joinedWebcal: string; discoverHttp: string; discoverWebcal: string } | null>
   deleteAccount: () => Promise<void>
@@ -345,6 +349,42 @@ export const useAuthStore = create<AuthState>()(
           set({ user: response.data })
         } catch {
           // Silent fail
+        }
+      },
+
+      uploadAvatar: async (file: File) => {
+        const { sessionToken } = get()
+        if (!sessionToken) return
+
+        set({ isLoading: true, error: null })
+
+        try {
+          const formData = new FormData()
+          formData.append('file', file)
+          const response = await axios.put(`${API_BASE}/user/profile/avatar-upload`, formData, {
+            headers: { ...getAuthHeaders() },
+          })
+          set({ user: response.data, isLoading: false })
+        } catch (error: any) {
+          set({
+            error: error.response?.data?.message || 'Failed to upload avatar',
+            isLoading: false,
+          })
+          throw error
+        }
+      },
+
+      removeUploadedAvatar: async () => {
+        const { sessionToken } = get()
+        if (!sessionToken) return
+
+        try {
+          const response = await axios.delete(`${API_BASE}/user/profile/avatar-upload`, {
+            headers: getAuthHeaders(),
+          })
+          set({ user: response.data })
+        } catch (error: any) {
+          set({ error: error.response?.data?.message || 'Failed to remove avatar' })
         }
       },
 

@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useUiStore } from '../stores/uiStore'
 import { buildQrCodeSvg } from '../lib/qrCode'
 import { Avatar } from './Avatar'
+import { UserDisplay } from './UserDisplay'
 import faviconSvg from '../../public/favicon.svg?raw'
 
 const FAVICON_DATA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(faviconSvg)}`
@@ -131,12 +132,25 @@ export function UserMenuButton() {
         <Avatar
           userId={user.id}
           avatarEmailId={user.avatar_email_id}
+          uploadedAvatarUpdatedAt={user.uploaded_avatar_updated_at}
           nickname={user.nickname}
           size={32}
         />
       </button>
       {open && (
         <div className="user-menu-dropdown">
+          <div className="user-menu-dropdown-identity">
+            <UserDisplay
+              userId={user.id}
+              avatarEmailId={user.avatar_email_id}
+              uploadedAvatarUpdatedAt={user.uploaded_avatar_updated_at}
+              nickname={user.nickname}
+              size={28}
+              showAvatar={false}
+              editableIfPlaceholder
+            />
+          </div>
+          <div className="user-menu-dropdown-divider" />
           <button
             className="user-menu-dropdown-item"
             onClick={() => { setOpen(false); navigate('/profile') }}

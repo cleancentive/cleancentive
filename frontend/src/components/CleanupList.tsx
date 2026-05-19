@@ -7,6 +7,7 @@ import { useInsightsFilterStore } from '../stores/insightsFilterStore'
 import { CommunityList } from './CommunityList'
 import { CommunityCard } from './CommunityCard'
 import { LocationPicker } from './LocationPicker'
+import { ProfileHintBanner } from './ProfileHintBanner'
 import { isoToDatetimeLocal } from '../utils/datetime'
 
 function defaultStartFor(referenceDate?: string): string {
@@ -151,6 +152,7 @@ export function CleanupList() {
     >
       {showCreate && (
         <form className="community-create-form" onSubmit={handleCreate}>
+          <ProfileHintBanner surface="cleanup-create" />
           <div className="form-group">
             <label htmlFor="cleanup-name">Name</label>
             <input id="cleanup-name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Saturday Park Cleanup" required />

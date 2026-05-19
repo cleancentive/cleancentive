@@ -1,72 +1,102 @@
 import { useState, useEffect } from 'react'
-
+import { Link } from 'react-router-dom'
+import { useAuthStore } from '../stores/authStore'
 import { API_BASE } from '../lib/apiBase'
 
 interface AvatarProps {
   userId: string
   avatarEmailId?: string | null
+  uploadedAvatarUpdatedAt?: string | null
   nickname: string
   size?: number
 }
 
-export function Avatar({ userId, avatarEmailId, nickname, size = 40 }: AvatarProps) {
+const PALETTE = ['sage', 'terracotta', 'sand', 'moss', 'slate-blue', 'dusty-rose', 'ochre'] as const
+
+function paletteIndexFor(userId: string): number {
+  let hash = 0
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash * 31 + userId.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash) % PALETTE.length
+}
+
+function initialFor(nickname: string): string {
+  const first = nickname.trim()[0]
+  return first ? first.toUpperCase() : '?'
+}
+
+const OVERLAY_MIN_SIZE = 24
+
+export function Avatar({
+  userId,
+  avatarEmailId,
+  uploadedAvatarUpdatedAt,
+  nickname,
+  size = 40,
+}: AvatarProps) {
   const [failed, setFailed] = useState(false)
   const [cacheBust, setCacheBust] = useState(0)
+  const currentUser = useAuthStore((state) => state.user)
 
-  // Reset error state and bust cache when the selected email changes
+  const version = uploadedAvatarUpdatedAt || avatarEmailId || null
+
   useEffect(() => {
     setFailed(false)
     setCacheBust(Date.now())
-  }, [avatarEmailId])
+  }, [version])
 
-  // No picture set — show person icon
-  if (!avatarEmailId) {
-    return (
-      <svg
-        className="avatar"
-        width={size}
-        height={size}
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        role="img"
-        aria-label={nickname}
-        style={{ borderRadius: '50%', backgroundColor: 'var(--gray-200)', padding: size * 0.15 }}
-      >
-        <circle cx="10" cy="7" r="3" />
-        <path d="M4 17c0-3.3 2.7-6 6-6s6 2.7 6 6" />
-      </svg>
-    )
-  }
+  const isOwn = !!currentUser && currentUser.id === userId
+  const isIncomplete =
+    !!currentUser &&
+    currentUser.nickname === 'guest' &&
+    !currentUser.avatar_email_id &&
+    !currentUser.uploaded_avatar_key
 
-  // Gravatar selected but failed to load — gray circle fallback
-  if (failed) {
-    return (
-      <img
-        className="avatar"
-        src="/avatars/default.svg"
-        alt={nickname}
-        width={size}
-        height={size}
-        style={{ borderRadius: '50%', objectFit: 'cover', backgroundColor: 'var(--gray-200)' }}
-      />
-    )
-  }
+  const initials = (
+    <span
+      className={`avatar avatar--initials avatar--color-${PALETTE[paletteIndexFor(userId)]}`}
+      role="img"
+      aria-label={nickname}
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.45) }}
+    >
+      {initialFor(nickname)}
+    </span>
+  )
 
-  // Gravatar available
-  return (
+  const inner = !version || failed ? initials : (
     <img
-      key={`${avatarEmailId}-${cacheBust}`}
+      key={`${version}-${cacheBust}`}
       className="avatar"
-      src={`${API_BASE}/user/${userId}/avatar?v=${avatarEmailId}&t=${cacheBust}`}
+      src={`${API_BASE}/user/${userId}/avatar?v=${version}&t=${cacheBust}`}
       alt={nickname}
       width={size}
       height={size}
       onError={() => setFailed(true)}
-      style={{ borderRadius: '50%', objectFit: 'cover', backgroundColor: 'var(--gray-200)' }}
+      style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', backgroundColor: 'var(--gray-200)' }}
     />
+  )
+
+  if (!isOwn || !isIncomplete || size < OVERLAY_MIN_SIZE) {
+    return inner
+  }
+
+  const overlaySize = Math.max(14, Math.round(size * 0.35))
+  return (
+    <span className="avatar-wrapper" style={{ width: size, height: size }}>
+      {inner}
+      <Link
+        to="/profile#picture"
+        className="avatar-edit-overlay"
+        onClick={(e) => e.stopPropagation()}
+        aria-label="Set a profile photo"
+        style={{ width: overlaySize, height: overlaySize }}
+      >
+        <svg width="60%" height="60%" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 14.5V17h2.5L15 7.5 12.5 5 3 14.5z" />
+          <path d="M12.5 5L15 7.5" />
+        </svg>
+      </Link>
+    </span>
   )
 }

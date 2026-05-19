@@ -1,11 +1,8 @@
 import {
-  ArgumentsHost,
   BadRequestException,
   Body,
-  Catch,
   Controller,
   Delete,
-  ExceptionFilter,
   Get,
   HttpCode,
   NotFoundException,
@@ -24,21 +21,9 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { BaseExceptionFilter } from '@nestjs/core';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { MulterError } from 'multer';
 import type { Request, Response } from 'express';
-
-@Catch(MulterError)
-class MulterExceptionFilter extends BaseExceptionFilter implements ExceptionFilter {
-  catch(error: MulterError, host: ArgumentsHost) {
-    if (error.code === 'LIMIT_FILE_SIZE') {
-      super.catch(new PayloadTooLargeException(`Upload exceeds maximum allowed size`), host);
-      return;
-    }
-    super.catch(new BadRequestException(error.message || 'Upload failed'), host);
-  }
-}
+import { MulterExceptionFilter } from '../common/multer-exception.filter';
 import { SpotService } from './spot.service';
 import { AuthService } from '../auth/auth.service';
 import { UserService } from '../user/user.service';

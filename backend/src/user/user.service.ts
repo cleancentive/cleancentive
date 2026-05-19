@@ -1,25 +1,36 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
 import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import sharp from 'sharp';
 import { User } from './user.entity';
 import { UserEmail } from './user-email.entity';
+import { createS3Client } from '../common/s3-client';
 
 const AVATAR_CACHE_DIR = join(process.env.AVATAR_CACHE_DIR || '/tmp', 'avatar-cache');
 const AVATAR_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const ALLOWED_AVATAR_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+const AVATAR_TARGET_SIZE_PX = 512;
+const AVATAR_JPEG_QUALITY = 85;
 
 @Injectable()
 export class UserService {
+  private readonly s3Client: S3Client;
+  private readonly bucketName = process.env.S3_BUCKET || 'cleancentive-images';
+
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
     @InjectRepository(UserEmail)
     private userEmailRepository: Repository<UserEmail>,
     private eventEmitter: EventEmitter2,
-  ) {}
+  ) {
+    this.s3Client = createS3Client();
+  }
 
   async findOrCreateGuest(guestId: string): Promise<User> {
     const existing = await this.userRepository.findOne({
@@ -443,6 +454,7 @@ export class UserService {
       throw new NotFoundException('User not found');
     }
     const emails = user.emails?.map((e) => e.email) ?? [];
+    await this.deleteUploadedAvatarObject(user.uploaded_avatar_key);
     await this.userRepository.remove(user);
     this.eventEmitter.emit('user.deleted', { userId, emails });
   }
@@ -459,14 +471,30 @@ export class UserService {
     await this.userEmailRepository.delete({ user_id: userId });
     this.eventEmitter.emit('user-email.changed', { userId });
 
+    await this.deleteUploadedAvatarObject(user.uploaded_avatar_key);
+
     // Reset to guest state
     user.nickname = 'guest';
     user.full_name = null;
     user.avatar_email_id = null;
+    user.uploaded_avatar_key = null;
+    user.uploaded_avatar_updated_at = null;
     user.active_team_id = null;
     user.active_cleanup_date_id = null;
     await this.userRepository.save(user);
     this.eventEmitter.emit('user.anonymized', { userId, emails });
+  }
+
+  private async deleteUploadedAvatarObject(key: string | null): Promise<void> {
+    if (!key) return;
+    try {
+      await this.s3Client.send(new DeleteObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      }));
+    } catch {
+      // Best-effort — orphaned objects can be cleaned up via lifecycle policy
+    }
   }
 
   async getProfileWithContext(userId: string): Promise<any> {
@@ -560,9 +588,84 @@ export class UserService {
     return saved;
   }
 
+  async uploadAvatar(userId: string, fileBuffer: Buffer, mimeType: string): Promise<User> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!ALLOWED_AVATAR_MIME_TYPES.includes(mimeType as (typeof ALLOWED_AVATAR_MIME_TYPES)[number])) {
+      throw new BadRequestException('Avatar must be a JPEG, PNG, or WebP image');
+    }
+
+    let processed: Buffer;
+    try {
+      processed = await sharp(fileBuffer)
+        .rotate()
+        .resize(AVATAR_TARGET_SIZE_PX, AVATAR_TARGET_SIZE_PX, { fit: 'cover' })
+        .jpeg({ quality: AVATAR_JPEG_QUALITY })
+        .toBuffer();
+    } catch {
+      throw new BadRequestException('Could not process avatar image');
+    }
+
+    const key = `users/${userId}/avatar.jpg`;
+    try {
+      await this.s3Client.send(new PutObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+        Body: processed,
+        ContentType: 'image/jpeg',
+      }));
+    } catch {
+      throw new ServiceUnavailableException(
+        'Failed to store avatar in object storage. Check object storage connectivity and configuration.',
+      );
+    }
+
+    user.uploaded_avatar_key = key;
+    user.uploaded_avatar_updated_at = new Date();
+    const saved = await this.userRepository.save(user);
+    this.eventEmitter.emit('user.avatar-changed', { userId, source: 'upload' });
+    return saved;
+  }
+
+  async removeUploadedAvatar(userId: string): Promise<User> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.uploaded_avatar_key) {
+      try {
+        await this.s3Client.send(new DeleteObjectCommand({
+          Bucket: this.bucketName,
+          Key: user.uploaded_avatar_key,
+        }));
+      } catch {
+        // Best-effort — the DB row is still cleared so the user isn't stuck
+      }
+    }
+
+    user.uploaded_avatar_key = null;
+    user.uploaded_avatar_updated_at = null;
+    const saved = await this.userRepository.save(user);
+    this.eventEmitter.emit('user.avatar-changed', { userId, source: 'removed' });
+    return saved;
+  }
+
   async getAvatarImage(userId: string): Promise<{ buffer: Buffer; contentType: string } | null> {
     const user = await this.findById(userId);
-    if (!user || !user.avatar_email_id) {
+    if (!user) {
+      return null;
+    }
+
+    if (user.uploaded_avatar_key) {
+      const uploaded = await this.fetchUploadedAvatar(user.uploaded_avatar_key);
+      if (uploaded) return uploaded;
+    }
+
+    if (!user.avatar_email_id) {
       return null;
     }
 
@@ -574,7 +677,6 @@ export class UserService {
     const hash = createHash('md5').update(email.email.trim().toLowerCase()).digest('hex');
     const cachePath = join(AVATAR_CACHE_DIR, `${hash}.jpg`);
 
-    // Check cache
     try {
       const fileStat = await stat(cachePath);
       if (Date.now() - fileStat.mtimeMs < AVATAR_CACHE_TTL_MS) {
@@ -585,30 +687,54 @@ export class UserService {
       // Cache miss — continue to fetch
     }
 
-    // Fetch from Gravatar
-    try {
-      const response = await fetch(
-        `https://www.gravatar.com/avatar/${hash}?s=200&d=404`,
-      );
-      if (!response.ok) {
-        return null;
-      }
+    const gravatar = await this.fetchExternalAvatar(`https://www.gravatar.com/avatar/${hash}?s=200&d=404`);
+    if (gravatar) {
+      await this.writeAvatarCache(cachePath, gravatar.buffer);
+      return gravatar;
+    }
 
+    const libravatar = await this.fetchExternalAvatar(`https://seccdn.libravatar.org/avatar/${hash}?s=200&d=404`);
+    if (libravatar) {
+      await this.writeAvatarCache(cachePath, libravatar.buffer);
+      return libravatar;
+    }
+
+    return null;
+  }
+
+  private async fetchUploadedAvatar(key: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+    try {
+      const result = await this.s3Client.send(new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: key,
+      }));
+      if (!result.Body) return null;
+      const buffer = Buffer.from(await result.Body.transformToByteArray());
+      return { buffer, contentType: 'image/jpeg' };
+    } catch {
+      return null;
+    }
+  }
+
+  private async fetchExternalAvatar(url: string): Promise<{ buffer: Buffer; contentType: string } | null> {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return null;
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const contentType = response.headers.get('content-type') || 'image/jpeg';
-
-      // Cache to disk
-      try {
-        await mkdir(AVATAR_CACHE_DIR, { recursive: true });
-        await writeFile(cachePath, buffer);
-      } catch {
-        // Cache write failure is non-fatal
-      }
-
       return { buffer, contentType };
     } catch {
       return null;
+    }
+  }
+
+  private async writeAvatarCache(cachePath: string, buffer: Buffer): Promise<void> {
+    try {
+      await mkdir(AVATAR_CACHE_DIR, { recursive: true });
+      await writeFile(cachePath, buffer);
+    } catch {
+      // Cache write failure is non-fatal
     }
   }
 }

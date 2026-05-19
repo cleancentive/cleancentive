@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useUiStore } from '../stores/uiStore'
+import { suggestNicknameFromEmail } from '../lib/nicknameSuggestion'
 import { Avatar } from './Avatar'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SignIn } from './SignIn'
@@ -11,7 +12,8 @@ export function ProfileEditor() {
   const pickCount = useUiStore((s) => s.pickCount)
   const {
     user, logout, deleteGuestData, updateProfile, addEmail, confirmMerge, removeEmail,
-    updateEmailSelection, updateAvatarEmail, deleteAccount, anonymizeAccount,
+    updateEmailSelection, updateAvatarEmail, uploadAvatar, removeUploadedAvatar,
+    deleteAccount, anonymizeAccount,
     updateCalendarEmailSelection, getCalendarUrls,
     isLoading, error, clearError
   } = useAuthStore()
@@ -27,6 +29,30 @@ export function ProfileEditor() {
   const [showAccountDelete, setShowAccountDelete] = useState(false)
   const [calendarUrls, setCalendarUrls] = useState<{ joinedHttp: string; joinedWebcal: string; discoverHttp: string; discoverWebcal: string } | null>(null)
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const uploadInputRef = useRef<HTMLInputElement>(null)
+
+  const handleAvatarUpload = async (file: File) => {
+    setUploadError(null)
+    setUploadingAvatar(true)
+    try {
+      await uploadAvatar(file)
+    } catch (err: any) {
+      setUploadError(err?.response?.data?.message || 'Failed to upload avatar')
+    } finally {
+      setUploadingAvatar(false)
+      if (uploadInputRef.current) uploadInputRef.current.value = ''
+    }
+  }
+
+  const handleAdoptSuggestedNickname = async () => {
+    if (!user) return
+    const suggestion = suggestNicknameFromEmail(user.emails)
+    if (!suggestion) return
+    clearError()
+    await updateProfile({ nickname: suggestion })
+  }
 
   const sortedEmails = useMemo(
     () => [...(user?.emails ?? [])].sort((a, b) => a.id.localeCompare(b.id)),
@@ -297,6 +323,17 @@ export function ProfileEditor() {
               <span>{user.full_name || 'Not set'}</span>
             </div>
 
+            {user.nickname === 'guest' && suggestNicknameFromEmail(user.emails) && (
+              <button
+                type="button"
+                className="suggested-nickname-chip"
+                onClick={handleAdoptSuggestedNickname}
+                disabled={!isOnline || isLoading}
+              >
+                Suggested: {suggestNicknameFromEmail(user.emails)}
+              </button>
+            )}
+
             <button
               onClick={() => setIsEditing(true)}
               disabled={!isOnline}
@@ -308,44 +345,87 @@ export function ProfileEditor() {
         )}
       </fieldset>
 
-      {sortedEmails.length > 0 && (
-        <fieldset className="page-card avatar-email-picker" disabled={!isOnline || isLoading}>
-          <legend>Picture</legend>
-          {user.avatar_email_id && (
-            <div className="avatar-preview">
-              <Avatar
-                userId={user.id}
-                avatarEmailId={user.avatar_email_id}
-                nickname={user.nickname}
-                size={80}
-              />
-            </div>
+      <fieldset id="picture" className="page-card avatar-email-picker" disabled={!isOnline || isLoading}>
+        <legend>Picture</legend>
+        <div className="avatar-preview">
+          <Avatar
+            userId={user.id}
+            avatarEmailId={user.avatar_email_id}
+            uploadedAvatarUpdatedAt={user.uploaded_avatar_updated_at}
+            nickname={user.nickname}
+            size={80}
+          />
+        </div>
+
+        <div className="avatar-upload">
+          <input
+            ref={uploadInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) void handleAvatarUpload(file)
+            }}
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => uploadInputRef.current?.click()}
+            disabled={!isOnline || uploadingAvatar}
+          >
+            {uploadingAvatar
+              ? 'Uploading...'
+              : user.uploaded_avatar_key
+                ? 'Replace photo'
+                : 'Upload a photo'}
+          </button>
+          {user.uploaded_avatar_key && (
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => removeUploadedAvatar()}
+              disabled={!isOnline || uploadingAvatar}
+            >
+              Remove photo
+            </button>
           )}
-          <p className="avatar-hint">
-            Your profile picture is loaded from <a href="https://gravatar.com" target="_blank" rel="noopener noreferrer">Gravatar</a>. The email address is never exposed to other users.
-          </p>
-          <label className="avatar-radio">
-            <input
-              type="radio"
-              name="avatarEmail"
-              checked={!user.avatar_email_id}
-              onChange={() => updateAvatarEmail(null)}
-            />
-            <span>No Gravatar</span>
-          </label>
-          {sortedEmails.map((email) => (
-            <label key={email.id} className="avatar-radio">
+          {uploadError && <p className="form-warning">{uploadError}</p>}
+        </div>
+
+        {sortedEmails.length > 0 && (
+          <>
+            <p className="avatar-hint">
+              Or use <a href="https://gravatar.com" target="_blank" rel="noopener noreferrer">Gravatar</a> — set a photo once and it shows up wherever your email is recognized. Your email is hashed before lookup and never exposed to other users.
+            </p>
+            {user.uploaded_avatar_key && (
+              <p className="avatar-hint">
+                You have an uploaded photo. Remove it to use Gravatar.
+              </p>
+            )}
+            <label className="avatar-radio">
               <input
                 type="radio"
                 name="avatarEmail"
-                checked={user.avatar_email_id === email.id}
-                onChange={() => updateAvatarEmail(email.id)}
+                checked={!user.avatar_email_id}
+                onChange={() => updateAvatarEmail(null)}
               />
-              <span>{email.email}</span>
+              <span>No Gravatar</span>
             </label>
-          ))}
-        </fieldset>
-      )}
+            {sortedEmails.map((email) => (
+              <label key={email.id} className="avatar-radio">
+                <input
+                  type="radio"
+                  name="avatarEmail"
+                  checked={user.avatar_email_id === email.id}
+                  onChange={() => updateAvatarEmail(email.id)}
+                />
+                <span>{email.email}</span>
+              </label>
+            ))}
+          </>
+        )}
+      </fieldset>
 
       <fieldset className="page-card email-management" disabled={!isOnline || isLoading}>
         <legend>Emails</legend>

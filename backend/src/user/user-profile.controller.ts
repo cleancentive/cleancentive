@@ -1,8 +1,12 @@
-import { Controller, Get, Put, Delete, Body, UseGuards, Request, Param, Query, BadRequestException, ParseUUIDPipe, HttpCode } from '@nestjs/common';
+import { Controller, Get, Put, Delete, Body, UseGuards, Request, Param, Query, BadRequestException, PayloadTooLargeException, ParseUUIDPipe, HttpCode, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { MulterExceptionFilter } from '../common/multer-exception.filter';
 import { UserService } from './user.service';
 import { User } from './user.entity';
+
+const AVATAR_UPLOAD_MAX_BYTES = parseInt(process.env.AVATAR_UPLOAD_MAX_SIZE_BYTES || `${8 * 1024 * 1024}`, 10);
 
 @Controller('user')
 @ApiBearerAuth('Bearer')
@@ -65,6 +69,29 @@ export class UserProfileController {
     @Body('emailId') emailId: string | null,
   ): Promise<User> {
     return this.userService.updateAvatarEmail(req.user.userId, emailId ?? null);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('profile/avatar-upload')
+  @UseFilters(MulterExceptionFilter)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: AVATAR_UPLOAD_MAX_BYTES } }))
+  async uploadAvatar(
+    @Request() req: any,
+    @UploadedFile() file: { buffer: Buffer; mimetype: string; size: number } | undefined,
+  ): Promise<User> {
+    if (!file) {
+      throw new BadRequestException('Avatar file is required');
+    }
+    if (file.size > AVATAR_UPLOAD_MAX_BYTES) {
+      throw new PayloadTooLargeException(`Avatar exceeds max size of ${AVATAR_UPLOAD_MAX_BYTES} bytes`);
+    }
+    return this.userService.uploadAvatar(req.user.userId, file.buffer, file.mimetype);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('profile/avatar-upload')
+  async removeUploadedAvatar(@Request() req: any): Promise<User> {
+    return this.userService.removeUploadedAvatar(req.user.userId);
   }
 
   @UseGuards(JwtAuthGuard)

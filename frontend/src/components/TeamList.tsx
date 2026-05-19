@@ -8,6 +8,7 @@ import { useInsightsFilterStore } from '../stores/insightsFilterStore'
 import { CommunityList } from './CommunityList'
 import { CommunityCard } from './CommunityCard'
 import { PartnerSettingsFields } from './PartnerSettingsFields'
+import { ProfileHintBanner } from './ProfileHintBanner'
 
 export function TeamList() {
   const { user } = useAuthStore()
@@ -87,6 +88,7 @@ export function TeamList() {
     >
       {showCreate && (
         <form className="community-create-form" onSubmit={handleCreate}>
+          <ProfileHintBanner surface="team-create" />
           <div className="form-group">
             <label htmlFor="team-name">Name</label>
             <input

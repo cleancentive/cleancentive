@@ -107,6 +107,8 @@ describe('AuthService', () => {
         active_team_id: null,
         active_cleanup_date_id: null,
         avatar_email_id: null,
+        uploaded_avatar_key: null,
+        uploaded_avatar_updated_at: null,
         calendar_feed_last_fetched_at: null,
         generateId: jest.fn(),
       };

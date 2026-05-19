@@ -4590,3 +4590,179 @@ textarea.mono {
   padding-top: 1rem;
   border-top: 1px solid var(--color-border);
 }
+
+/* ── Avatar palette (initials fallback) ── */
+:root {
+  --avatar-color-sage: #8aa882;
+  --avatar-color-terracotta: #c47852;
+  --avatar-color-sand: #c4a572;
+  --avatar-color-moss: #6b8e5a;
+  --avatar-color-slate-blue: #708090;
+  --avatar-color-dusty-rose: #b88a8a;
+  --avatar-color-ochre: #b08d4f;
+  --avatar-fg: #fdfaf3;
+}
+
+.avatar.avatar--initials {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--avatar-fg);
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 1;
+  user-select: none;
+  text-transform: uppercase;
+}
+
+.avatar--color-sage { background: var(--avatar-color-sage); }
+.avatar--color-terracotta { background: var(--avatar-color-terracotta); }
+.avatar--color-sand { background: var(--avatar-color-sand); }
+.avatar--color-moss { background: var(--avatar-color-moss); }
+.avatar--color-slate-blue { background: var(--avatar-color-slate-blue); }
+.avatar--color-dusty-rose { background: var(--avatar-color-dusty-rose); }
+.avatar--color-ochre { background: var(--avatar-color-ochre); }
+
+/* Avatar wrapper + pencil overlay (self-only) */
+.avatar-wrapper {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+
+.avatar-edit-overlay {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  transform: translate(20%, 20%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.avatar-edit-overlay:hover,
+.avatar-edit-overlay:focus-visible {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+  outline: none;
+}
+
+/* UserDisplay inline-edit affordance */
+.user-display-nickname--editable {
+  cursor: text;
+  border-bottom: 1px dashed var(--color-text-faint);
+  padding-bottom: 1px;
+}
+
+.user-display-nickname--editable:hover,
+.user-display-nickname--editable:focus-visible {
+  border-bottom-color: var(--color-text-muted);
+  outline: none;
+}
+
+.user-display-edit {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.user-display-edit-input {
+  border: 1px solid var(--color-border-input);
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.95rem;
+  min-width: 9rem;
+}
+
+.user-display-edit-error {
+  color: var(--color-danger);
+  font-size: 0.8rem;
+}
+
+/* UserMenu dropdown identity row */
+.user-menu-dropdown-identity {
+  padding: 0.5rem 0.75rem;
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+/* Profile hint banner */
+.profile-hint-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
+
+.profile-hint-banner-text {
+  flex: 1;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.profile-hint-banner-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* Suggested-nickname chip */
+.suggested-nickname-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  margin: 0.5rem 0;
+  background: var(--color-surface-alt);
+  border: 1px dashed var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.suggested-nickname-chip:hover:not(:disabled),
+.suggested-nickname-chip:focus-visible {
+  background: var(--color-surface-hover);
+  border-color: var(--color-text-muted);
+  outline: none;
+}
+
+.suggested-nickname-chip:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Avatar upload section */
+.avatar-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.75rem 0 1rem;
+}
+
+@media (max-width: 600px) {
+  .profile-hint-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .profile-hint-banner-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
