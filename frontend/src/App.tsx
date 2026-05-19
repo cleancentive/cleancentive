@@ -2,7 +2,12 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams, useNavigate } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { AppLayout } from './components/AppLayout'
-import { AdminPanel } from './components/AdminPanel'
+import { StewardLayout } from './components/steward/StewardLayout'
+import { StewardOperations } from './components/steward/StewardOperations'
+import { StewardStorage } from './components/steward/StewardStorage'
+import { StewardPurge } from './components/steward/StewardPurge'
+import { StewardUsers } from './components/steward/StewardUsers'
+import { StewardFeedback } from './components/steward/StewardFeedback'
 import { ProfileEditor } from './components/ProfileEditor'
 import { UserDetail } from './components/UserDetail'
 import { TeamList } from './components/TeamList'
@@ -63,8 +68,15 @@ function App() {
           <Route path="/feedback/new" element={<FeedbackNew />} />
           <Route path="/feedback/:id" element={<FeedbackPage />} />
           <Route path="/profile" element={<ProfileEditor />} />
-          <Route path="/steward" element={<AdminPanel />} />
-          <Route path="/steward/feedback/:feedbackId" element={<AdminPanel />} />
+          <Route path="/steward" element={<StewardLayout />}>
+            <Route index element={<Navigate to="feedback" replace />} />
+            <Route path="operations" element={<StewardOperations />} />
+            <Route path="storage" element={<StewardStorage />} />
+            <Route path="purge" element={<StewardPurge />} />
+            <Route path="users" element={<StewardUsers />} />
+            <Route path="feedback" element={<StewardFeedback />} />
+            <Route path="feedback/:feedbackId" element={<StewardFeedback />} />
+          </Route>
           <Route path="/steward/users/:id" element={<UserDetail />} />
           <Route path="/auth/device" element={<DeviceAuthPage />} />
           <Route path="/oidc/authorize" element={<OidcAuthorize />} />
