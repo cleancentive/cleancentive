@@ -15,6 +15,7 @@ import { UserEmail } from '../user/user-email.entity';
 import { AdminService } from '../admin/admin.service';
 import { EmailService } from '../email/email.service';
 import { CalendarService } from '../calendar/calendar.service';
+import { InsightsCacheService } from '../insights/insights-cache.service';
 import type { CleanupStatus } from './cleanup-query';
 import { haversineKm } from '@cleancentive/shared';
 
@@ -94,6 +95,7 @@ export class CleanupService {
     private readonly adminService: AdminService,
     private readonly emailService: EmailService,
     private readonly calendarService: CalendarService,
+    private readonly insightsCache: InsightsCacheService,
   ) {}
 
   normalizeName(name: string): string {
@@ -496,6 +498,7 @@ export class CleanupService {
     await this.fireCalendarEmailsForFutureDates(cleanupId, userId, participant, 'CANCEL', cleanup.name);
 
     await this.cleanupParticipantRepository.delete({ id: participant.id });
+    await this.insightsCache.invalidate();
 
     const activeDate = await this.userRepository.findOne({
       where: { id: userId },
@@ -710,6 +713,7 @@ export class CleanupService {
       .execute();
 
     await this.cleanupDateRepository.delete(dateIds);
+    await this.insightsCache.invalidate();
   }
 
   async updateDate(
@@ -756,6 +760,7 @@ export class CleanupService {
     await this.userRepository.update({ active_cleanup_date_id: cleanupDateId }, { active_cleanup_date_id: null, updated_by: actorUserId });
 
     await this.cleanupDateRepository.delete({ id: cleanupDateId });
+    await this.insightsCache.invalidate();
   }
 
   async activateDate(cleanupDateId: string, userId: string): Promise<{ activeCleanupDateId: string }> {

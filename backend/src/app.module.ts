@@ -5,6 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RequestContextInterceptor } from './common/request-context.interceptor';
 import { AuditSubscriber } from './common/audit.subscriber';
+import { InsightsCacheSubscriber } from './insights/insights-cache.subscriber';
 import { User } from './user/user.entity';
 import { UserEmail } from './user/user-email.entity';
 import { Admin } from './admin/admin.entity';
@@ -91,7 +92,7 @@ import { SystemModule } from './system/system.module';
         OutlineEvent,
         OutlineMaintenanceState,
       ],
-      subscribers: [AuditSubscriber],
+      subscribers: [AuditSubscriber, InsightsCacheSubscriber],
       synchronize: false,
       migrationsRun: process.env.NODE_ENV !== 'test',
       migrations: [`${__dirname}/migrations/*.{ts,js}`],

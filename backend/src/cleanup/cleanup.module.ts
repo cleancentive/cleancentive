@@ -11,6 +11,7 @@ import { UserEmail } from '../user/user-email.entity';
 import { AdminModule } from '../admin/admin.module';
 import { EmailModule } from '../email/email.module';
 import { CalendarModule } from '../calendar/calendar.module';
+import { InsightsModule } from '../insights/insights.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CalendarModule } from '../calendar/calendar.module';
     AdminModule,
     EmailModule,
     CalendarModule,
+    InsightsModule,
   ],
   providers: [CleanupService],
   controllers: [CleanupController],
