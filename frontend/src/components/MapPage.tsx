@@ -18,6 +18,16 @@ function getCssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
+function wirePopupLinkNavigate(popup: maplibregl.Popup, navigate: (path: string) => void) {
+  const link = popup.getElement()?.querySelector<HTMLAnchorElement>('.map-popup-link')
+  if (!link) return
+  link.addEventListener('click', (ev) => {
+    ev.preventDefault()
+    const href = link.getAttribute('href')
+    if (href) navigate(href)
+  })
+}
+
 function openSpotPopup(
   map: maplibregl.Map,
   feature: GeoJSON.Feature,
@@ -34,19 +44,35 @@ function openSpotPopup(
         <strong>${p.topObject ? String(p.topObject).replace(/_/g, ' ') : (p.pickedUp === false ? 'Spot' : 'Pick')}</strong>
         <span>${formatDate(p.capturedAt)}</span>
         <span>${p.itemCount} item${p.itemCount !== 1 ? 's' : ''} detected</span>
-        <a class="map-popup-link" href="/spots/${p.id}" data-spot-id="${p.id}">Open spot &rarr;</a>
+        <a class="map-popup-link" href="/spots/${p.id}">Open spot &rarr;</a>
       </div>
     </div>
   `
   const popup = new maplibregl.Popup({ offset: 10 }).setLngLat(coords).setHTML(html).addTo(map)
-  const popupEl = popup.getElement()
-  const link = popupEl?.querySelector<HTMLAnchorElement>('.map-popup-link')
-  if (link) {
-    link.addEventListener('click', (ev) => {
-      ev.preventDefault()
-      navigate(`/spots/${link.dataset.spotId}`)
-    })
-  }
+  wirePopupLinkNavigate(popup, navigate)
+}
+
+function openCleanupPopup(
+  map: maplibregl.Map,
+  feature: GeoJSON.Feature,
+  navigate: (path: string) => void,
+) {
+  const geometry = feature.geometry as GeoJSON.Point
+  const coords = geometry.coordinates.slice() as [number, number]
+  const p = feature.properties || {}
+  const html = `
+    <div class="map-popup">
+      <div class="map-popup-info">
+        <strong>${p.cleanupName || 'Cleanup'}</strong>
+        ${p.locationName ? `<span>${p.locationName}</span>` : ''}
+        ${p.startAt ? `<span>${formatDate(p.startAt)}</span>` : ''}
+        <span>${p.spotCount} pick${p.spotCount !== 1 ? 's' : ''}</span>
+        <a class="map-popup-link" href="/cleanups/${p.cleanupId}">Open cleanup &rarr;</a>
+      </div>
+    </div>
+  `
+  const popup = new maplibregl.Popup({ offset: 12 }).setLngLat(coords).setHTML(html).addTo(map)
+  wirePopupLinkNavigate(popup, navigate)
 }
 
 function allLeavesShareCoords(leaves: GeoJSON.Feature[]): boolean {
@@ -536,21 +562,7 @@ export function MapPage() {
     map.on('click', 'cleanup-locations', (e) => {
       if (!e.features?.length) return
       closeSpider()
-      const f = e.features[0]
-      const geometry = f.geometry as GeoJSON.Point
-      const coords = geometry.coordinates.slice() as [number, number]
-      const p = f.properties
-      const html = `
-        <div class="map-popup">
-          <div class="map-popup-info">
-            <strong>${p.cleanupName || 'Cleanup'}</strong>
-            ${p.locationName ? `<span>${p.locationName}</span>` : ''}
-            ${p.startAt ? `<span>${formatDate(p.startAt)}</span>` : ''}
-            <span>${p.spotCount} pick${p.spotCount !== 1 ? 's' : ''}</span>
-          </div>
-        </div>
-      `
-      new maplibregl.Popup({ offset: 12 }).setLngLat(coords).setHTML(html).addTo(map)
+      openCleanupPopup(map, e.features[0], navigate)
     })
 
     map.on('mouseenter', 'clusters', () => { map.getCanvas().style.cursor = 'pointer' })

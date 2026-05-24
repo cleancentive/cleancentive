@@ -108,7 +108,7 @@ export class InsightsService {
         params,
       ),
       this.spotRepository.query(
-        `SELECT cd.id, cd.longitude, cd.latitude, cd.location_name,
+        `SELECT cd.id, cd.cleanup_id, cd.longitude, cd.latitude, cd.location_name,
                 c.name AS cleanup_name, cd.start_at,
                 COUNT(s.id)::int AS spot_count
          FROM cleanup_dates cd
@@ -116,7 +116,7 @@ export class InsightsService {
          ${participantJoin}
          LEFT JOIN spots s ON s.cleanup_date_id = cd.id ${and}
          WHERE cd.latitude IS NOT NULL${cleanupExtraWhere}
-         GROUP BY cd.id, cd.longitude, cd.latitude, cd.location_name, c.name, cd.start_at`,
+         GROUP BY cd.id, cd.cleanup_id, cd.longitude, cd.latitude, cd.location_name, c.name, cd.start_at`,
         cleanupParams,
       ),
     ]);
@@ -145,6 +145,7 @@ export class InsightsService {
         geometry: { type: 'Point' as const, coordinates: [Number(r.longitude), Number(r.latitude)] },
         properties: {
           id: r.id,
+          cleanupId: r.cleanup_id,
           cleanupName: r.cleanup_name,
           locationName: r.location_name,
           startAt: r.start_at,
