@@ -198,6 +198,9 @@ async function writeWorkerState(patch: Partial<WorkerOpsState>): Promise<void> {
   }
 
   const nextState: WorkerOpsState = {
+    ...current,
+    ...patch,
+    // Identity fields must reflect the running process — never inherit from stale Redis state left behind by a previous worker version.
     name: queueName,
     concurrency: workerConcurrency,
     hostname: hostname(),
@@ -205,8 +208,6 @@ async function writeWorkerState(patch: Partial<WorkerOpsState>): Promise<void> {
     commit: pkg.commit || 'dev',
     commitShort: pkg.commitShort || 'dev',
     buildTime: pkg.buildTime ?? 0,
-    ...current,
-    ...patch,
   };
 
   await redisClient.set(workerOpsKey, JSON.stringify(nextState), 'EX', workerHeartbeatTtlSeconds);
