@@ -33,8 +33,8 @@ describe('TeamService system-managed Stewards team', () => {
       userRole: 'organizer',
     });
     expect(detail.members).toEqual([
-      { userId: 'admin-1', nickname: 'Avery', role: 'organizer', avatarEmailId: 'email-1' },
-      { userId: 'admin-2', nickname: 'Blake', role: 'organizer', avatarEmailId: null },
+      { userId: 'admin-1', nickname: 'Avery', role: 'organizer', avatarEmailId: 'email-1', uploadedAvatarUpdatedAt: null },
+      { userId: 'admin-2', nickname: 'Blake', role: 'organizer', avatarEmailId: null, uploadedAvatarUpdatedAt: null },
     ]);
     expect(memberships).toMatchObject([
       { team_id: 'team-stewards', user_id: 'admin-1', role: 'organizer' },

@@ -27,6 +27,7 @@ interface CleanupParticipant {
   nickname: string
   role: string
   avatarEmailId: string | null
+  uploadedAvatarUpdatedAt: string | null
 }
 
 interface CleanupSearchResult {
@@ -50,7 +51,7 @@ interface CleanupMessage {
   audience: 'members' | 'organizers'
   created_at: string
   author_user_id: string
-  author?: { nickname: string; avatarEmailId: string | null }
+  author?: { nickname: string; avatarEmailId: string | null; uploadedAvatarUpdatedAt: string | null }
 }
 
 export type CleanupStatus = 'past' | 'ongoing' | 'future'

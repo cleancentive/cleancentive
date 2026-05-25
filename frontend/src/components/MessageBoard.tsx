@@ -9,7 +9,7 @@ interface Message {
   audience: 'members' | 'organizers'
   created_at: string
   author_user_id: string
-  author?: { nickname: string; avatarEmailId: string | null }
+  author?: { nickname: string; avatarEmailId: string | null; uploadedAvatarUpdatedAt: string | null }
 }
 
 interface MessageBoardProps {
@@ -102,6 +102,7 @@ export function MessageBoard({ messages, onPost, canPost, isOrganizer, isLoading
               <UserDisplay
                 userId={msg.author_user_id}
                 avatarEmailId={msg.author?.avatarEmailId}
+                uploadedAvatarUpdatedAt={msg.author?.uploadedAvatarUpdatedAt}
                 nickname={msg.author?.nickname || 'Unknown'}
                 size={24}
                 showAvatar={!!msg.author}

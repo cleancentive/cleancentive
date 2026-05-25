@@ -19,6 +19,7 @@ interface TeamMember {
   nickname: string
   role: string
   avatarEmailId: string | null
+  uploadedAvatarUpdatedAt: string | null
 }
 
 interface TeamDetail {
@@ -40,7 +41,7 @@ interface TeamMessage {
   audience: 'members' | 'organizers'
   created_at: string
   author_user_id: string
-  author?: { nickname: string; avatarEmailId: string | null }
+  author?: { nickname: string; avatarEmailId: string | null; uploadedAvatarUpdatedAt: string | null }
 }
 
 interface TeamSearchResult {

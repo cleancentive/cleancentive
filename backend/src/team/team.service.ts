@@ -289,7 +289,7 @@ export class TeamService {
 
   async getTeamDetail(teamId: string, userId?: string, isPlatformAdmin?: boolean): Promise<{
     team: Team;
-    members: Array<{ userId: string; nickname: string; role: string; avatarEmailId: string | null }>;
+    members: Array<{ userId: string; nickname: string; role: string; avatarEmailId: string | null; uploadedAvatarUpdatedAt: string | null }>;
     userRole: string | null;
     isPartner: boolean;
     outlineCollectionId: string | null;
@@ -321,6 +321,7 @@ export class TeamService {
         nickname: u?.nickname || 'Unknown',
         role: m.role,
         avatarEmailId: u?.avatar_email_id || null,
+        uploadedAvatarUpdatedAt: u?.uploaded_avatar_updated_at ? u.uploaded_avatar_updated_at.toISOString() : null,
       };
     });
 
@@ -547,7 +548,7 @@ export class TeamService {
     this.eventEmitter.emit('team.archived', { teamId, teamName: team.name });
   }
 
-  async listMessages(teamId: string, userId: string): Promise<Array<TeamMessage & { author?: { nickname: string; avatarEmailId: string | null } }>> {
+  async listMessages(teamId: string, userId: string): Promise<Array<TeamMessage & { author?: { nickname: string; avatarEmailId: string | null; uploadedAvatarUpdatedAt: string | null } }>> {
     await this.ensureRegisteredUser(userId);
     const membership = await this.getMembership(teamId, userId);
     if (!membership) {
@@ -572,7 +573,11 @@ export class TeamService {
       const author = authorMap.get(m.author_user_id);
       return Object.assign(m, {
         author: author
-          ? { nickname: author.nickname, avatarEmailId: author.avatar_email_id }
+          ? {
+              nickname: author.nickname,
+              avatarEmailId: author.avatar_email_id,
+              uploadedAvatarUpdatedAt: author.uploaded_avatar_updated_at ? author.uploaded_avatar_updated_at.toISOString() : null,
+            }
           : undefined,
       });
     });

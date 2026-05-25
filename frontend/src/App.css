@@ -4603,6 +4603,15 @@ textarea.mono {
   --avatar-fg: #fdfaf3;
 }
 
+.avatar {
+  --avatar-ring: rgba(0, 0, 0, 0.18);
+  box-shadow: 0 0 0 1px var(--avatar-ring);
+}
+
+.app-header .avatar {
+  --avatar-ring: rgba(255, 255, 255, 0.45);
+}
+
 .avatar.avatar--initials {
   display: inline-flex;
   align-items: center;

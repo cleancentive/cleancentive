@@ -254,7 +254,7 @@ export class CleanupService {
   async getCleanupDetail(cleanupId: string, userId?: string): Promise<{
     cleanup: Cleanup;
     dates: CleanupDate[];
-    participants: Array<{ userId: string; nickname: string; role: string; avatarEmailId: string | null }>;
+    participants: Array<{ userId: string; nickname: string; role: string; avatarEmailId: string | null; uploadedAvatarUpdatedAt: string | null }>;
     userRole: string | null;
   }> {
     const { cleanup, dates } = await this.getCleanup(cleanupId);
@@ -277,6 +277,7 @@ export class CleanupService {
         nickname: u?.nickname || 'Unknown',
         role: p.role,
         avatarEmailId: u?.avatar_email_id || null,
+        uploadedAvatarUpdatedAt: u?.uploaded_avatar_updated_at ? u.uploaded_avatar_updated_at.toISOString() : null,
       };
     });
 
@@ -830,7 +831,7 @@ export class CleanupService {
     );
   }
 
-  async listMessages(cleanupId: string, userId: string): Promise<Array<CleanupMessage & { author?: { nickname: string; avatarEmailId: string | null } }>> {
+  async listMessages(cleanupId: string, userId: string): Promise<Array<CleanupMessage & { author?: { nickname: string; avatarEmailId: string | null; uploadedAvatarUpdatedAt: string | null } }>> {
     await this.ensureRegisteredUser(userId);
     const participant = await this.getParticipant(cleanupId, userId);
     if (!participant) {
@@ -855,7 +856,11 @@ export class CleanupService {
       const author = authorMap.get(m.author_user_id);
       return Object.assign(m, {
         author: author
-          ? { nickname: author.nickname, avatarEmailId: author.avatar_email_id }
+          ? {
+              nickname: author.nickname,
+              avatarEmailId: author.avatar_email_id,
+              uploadedAvatarUpdatedAt: author.uploaded_avatar_updated_at ? author.uploaded_avatar_updated_at.toISOString() : null,
+            }
           : undefined,
       });
     });
