@@ -1,12 +1,39 @@
-export interface BasemapDef {
+export type BasemapTheme = 'standard' | 'aerial' | 'topo' | 'dark'
+
+export interface BasemapSource {
   id: string
   label: string
   tiles: string[]
   attribution: string
   tileSize?: number
   maxZoom?: number
-  stewardOnly: boolean
-  requiresKey?: 'stadia'
+}
+
+export interface BasemapLayerChoice {
+  source: BasemapSource
+}
+
+export interface ResolvedBasemap {
+  theme: BasemapTheme
+  layers: BasemapLayerChoice[]
+}
+
+export interface BasemapPoint {
+  lon: number
+  lat: number
+}
+
+export interface BasemapBounds {
+  west: number
+  south: number
+  east: number
+  north: number
+}
+
+export interface BasemapResolveContext {
+  center: BasemapPoint
+  bounds?: BasemapBounds
+  zoom?: number
 }
 
 const ATTR_OSM =
@@ -17,19 +44,7 @@ const ATTR_CARTO =
 const ATTR_OPENTOPO =
   ATTR_OSM +
   ' | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)'
-const ATTR_CYCLOSM =
-  ATTR_OSM +
-  ' | <a href="https://github.com/cyclosm/cyclosm-cartocss-style/releases">CyclOSM</a>'
-const ATTR_OPNV =
-  ATTR_OSM +
-  ' | Map <a href="https://memomaps.de/">memomaps.de</a> (CC-BY-SA)'
 const ATTR_ESRI = 'Tiles &copy; Esri'
-const ATTR_STADIA =
-  '&copy; <a href="https://www.stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> ' +
-  ATTR_OSM
-const ATTR_STAMEN =
-  '&copy; <a href="https://www.stadiamaps.com/">Stadia Maps</a> &copy; <a href="https://www.stamen.com/">Stamen Design</a> &copy; <a href="https://openmaptiles.org/">OpenMapTiles</a> ' +
-  ATTR_OSM
 
 function carto(variant: string): string[] {
   return ['a', 'b', 'c', 'd'].map(
@@ -43,228 +58,120 @@ function swisstopo(layer: string, ext: 'jpeg' | 'png'): string[] {
   ]
 }
 
-function stadia(variant: string, ext: 'png' | 'jpg', key: string): string[] {
-  return [`https://tiles.stadiamaps.com/tiles/${variant}/{z}/{x}/{y}.${ext}?api_key=${key}`]
-}
+export const DEFAULT_BASEMAP_THEME: BasemapTheme = 'standard'
 
-const PUBLIC_BASEMAPS: BasemapDef[] = [
-  {
-    id: 'osm',
-    label: 'Standard',
-    tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-    attribution: ATTR_OSM,
-    maxZoom: 19,
-    stewardOnly: false,
-  },
-  {
+export const BASEMAP_THEMES: ReadonlyArray<{ id: BasemapTheme; label: string }> = [
+  { id: 'standard', label: 'Standard' },
+  { id: 'aerial', label: 'Aerial' },
+  { id: 'topo', label: 'Topo' },
+  { id: 'dark', label: 'Dark' },
+]
+
+const SOURCES = {
+  standardGlobal: {
     id: 'carto-voyager',
-    label: 'Clean',
+    label: 'Standard',
     tiles: carto('rastertiles/voyager'),
     attribution: ATTR_CARTO,
     maxZoom: 20,
-    stewardOnly: false,
-  },
-  {
-    id: 'swisstopo-pixelkarte-farbe',
-    label: 'Topo CH',
-    tiles: swisstopo('ch.swisstopo.pixelkarte-farbe', 'jpeg'),
-    attribution: ATTR_SWISSTOPO,
-    maxZoom: 19,
-    stewardOnly: false,
-  },
-  {
-    id: 'swisstopo-swissimage',
-    label: 'Aerial',
-    tiles: swisstopo('ch.swisstopo.swissimage', 'jpeg'),
-    attribution: ATTR_SWISSTOPO,
-    maxZoom: 19,
-    stewardOnly: false,
-  },
-]
-
-const STEWARD_NO_KEY: BasemapDef[] = [
-  {
-    id: 'carto-positron',
-    label: 'Carto Positron',
-    tiles: carto('light_all'),
-    attribution: ATTR_CARTO,
-    maxZoom: 20,
-    stewardOnly: true,
-  },
-  {
-    id: 'carto-dark',
-    label: 'Carto Dark Matter',
-    tiles: carto('dark_all'),
-    attribution: ATTR_CARTO,
-    maxZoom: 20,
-    stewardOnly: true,
-  },
-  {
-    id: 'swisstopo-pixelkarte-grau',
-    label: 'Swiss Pixelkarte (gray)',
-    tiles: swisstopo('ch.swisstopo.pixelkarte-grau', 'jpeg'),
-    attribution: ATTR_SWISSTOPO,
-    maxZoom: 19,
-    stewardOnly: true,
-  },
-  {
-    id: 'swisstopo-pixelkarte-winter',
-    label: 'Swiss Pixelkarte WINTER',
-    tiles: swisstopo('ch.swisstopo.pixelkarte-farbe-winter', 'jpeg'),
-    attribution: ATTR_SWISSTOPO,
-    maxZoom: 19,
-    stewardOnly: true,
-  },
-  {
-    id: 'swisstopo-dufour',
-    label: 'Swiss Dufour (1845–1865)',
-    tiles: swisstopo('ch.swisstopo.hiks-dufour', 'png'),
-    attribution: ATTR_SWISSTOPO,
-    maxZoom: 18,
-    stewardOnly: true,
-  },
-  {
-    id: 'swisstopo-siegfried',
-    label: 'Swiss Siegfried (1870–1949)',
-    tiles: swisstopo('ch.swisstopo.hiks-siegfried', 'png'),
-    attribution: ATTR_SWISSTOPO,
-    maxZoom: 18,
-    stewardOnly: true,
-  },
-  {
-    id: 'opentopomap',
-    label: 'OpenTopoMap',
-    tiles: ['a', 'b', 'c'].map(
-      (s) => `https://${s}.tile.opentopomap.org/{z}/{x}/{y}.png`,
-    ),
-    attribution: ATTR_OPENTOPO,
-    maxZoom: 17,
-    stewardOnly: true,
-  },
-  {
-    id: 'cyclosm',
-    label: 'CyclOSM',
-    tiles: ['a', 'b', 'c'].map(
-      (s) =>
-        `https://${s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png`,
-    ),
-    attribution: ATTR_CYCLOSM,
-    maxZoom: 20,
-    stewardOnly: true,
-  },
-  {
-    id: 'opnvkarte',
-    label: 'ÖPNV Karte (Transit)',
-    tiles: ['https://tileserver.memomaps.de/tilegen/{z}/{x}/{y}.png'],
-    attribution: ATTR_OPNV,
-    maxZoom: 18,
-    stewardOnly: true,
-  },
-  {
+  } satisfies BasemapSource,
+  aerialGlobal: {
     id: 'esri-world-imagery',
-    label: 'Esri World Imagery',
+    label: 'Aerial',
     tiles: [
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     ],
     attribution: ATTR_ESRI,
     maxZoom: 19,
-    stewardOnly: true,
-  },
-  {
-    id: 'esri-shaded-relief',
-    label: 'Esri Shaded Relief',
-    tiles: [
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Shaded_Relief/MapServer/tile/{z}/{y}/{x}',
-    ],
-    attribution: ATTR_ESRI,
-    maxZoom: 13,
-    stewardOnly: true,
-  },
-]
-
-function stadiaBasemaps(key: string): BasemapDef[] {
-  return [
-    {
-      id: 'stadia-alidade-smooth',
-      label: 'Stadia Alidade Smooth',
-      tiles: stadia('alidade_smooth', 'png', key),
-      attribution: ATTR_STADIA,
-      maxZoom: 20,
-      stewardOnly: true,
-      requiresKey: 'stadia',
-    },
-    {
-      id: 'stadia-alidade-smooth-dark',
-      label: 'Stadia Alidade Smooth Dark',
-      tiles: stadia('alidade_smooth_dark', 'png', key),
-      attribution: ATTR_STADIA,
-      maxZoom: 20,
-      stewardOnly: true,
-      requiresKey: 'stadia',
-    },
-    {
-      id: 'stadia-osm-bright',
-      label: 'Stadia OSM Bright',
-      tiles: stadia('osm_bright', 'png', key),
-      attribution: ATTR_STADIA,
-      maxZoom: 20,
-      stewardOnly: true,
-      requiresKey: 'stadia',
-    },
-    {
-      id: 'stadia-outdoors',
-      label: 'Stadia Outdoors',
-      tiles: stadia('outdoors', 'png', key),
-      attribution: ATTR_STADIA,
-      maxZoom: 20,
-      stewardOnly: true,
-      requiresKey: 'stadia',
-    },
-    {
-      id: 'stamen-watercolor',
-      label: 'Stamen Watercolor',
-      tiles: stadia('stamen_watercolor', 'jpg', key),
-      attribution: ATTR_STAMEN,
-      maxZoom: 16,
-      stewardOnly: true,
-      requiresKey: 'stadia',
-    },
-    {
-      id: 'stamen-toner',
-      label: 'Stamen Toner',
-      tiles: stadia('stamen_toner', 'png', key),
-      attribution: ATTR_STAMEN,
-      maxZoom: 20,
-      stewardOnly: true,
-      requiresKey: 'stadia',
-    },
-    {
-      id: 'stamen-terrain',
-      label: 'Stamen Terrain',
-      tiles: stadia('stamen_terrain', 'png', key),
-      attribution: ATTR_STAMEN,
-      maxZoom: 18,
-      stewardOnly: true,
-      requiresKey: 'stadia',
-    },
-  ]
+  } satisfies BasemapSource,
+  aerialSwiss: {
+    id: 'swisstopo-swissimage',
+    label: 'Aerial CH',
+    tiles: swisstopo('ch.swisstopo.swissimage', 'jpeg'),
+    attribution: ATTR_SWISSTOPO,
+    maxZoom: 19,
+  } satisfies BasemapSource,
+  topoGlobal: {
+    id: 'opentopomap',
+    label: 'Topo',
+    tiles: ['a', 'b', 'c'].map(
+      (s) => `https://${s}.tile.opentopomap.org/{z}/{x}/{y}.png`,
+    ),
+    attribution: ATTR_OPENTOPO,
+    maxZoom: 17,
+  } satisfies BasemapSource,
+  topoSwiss: {
+    id: 'swisstopo-pixelkarte-farbe',
+    label: 'Topo CH',
+    tiles: swisstopo('ch.swisstopo.pixelkarte-farbe', 'jpeg'),
+    attribution: ATTR_SWISSTOPO,
+    maxZoom: 19,
+  } satisfies BasemapSource,
+  darkGlobal: {
+    id: 'carto-dark',
+    label: 'Dark',
+    tiles: carto('dark_all'),
+    attribution: ATTR_CARTO,
+    maxZoom: 20,
+  } satisfies BasemapSource,
 }
 
-export const DEFAULT_BASEMAP_ID = 'osm'
-
-export function getBasemaps(): BasemapDef[] {
-  const stadiaKey =
-    typeof window !== 'undefined'
-      ? window.__CLEANCENTIVE_CONFIG__?.stadiaApiKey
-      : undefined
-  const stadia = stadiaKey ? stadiaBasemaps(stadiaKey) : []
-  return [...PUBLIC_BASEMAPS, ...STEWARD_NO_KEY, ...stadia]
+export function getStandardBasemapSource(): BasemapSource {
+  return SOURCES.standardGlobal
 }
 
-export function getPublicBasemaps(): BasemapDef[] {
-  return PUBLIC_BASEMAPS
+const SWISS_BOUNDS = {
+  minLon: 5.95,
+  maxLon: 10.55,
+  minLat: 45.75,
+  maxLat: 47.9,
 }
 
-export function getBasemapById(id: string): BasemapDef | undefined {
-  return getBasemaps().find((b) => b.id === id)
+function boundsAreFullyInSwitzerland(bounds?: BasemapBounds): boolean {
+  if (!bounds) return false
+  return bounds.west >= SWISS_BOUNDS.minLon
+    && bounds.east <= SWISS_BOUNDS.maxLon
+    && bounds.south >= SWISS_BOUNDS.minLat
+    && bounds.north <= SWISS_BOUNDS.maxLat
+}
+
+function shouldUseSwissOnly(context?: BasemapResolveContext): boolean {
+  if (!context) return false
+  const zoom = context.zoom ?? 0
+  if (zoom < 9) return false
+  return boundsAreFullyInSwitzerland(context.bounds)
+}
+
+export function resolveBasemapTheme(theme: BasemapTheme, context?: BasemapResolveContext): ResolvedBasemap {
+  if (theme === 'standard') {
+    return { theme, layers: [{ source: SOURCES.standardGlobal }] }
+  }
+  if (theme === 'dark') {
+    return { theme, layers: [{ source: SOURCES.darkGlobal }] }
+  }
+  if (theme === 'aerial') {
+    if (shouldUseSwissOnly(context)) {
+      return { theme, layers: [{ source: SOURCES.aerialSwiss }] }
+    }
+    return {
+      theme,
+      layers: [{ source: SOURCES.aerialGlobal }],
+    }
+  }
+  if (shouldUseSwissOnly(context)) {
+    return { theme, layers: [{ source: SOURCES.topoSwiss }] }
+  }
+  return {
+    theme,
+    layers: [{ source: SOURCES.topoGlobal }],
+  }
+}
+
+export function mapLegacyBasemapIdToTheme(id: string | undefined): BasemapTheme {
+  if (!id) return DEFAULT_BASEMAP_THEME
+
+  if (id === 'carto-dark' || id === 'stadia-alidade-smooth-dark') return 'dark'
+  if (id === 'swisstopo-swissimage' || id === 'esri-world-imagery') return 'aerial'
+  if (id === 'swisstopo-pixelkarte-farbe' || id === 'opentopomap') return 'topo'
+  return 'standard'
 }

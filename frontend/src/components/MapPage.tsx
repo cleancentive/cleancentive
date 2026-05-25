@@ -6,7 +6,7 @@ import { useMapStore } from '../stores/mapStore'
 import { useAuthStore } from '../stores/authStore'
 import { useInsightsFilterStore, presetToSince, pickedUpFilterToParam } from '../stores/insightsFilterStore'
 import { useBasemapStore } from '../stores/basemapStore'
-import { getBasemapById, type BasemapDef } from '../config/basemaps'
+import { resolveBasemapTheme, type ResolvedBasemap } from '../config/basemaps'
 import { BasemapSwitcher } from './BasemapSwitcher'
 import { API_BASE } from '../lib/apiBase'
 
@@ -120,23 +120,53 @@ function annotateStacks(fc: GeoJSON.FeatureCollection): GeoJSON.FeatureCollectio
   return { ...fc, features: result }
 }
 
-function buildStyle(basemap: BasemapDef): maplibregl.StyleSpecification {
+function toSourceSpec(source: ResolvedBasemap['layers'][number]['source']): maplibregl.RasterSourceSpecification {
+  return {
+    type: 'raster',
+    tiles: source.tiles,
+    tileSize: source.tileSize ?? 256,
+    attribution: source.attribution,
+    ...(source.maxZoom ? { maxzoom: source.maxZoom } : {}),
+  }
+}
+
+function buildStyle(resolved: ResolvedBasemap): maplibregl.StyleSpecification {
+  const sources: maplibregl.StyleSpecification['sources'] = {}
+  const layers: maplibregl.LayerSpecification[] = []
+
+  resolved.layers.forEach(({ source }, index) => {
+    const sourceId = `basemap-${index}`
+    sources[sourceId] = toSourceSpec(source)
+    layers.push({ id: sourceId, type: 'raster', source: sourceId })
+  })
+
   return {
     version: 8,
     // Glyph endpoint required for any text-symbol layer (cluster counts, pick check,
     // cleanup star). Without this, text-field renders nothing — silently.
     glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-    sources: {
-      basemap: {
-        type: 'raster',
-        tiles: basemap.tiles,
-        tileSize: basemap.tileSize ?? 256,
-        attribution: basemap.attribution,
-        ...(basemap.maxZoom ? { maxzoom: basemap.maxZoom } : {}),
-      },
-    },
-    layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }],
+    sources,
+    layers,
   }
+}
+
+function getMapView(map: maplibregl.Map) {
+  const center = map.getCenter()
+  const bounds = map.getBounds()
+  return {
+    center: { lon: center.lng, lat: center.lat },
+    zoom: map.getZoom(),
+    bounds: {
+      west: bounds.getWest(),
+      south: bounds.getSouth(),
+      east: bounds.getEast(),
+      north: bounds.getNorth(),
+    },
+  }
+}
+
+function getResolvedSignature(resolved: ResolvedBasemap): string {
+  return `${resolved.theme}:${resolved.layers.map((layer) => layer.source.id).join('+')}`
 }
 
 export function MapPage() {
@@ -157,8 +187,8 @@ export function MapPage() {
   const userInteractedRef = useRef(false)
   const hasFittedRef = useRef(false)
   const [mapReady, setMapReady] = useState(false)
-  const selectedBasemapId = useBasemapStore((s) => s.selectedId)
-  const activeBasemapIdRef = useRef<string>(selectedBasemapId)
+  const selectedTheme = useBasemapStore((s) => s.selectedTheme)
+  const activeResolvedSignatureRef = useRef<string>('')
   const setupOverlaysRef = useRef<(() => void) | null>(null)
   const spiderRef = useRef<{ markers: maplibregl.Marker[]; openedAtZoom: number } | null>(null)
   const closeSpiderRef = useRef<(() => void) | null>(null)
@@ -183,12 +213,16 @@ export function MapPage() {
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
 
-    const initialBasemap =
-      getBasemapById(useBasemapStore.getState().selectedId) ?? getBasemapById('osm')!
+    const initialTheme = useBasemapStore.getState().selectedTheme
+    const initialResolved = resolveBasemapTheme(initialTheme, {
+      center: { lon: 0, lat: 20 },
+      zoom: 2,
+    })
+    activeResolvedSignatureRef.current = getResolvedSignature(initialResolved)
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: buildStyle(initialBasemap),
+      style: buildStyle(initialResolved),
       center: [0, 20],
       zoom: 2,
     })
@@ -584,7 +618,7 @@ export function MapPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Apply basemap selection changes by swapping the MapLibre style.
+  // Apply basemap theme changes by swapping the MapLibre style.
   // setStyle wipes all sources/layers; the style.load + styledata listeners
   // re-add them. We also call setupOverlays explicitly on the next 'idle'
   // tick as a belt-and-braces fallback (some MapLibre 4.x edge cases drop
@@ -592,13 +626,34 @@ export function MapPage() {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady) return
-    if (activeBasemapIdRef.current === selectedBasemapId) return
-    const basemap = getBasemapById(selectedBasemapId)
-    if (!basemap) return
-    activeBasemapIdRef.current = selectedBasemapId
-    map.setStyle(buildStyle(basemap))
+    const resolved = resolveBasemapTheme(selectedTheme, getMapView(map))
+    const signature = getResolvedSignature(resolved)
+    if (activeResolvedSignatureRef.current === signature) return
+    activeResolvedSignatureRef.current = signature
+    map.setStyle(buildStyle(resolved))
     map.once('idle', () => { setupOverlaysRef.current?.() })
-  }, [selectedBasemapId, mapReady])
+  }, [selectedTheme, mapReady])
+
+  useEffect(() => {
+    const mapInstance = mapRef.current
+    if (!mapInstance || !mapReady) return
+    const map = mapInstance
+
+    function onMoveEnd() {
+      if (selectedTheme !== 'aerial' && selectedTheme !== 'topo') return
+      const resolved = resolveBasemapTheme(selectedTheme, getMapView(map))
+      const signature = getResolvedSignature(resolved)
+      if (activeResolvedSignatureRef.current === signature) return
+      activeResolvedSignatureRef.current = signature
+      map.setStyle(buildStyle(resolved))
+      map.once('idle', () => { setupOverlaysRef.current?.() })
+    }
+
+    map.on('moveend', onMoveEnd)
+    return () => {
+      map.off('moveend', onMoveEnd)
+    }
+  }, [selectedTheme, mapReady])
 
   // Fit bounds helper
   const fitToData = useCallback((spots: GeoJSON.FeatureCollection, cleanups: GeoJSON.FeatureCollection, animate: boolean) => {

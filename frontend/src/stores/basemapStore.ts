@@ -1,20 +1,37 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { DEFAULT_BASEMAP_ID } from '../config/basemaps'
+import {
+  DEFAULT_BASEMAP_THEME,
+  mapLegacyBasemapIdToTheme,
+  type BasemapTheme,
+} from '../config/basemaps'
 
 interface BasemapState {
-  selectedId: string
-  setSelected: (id: string) => void
+  selectedTheme: BasemapTheme
+  setSelectedTheme: (theme: BasemapTheme) => void
 }
 
 export const useBasemapStore = create<BasemapState>()(
   persist(
     (set) => ({
-      selectedId: DEFAULT_BASEMAP_ID,
-      setSelected: (id) => set({ selectedId: id }),
+      selectedTheme: DEFAULT_BASEMAP_THEME,
+      setSelectedTheme: (theme) => set({ selectedTheme: theme }),
     }),
     {
       name: 'basemap-storage',
+      version: 2,
+      migrate: (persistedState, version) => {
+        if (!persistedState || typeof persistedState !== 'object') return persistedState
+
+        if (version < 2) {
+          const state = persistedState as { selectedId?: string }
+          return {
+            selectedTheme: mapLegacyBasemapIdToTheme(state.selectedId),
+          }
+        }
+
+        return persistedState
+      },
     },
   ),
 )

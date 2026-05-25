@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+
+import { BASEMAP_THEMES, type BasemapTheme } from '../config/basemaps'
 import { useBasemapStore } from '../stores/basemapStore'
-import { useAdminStore } from '../stores/adminStore'
-import { getBasemaps, type BasemapDef } from '../config/basemaps'
 
 function LayersIcon() {
   return (
@@ -22,11 +22,11 @@ function CloseIcon() {
 }
 
 function Row({
-  basemap,
+  theme,
   selected,
   onSelect,
 }: {
-  basemap: BasemapDef
+  theme: { id: BasemapTheme; label: string }
   selected: boolean
   onSelect: () => void
 }) {
@@ -36,7 +36,7 @@ function Row({
       className={`basemap-row${selected ? ' basemap-row--selected' : ''}`}
       onClick={onSelect}
     >
-      <span className="basemap-row-label">{basemap.label}</span>
+      <span className="basemap-row-label">{theme.label}</span>
       {selected && <span className="basemap-row-check" aria-hidden>✓</span>}
     </button>
   )
@@ -44,14 +44,9 @@ function Row({
 
 export function BasemapSwitcher() {
   const [open, setOpen] = useState(false)
-  const selectedId = useBasemapStore((s) => s.selectedId)
-  const setSelected = useBasemapStore((s) => s.setSelected)
-  const isAdmin = useAdminStore((s) => s.isAdmin)
+  const selectedTheme = useBasemapStore((s) => s.selectedTheme)
+  const setSelectedTheme = useBasemapStore((s) => s.setSelectedTheme)
   const sheetRef = useRef<HTMLDivElement>(null)
-
-  const all = getBasemaps()
-  const publicOptions = all.filter((b) => !b.stewardOnly)
-  const stewardOptions = all.filter((b) => b.stewardOnly)
 
   useEffect(() => {
     if (!open) return
@@ -77,8 +72,8 @@ export function BasemapSwitcher() {
     }
   }, [open])
 
-  function handleSelect(id: string) {
-    setSelected(id)
+  function handleSelect(theme: BasemapTheme) {
+    setSelectedTheme(theme)
     setOpen(false)
   }
 
@@ -112,33 +107,17 @@ export function BasemapSwitcher() {
               </button>
             </div>
 
-            <div className="basemap-section-label">Standard</div>
+            <div className="basemap-section-label">Themes</div>
             <div className="basemap-list">
-              {publicOptions.map((b) => (
+              {BASEMAP_THEMES.map((theme) => (
                 <Row
-                  key={b.id}
-                  basemap={b}
-                  selected={b.id === selectedId}
-                  onSelect={() => handleSelect(b.id)}
+                  key={theme.id}
+                  theme={theme}
+                  selected={theme.id === selectedTheme}
+                  onSelect={() => handleSelect(theme.id)}
                 />
               ))}
             </div>
-
-            {isAdmin && stewardOptions.length > 0 && (
-              <>
-                <div className="basemap-section-label">Experimental (steward only)</div>
-                <div className="basemap-list">
-                  {stewardOptions.map((b) => (
-                    <Row
-                      key={b.id}
-                      basemap={b}
-                      selected={b.id === selectedId}
-                      onSelect={() => handleSelect(b.id)}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
           </div>
         </div>
       )}

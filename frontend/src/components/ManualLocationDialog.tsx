@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { getStandardBasemapSource } from '../config/basemaps'
 
 interface ManualLocationDialogProps {
   initialLatitude: number | null
@@ -28,19 +29,21 @@ export function ManualLocationDialog({
     if (!mapContainerRef.current || mapRef.current) return
 
     const hasInitial = initialLatitude !== null && initialLongitude !== null
+    const standard = getStandardBasemapSource()
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: {
         version: 8,
         sources: {
-          osm: {
+          standard: {
             type: 'raster',
-            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            tiles: standard.tiles,
+            tileSize: standard.tileSize ?? 256,
+            attribution: standard.attribution,
+            ...(standard.maxZoom ? { maxzoom: standard.maxZoom } : {}),
           },
         },
-        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+        layers: [{ id: 'standard', type: 'raster', source: 'standard' }],
       },
       center: hasInitial ? [initialLongitude!, initialLatitude!] : [0, 20],
       zoom: hasInitial ? 14 : 2,

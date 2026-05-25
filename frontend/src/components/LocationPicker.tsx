@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { parseLatLngInput } from '@cleancentive/shared'
+import { getStandardBasemapSource } from '../config/basemaps'
 
 interface LocationPickerProps {
   latitude: string
@@ -96,19 +97,22 @@ export function LocationPicker({
     const initialCenter: [number, number] = hasCoords ? [lon, lat] : [0, 20]
     const initialZoom = hasCoords ? 13 : 2
 
+    const standard = getStandardBasemapSource()
+
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: {
         version: 8,
         sources: {
-          osm: {
+          standard: {
             type: 'raster',
-            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            tiles: standard.tiles,
+            tileSize: standard.tileSize ?? 256,
+            attribution: standard.attribution,
+            ...(standard.maxZoom ? { maxzoom: standard.maxZoom } : {}),
           },
         },
-        layers: [{ id: 'osm', type: 'raster', source: 'osm' }],
+        layers: [{ id: 'standard', type: 'raster', source: 'standard' }],
       },
       center: initialCenter,
       zoom: initialZoom,
