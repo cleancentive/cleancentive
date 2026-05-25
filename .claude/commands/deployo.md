@@ -1,40 +1,12 @@
 ---
-description: Guide a production deployment — check CI, compare images, and update the prod compose file
+description: Run promoto --auto end-to-end deploy and stream its progress
 ---
 
-Walk through the production deployment checklist step by step. Pause after each step to report findings before moving on.
+Run `infrastructure/scripts/promoto --auto` and let it drive the deploy.
 
-## Step 1: Check GitHub Actions
+The script reports each phase as it goes — preflight, wait for in-flight CI, status, apply, commit & push, wait for deploy CI, poll the prod version endpoint. Stream its output verbatim. If it aborts, surface the abort line. Do not run any of these steps yourself — promoto is the source of truth.
 
-Run `gh run list --branch main --limit 5` to see recent workflow runs.
-
-- If any run is `in_progress` or `queued`, report it and poll with `gh run watch <id>` until it completes.
-- If the latest run failed, report the failure and stop — the user needs to fix CI before deploying.
-- If all recent runs succeeded, proceed.
-
-## Step 2: Compare pinned vs latest images
-
-Run `infrastructure/scripts/promoto --status` to see which services are behind.
-
-- Report the status table to the user.
-- If all services are up to date, tell the user there is nothing to deploy and stop.
-
-## Step 3: Propose compose file update
-
-If any services are behind, ask the user whether to promote all behind services or only specific ones.
-
-Once confirmed, run `infrastructure/scripts/promoto --apply` (optionally with `--service <name>` if the user chose a subset).
-
-Show the resulting diff with `git diff infrastructure/docker-compose.prod.yml`.
-
-## Step 4: Validate
-
-Run `infrastructure/scripts/validate-prod-compose.sh` to confirm all image tags exist in GHCR.
-
-Report the result. If validation passes, suggest the user commit and push to trigger reconciliation.
-
-## Notes
-
-- Images are tagged with full 40-character git SHAs — never use floating tags.
-- Reconciliation is triggered automatically by GitHub Actions when `docker-compose.prod.yml` changes on main.
-- Do not commit or push without explicit user confirmation.
+Override defaults only if the user asks:
+- `--prod-url <url>` — default is `https://cleancentive.org/api/v1/version`
+- `--timeout <seconds>` — default is 600 per phase
+- `--service <name>` — restrict to a single service

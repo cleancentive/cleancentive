@@ -9,6 +9,7 @@ export interface ArtifactVersion {
 
 export interface VersionInfo {
   backend: ArtifactVersion
+  frontend: ArtifactVersion | null
   worker: ArtifactVersion | null
 }
 

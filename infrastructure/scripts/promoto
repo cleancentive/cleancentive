@@ -7,23 +7,34 @@ ORG="cleancentive"
 IMAGE_PREFIX="ghcr.io/cleancentive/cleancentive"
 FILTER_SERVICE=""
 GAP_COUNT=0
+PROMOTED_COUNT=0
+PROD_URL="https://cleancentive.org/api/v1/version"
+TIMEOUT=600
+
+PROMOTED_SERVICES=()
+PROMOTED_SHAS=()
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/infrastructure/docker-compose.prod.yml"
+COMPOSE_REL_PATH="infrastructure/docker-compose.prod.yml"
 
 usage() {
   cat <<'EOF'
 Usage:
   infrastructure/scripts/promoto --status [--service <name>]
   infrastructure/scripts/promoto --apply  [--service <name>]
+  infrastructure/scripts/promoto --auto   [--service <name>] [--prod-url <url>] [--timeout <seconds>]
 
 Modes:
   --status    Read-only gap analysis: pinned vs latest GHCR image per service
   --apply     Update docker-compose.prod.yml with latest GHCR image tags
+  --auto      End-to-end deploy: wait for CI, apply, commit, push, poll version endpoint
 
 Options:
-  --service <name>   Limit to a single service (backend, frontend, worker)
+  --service <name>     Limit to a single service (backend, frontend, worker)
+  --prod-url <url>     Version endpoint to poll in --auto (default: https://cleancentive.org/api/v1/version)
+  --timeout <seconds>  Per-phase timeout for CI wait and version poll in --auto (default: 600)
 EOF
 }
 
@@ -66,8 +77,20 @@ parse_args() {
         MODE="apply"
         shift
         ;;
+      --auto)
+        MODE="auto"
+        shift
+        ;;
       --service)
         FILTER_SERVICE="$2"
+        shift 2
+        ;;
+      --prod-url)
+        PROD_URL="$2"
+        shift 2
+        ;;
+      --timeout)
+        TIMEOUT="$2"
         shift 2
         ;;
       -h|--help)
@@ -86,7 +109,7 @@ parse_args() {
   done
 
   if [[ -z "$MODE" ]]; then
-    echo "Mode required: --status or --apply" >&2
+    echo "Mode required: --status, --apply, or --auto" >&2
     return 1
   fi
 }
@@ -106,6 +129,22 @@ check_dependencies() {
     echo "Missing: compose file at $COMPOSE_FILE" >&2
     ok=false
   fi
+
+  if [[ "$ok" != true ]]; then
+    exit 1
+  fi
+}
+
+check_auto_dependencies() {
+  check_dependencies
+
+  local ok=true
+  for cmd in jq curl git; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      echo "Missing: $cmd" >&2
+      ok=false
+    fi
+  done
 
   if [[ "$ok" != true ]]; then
     exit 1
@@ -132,9 +171,8 @@ get_services() {
   fi
 }
 
-run_status() {
-  check_dependencies
-
+compute_gaps() {
+  GAP_COUNT=0
   local service pinned latest
   while IFS= read -r service; do
     pinned="$(get_pinned_sha "$service")"
@@ -160,6 +198,11 @@ run_status() {
     fi
     echo ""
   done < <(get_services)
+}
+
+run_status() {
+  check_dependencies
+  compute_gaps
 
   if [[ $GAP_COUNT -gt 0 ]]; then
     echo "SUMMARY $GAP_COUNT service(s) behind"
@@ -168,16 +211,18 @@ run_status() {
   echo "SUMMARY all services up to date"
 }
 
-run_apply() {
-  check_dependencies
+do_apply() {
+  PROMOTED_COUNT=0
+  PROMOTED_SERVICES=()
+  PROMOTED_SHAS=()
 
-  local service pinned latest promoted=0
+  local service pinned latest
   while IFS= read -r service; do
     pinned="$(get_pinned_sha "$service")"
     latest="$(get_latest_sha "$service")"
 
     if [[ -z "$latest" ]]; then
-      gap "SKIP" "$service — no GHCR images found"
+      echo "SKIP $service — no GHCR images found"
       continue
     fi
 
@@ -188,11 +233,13 @@ run_apply() {
 
     sed -i.bak "s|cleancentive-${service}:${pinned}|cleancentive-${service}:${latest}|" "$COMPOSE_FILE"
     rm -f "${COMPOSE_FILE}.bak"
+    PROMOTED_SERVICES+=("$service")
+    PROMOTED_SHAS+=("$latest")
     echo "PROMOTE $service ${pinned:0:12} -> ${latest:0:12}"
-    promoted=$((promoted + 1))
+    PROMOTED_COUNT=$((PROMOTED_COUNT + 1))
   done < <(get_services)
 
-  if [[ $promoted -gt 0 ]]; then
+  if [[ $PROMOTED_COUNT -gt 0 ]]; then
     echo ""
     echo -n "VALIDATE running validate-prod-compose.sh... "
     if "$SCRIPT_DIR/validate-prod-compose.sh" "$COMPOSE_FILE" >/dev/null 2>&1; then
@@ -202,8 +249,259 @@ run_apply() {
       exit 1
     fi
   fi
+}
 
-  echo "SUMMARY promoted $promoted service(s) in docker-compose.prod.yml"
+run_apply() {
+  check_dependencies
+  do_apply
+  echo "SUMMARY promoted $PROMOTED_COUNT service(s) in docker-compose.prod.yml"
+}
+
+phase() {
+  echo ""
+  echo "=== $1 ==="
+}
+
+preflight() {
+  phase "Phase 1: Preflight"
+
+  local branch
+  branch="$(git -C "$REPO_ROOT" symbolic-ref --short HEAD 2>/dev/null || echo "")"
+  if [[ "$branch" != "main" ]]; then
+    echo "ABORT not on main (current: ${branch:-detached HEAD})" >&2
+    exit 1
+  fi
+
+  local dirty
+  dirty="$(git -C "$REPO_ROOT" status --porcelain | awk '{print $2}' | grep -v "^${COMPOSE_REL_PATH}$" || true)"
+  if [[ -n "$dirty" ]]; then
+    echo "ABORT working tree dirty (other than ${COMPOSE_REL_PATH}):" >&2
+    echo "$dirty" >&2
+    exit 1
+  fi
+
+  echo "fetching origin/main..."
+  git -C "$REPO_ROOT" fetch --quiet origin main
+
+  local behind
+  behind="$(git -C "$REPO_ROOT" rev-list --count HEAD..origin/main)"
+  if [[ "$behind" -gt 0 ]]; then
+    echo "ABORT local main is $behind commit(s) behind origin/main; pull first" >&2
+    exit 1
+  fi
+
+  ok "on main, clean, up to date with origin"
+}
+
+wait_for_ci_idle() {
+  phase "Phase 2: Wait for in-flight CI on main"
+
+  local start=$SECONDS
+  while true; do
+    local active
+    active="$(gh run list --branch main --limit 10 \
+      --json status,name,databaseId,createdAt \
+      --jq '[.[] | select(.status == "in_progress" or .status == "queued")] | length')"
+
+    if [[ "$active" == "0" ]]; then
+      break
+    fi
+
+    local elapsed=$((SECONDS - start))
+    if [[ $elapsed -ge $TIMEOUT ]]; then
+      echo "ABORT timeout waiting for CI to finish after ${TIMEOUT}s" >&2
+      exit 1
+    fi
+
+    echo "  $active run(s) in flight; sleeping 15s (waited ${elapsed}s)"
+    sleep 15
+  done
+
+  local newest_conclusion newest_name
+  newest_conclusion="$(gh run list --branch main --limit 1 --json conclusion --jq '.[0].conclusion')"
+  newest_name="$(gh run list --branch main --limit 1 --json name --jq '.[0].name')"
+
+  if [[ "$newest_conclusion" != "success" ]]; then
+    echo "ABORT newest run on main ('$newest_name') concluded '$newest_conclusion'; fix CI before deploying" >&2
+    exit 1
+  fi
+
+  ok "no runs in flight; newest run ('$newest_name') succeeded"
+}
+
+status_phase() {
+  phase "Phase 3: Status"
+  compute_gaps
+
+  if [[ $GAP_COUNT -eq 0 ]]; then
+    echo ""
+    echo "SUMMARY nothing to deploy — all services up to date"
+    exit 0
+  fi
+
+  ok "$GAP_COUNT service(s) behind; promoting"
+}
+
+apply_phase() {
+  phase "Phase 4: Apply"
+  do_apply
+  ok "promoted ${PROMOTED_COUNT} service(s); compose validated"
+}
+
+commit_and_push() {
+  phase "Phase 5: Commit & push"
+
+  local services_short=""
+  local i
+  for i in "${!PROMOTED_SERVICES[@]}"; do
+    local svc="${PROMOTED_SERVICES[$i]}"
+    local sha="${PROMOTED_SHAS[$i]}"
+    if [[ -n "$services_short" ]]; then
+      services_short+=", "
+    fi
+    services_short+="${svc} ${sha:0:7}"
+  done
+
+  local msg="chore(deploy): promote ${services_short}"
+
+  git -C "$REPO_ROOT" add "$COMPOSE_REL_PATH"
+  git -C "$REPO_ROOT" commit -m "$msg"
+
+  echo "pushing to origin/main..."
+  if ! git -C "$REPO_ROOT" push origin main; then
+    echo "ABORT push rejected; pull/rebase and retry" >&2
+    exit 1
+  fi
+
+  ok "pushed: $msg"
+}
+
+wait_for_deploy_ci() {
+  phase "Phase 6: Wait for deploy CI"
+
+  local head_sha
+  head_sha="$(git -C "$REPO_ROOT" rev-parse HEAD)"
+  echo "  watching for run on commit ${head_sha:0:12}"
+
+  local start=$SECONDS
+  local run_id=""
+  while [[ -z "$run_id" ]]; do
+    run_id="$(gh run list --branch main --limit 10 \
+      --json databaseId,headSha,workflowName \
+      --jq ".[] | select(.headSha == \"$head_sha\" and .workflowName == \"Production Pipeline\") | .databaseId" \
+      | head -n 1)"
+
+    if [[ -n "$run_id" ]]; then
+      break
+    fi
+
+    local elapsed=$((SECONDS - start))
+    if [[ $elapsed -ge $TIMEOUT ]]; then
+      echo "ABORT timeout waiting for deploy run to appear after ${TIMEOUT}s" >&2
+      exit 1
+    fi
+
+    echo "  no run yet; sleeping 5s (waited ${elapsed}s)"
+    sleep 5
+  done
+
+  echo "  watching run $run_id"
+  while true; do
+    local status conclusion
+    status="$(gh run view "$run_id" --json status --jq .status)"
+    if [[ "$status" == "completed" ]]; then
+      conclusion="$(gh run view "$run_id" --json conclusion --jq .conclusion)"
+      if [[ "$conclusion" != "success" ]]; then
+        echo "ABORT deploy run $run_id concluded '$conclusion'" >&2
+        exit 1
+      fi
+      break
+    fi
+
+    local elapsed=$((SECONDS - start))
+    if [[ $elapsed -ge $TIMEOUT ]]; then
+      echo "ABORT timeout waiting for deploy run $run_id after ${TIMEOUT}s" >&2
+      exit 1
+    fi
+
+    echo "  run $run_id status=$status; sleeping 15s (waited ${elapsed}s)"
+    sleep 15
+  done
+
+  ok "deploy CI succeeded"
+}
+
+poll_version_endpoint() {
+  phase "Phase 7: Poll prod version endpoint"
+  echo "  target: $PROD_URL"
+
+  local start=$SECONDS
+  while true; do
+    local body
+    if ! body="$(curl -fsS --max-time 10 "$PROD_URL" 2>/dev/null)"; then
+      echo "  fetch failed; retrying in 10s"
+    else
+      local all_match=true
+      local service target current
+      local line=""
+      local i
+      for i in "${!PROMOTED_SERVICES[@]}"; do
+        service="${PROMOTED_SERVICES[$i]}"
+        target="${PROMOTED_SHAS[$i]}"
+        current="$(echo "$body" | jq -r ".${service}.commit // \"\"")"
+        if [[ "$current" == "$target" ]]; then
+          line+=" ${service}=ok"
+        else
+          all_match=false
+          line+=" ${service}=${current:0:7}/${target:0:7}"
+        fi
+      done
+
+      echo " $line"
+
+      if [[ "$all_match" == true ]]; then
+        break
+      fi
+    fi
+
+    local elapsed=$((SECONDS - start))
+    if [[ $elapsed -ge $TIMEOUT ]]; then
+      echo "ABORT timeout waiting for version endpoint to report promoted SHAs after ${TIMEOUT}s" >&2
+      exit 1
+    fi
+
+    sleep 10
+  done
+
+  ok "all promoted services reporting target SHAs"
+}
+
+run_auto() {
+  check_auto_dependencies
+
+  local start_total=$SECONDS
+
+  preflight
+  wait_for_ci_idle
+  status_phase
+  apply_phase
+  commit_and_push
+  wait_for_deploy_ci
+  poll_version_endpoint
+
+  local total=$((SECONDS - start_total))
+  echo ""
+  local summary=""
+  local i
+  for i in "${!PROMOTED_SERVICES[@]}"; do
+    local svc="${PROMOTED_SERVICES[$i]}"
+    local sha="${PROMOTED_SHAS[$i]}"
+    if [[ -n "$summary" ]]; then
+      summary+=", "
+    fi
+    summary+="${svc}@${sha:0:7}"
+  done
+  echo "SUMMARY deployed ${summary} in ${total}s"
 }
 
 main() {
@@ -214,11 +512,11 @@ main() {
 
   parse_args "$@"
 
-  if [[ "$MODE" == "status" ]]; then
-    run_status
-  else
-    run_apply
-  fi
+  case "$MODE" in
+    status) run_status ;;
+    apply)  run_apply ;;
+    auto)   run_auto ;;
+  esac
 }
 
 if [[ "${PROMOTO_SOURCE_ONLY:-0}" != "1" ]]; then

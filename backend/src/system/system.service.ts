@@ -20,20 +20,27 @@ export interface ArtifactVersion {
 export class SystemService {
   private readonly queueName = process.env.DETECTION_QUEUE_NAME || 'litter-detection';
   private readonly workerOpsKey = `ops:worker:${this.queueName}`;
+  private readonly frontendUrl = process.env.FRONTEND_INTERNAL_URL || 'http://frontend';
   private readonly redisClient: Redis;
 
   constructor() {
     this.redisClient = new Redis(redisConnection());
   }
 
-  async getVersion(): Promise<{ backend: ArtifactVersion; worker: ArtifactVersion | null }> {
+  async getVersion(): Promise<{
+    backend: ArtifactVersion;
+    frontend: ArtifactVersion | null;
+    worker: ArtifactVersion | null;
+  }> {
+    const [frontend, worker] = await Promise.all([this.getFrontendVersion(), this.getWorkerVersion()]);
     return {
       backend: {
         commit: pkg.commit || 'dev',
         commitShort: pkg.commitShort || 'dev',
         buildTime: pkg.buildTime ?? 0,
       },
-      worker: await this.getWorkerVersion(),
+      frontend,
+      worker,
     };
   }
 
@@ -46,6 +53,23 @@ export class SystemService {
         commit: state.commit || 'dev',
         commitShort: state.commitShort || 'dev',
         buildTime: state.buildTime ?? 0,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private async getFrontendVersion(): Promise<ArtifactVersion | null> {
+    try {
+      const res = await fetch(`${this.frontendUrl}/version.json`, {
+        signal: AbortSignal.timeout(2000),
+      });
+      if (!res.ok) return null;
+      const data = (await res.json()) as Partial<ArtifactVersion>;
+      return {
+        commit: data.commit || 'dev',
+        commitShort: data.commitShort || 'dev',
+        buildTime: data.buildTime ?? 0,
       };
     } catch {
       return null;

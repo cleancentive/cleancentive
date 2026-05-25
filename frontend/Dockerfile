@@ -24,6 +24,13 @@ RUN bun -e "\
   p.buildTime = Math.floor(Date.now() / 1000);\
   fs.writeFileSync('frontend/package.json', JSON.stringify(p, null, 2));" "$SOURCE_COMMIT" "$SOURCE_COMMIT_SHORT"
 RUN bun run --filter '@cleancentive/frontend' build
+RUN bun -e "\
+  const fs = require('fs');\
+  fs.writeFileSync('/app/frontend/dist/version.json', JSON.stringify({\
+    commit: process.argv[1],\
+    commitShort: process.argv[2],\
+    buildTime: Math.floor(Date.now() / 1000)\
+  }));" "$SOURCE_COMMIT" "$SOURCE_COMMIT_SHORT"
 
 FROM nginx:1.27-alpine AS runtime
 ARG SOURCE_COMMIT=unknown
