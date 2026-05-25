@@ -29,7 +29,7 @@ import { AuthService } from '../auth/auth.service';
 import { UserService } from '../user/user.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ApiTags } from '@nestjs/swagger';
-import { PROCESSING_STATUS } from '@cleancentive/shared';
+import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters } from '@cleancentive/shared';
 
 type UploadFiles = {
   image?: Array<{ buffer: Buffer; mimetype: string; size: number }>;
@@ -55,6 +55,7 @@ interface DetectedItemDto {
 interface SpotDto {
   id: string;
   status: string;
+  userId: string;
   teamId: string | null;
   cleanupId: string | null;
   cleanupDateId: string | null;
@@ -90,6 +91,7 @@ export class SpotController {
     return {
       id: spot.id,
       status: spot.processing_status,
+      userId: spot.user_id,
       teamId: spot.team_id,
       cleanupId: spot.cleanup_id,
       cleanupDateId: spot.cleanup_date_id,
@@ -196,11 +198,11 @@ export class SpotController {
       throw new BadRequestException('uploadId is required');
     }
 
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      throw new BadRequestException('latitude and longitude are required numeric values');
+    if (!isValidLatLng(latitude, longitude)) {
+      throw new BadRequestException('latitude must be in [-90, 90] and longitude must be in [-180, 180]');
     }
 
-    if (accuracy !== null && (accuracy <= 0 || accuracy > this.accuracySanityBoundMeters)) {
+    if (accuracy !== null && !isValidAccuracyMeters(accuracy, this.accuracySanityBoundMeters)) {
       throw new BadRequestException(
         `accuracyMeters must be between 0 and ${this.accuracySanityBoundMeters} meters when provided`,
       );
@@ -268,6 +270,7 @@ export class SpotController {
     @Param('id', ParseUUIDPipe) spotId: string,
   ): Promise<{ entries: Array<{
     id: string;
+    entityType: 'item' | 'spot';
     detectedItemId: string | null;
     fieldChanged: string;
     oldValue: string | null;
@@ -276,19 +279,8 @@ export class SpotController {
     createdByName: string | null;
     createdAt: Date;
   }> }> {
-    const edits = await this.spotService.listSpotEditHistory(spotId);
-    return {
-      entries: edits.map((edit: any) => ({
-        id: edit.id,
-        detectedItemId: edit.detected_item_id,
-        fieldChanged: edit.field_changed,
-        oldValue: edit.old_value,
-        newValue: edit.new_value,
-        createdBy: edit.created_by,
-        createdByName: edit.user?.nickname ?? null,
-        createdAt: edit.created_at,
-      })),
-    };
+    const entries = await this.spotService.listSpotEditHistory(spotId);
+    return { entries };
   }
 
   @Get()
@@ -366,7 +358,14 @@ export class SpotController {
   @Patch(':id')
   async updateSpot(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { pickedUp?: boolean; cleanupId?: string; cleanupDateId?: string },
+    @Body() body: {
+      pickedUp?: boolean;
+      cleanupId?: string;
+      cleanupDateId?: string;
+      latitude?: number;
+      longitude?: number;
+      accuracyMeters?: number | null;
+    },
     @Req() req: Request,
     @Query('guestId') guestId?: string,
   ): Promise<SpotDto> {
@@ -375,6 +374,21 @@ export class SpotController {
       userId = await this.resolveAuthUserId(req.headers.authorization);
     } else {
       userId = this.requireGuestId(guestId);
+    }
+
+    const latProvided = body.latitude !== undefined;
+    const lngProvided = body.longitude !== undefined;
+    if (latProvided !== lngProvided) {
+      throw new BadRequestException('latitude and longitude must both be provided');
+    }
+    if (latProvided && lngProvided && !isValidLatLng(body.latitude, body.longitude)) {
+      throw new BadRequestException('latitude must be in [-90, 90] and longitude must be in [-180, 180]');
+    }
+    if (body.accuracyMeters !== undefined && body.accuracyMeters !== null
+        && !isValidAccuracyMeters(body.accuracyMeters, this.accuracySanityBoundMeters)) {
+      throw new BadRequestException(
+        `accuracyMeters must be between 0 and ${this.accuracySanityBoundMeters} meters when provided`,
+      );
     }
 
     const spot = await this.spotService.updateSpot(id, userId, body);

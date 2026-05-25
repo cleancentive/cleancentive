@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { formatCoord } from '@cleancentive/shared'
 import { useAuthStore } from '../stores/authStore'
 import { ItemEditor, type DetectedItemData } from './ItemEditor'
 import { SpotEditHistory } from './SpotEditHistory'
+import { SpotLocationDialog } from './SpotLocationDialog'
+import { useCopyToClipboard } from '../lib/useCopyToClipboard'
 
 import { API_BASE } from '../lib/apiBase'
 
 interface SpotData {
   id: string
   status: string
+  userId: string
   capturedAt: string
   latitude: number
   longitude: number
@@ -17,22 +21,20 @@ interface SpotData {
   items: DetectedItemData[]
 }
 
-function formatCoord(n: number): string {
-  return n.toFixed(5)
-}
-
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString()
 }
 
 export function SpotDetail() {
   const { id } = useParams<{ id: string }>()
-  const { sessionToken } = useAuthStore()
+  const { sessionToken, user } = useAuthStore()
   const [spot, setSpot] = useState<SpotData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const [historyTick, setHistoryTick] = useState(0)
   const [addingItem, setAddingItem] = useState(false)
+  const [editingLocation, setEditingLocation] = useState(false)
+  const { copied: locationCopied, copy: copyLocation } = useCopyToClipboard()
 
   const loadSpot = useCallback(async () => {
     if (!id) return
@@ -92,6 +94,8 @@ export function SpotDetail() {
     )
   }
 
+  const isOwner = !!user && user.id === spot.userId
+
   return (
     <div className="spot-detail">
       <Link to="/map" className="back-link">&larr; Back to map</Link>
@@ -110,8 +114,37 @@ export function SpotDetail() {
           <p className="history-meta">
             {formatCoord(spot.latitude)}, {formatCoord(spot.longitude)} | accuracy {spot.accuracyMeters !== null ? `±${Math.round(spot.accuracyMeters)}m` : 'unknown'}
           </p>
+          <div className="spot-location-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => copyLocation(`${formatCoord(spot.latitude, 6)},${formatCoord(spot.longitude, 6)}`)}
+            >
+              {locationCopied ? 'Copied!' : 'Copy location'}
+            </button>
+            {isOwner && (
+              <button type="button" className="secondary-button" onClick={() => setEditingLocation(true)}>
+                Edit location
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      {editingLocation && (
+        <SpotLocationDialog
+          spotId={spot.id}
+          initialLatitude={spot.latitude}
+          initialLongitude={spot.longitude}
+          initialAccuracyMeters={spot.accuracyMeters}
+          onSaved={() => {
+            setEditingLocation(false)
+            loadSpot()
+            setHistoryTick((t) => t + 1)
+          }}
+          onCancel={() => setEditingLocation(false)}
+        />
+      )}
 
       <section className="spot-detail-items">
         <h3>Detected items</h3>

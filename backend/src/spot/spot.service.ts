@@ -7,12 +7,13 @@ import { S3Client, PutObjectCommand, HeadBucketCommand, CreateBucketCommand, Get
 import { Spot } from './spot.entity';
 import { DetectedItem } from './detected-item.entity';
 import { DetectedItemEdit } from './detected-item-edit.entity';
+import { SpotEdit } from './spot-edit.entity';
 import { TeamService } from '../team/team.service';
 import { CleanupService } from '../cleanup/cleanup.service';
 import { LabelService } from '../label/label.service';
 import { redisConnection } from '../common/redis-connection';
 import { createS3Client } from '../common/s3-client';
-import { PROCESSING_STATUS } from '@cleancentive/shared';
+import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters } from '@cleancentive/shared';
 
 interface CreateSpotInput {
   userId: string;
@@ -45,6 +46,18 @@ export interface SpotListPage {
   nextCursor: string | null;
 }
 
+export interface SpotEditHistoryEntry {
+  id: string;
+  entityType: 'item' | 'spot';
+  detectedItemId: string | null;
+  fieldChanged: string;
+  oldValue: string | null;
+  newValue: string | null;
+  createdBy: string;
+  createdByName: string | null;
+  createdAt: Date;
+}
+
 @Injectable()
 export class SpotService {
   private readonly logger = new Logger(SpotService.name);
@@ -61,6 +74,8 @@ export class SpotService {
     private readonly detectedItemRepository: Repository<DetectedItem>,
     @InjectRepository(DetectedItemEdit)
     private readonly detectedItemEditRepository: Repository<DetectedItemEdit>,
+    @InjectRepository(SpotEdit)
+    private readonly spotEditRepository: Repository<SpotEdit>,
     private readonly dataSource: DataSource,
     private readonly teamService: TeamService,
     private readonly cleanupService: CleanupService,
@@ -421,7 +436,14 @@ export class SpotService {
   async updateSpot(
     spotId: string,
     userId: string,
-    updates: { pickedUp?: boolean; cleanupId?: string | null; cleanupDateId?: string | null },
+    updates: {
+      pickedUp?: boolean;
+      cleanupId?: string | null;
+      cleanupDateId?: string | null;
+      latitude?: number;
+      longitude?: number;
+      accuracyMeters?: number | null;
+    },
   ): Promise<Spot> {
     const spot = await this.spotRepository.findOne({
       where: { id: spotId, user_id: userId },
@@ -455,7 +477,69 @@ export class SpotService {
       spot.cleanup_date_id = newCleanupDateId;
     }
 
-    return this.spotRepository.save(spot);
+    const latProvided = updates.latitude !== undefined;
+    const lngProvided = updates.longitude !== undefined;
+    if (latProvided !== lngProvided) {
+      throw new BadRequestException('latitude and longitude must both be set');
+    }
+
+    const locationChanges: Array<{ field: string; oldValue: string | null; newValue: string | null }> = [];
+
+    if (latProvided && lngProvided) {
+      const newLat = updates.latitude!;
+      const newLng = updates.longitude!;
+      if (!isValidLatLng(newLat, newLng)) {
+        throw new BadRequestException('latitude must be in [-90, 90] and longitude must be in [-180, 180]');
+      }
+
+      const maxAccuracy = Number(process.env.LOCATION_ACCURACY_SANITY_BOUND_METERS ?? 10000);
+      let newAccuracy: number | null = null;
+      if (updates.accuracyMeters !== undefined && updates.accuracyMeters !== null) {
+        if (!isValidAccuracyMeters(updates.accuracyMeters, maxAccuracy)) {
+          throw new BadRequestException(`accuracyMeters must be a finite number in [0, ${maxAccuracy}]`);
+        }
+        newAccuracy = updates.accuracyMeters;
+      }
+
+      const latChanged = spot.latitude !== newLat;
+      const lngChanged = spot.longitude !== newLng;
+      const accChanged = spot.location_accuracy_meters !== newAccuracy;
+
+      if (latChanged) {
+        locationChanges.push({ field: 'latitude', oldValue: String(spot.latitude), newValue: String(newLat) });
+        spot.latitude = newLat;
+      }
+      if (lngChanged) {
+        locationChanges.push({ field: 'longitude', oldValue: String(spot.longitude), newValue: String(newLng) });
+        spot.longitude = newLng;
+      }
+      if (accChanged) {
+        locationChanges.push({
+          field: 'location_accuracy_meters',
+          oldValue: spot.location_accuracy_meters !== null ? String(spot.location_accuracy_meters) : null,
+          newValue: newAccuracy !== null ? String(newAccuracy) : null,
+        });
+        spot.location_accuracy_meters = newAccuracy;
+      }
+    }
+
+    if (locationChanges.length === 0) {
+      return this.spotRepository.save(spot);
+    }
+
+    return this.dataSource.transaction(async (manager) => {
+      for (const change of locationChanges) {
+        const edit = this.spotEditRepository.create({
+          spot_id: spot.id,
+          field_changed: change.field,
+          old_value: change.oldValue,
+          new_value: change.newValue,
+          created_by: userId,
+        });
+        await manager.save(edit);
+      }
+      return manager.save(spot);
+    });
   }
 
   async updateDetectedItem(
@@ -626,7 +710,7 @@ export class SpotService {
     });
   }
 
-  async listSpotEditHistory(spotId: string): Promise<DetectedItemEdit[]> {
+  async listSpotEditHistory(spotId: string): Promise<SpotEditHistoryEntry[]> {
     const spot = await this.spotRepository.findOne({ where: { id: spotId } });
     if (!spot) throw new NotFoundException('Spot not found');
 
@@ -635,19 +719,54 @@ export class SpotService {
       select: ['id'],
     })).map((row) => row.id);
 
-    const qb = this.detectedItemEditRepository
+    const itemQb = this.detectedItemEditRepository
       .createQueryBuilder('edit')
       .leftJoinAndSelect('edit.user', 'user')
       .where(`edit.field_changed = 'deleted' AND edit.new_value = :spotId`, { spotId });
 
     if (liveItemIds.length > 0) {
-      qb.orWhere('edit.detected_item_id IN (:...liveItemIds)', { liveItemIds });
+      itemQb.orWhere('edit.detected_item_id IN (:...liveItemIds)', { liveItemIds });
     }
 
-    return qb
-      .orderBy('edit.created_at', 'DESC')
-      .addOrderBy('edit.id', 'DESC')
-      .getMany();
+    const [itemEdits, spotEdits] = await Promise.all([
+      itemQb.orderBy('edit.created_at', 'DESC').addOrderBy('edit.id', 'DESC').getMany(),
+      this.spotEditRepository
+        .createQueryBuilder('edit')
+        .leftJoinAndSelect('edit.user', 'user')
+        .where('edit.spot_id = :spotId', { spotId })
+        .orderBy('edit.created_at', 'DESC')
+        .addOrderBy('edit.id', 'DESC')
+        .getMany(),
+    ]);
+
+    const itemEntries: SpotEditHistoryEntry[] = itemEdits.map((edit) => ({
+      id: edit.id,
+      entityType: 'item',
+      detectedItemId: edit.detected_item_id,
+      fieldChanged: edit.field_changed,
+      oldValue: edit.old_value,
+      newValue: edit.new_value,
+      createdBy: edit.created_by,
+      createdByName: edit.user?.nickname ?? null,
+      createdAt: edit.created_at,
+    }));
+
+    const spotEntries: SpotEditHistoryEntry[] = spotEdits.map((edit) => ({
+      id: edit.id,
+      entityType: 'spot',
+      detectedItemId: null,
+      fieldChanged: edit.field_changed,
+      oldValue: edit.old_value,
+      newValue: edit.new_value,
+      createdBy: edit.created_by,
+      createdByName: edit.user?.nickname ?? null,
+      createdAt: edit.created_at,
+    }));
+
+    return [...itemEntries, ...spotEntries].sort((a, b) => {
+      const t = b.createdAt.getTime() - a.createdAt.getTime();
+      return t !== 0 ? t : b.id.localeCompare(a.id);
+    });
   }
 
   async deleteSpot(spotId: string, userId: string): Promise<void> {

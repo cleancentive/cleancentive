@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { parseLatLngInput } from '@cleancentive/shared'
 
 interface LocationPickerProps {
   latitude: string
@@ -9,6 +10,8 @@ interface LocationPickerProps {
   onLatitudeChange: (v: string) => void
   onLongitudeChange: (v: string) => void
   onLocationNameChange: (v: string) => void
+  hideLocationName?: boolean
+  onCoordsPasted?: (accuracyMeters: number | null) => void
 }
 
 interface NominatimResult {
@@ -48,6 +51,8 @@ export function LocationPicker({
   onLatitudeChange,
   onLongitudeChange,
   onLocationNameChange,
+  hideLocationName = false,
+  onCoordsPasted,
 }: LocationPickerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
@@ -74,15 +79,15 @@ export function LocationPicker({
     }
   }, [])
 
-  // Reverse geocode only if locationName is empty
+  // Reverse geocode only if locationName is empty (and not hidden)
   const maybeReverseGeocode = useCallback((newLat: number, newLon: number) => {
-    if (locationName) return
+    if (hideLocationName || locationName) return
     if (reverseDebounceRef.current) clearTimeout(reverseDebounceRef.current)
     reverseDebounceRef.current = setTimeout(async () => {
       const name = await reverseGeocode(newLat, newLon)
       if (name) onLocationNameChange(name)
     }, 500)
-  }, [locationName, onLocationNameChange])
+  }, [hideLocationName, locationName, onLocationNameChange])
 
   // Initialize map
   useEffect(() => {
@@ -158,10 +163,23 @@ export function LocationPicker({
     mapRef.current.flyTo({ center: [lon, lat], zoom: Math.max(mapRef.current.getZoom(), 13) })
   }, [lat, lon, hasCoords])
 
-  // Debounced search
+  // Debounced search — but first try to parse the input as coords
   const handleSearchInput = (value: string) => {
     setSearchQuery(value)
     if (debounceRef.current) clearTimeout(debounceRef.current)
+
+    const parsed = parseLatLngInput(value)
+    if (parsed) {
+      onLatitudeChange(parsed.lat.toFixed(6))
+      onLongitudeChange(parsed.lng.toFixed(6))
+      syncMarker(parsed.lat, parsed.lng)
+      onCoordsPasted?.(parsed.accuracyMeters ?? null)
+      setSearchQuery('')
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+
     if (!value.trim()) {
       setSuggestions([])
       setShowSuggestions(false)
@@ -234,7 +252,7 @@ export function LocationPicker({
         <input
           type="text"
           className="search-input"
-          placeholder="Search for a place..."
+          placeholder="Search a place or paste lat,lng…"
           value={searchQuery}
           onChange={(e) => handleSearchInput(e.target.value)}
           onKeyDown={handleSearchKeyDown}
@@ -265,23 +283,25 @@ export function LocationPicker({
       <div className="location-map" ref={mapContainerRef} />
 
       <div className="location-coords">
-        <div className="form-group">
-          <label>Location name</label>
-          <input
-            type="text"
-            value={locationName}
-            onChange={(e) => onLocationNameChange(e.target.value)}
-            placeholder="e.g. Central Park"
-          />
-        </div>
+        {!hideLocationName && (
+          <div className="form-group">
+            <label>Location name</label>
+            <input
+              type="text"
+              value={locationName}
+              onChange={(e) => onLocationNameChange(e.target.value)}
+              placeholder="e.g. Central Park"
+            />
+          </div>
+        )}
         <div className="form-row">
           <div className="form-group">
             <label>Lat</label>
-            <input type="number" step="any" value={latitude} onChange={(e) => onLatitudeChange(e.target.value)} placeholder="40.785" required />
+            <input type="number" step="any" inputMode="decimal" value={latitude} onChange={(e) => onLatitudeChange(e.target.value)} placeholder="40.785" required />
           </div>
           <div className="form-group">
             <label>Lon</label>
-            <input type="number" step="any" value={longitude} onChange={(e) => onLongitudeChange(e.target.value)} placeholder="-73.968" required />
+            <input type="number" step="any" inputMode="decimal" value={longitude} onChange={(e) => onLongitudeChange(e.target.value)} placeholder="-73.968" required />
           </div>
         </div>
       </div>

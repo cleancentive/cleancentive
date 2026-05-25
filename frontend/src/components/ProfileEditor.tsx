@@ -3,6 +3,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useUiStore } from '../stores/uiStore'
 import { suggestNicknameFromEmail } from '../lib/nicknameSuggestion'
+import { useCopyToClipboard } from '../lib/useCopyToClipboard'
 import { Avatar } from './Avatar'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SignIn } from './SignIn'
@@ -28,7 +29,7 @@ export function ProfileEditor() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
   const [showAccountDelete, setShowAccountDelete] = useState(false)
   const [calendarUrls, setCalendarUrls] = useState<{ joinedHttp: string; joinedWebcal: string; discoverHttp: string; discoverWebcal: string } | null>(null)
-  const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
+  const { copiedValue: copiedUrl, copy: copyUrl } = useCopyToClipboard()
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const uploadInputRef = useRef<HTMLInputElement>(null)
@@ -82,15 +83,7 @@ export function ProfileEditor() {
     return () => { cancelled = true }
   }, [user?.id, getCalendarUrls])
 
-  const handleCopy = async (url: string) => {
-    try {
-      await navigator.clipboard.writeText(url)
-      setCopiedUrl(url)
-      setTimeout(() => setCopiedUrl((current) => (current === url ? null : current)), 2000)
-    } catch {
-      setCopiedUrl(null)
-    }
-  }
+  const handleCopy = (url: string) => copyUrl(url)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

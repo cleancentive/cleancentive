@@ -4,6 +4,7 @@ import { API_BASE } from '../lib/apiBase'
 
 interface EditEntry {
   id: string
+  entityType: 'item' | 'spot'
   detectedItemId: string | null
   fieldChanged: string
   oldValue: string | null
@@ -19,6 +20,9 @@ const FIELD_LABELS: Record<string, string> = {
   brand_label_id: 'Brand',
   weight_grams: 'Weight (g)',
   deleted: 'Item removed',
+  latitude: 'Latitude',
+  longitude: 'Longitude',
+  location_accuracy_meters: 'Accuracy',
 }
 
 function formatDateTime(iso: string): string {
@@ -31,9 +35,10 @@ function describeChange(entry: EditEntry): string {
     return 'Item removed'
   }
   const fieldLabel = FIELD_LABELS[entry.fieldChanged] ?? entry.fieldChanged
-  if (entry.oldValue === null) return `${fieldLabel} set`
-  if (entry.newValue === null) return `${fieldLabel} cleared`
-  return `${fieldLabel} changed`
+  const prefix = entry.entityType === 'spot' ? 'Location · ' : ''
+  if (entry.oldValue === null) return `${prefix}${fieldLabel} set`
+  if (entry.newValue === null) return `${prefix}${fieldLabel} cleared`
+  return `${prefix}${fieldLabel} changed`
 }
 
 export function SpotEditHistory({ spotId }: { spotId: string }) {

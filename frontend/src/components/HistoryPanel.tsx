@@ -4,6 +4,7 @@ import { useConnectivityStore } from '../stores/connectivityStore'
 import { useUiStore } from '../stores/uiStore'
 import { useInsightsFilterStore, presetToSince, pickedUpFilterToParam } from '../stores/insightsFilterStore'
 import { flushOutbox, getOutboxItems, type OutboxItem } from '../lib/pendingPicks'
+import { formatCoord } from '@cleancentive/shared'
 import { formatTimestamp } from '../utils/formatTimestamp'
 import { CountdownButton } from './CountdownButton'
 import { SpotEditor } from './SpotEditor'
@@ -172,10 +173,6 @@ function LifecycleStepper({ stages, errorMessage, onRetry, retryInMs }: {
 
 function formatDateTime(value: string): string {
   return formatTimestamp(value)
-}
-
-function formatCoordinate(value: number): string {
-  return value.toFixed(5)
 }
 
 function itemLabel(item: HistoryItem['items'][number]): string {
@@ -475,7 +472,7 @@ export function HistoryPanel() {
                     <LifecycleStepper stages={stages} errorMessage={errorMessage} onRetry={onRetry} retryInMs={retryInMs} />
 
                     <p className="history-meta">
-                      {formatCoordinate(row.item.latitude)}, {formatCoordinate(row.item.longitude)} | accuracy {row.item.accuracyMeters !== null ? `±${Math.round(row.item.accuracyMeters)}m` : 'unknown'}
+                      {formatCoord(row.item.latitude)}, {formatCoord(row.item.longitude)} | accuracy {row.item.accuracyMeters !== null ? `±${Math.round(row.item.accuracyMeters)}m` : 'unknown'}
                     </p>
 
                     {row.kind === 'local' && row.item.attempts > 0 && (
