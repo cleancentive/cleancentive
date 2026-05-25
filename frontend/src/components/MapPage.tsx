@@ -22,6 +22,10 @@ function wirePopupLinkNavigate(popup: maplibregl.Popup, navigate: (path: string)
   const link = popup.getElement()?.querySelector<HTMLAnchorElement>('.map-popup-link')
   if (!link) return
   link.addEventListener('click', (ev) => {
+    // Let modifier / middle / right clicks fall through to native behavior
+    // (cmd/ctrl/shift-click → new tab, middle-click → new tab, etc.)
+    if (ev.button !== 0) return
+    if (ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return
     ev.preventDefault()
     const href = link.getAttribute('href')
     if (href) navigate(href)
