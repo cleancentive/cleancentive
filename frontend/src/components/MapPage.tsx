@@ -275,10 +275,15 @@ export function MapPage() {
       const { heatMetric: hm } = useMapStore.getState()
       const heatProp = hm === 'mass' ? 'totalWeight' : 'itemCount'
 
+      // Two heatmap layers on the same source: picks paint emerald (cleaned =
+      // positive signal), unpicked spots paint red (still needs action). Peak
+      // emerald tops out at emerald-600 so the emerald-800 pick markers stay
+      // visible inside hot green zones.
       map.addLayer({
-        id: 'spots-heat',
+        id: 'picks-heat',
         type: 'heatmap',
         source: 'spots-heat-source',
+        filter: ['==', ['get', 'pickedUp'], true],
         paint: {
           'heatmap-weight': ['coalesce', ['get', heatProp], 1],
           'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.4, 11, 2, 22, 3],
@@ -286,8 +291,44 @@ export function MapPage() {
           'heatmap-opacity': ['interpolate', ['linear'], ['zoom'],
             0, 0.85,
             9, 0.85,
-            14, 0.20,
-            22, 0.15,
+            14, 0.55,
+            22, 0.45,
+          ],
+          'heatmap-color': [
+            'interpolate', ['linear'], ['heatmap-density'],
+            0,    'rgba(0,0,0,0)',
+            0.1,  'rgba(167,243,208,0.45)',
+            0.35, 'rgba(52,211,153,0.70)',
+            0.65, 'rgba(16,185,129,0.85)',
+            1,    'rgba(5,150,105,0.95)',
+          ],
+        },
+      })
+
+      map.addLayer({
+        id: 'spots-heat',
+        type: 'heatmap',
+        source: 'spots-heat-source',
+        filter: ['==', ['get', 'pickedUp'], false],
+        paint: {
+          'heatmap-weight': ['coalesce', ['get', heatProp], 1],
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.4, 11, 2, 22, 3],
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 6, 11, 30, 22, 60],
+          // Red is intrinsically more salient than green at equal opacity, so
+          // dial this ramp down to keep red from dominating mixed views.
+          'heatmap-opacity': ['interpolate', ['linear'], ['zoom'],
+            0, 0.60,
+            9, 0.60,
+            14, 0.40,
+            22, 0.32,
+          ],
+          'heatmap-color': [
+            'interpolate', ['linear'], ['heatmap-density'],
+            0,    'rgba(0,0,0,0)',
+            0.1,  'rgba(254,202,202,0.45)',
+            0.35, 'rgba(248,113,113,0.70)',
+            0.65, 'rgba(239,68,68,0.85)',
+            1,    'rgba(220,38,38,0.95)',
           ],
         },
       })
@@ -715,9 +756,11 @@ export function MapPage() {
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady) return
-    if (!map.getLayer('spots-heat')) return
+    if (!map.getLayer('spots-heat') || !map.getLayer('picks-heat')) return
     const heatProp = heatMetric === 'mass' ? 'totalWeight' : 'itemCount'
-    map.setPaintProperty('spots-heat', 'heatmap-weight', ['coalesce', ['get', heatProp], 1])
+    const weight = ['coalesce', ['get', heatProp], 1]
+    map.setPaintProperty('picks-heat', 'heatmap-weight', weight)
+    map.setPaintProperty('spots-heat', 'heatmap-weight', weight)
   }, [heatMetric, mapReady])
 
   const hasData = (spotGeoJson?.features.length ?? 0) > 0 || (cleanupGeoJson?.features.length ?? 0) > 0
