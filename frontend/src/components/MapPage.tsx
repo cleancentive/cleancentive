@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { createPortal } from 'react-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useMapStore } from '../stores/mapStore'
@@ -9,6 +10,8 @@ import { useBasemapStore } from '../stores/basemapStore'
 import { resolveBasemapTheme, type ResolvedBasemap } from '../config/basemaps'
 import { BasemapSwitcher } from './BasemapSwitcher'
 import { API_BASE } from '../lib/apiBase'
+import { parseMapState, serializeMapState, type MapViewState } from '../lib/mapUrlState'
+import { useCopyToClipboard } from '../lib/useCopyToClipboard'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
@@ -169,6 +172,28 @@ function getResolvedSignature(resolved: ResolvedBasemap): string {
   return `${resolved.theme}:${resolved.layers.map((layer) => layer.source.id).join('+')}`
 }
 
+// MapLibre IControl that exposes its DOM container to React via a setter,
+// so React can portal arbitrary buttons into MapLibre's native control stack.
+class ReactControlSlot implements maplibregl.IControl {
+  private setSlot: (el: HTMLDivElement | null) => void
+  private el: HTMLDivElement | null = null
+  constructor(setSlot: (el: HTMLDivElement | null) => void) {
+    this.setSlot = setSlot
+  }
+  onAdd(): HTMLElement {
+    const div = document.createElement('div')
+    div.className = 'maplibregl-ctrl maplibregl-ctrl-group'
+    this.el = div
+    this.setSlot(div)
+    return div
+  }
+  onRemove(): void {
+    this.el?.remove()
+    this.el = null
+    this.setSlot(null)
+  }
+}
+
 export function MapPage() {
   const {
     spotGeoJson, cleanupGeoJson, isLoading, error, fetchMapData,
@@ -177,6 +202,24 @@ export function MapPage() {
   const { user } = useAuthStore()
   const { datePreset, pickedUpFilter, myFilter, cleanupFilter } = useInsightsFilterStore()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { copy, copied } = useCopyToClipboard()
+
+  // Hydrate stores from URL synchronously on first render so the map and data
+  // effects below pick up the deep-linked filters/metric on their first run.
+  // Zustand's setState during render is supported; the ref guard keeps this
+  // single-shot across re-renders (incl. StrictMode double-invocation).
+  const initialUrlStateRef = useRef<ReturnType<typeof parseMapState> | null>(null)
+  if (initialUrlStateRef.current === null) {
+    const parsed = parseMapState(searchParams)
+    initialUrlStateRef.current = parsed
+    if (parsed.datePreset !== undefined) useInsightsFilterStore.setState({ datePreset: parsed.datePreset })
+    if (parsed.pickedUpFilter !== undefined) useInsightsFilterStore.setState({ pickedUpFilter: parsed.pickedUpFilter })
+    if (parsed.myFilter !== undefined) useInsightsFilterStore.setState({ myFilter: parsed.myFilter })
+    if (parsed.cleanupFilter !== undefined) useInsightsFilterStore.setState({ cleanupFilter: parsed.cleanupFilter })
+    if (parsed.heatMetric !== undefined) useMapStore.setState({ heatMetric: parsed.heatMetric })
+  }
+  const initialUrlState = initialUrlStateRef.current
 
   const teamId = user?.active_team_id ?? undefined
   const cleanupDateId = cleanupFilter?.kind === 'date' ? cleanupFilter.cleanupDateId : undefined
@@ -184,9 +227,14 @@ export function MapPage() {
 
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
-  const userInteractedRef = useRef(false)
-  const hasFittedRef = useRef(false)
+  // A URL-supplied viewport counts as user intent: prevent auto-fit-to-data
+  // from overriding the deep-linked view on first data load.
+  const userInteractedRef = useRef(initialUrlState.view !== undefined)
+  const hasFittedRef = useRef(initialUrlState.view !== undefined)
+  const initialViewRef = useRef<MapViewState | null>(initialUrlState.view ?? null)
+  const [viewState, setViewState] = useState<MapViewState | null>(initialUrlState.view ?? null)
   const [mapReady, setMapReady] = useState(false)
+  const [ctrlSlot, setCtrlSlot] = useState<HTMLDivElement | null>(null)
   const selectedTheme = useBasemapStore((s) => s.selectedTheme)
   const activeResolvedSignatureRef = useRef<string>('')
   const setupOverlaysRef = useRef<(() => void) | null>(null)
@@ -214,17 +262,20 @@ export function MapPage() {
     if (!mapContainerRef.current || mapRef.current) return
 
     const initialTheme = useBasemapStore.getState().selectedTheme
+    const initialView = initialViewRef.current
+    const initialCenter: [number, number] = initialView ? [initialView.lon, initialView.lat] : [0, 20]
+    const initialZoom = initialView?.zoom ?? 2
     const initialResolved = resolveBasemapTheme(initialTheme, {
-      center: { lon: 0, lat: 20 },
-      zoom: 2,
+      center: { lon: initialCenter[0], lat: initialCenter[1] },
+      zoom: initialZoom,
     })
     activeResolvedSignatureRef.current = getResolvedSignature(initialResolved)
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: buildStyle(initialResolved),
-      center: [0, 20],
-      zoom: 2,
+      center: initialCenter,
+      zoom: initialZoom,
     })
 
     map.addControl(new maplibregl.NavigationControl(), 'top-right')
@@ -236,6 +287,9 @@ export function MapPage() {
       }),
       'top-right',
     )
+    // Slot for our custom controls (basemap + share), portaled in from React
+    // so they share styling and stacking with the native MapLibre controls.
+    map.addControl(new ReactControlSlot(setCtrlSlot), 'top-right')
 
     map.on('mousedown', () => { userInteractedRef.current = true })
     map.on('wheel', () => { userInteractedRef.current = true })
@@ -248,10 +302,10 @@ export function MapPage() {
       if (map.getSource('spots-source')) return
       const pickBase = getCssVar('--color-entity-pick')
       const pickDark = getCssVar('--color-entity-pick-dark')
+      const spotBase = getCssVar('--color-entity-spot')
+      const spotDark = getCssVar('--color-entity-spot-dark')
       const cleanupBase = getCssVar('--color-entity-cleanup')
       const cleanupDark = getCssVar('--color-entity-cleanup-dark')
-      const gray500 = getCssVar('--gray-500')
-      const gray800 = getCssVar('--gray-800')
 
       map.addSource('spots-source', {
         type: 'geojson',
@@ -333,9 +387,9 @@ export function MapPage() {
         },
       })
 
-      // Cluster fill reflects composition: green if mostly picks, dark gray if
-      // mostly unpicked, mid-gray for mixed clusters. Density signal moves to
-      // the radius step (still scales with point_count).
+      // Cluster fill reflects composition along the pick/spot color spectrum:
+      // dark green (all clean) → green (mostly clean) → red (mostly needs action)
+      // → dark red (all needs action). Density signal moves to the radius step.
       map.addLayer({
         id: 'clusters',
         type: 'circle',
@@ -348,11 +402,11 @@ export function MapPage() {
             // All picks
             ['==', ['get', 'pickCount'], ['get', 'point_count']], pickDark,
             // No picks (all unpicked)
-            ['==', ['get', 'pickCount'], 0], gray800,
+            ['==', ['get', 'pickCount'], 0], spotDark,
             // Majority picks (>50%)
             ['>', ['*', ['get', 'pickCount'], 2], ['get', 'point_count']], pickBase,
             // Otherwise: mixed but majority unpicked
-            gray500,
+            spotBase,
           ],
           'circle-radius': [
             'step', ['get', 'point_count'],
@@ -395,19 +449,20 @@ export function MapPage() {
         },
       })
 
-      // Spots (unpicked): white fill + dark stroke. White center pops against any
-      // basemap and the heat layer. Differentiated from picks by fill color (white
-      // vs green) and the absence of a glyph.
+      // Spots (unpicked): dark-red fill + white stroke. Mirrors the pick marker
+      // recipe (dark entity color + white stroke) and the spot-dark token sits
+      // one shade darker than the red heatmap peak so the marker stays legible
+      // inside hot zones.
       map.addLayer({
         id: 'unclustered-spot',
         type: 'circle',
         source: 'spots-source',
         filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'pickedUp'], false]],
         paint: {
-          'circle-color': '#ffffff',
+          'circle-color': spotDark,
           'circle-radius': 11,
-          'circle-stroke-width': 3,
-          'circle-stroke-color': gray800,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff',
         },
       })
 
@@ -675,6 +730,39 @@ export function MapPage() {
     map.once('idle', () => { setupOverlaysRef.current?.() })
   }, [selectedTheme, mapReady])
 
+  // Track viewport in component state so the URL sync effect picks up pan/zoom.
+  // MapLibre's moveend fires once when the gesture stops — natural debounce.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    function syncView() {
+      const v = getMapView(map!)
+      setViewState({ lon: v.center.lon, lat: v.center.lat, zoom: v.zoom })
+    }
+    syncView()
+    map.on('moveend', syncView)
+    return () => { map.off('moveend', syncView) }
+  }, [mapReady])
+
+  // Sync filters + heat metric + viewport to the URL. replace: true so panning
+  // doesn't pollute browser history. On first run with a URL-supplied state the
+  // serialized output matches the incoming search params, so this is a no-op
+  // replaceState rather than a destructive write.
+  useEffect(() => {
+    const next = serializeMapState({
+      datePreset, pickedUpFilter, myFilter, cleanupFilter, heatMetric,
+      view: viewState ?? undefined,
+    })
+    // Avoid a redundant replaceState when nothing changed (cheap string compare).
+    if (next.toString() !== searchParams.toString()) {
+      setSearchParams(next, { replace: true })
+    }
+  }, [datePreset, pickedUpFilter, myFilter, cleanupFilter, heatMetric, viewState, searchParams, setSearchParams])
+
+  const handleShare = useCallback(() => {
+    copy(window.location.href)
+  }, [copy])
+
   useEffect(() => {
     const mapInstance = mapRef.current
     if (!mapInstance || !mapReady) return
@@ -768,7 +856,30 @@ export function MapPage() {
   return (
     <div className="map-page">
       <div className="map-container" ref={mapContainerRef} />
-      <BasemapSwitcher />
+      {/* Render BasemapSwitcher first so its trigger portals into the slot
+          before the share button — keeps DOM order stable: basemap on top,
+          share below (within MapLibre's top-right control stack). */}
+      <BasemapSwitcher triggerSlot={ctrlSlot} />
+      {ctrlSlot && createPortal(
+        <button
+          type="button"
+          className="map-share-control maplibregl-ctrl-icon"
+          onClick={handleShare}
+          aria-label={copied ? 'Link copied' : 'Copy shareable link to this map view'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            {copied ? (
+              <path d="M5 13l4 4L19 7" />
+            ) : (
+              <>
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </>
+            )}
+          </svg>
+        </button>,
+        ctrlSlot,
+      )}
       <div className="map-heat-control">
         <div className="map-heat-control__row" role="radiogroup" aria-label="Heat map metric">
           <button

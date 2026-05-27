@@ -4300,6 +4300,24 @@ textarea.mono {
   border-color: var(--color-entity-spot, #b91c1c);
 }
 
+/* Share + basemap triggers live inside MapLibre's top-right control stack
+   (portaled in by MapPage). MapLibre's button reset uses display: block
+   (designed for background-image icons), so our inline <svg> children need
+   flex centering to land on the optical center like the native buttons.
+   Selectors need the .maplibregl-ctrl-group prefix to outweigh MapLibre's
+   own `.maplibregl-ctrl-group button` rule. */
+.maplibregl-ctrl-group button.map-share-control,
+.maplibregl-ctrl-group button.basemap-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--gray-800);
+}
+.maplibregl-ctrl-group button.map-share-control > svg,
+.maplibregl-ctrl-group button.basemap-trigger > svg {
+  display: block;
+}
+
 .map-spider-marker {
   width: 22px;
   height: 22px;
@@ -4353,32 +4371,9 @@ textarea.mono {
   font-size: 0.85rem;
 }
 
-/* Basemap switcher — floating button + bottom sheet (mobile) / popover (desktop) */
-.basemap-trigger {
-  position: absolute;
-  right: 12px;
-  bottom: 24px;
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #fff;
-  color: var(--gray-800);
-  border: 1px solid var(--gray-300);
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-  cursor: pointer;
-  z-index: 5;
-  padding: 0;
-}
-.basemap-trigger:hover {
-  background: var(--gray-100);
-}
-.basemap-trigger:focus-visible {
-  outline: 2px solid var(--color-primary, #2563eb);
-  outline-offset: 2px;
-}
+/* Basemap switcher — trigger button is portaled into the MapLibre top-right
+   control stack (see MapPage). MapLibre's button styles handle the visual;
+   no floating positioning needed here. */
 
 .basemap-sheet-backdrop {
   position: fixed;

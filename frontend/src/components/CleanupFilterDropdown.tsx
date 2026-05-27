@@ -53,11 +53,14 @@ function ChevronLeft() {
 
 function triggerLabel(filter: CleanupFilter, items: CleanupListItem[]): string {
   if (!filter) return 'All'
-  if (filter.kind === 'cleanup') return filter.cleanupName
+  // Prefer the freshly-loaded cleanup name over the filter's stored name —
+  // matters when the filter was hydrated from a URL with an empty placeholder.
   const cleanup = items.find(i => i.cleanup.id === filter.cleanupId)
+  const name = cleanup?.cleanup.name || filter.cleanupName || 'Cleanup'
+  if (filter.kind === 'cleanup') return name
   const date = cleanup?.dates.find(d => d.id === filter.cleanupDateId)
-  if (!date) return filter.cleanupName
-  return `${filter.cleanupName} · ${formatDate(date.start_at)}`
+  if (!date) return name
+  return `${name} · ${formatDate(date.start_at)}`
 }
 
 export function CleanupFilterDropdown({ disabled }: { disabled?: boolean }) {
@@ -118,6 +121,21 @@ export function CleanupFilterDropdown({ disabled }: { disabled?: boolean }) {
   useEffect(() => {
     if (open) fetchCleanups(scope)
   }, [open, scope, fetchCleanups])
+
+  // Backfill cleanupName when the filter was hydrated from a URL (empty name).
+  // Triggers one fetch on mount; once items arrive, write the resolved name
+  // back to the filter so the trigger label is stable across renders.
+  useEffect(() => {
+    if (!cleanupFilter || cleanupFilter.cleanupName) return
+    if (items.length === 0) {
+      if (!isLoading) fetchCleanups(scope)
+      return
+    }
+    const cleanup = items.find(i => i.cleanup.id === cleanupFilter.cleanupId)
+    if (cleanup) {
+      setCleanupFilter({ ...cleanupFilter, cleanupName: cleanup.cleanup.name })
+    }
+  }, [cleanupFilter, items, isLoading, scope, fetchCleanups, setCleanupFilter])
 
   useEffect(() => {
     if (!open || isMobile) return

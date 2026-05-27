@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { BASEMAP_THEMES, type BasemapTheme } from '../config/basemaps'
 import { useBasemapStore } from '../stores/basemapStore'
@@ -42,7 +43,15 @@ function Row({
   )
 }
 
-export function BasemapSwitcher() {
+interface BasemapSwitcherProps {
+  // When provided, the trigger button is portaled into this slot — used so the
+  // map page can mount the button inside MapLibre's native control stack.
+  // null means the slot isn't ready yet (suppress rendering); undefined means
+  // render the trigger inline (legacy / standalone usage).
+  triggerSlot?: HTMLElement | null
+}
+
+export function BasemapSwitcher({ triggerSlot }: BasemapSwitcherProps = {}) {
   const [open, setOpen] = useState(false)
   const selectedTheme = useBasemapStore((s) => s.selectedTheme)
   const setSelectedTheme = useBasemapStore((s) => s.setSelectedTheme)
@@ -77,20 +86,24 @@ export function BasemapSwitcher() {
     setOpen(false)
   }
 
+  const trigger = (
+    <button
+      type="button"
+      className="basemap-trigger maplibregl-ctrl-icon"
+      aria-label="Switch basemap"
+      aria-expanded={open}
+      onClick={(e) => {
+        e.stopPropagation()
+        setOpen((v) => !v)
+      }}
+    >
+      <LayersIcon />
+    </button>
+  )
+
   return (
     <>
-      <button
-        type="button"
-        className="basemap-trigger"
-        aria-label="Switch basemap"
-        aria-expanded={open}
-        onClick={(e) => {
-          e.stopPropagation()
-          setOpen((v) => !v)
-        }}
-      >
-        <LayersIcon />
-      </button>
+      {triggerSlot === undefined ? trigger : (triggerSlot && createPortal(trigger, triggerSlot))}
 
       {open && (
         <div className="basemap-sheet-backdrop" role="dialog" aria-label="Basemap options">

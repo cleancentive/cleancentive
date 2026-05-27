@@ -30,6 +30,7 @@
   --red-500: #ef4444;
   --red-600: #dc2626;
   --red-700: #b91c1c;
+  --red-800: #7f1d1d;
 
   --amber-100: #fef3c7;
   --amber-200: #fde68a;
@@ -116,7 +117,7 @@
   /* Spot (not yet picked up) — red, "needs action" */
   --color-entity-spot: var(--red-500);
   --color-entity-spot-light: var(--red-300);
-  --color-entity-spot-dark: var(--red-700);
+  --color-entity-spot-dark: var(--red-800);
   --color-entity-spot-subtle: var(--red-50);
 
   /* Pick (collected litter) — green, "resolved / positive outcome" */
