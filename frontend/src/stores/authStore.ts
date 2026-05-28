@@ -39,6 +39,12 @@ interface AuthState {
   isLoading: boolean
   error: string | null
   guestReady: boolean
+  // requestId this tab is currently polling for, if any. Used as the binding
+  // key for the cross-tab BroadcastChannel sign-in: only a broadcast carrying
+  // *this exact* requestId applies the session here. Each independent sign-in
+  // attempt (a separate POST /auth/magic-link) gets its own requestId and
+  // must be resolved by its own link.
+  pendingAuthRequestId: string | null
 
   // Actions
   initializeGuest: () => Promise<void>
@@ -78,6 +84,43 @@ function clearPolling() {
   if (pollTimeoutId !== null) { clearTimeout(pollTimeoutId); pollTimeoutId = null }
 }
 
+// BroadcastChannel: when one tab signs in via magic link, sibling tabs in the
+// same browser profile receive the session instantly instead of waiting for
+// their 2s poll cycle. Same-origin same-profile — no cross-browser leak.
+const AUTH_CHANNEL_NAME = 'cleancentive-auth'
+const TITLE_FLASH_MS = 3000
+
+let authChannel: BroadcastChannel | null = null
+let originalTitle: string | null = null
+let titleFlashTimer: ReturnType<typeof setTimeout> | null = null
+
+function getAuthChannel(): BroadcastChannel | null {
+  if (typeof BroadcastChannel === 'undefined') return null
+  if (!authChannel) authChannel = new BroadcastChannel(AUTH_CHANNEL_NAME)
+  return authChannel
+}
+
+function flashTitle(): void {
+  if (typeof document === 'undefined') return
+  if (titleFlashTimer) clearTimeout(titleFlashTimer)
+  if (originalTitle === null) originalTitle = document.title
+  document.title = '✓ Signed in — ' + originalTitle
+  titleFlashTimer = setTimeout(() => {
+    if (originalTitle !== null) document.title = originalTitle
+    originalTitle = null
+    titleFlashTimer = null
+  }, TITLE_FLASH_MS)
+}
+
+interface BroadcastSessionMessage {
+  type: 'session'
+  // The pending auth requestId this sign-in completed. Only a sibling tab that
+  // was polling for *this exact* requestId may apply the session.
+  requestId: string
+  sessionToken: string
+  user: User
+}
+
 function startPolling(
   requestId: string,
   get: () => AuthState,
@@ -108,6 +151,7 @@ function startPolling(
           sessionToken,
           guestId: null,
           isLoading: false,
+          pendingAuthRequestId: null,
         })
         identifyUser((profileResponse.data as User).id, selectedEmails(profileResponse.data as User))
         localStorage.removeItem('guestId')
@@ -116,6 +160,7 @@ function startPolling(
       // 404 means expired/consumed — stop polling silently
       if (error.response?.status === 404) {
         clearPolling()
+        set({ pendingAuthRequestId: null })
       }
       // Other errors: keep polling
     }
@@ -131,6 +176,7 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
       guestReady: false,
+      pendingAuthRequestId: null,
 
       initializeGuest: async () => {
         // If already authenticated, skip guest initialization
@@ -171,6 +217,7 @@ export const useAuthStore = create<AuthState>()(
 
           const requestId = response.data.requestId as string | undefined
           if (requestId) {
+            set({ pendingAuthRequestId: requestId })
             startPolling(requestId, get, set)
           }
         } catch (error: any) {
@@ -184,11 +231,12 @@ export const useAuthStore = create<AuthState>()(
       verifyMagicLink: async (token: string) => {
         // This browser clicked the magic link — stop any active polling
         clearPolling()
-        set({ isLoading: true, error: null })
+        set({ isLoading: true, error: null, pendingAuthRequestId: null })
 
         try {
           const response = await axios.get(`${API_BASE}/auth/verify?token=${token}`)
           const sessionToken = response.headers['x-session-token']
+          const completedRequestId = response.data?.requestId as string | undefined
 
           const profileResponse = await axios.get(`${API_BASE}/user/profile`, {
             headers: { Authorization: `Bearer ${sessionToken}` },
@@ -200,6 +248,21 @@ export const useAuthStore = create<AuthState>()(
             guestId: null,
             isLoading: false
           })
+
+          // Tell sibling tabs in this browser they're signed in too — but only
+          // if they were polling for *this exact* requestId. Each independent
+          // sign-in attempt (separate POST /auth/magic-link) gets its own
+          // requestId and must be resolved by its own link. Without this
+          // binding, two tabs that both started a sign-in would both get
+          // signed in when only one link is clicked.
+          if (completedRequestId) {
+            getAuthChannel()?.postMessage({
+              type: 'session',
+              requestId: completedRequestId,
+              sessionToken,
+              user: profileResponse.data,
+            } satisfies BroadcastSessionMessage)
+          }
 
           trackEvent('sign-in-completed')
           identifyUser((profileResponse.data as User).id, selectedEmails(profileResponse.data as User))
@@ -214,6 +277,7 @@ export const useAuthStore = create<AuthState>()(
 
       cancelPendingAuth: () => {
         clearPolling()
+        set({ pendingAuthRequestId: null })
       },
 
       logout: () => {
@@ -223,7 +287,8 @@ export const useAuthStore = create<AuthState>()(
           sessionToken: null,
           guestId: null,
           guestReady: false,
-          error: null
+          error: null,
+          pendingAuthRequestId: null,
         })
         localStorage.removeItem('guestId')
         useUiStore.getState().setPickCount(0)
@@ -561,3 +626,34 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 )
+
+let broadcastListenerInstalled = false
+
+export function installAuthBroadcastListener(): void {
+  if (broadcastListenerInstalled) return
+  const channel = getAuthChannel()
+  if (!channel) return
+  broadcastListenerInstalled = true
+  channel.addEventListener('message', (ev: MessageEvent) => {
+    const data = ev.data as Partial<BroadcastSessionMessage> | undefined
+    if (data?.type !== 'session' || !data.sessionToken || !data.user || !data.requestId) return
+    const state = useAuthStore.getState()
+    if (state.sessionToken) return
+    // Apply only when this tab was waiting for *this exact* requestId. Tabs
+    // that initiated a different sign-in attempt (different requestId) or no
+    // attempt at all (null) must wait for their own magic link to be clicked.
+    if (state.pendingAuthRequestId !== data.requestId) return
+    clearPolling()
+    useAuthStore.setState({
+      user: data.user,
+      sessionToken: data.sessionToken,
+      guestId: null,
+      isLoading: false,
+      error: null,
+      pendingAuthRequestId: null,
+    })
+    localStorage.removeItem('guestId')
+    identifyUser(data.user.id, selectedEmails(data.user))
+    flashTitle()
+  })
+}

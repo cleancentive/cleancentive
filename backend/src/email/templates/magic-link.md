@@ -13,8 +13,13 @@ Or copy and paste this link into your browser:
 `{{link}}`
 
 ::: footer
-**Security Note:** This link will expire in 24 hours.
-If you didn't request this email, you can safely ignore it.
+**This sign-in was requested by:**
+
+- **Browser:** {{browser}}
+- **Location:** {{location}}
+- **Requested:** {{requestedAt}}
+
+If that wasn't you, ignore this email — the link is single-use and expires in 24 hours.
 
 CleanCentive — Environmental Cleanup Tracking
 :::

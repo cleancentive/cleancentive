@@ -9,6 +9,7 @@ import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
 import { PendingAuthRequest, PendingAuthStatus } from './pending-auth-request.entity';
 import { DeviceCode, DeviceCodeStatus } from './device-code.entity';
+import type { RequestMetadata } from './request-metadata';
 
 @Injectable()
 export class AuthService {
@@ -24,7 +25,12 @@ export class AuthService {
     private deviceCodeRepo: Repository<DeviceCode>,
   ) {}
 
-  async sendMagicLink(email: string, guestId?: string, origin?: string): Promise<{ requestId: string } | null> {
+  async sendMagicLink(
+    email: string,
+    guestId?: string,
+    origin?: string,
+    requestMetadata?: RequestMetadata,
+  ): Promise<{ requestId: string } | null> {
     const existingUser = await this.userService.findUserByEmail(email);
 
     let userId: string;
@@ -64,7 +70,7 @@ export class AuthService {
       expiresAt,
     });
 
-    await this.emailService.sendMagicLink(email, magicLink);
+    await this.emailService.sendMagicLink(email, magicLink, requestMetadata);
 
     return { requestId };
   }

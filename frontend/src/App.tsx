@@ -21,8 +21,13 @@ import { FeedbackPage } from './components/FeedbackPage'
 import { FeedbackNew } from './components/FeedbackNew'
 import { DeviceAuthPage } from './components/DeviceAuthPage'
 import { OidcAuthorize } from './components/OidcAuthorize'
-import { useAuthStore } from './stores/authStore'
+import { useAuthStore, installAuthBroadcastListener } from './stores/authStore'
 import './App.css'
+
+// Install the cross-tab broadcast listener once at module load so even tabs
+// that don't render the AuthHandler (e.g. /steward) react to a sign-in
+// happening in a sibling tab.
+installAuthBroadcastListener()
 
 function AuthHandler() {
   const { verifyMagicLink, refreshProfile, logout } = useAuthStore()
@@ -39,7 +44,15 @@ function AuthHandler() {
     }
 
     if (token) {
-      verifyMagicLink(token)
+      void verifyMagicLink(token).then(() => {
+        // After a successful magic-link verify, sibling tabs in this browser
+        // received the session via BroadcastChannel and are already signed in.
+        // Try to close this redundant tab — browsers block window.close() when
+        // the tab wasn't opened by a script (most email clicks), so this
+        // silently no-ops, and the tab simply remains as the user's signed-in
+        // view. The brief delay lets the broadcast fan out first.
+        setTimeout(() => { window.close() }, 600)
+      })
     } else if (emailAdded) {
       refreshProfile()
     } else if (merged) {

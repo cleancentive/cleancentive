@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { AdminGuard } from '../admin/admin.guard';
+import { buildRequestMetadata } from './request-metadata';
 
 @Controller('auth')
 @ApiTags('auth')
@@ -17,7 +18,11 @@ export class AuthController {
     @Body('guestId') guestId?: string,
   ): Promise<{ success: boolean; requestId?: string }> {
     const origin = req.headers.origin || req.headers.referer?.replace(/\/$/, '');
-    const result = await this.authService.sendMagicLink(email, guestId, origin);
+    // Capture the requester's browser + approximate location + time so the
+    // email can show them; lets the recipient distinguish their own sign-in
+    // attempt from someone else's attempted impersonation.
+    const requestMetadata = buildRequestMetadata(req);
+    const result = await this.authService.sendMagicLink(email, guestId, origin, requestMetadata);
     return { success: true, requestId: result?.requestId };
   }
 
@@ -31,7 +36,9 @@ export class AuthController {
     }
 
     res.setHeader('x-session-token', sessionToken);
-    res.json({ userId, email });
+    // requestId tells the magic-link tab which BroadcastChannel key to use so
+    // only sibling tabs polling for *this* requestId apply the session.
+    res.json({ userId, email, requestId });
   }
 
   @Get('pending/:requestId')

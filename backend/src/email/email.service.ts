@@ -42,9 +42,13 @@ export class EmailService {
     this.logger.log(`Email service initialized with SMTP host: ${host}:${port}`);
   }
 
-  async sendMagicLink(email: string, link: string): Promise<void> {
+  async sendMagicLink(
+    email: string,
+    link: string,
+    requestMetadata?: { browser: string; location: string; requestedAt: string },
+  ): Promise<void> {
     const fromAddress = this.configService.get<string>('SMTP_FROM', 'noreply@cleancentive.local');
-    const { html, text } = render(magicLinkMd(link), { theme: defaultTheme });
+    const { html, text } = render(magicLinkMd(link, requestMetadata), { theme: defaultTheme });
 
     try {
       const info = await this.transporter.sendMail({

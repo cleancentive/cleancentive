@@ -16,22 +16,28 @@ function interpolate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? '');
 }
 
-const magicLinkTpl = loadTemplate('magic-link');
-const recoveryTpl = loadTemplate('recovery');
-const mergeWarningTpl = loadTemplate('merge-warning');
-const communityMessageTpl = loadTemplate('community-message');
-const cleanupInviteTpl = loadTemplate('cleanup-invite');
+// Templates are re-read on each call so dev edits to .md files take effect
+// without restarting the backend (`bun --watch` only triggers on .ts changes).
+// Cost is a tiny readFileSync per email — negligible vs SMTP latency.
 
-export function magicLinkMd(link: string): string {
-  return interpolate(magicLinkTpl, { link });
+export function magicLinkMd(
+  link: string,
+  requestMetadata?: { browser: string; location: string; requestedAt: string },
+): string {
+  return interpolate(loadTemplate('magic-link'), {
+    link,
+    browser: requestMetadata?.browser ?? 'Unknown browser',
+    location: requestMetadata?.location ?? 'Unknown location',
+    requestedAt: requestMetadata?.requestedAt ?? '',
+  });
 }
 
 export function recoveryMd(link: string): string {
-  return interpolate(recoveryTpl, { link });
+  return interpolate(loadTemplate('recovery'), { link });
 }
 
 export function mergeWarningMd(link: string, requesterNickname: string): string {
-  return interpolate(mergeWarningTpl, { link, requesterNickname });
+  return interpolate(loadTemplate('merge-warning'), { link, requesterNickname });
 }
 
 export function cleanupInviteMd(payload: {
@@ -43,7 +49,7 @@ export function cleanupInviteMd(payload: {
   feedUrl: string;
   profileLink: string;
 }): string {
-  return interpolate(cleanupInviteTpl, payload);
+  return interpolate(loadTemplate('cleanup-invite'), payload);
 }
 
 export function communityMessageMd(payload: {
@@ -52,7 +58,7 @@ export function communityMessageMd(payload: {
   body: string;
   disclosure: string;
 }): string {
-  return interpolate(communityMessageTpl, {
+  return interpolate(loadTemplate('community-message'), {
     preheader: payload.preheader.replace(/"/g, '\\"'),
     title: payload.title,
     body: payload.body,

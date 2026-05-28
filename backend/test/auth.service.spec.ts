@@ -127,7 +127,8 @@ describe('AuthService', () => {
       );
       expect(emailService.sendMagicLink).toHaveBeenCalledWith(
         'test@example.com',
-        expect.stringContaining('auth/verify?token=jwt-token-123')
+        expect.stringContaining('auth/verify?token=jwt-token-123'),
+        undefined,
       );
     });
 
