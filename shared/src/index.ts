@@ -12,3 +12,9 @@ export {
 } from './geo/coords';
 export { PROCESSING_STATUS, type ProcessingStatus } from './spot/processing-status';
 export type { LitterDetectionJobData, DetectedObject, DetectionResult } from './detection/types';
+export {
+  lookupInvasive,
+  resetInfoFloraCache,
+  type InvasiveList,
+  type InfoFloraEntry,
+} from './infoflora/index';

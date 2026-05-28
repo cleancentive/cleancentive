@@ -29,7 +29,7 @@ import { AuthService } from '../auth/auth.service';
 import { UserService } from '../user/user.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ApiTags } from '@nestjs/swagger';
-import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters } from '@cleancentive/shared';
+import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters, lookupInvasive } from '@cleancentive/shared';
 
 type UploadFiles = {
   image?: Array<{ buffer: Buffer; mimetype: string; size: number }>;
@@ -39,6 +39,12 @@ type UploadFiles = {
 interface LabelRef {
   id: string;
   name: string;
+  scientificName?: string | null;
+}
+
+interface PlantInvasiveInfo {
+  list: 'infoflora_black' | 'infoflora_watch';
+  recommendedAction: string;
 }
 
 interface DetectedItemDto {
@@ -50,17 +56,7 @@ interface DetectedItemDto {
   humanVerified: boolean;
   weightGrams: number | null;
   confidence: number | null;
-}
-
-interface PlantIdentificationDto {
-  scientificName: string;
-  commonNameEn: string | null;
-  confidence: number | null;
-  identificationSource: string;
-  isInvasive: boolean;
-  invasiveList: string | null;
-  recommendedAction: string | null;
-  humanVerified: boolean;
+  plantInvasive: PlantInvasiveInfo | null;
 }
 
 interface SpotDto {
@@ -79,7 +75,6 @@ interface SpotDto {
   processingError: string | null;
   detectionCompletedAt: Date | null;
   items: DetectedItemDto[];
-  plantIdentification: PlantIdentificationDto | null;
 }
 
 @Controller('spots')
@@ -97,11 +92,14 @@ export class SpotController {
   private toLabelRef(label: any): LabelRef | null {
     if (!label) return null;
     const enTranslation = label.translations?.find((t: any) => t.locale === 'en');
-    return { id: label.id, name: enTranslation?.name ?? label.id };
+    return {
+      id: label.id,
+      name: enTranslation?.name ?? label.id,
+      ...(label.scientific_name ? { scientificName: label.scientific_name } : {}),
+    };
   }
 
   private toSpotDto(spot: any): SpotDto {
-    const pi = spot.plant_identification;
     return {
       id: spot.id,
       status: spot.processing_status,
@@ -117,28 +115,24 @@ export class SpotController {
       subjectKind: spot.subject_kind ?? 'litter',
       processingError: spot.processing_error,
       detectionCompletedAt: spot.detection_completed_at,
-      items: (spot.items ?? []).map((item: any) => ({
-        id: item.id,
-        objectLabel: this.toLabelRef(item.object_label),
-        materialLabel: this.toLabelRef(item.material_label),
-        brandLabel: this.toLabelRef(item.brand_label),
-        matchConfidence: item.match_confidence,
-        humanVerified: item.human_verified,
-        weightGrams: item.weight_grams,
-        confidence: item.confidence,
-      })),
-      plantIdentification: pi
-        ? {
-            scientificName: pi.scientific_name,
-            commonNameEn: pi.common_name_en,
-            confidence: pi.confidence,
-            identificationSource: pi.identification_source,
-            isInvasive: pi.is_invasive,
-            invasiveList: pi.invasive_list,
-            recommendedAction: pi.recommended_action,
-            humanVerified: pi.human_verified,
-          }
-        : null,
+      items: (spot.items ?? []).map((item: any) => {
+        const invasive = item.object_label?.scientific_name
+          ? lookupInvasive(item.object_label.scientific_name)
+          : null;
+        return {
+          id: item.id,
+          objectLabel: this.toLabelRef(item.object_label),
+          materialLabel: this.toLabelRef(item.material_label),
+          brandLabel: this.toLabelRef(item.brand_label),
+          matchConfidence: item.match_confidence,
+          humanVerified: item.human_verified,
+          weightGrams: item.weight_grams,
+          confidence: item.confidence,
+          plantInvasive: invasive
+            ? { list: invasive.list, recommendedAction: invasive.recommendedAction }
+            : null,
+        };
+      }),
     };
   }
 
@@ -470,24 +464,6 @@ export class SpotController {
       brandLabelId: item.brand_label_id,
       weightGrams: item.weight_grams,
       humanVerified: item.human_verified,
-    };
-  }
-
-  @Get(':id/plant-identification')
-  async getPlantIdentification(
-    @Param('id', ParseUUIDPipe) spotId: string,
-  ): Promise<PlantIdentificationDto> {
-    const pi = await this.spotService.getPlantIdentification(spotId);
-    if (!pi) throw new NotFoundException('Plant identification not found');
-    return {
-      scientificName: pi.scientific_name,
-      commonNameEn: pi.common_name_en,
-      confidence: pi.confidence,
-      identificationSource: pi.identification_source,
-      isInvasive: pi.is_invasive,
-      invasiveList: pi.invasive_list,
-      recommendedAction: pi.recommended_action,
-      humanVerified: pi.human_verified,
     };
   }
 

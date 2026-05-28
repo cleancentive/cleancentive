@@ -111,7 +111,7 @@ export function InsightsPage() {
           </article>
           <article className="insights-stat-card">
             <span className="insights-stat-value">{formatNumber(summary.totalSpots)}</span>
-            <span className="insights-stat-label">Picks</span>
+            <span className="insights-stat-label">Spots</span>
           </article>
           <article className="insights-stat-card">
             <span className="insights-stat-value">{formatNumber(summary.totalItems)}</span>
@@ -125,7 +125,7 @@ export function InsightsPage() {
       </fieldset>
 
       <fieldset className="page-card">
-        <legend>Picks Over Time</legend>
+        <legend>Spots Over Time</legend>
         <BarChart data={timeSeries.spots} valueKey="count" />
       </fieldset>
 

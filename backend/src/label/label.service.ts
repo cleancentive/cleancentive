@@ -22,8 +22,14 @@ export class LabelService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async searchLabels(type: string, search: string, locale: string, limit: number): Promise<LabelDto[]> {
-    const results = await this.translationRepository
+  async searchLabels(
+    type: string,
+    search: string,
+    locale: string,
+    limit: number,
+    subjectKind?: 'litter' | 'plant',
+  ): Promise<LabelDto[]> {
+    const qb = this.translationRepository
       .createQueryBuilder('lt')
       .innerJoin('lt.label', 'l')
       .select(['l.id AS id', 'lt.name AS name', 'l.type AS type'])
@@ -31,10 +37,15 @@ export class LabelService {
       .andWhere('lt.locale = :locale', { locale })
       .andWhere('lt.name ILIKE :search', { search: `%${search}%` })
       .orderBy('lt.name', 'ASC')
-      .limit(limit)
-      .getRawMany();
+      .limit(limit);
 
-    return results;
+    if (subjectKind === 'plant' && type === 'object') {
+      qb.andWhere('l.scientific_name IS NOT NULL');
+    } else if (subjectKind === 'litter' && type === 'object') {
+      qb.andWhere('l.scientific_name IS NULL');
+    }
+
+    return qb.getRawMany();
   }
 
   async getAllByType(locale: string): Promise<Record<string, LabelDto[]>> {

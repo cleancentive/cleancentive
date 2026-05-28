@@ -6,7 +6,6 @@ import { Spot } from './spot.entity';
 import { DetectedItem } from './detected-item.entity';
 import { DetectedItemEdit } from './detected-item-edit.entity';
 import { SpotEdit } from './spot-edit.entity';
-import { PlantIdentification } from './plant-identification.entity';
 import { AuthModule } from '../auth/auth.module';
 import { UserModule } from '../user/user.module';
 import { TeamModule } from '../team/team.module';
@@ -14,7 +13,7 @@ import { CleanupModule } from '../cleanup/cleanup.module';
 import { LabelModule } from '../label/label.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Spot, DetectedItem, DetectedItemEdit, SpotEdit, PlantIdentification]), AuthModule, UserModule, TeamModule, CleanupModule, LabelModule],
+  imports: [TypeOrmModule.forFeature([Spot, DetectedItem, DetectedItemEdit, SpotEdit]), AuthModule, UserModule, TeamModule, CleanupModule, LabelModule],
   controllers: [SpotController],
   providers: [SpotService],
   exports: [SpotService, TypeOrmModule],

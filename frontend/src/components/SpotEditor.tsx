@@ -80,17 +80,24 @@ export function SpotEditor({ spotId, pickedUp, items, subjectKind = 'litter', on
         )}
       </div>
 
-      {subjectKind === 'litter' && (
-        <div className="spot-editor-items">
-          <h4 className="spot-editor-items-title">Detected Items</h4>
-          {items.map((item) => (
-            <ItemEditor key={item.id} spotId={spotId} item={item} onUpdated={onSave} onRemoved={onSave} />
-          ))}
-          <button className="secondary-button spot-editor-add-item" onClick={addItem} disabled={addingItem}>
-            {addingItem ? 'Adding...' : '+ Add item'}
-          </button>
-        </div>
-      )}
+      <div className="spot-editor-items">
+        <h4 className="spot-editor-items-title">
+          {subjectKind === 'plant' ? 'Identified plant' : 'Detected Items'}
+        </h4>
+        {items.map((item) => (
+          <ItemEditor
+            key={item.id}
+            spotId={spotId}
+            item={item}
+            subjectKind={subjectKind}
+            onUpdated={onSave}
+            onRemoved={onSave}
+          />
+        ))}
+        <button className="secondary-button spot-editor-add-item" onClick={addItem} disabled={addingItem}>
+          {addingItem ? 'Adding...' : '+ Add item'}
+        </button>
+      </div>
 
       <button className="secondary-button spot-editor-close" onClick={onCancel}>
         Close

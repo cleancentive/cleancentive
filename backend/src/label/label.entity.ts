@@ -7,6 +7,9 @@ export class Label extends BaseEntity {
   @Column('varchar')
   type: 'object' | 'material' | 'brand';
 
+  @Column('varchar', { nullable: true })
+  scientific_name: string | null;
+
   @OneToMany('LabelTranslation', (t: any) => t.label, { eager: true })
   translations: any[];
 }

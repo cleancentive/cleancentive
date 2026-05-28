@@ -1,4 +1,4 @@
-import rawEntries from './data/infoflora-neophytes.json';
+import rawEntries from './neophytes.json';
 
 export type InvasiveList = 'infoflora_black' | 'infoflora_watch';
 

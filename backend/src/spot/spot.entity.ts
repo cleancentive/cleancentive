@@ -1,4 +1,4 @@
-import { Entity, Column, ManyToOne, OneToOne, JoinColumn, OneToMany, Index } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn, OneToMany, Index } from 'typeorm';
 import { BaseEntity } from '../common/base.entity';
 import { User } from '../user/user.entity';
 import { Team } from '../team/team.entity';
@@ -104,7 +104,4 @@ export class Spot extends BaseEntity {
 
   @OneToMany('DetectedItem', (item: any) => item.spot)
   items: any[];
-
-  @OneToOne('PlantIdentification', (pi: any) => pi.spot)
-  plant_identification: any | null;
 }

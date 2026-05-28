@@ -24,11 +24,12 @@ interface HistoryItem {
   detectionCompletedAt: string | null
   items: {
     id: string
-    objectLabel: { id: string; name: string } | null
+    objectLabel: { id: string; name: string; scientificName?: string | null } | null
     materialLabel: { id: string; name: string } | null
     brandLabel: { id: string; name: string } | null
     weightGrams: number | null
     confidence: number | null
+    plantInvasive: { list: 'infoflora_black' | 'infoflora_watch'; recommendedAction: string } | null
   }[]
 }
 
@@ -177,7 +178,10 @@ function formatDateTime(value: string): string {
 }
 
 function itemLabel(item: HistoryItem['items'][number]): string {
-  const parts = [item.objectLabel?.name, item.materialLabel?.name, item.brandLabel?.name].filter(Boolean)
+  const objectName = item.objectLabel?.name
+  const scientific = item.objectLabel?.scientificName
+  const head = scientific && objectName ? `${objectName} (${scientific})` : objectName
+  const parts = [head, item.materialLabel?.name, item.brandLabel?.name].filter(Boolean)
   return parts.length > 0 ? parts.join(' / ') : 'Unspecified item'
 }
 
@@ -194,6 +198,7 @@ export function HistoryPanel() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [editingSpotId, setEditingSpotId] = useState<string | null>(null)
+  const [expandedActions, setExpandedActions] = useState<Set<string>>(() => new Set())
   const [tickNow, setTickNow] = useState(() => Date.now())
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -481,21 +486,54 @@ export function HistoryPanel() {
                     )}
 
                     {serverItem?.status === 'completed' && serverItem.items.length === 0 && (
-                      <p className="history-meta">No detectable litter items were found.</p>
+                      <p className="history-meta">
+                        {serverItem.subjectKind === 'plant'
+                          ? 'Could not identify with confidence. Try a clearer leaf or flower photo.'
+                          : 'No detectable litter items were found.'}
+                      </p>
                     )}
 
                     {serverItem && serverItem.items.length > 0 && (
                       <ul className="history-items">
-                        {serverItem.items.map((detected) => (
-                          <li key={detected.id} className="history-item-row">
-                            <span>{itemLabel(detected)}</span>
-                            <span>
-                              {detected.weightGrams !== null ? `${Math.round(detected.weightGrams)} g` : ''}
-                              {detected.weightGrams !== null && detected.confidence !== null ? ' · ' : ''}
-                              {detected.confidence !== null ? `${Math.round(detected.confidence * 100)}%` : ''}
-                            </span>
-                          </li>
-                        ))}
+                        {serverItem.items.map((detected) => {
+                          const isExpanded = expandedActions.has(detected.id)
+                          return (
+                            <li key={detected.id} className="history-item-row">
+                              <span>
+                                {itemLabel(detected)}
+                                {detected.plantInvasive && (
+                                  <>
+                                    {' · '}
+                                    <span className={`plant-id-badge plant-id-badge--${detected.plantInvasive.list === 'infoflora_black' ? 'black' : 'watch'}`}>
+                                      Invasive — {detected.plantInvasive.list === 'infoflora_black' ? 'black list' : 'watch list'}
+                                    </span>
+                                    {' '}
+                                    <button
+                                      type="button"
+                                      className="link-button history-invasive-toggle"
+                                      onClick={() => setExpandedActions((prev) => {
+                                        const next = new Set(prev)
+                                        if (next.has(detected.id)) next.delete(detected.id)
+                                        else next.add(detected.id)
+                                        return next
+                                      })}
+                                    >
+                                      {isExpanded ? 'Hide' : 'How to remove'}
+                                    </button>
+                                  </>
+                                )}
+                              </span>
+                              <span>
+                                {detected.weightGrams !== null ? `${Math.round(detected.weightGrams)} g` : ''}
+                                {detected.weightGrams !== null && detected.confidence !== null ? ' · ' : ''}
+                                {detected.confidence !== null ? `${Math.round(detected.confidence * 100)}%` : ''}
+                              </span>
+                              {detected.plantInvasive && isExpanded && (
+                                <p className="plant-id-action history-invasive-action">{detected.plantInvasive.recommendedAction}</p>
+                              )}
+                            </li>
+                          )
+                        })}
                       </ul>
                     )}
                   </div>

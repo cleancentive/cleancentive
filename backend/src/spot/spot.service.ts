@@ -8,7 +8,6 @@ import { Spot, type SubjectKind } from './spot.entity';
 import { DetectedItem } from './detected-item.entity';
 import { DetectedItemEdit } from './detected-item-edit.entity';
 import { SpotEdit } from './spot-edit.entity';
-import { PlantIdentification } from './plant-identification.entity';
 import { TeamService } from '../team/team.service';
 import { CleanupService } from '../cleanup/cleanup.service';
 import { LabelService } from '../label/label.service';
@@ -78,8 +77,6 @@ export class SpotService {
     private readonly detectedItemEditRepository: Repository<DetectedItemEdit>,
     @InjectRepository(SpotEdit)
     private readonly spotEditRepository: Repository<SpotEdit>,
-    @InjectRepository(PlantIdentification)
-    private readonly plantIdentificationRepository: Repository<PlantIdentification>,
     private readonly dataSource: DataSource,
     private readonly teamService: TeamService,
     private readonly cleanupService: CleanupService,
@@ -311,7 +308,6 @@ export class SpotService {
     'items.object_label', 'items.object_label.translations',
     'items.material_label', 'items.material_label.translations',
     'items.brand_label', 'items.brand_label.translations',
-    'plant_identification',
   ];
 
   private async fetchSpotByOwner(spotId: string, ownerId: string): Promise<Spot> {
@@ -380,7 +376,6 @@ export class SpotService {
       .leftJoinAndSelect('materialLabel.translations', 'materialLabelTranslations')
       .leftJoinAndSelect('items.brand_label', 'brandLabel')
       .leftJoinAndSelect('brandLabel.translations', 'brandLabelTranslations')
-      .leftJoinAndSelect('spot.plant_identification', 'plantIdentification')
       .where('spot.user_id = :userId', { userId })
       .orderBy('spot.captured_at', 'DESC')
       .addOrderBy('spot.id', 'DESC')
@@ -626,9 +621,6 @@ export class SpotService {
   ): Promise<DetectedItem> {
     const spot = await this.spotRepository.findOne({ where: { id: spotId } });
     if (!spot) throw new NotFoundException('Spot not found');
-    if (spot.subject_kind === 'plant') {
-      throw new BadRequestException('Detected items are only valid on litter spots');
-    }
 
     const labelFields: Array<{ field: string; labelId?: string; type: string }> = [
       { field: 'object_label_id', labelId: input.objectLabelId, type: 'object' },
@@ -833,7 +825,4 @@ export class SpotService {
     );
   }
 
-  async getPlantIdentification(spotId: string): Promise<PlantIdentification | null> {
-    return this.plantIdentificationRepository.findOne({ where: { spot_id: spotId } });
-  }
 }

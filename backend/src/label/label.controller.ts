@@ -14,13 +14,16 @@ export class LabelController {
     @Query('search') search?: string,
     @Query('locale') locale?: string,
     @Query('limit') limitQuery?: string,
+    @Query('subjectKind') subjectKindQuery?: string,
   ) {
     const resolvedLocale = locale || 'en';
     const parsedLimit = parseInt(limitQuery || '20', 10);
     const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 20;
+    const subjectKind: 'litter' | 'plant' | undefined =
+      subjectKindQuery === 'plant' ? 'plant' : subjectKindQuery === 'litter' ? 'litter' : undefined;
 
     if (type && search) {
-      return this.labelService.searchLabels(type, search, resolvedLocale, limit);
+      return this.labelService.searchLabels(type, search, resolvedLocale, limit, subjectKind);
     }
 
     return this.labelService.getAllByType(resolvedLocale);

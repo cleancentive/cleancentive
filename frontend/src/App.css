@@ -1112,18 +1112,22 @@
   color: var(--text-muted);
 }
 
-.capture-plant-import {
-  margin: 0.25rem 0 0;
-  text-align: center;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
 .plant-id-card {
   border: 1px solid var(--border-color, #e5e7eb);
   border-radius: 8px;
   padding: 0.75rem 1rem;
   margin: 0.5rem 0;
+}
+
+.plant-id-card--probable {
+  border-style: dashed;
+}
+
+.plant-id-heading {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .plant-id-name {
@@ -1612,10 +1616,21 @@
 
 .history-item-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 0.5rem;
   color: var(--color-text);
   font-size: 0.9rem;
+}
+
+.history-invasive-toggle {
+  margin-top: 0;
+  font-size: inherit;
+}
+
+.history-invasive-action {
+  flex-basis: 100%;
+  margin: 0.25rem 0 0;
 }
 
 /* Desktop Navigation Links */

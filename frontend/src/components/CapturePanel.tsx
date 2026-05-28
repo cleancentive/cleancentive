@@ -413,18 +413,25 @@ export function CapturePanel() {
         />
 
         <div className="camera-actions">
-          <button
-            className="secondary-button"
-            onClick={() => triggerImport('litter')}
-            disabled={isImportingFile}
-          >
-            {isImportingFile ? 'Importing...' : 'Import Photo'}
-          </button>
-          <button
+        <button
             className={isCameraActive ? "secondary-button" : "primary-button"}
             onClick={isCameraActive ? stopCamera : startCamera}
           >
             {isCameraActive ? 'Stop Camera' : 'Enable Camera'}
+        </button>
+         <button
+            className="secondary-button"
+            onClick={() => triggerImport('litter')}
+            disabled={isImportingFile}
+          >
+            {isImportingFile ? 'Importing...' : 'Import Litter Photo'}
+          </button>
+          <button
+            className="secondary-button"
+            onClick={() => triggerImport('plant')}
+            disabled={isImportingFile}
+          >
+            {isImportingFile ? 'Importing...' : 'Import Plant Photo'}
           </button>
         </div>
 
@@ -439,34 +446,23 @@ export function CapturePanel() {
               >
                 {isCapturing
                   ? 'Capturing...'
-                  : `${pickedUp ? 'Log Pick' : 'Log Spot'}${lowConfidenceSuffix}`}
+                  : `${pickedUp ? 'Litter picked' : 'Litter spotted'}${lowConfidenceSuffix}`}
               </button>
               <button
-                className="secondary-button"
+                className="primary-button"
                 onClick={() => captureAndQueue('plant')}
                 disabled={isCapturing || locationTier === 'unknown'}
                 title="Identify an invasive plant from this photo"
               >
-                {isCapturing ? '...' : `Spot a plant${lowConfidenceSuffix}`}
+                {isCapturing
+                  ? 'Capturing...'
+                  : `${pickedUp ? 'Plant picked' : 'Plant spotted'}${lowConfidenceSuffix}`}
               </button>
             </div>
             <p className="capture-detail">
               Best plant ID results: close-up of leaf, flower, or whole plant — one species per photo.
             </p>
           </>
-        )}
-
-        {!isCameraActive && (
-          <p className="capture-plant-import">
-            <button
-              type="button"
-              className="link-button"
-              onClick={() => triggerImport('plant')}
-              disabled={isImportingFile}
-            >
-              Or import a photo of an invasive plant
-            </button>
-          </p>
         )}
         <canvas ref={captureCanvasRef} className="capture-canvas" />
       </div>

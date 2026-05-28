@@ -53,19 +53,21 @@ A single piece of litter identified by detection within a photo. Has properties:
 
 ### Subject Kind
 
-The discriminator on a Spot for what the Spot is *about*. Values: `'litter'` (default — existing litter pick/spot flow) or `'plant'` (an invasive-plant sighting). Drives which detection pipeline runs and how the Spot is rendered.
+The discriminator on a Spot for what the Spot is *about*. Values: `'litter'` (default — existing litter pick/spot flow) or `'plant'` (an invasive-plant sighting). Drives which detection pipeline runs (Pl@ntNet vs vision LLM), filters the map/insights views, and chooses how list items are labelled. Detail rows are unified — both subjects use the same `DetectedItem` model.
 
 - **Code:** `spots.subject_kind` column; `'litter' | 'plant'` enum
 
 ### Plant Identification
 
-The result of running Pl@ntNet (or another plant-recognition model) on a plant Spot. Holds the scientific name, common name, confidence score, and — when the species matches a Swiss invasive list — invasive flag and recommended action. One row per plant Spot.
+Stored as a `DetectedItem` whose `object_label` has `scientific_name` set (the species' Latin name). Material is **Plant matter**. Brand is null. Weight is user-editable. The english common name from Pl@ntNet (or a manual edit) lives in the label's en translation, just like litter object labels. There is no separate `plant_identifications` table.
 
-- **Code entity:** `PlantIdentification`
+Invasive metadata (black/watch list, recommended action) is derived at read time by looking the scientific name up in the InfoFlora dataset — it's not denormalized into the database.
+
+- **Code:** `labels.scientific_name` (nullable varchar; non-null marks a species label); shared/src/infoflora for the lookup helper.
 
 ### Neophyte / Invasive Plant
 
-A non-native plant species on InfoFlora's black list (high impact, eradicate) or watch list (monitor). The list and per-species recommended action come from [InfoFlora](https://www.infoflora.ch/de/neophyten/) and ship as a curated JSON in the backend. User-facing label: "Invasive plant".
+A non-native plant species on InfoFlora's black list (high impact, eradicate) or watch list (monitor). The list and per-species recommended action come from [InfoFlora](https://www.infoflora.ch/de/neophyten/) and ship as a curated JSON in `shared/src/infoflora/neophytes.json`. User-facing label: "Invasive plant".
 
 - **UI examples:** "Invasive plant — black list", "Recommended action: …"
 

@@ -7,6 +7,12 @@ import { API_BASE } from '../lib/apiBase'
 export interface LabelRef {
   id: string
   name: string
+  scientificName?: string | null
+}
+
+export interface PlantInvasiveInfo {
+  list: 'infoflora_black' | 'infoflora_watch'
+  recommendedAction: string
 }
 
 export interface DetectedItemData {
@@ -15,6 +21,8 @@ export interface DetectedItemData {
   materialLabel: LabelRef | null
   brandLabel: LabelRef | null
   weightGrams: number | null
+  confidence?: number | null
+  plantInvasive?: PlantInvasiveInfo | null
 }
 
 interface LabelSearchResult {
@@ -27,11 +35,13 @@ export function LabelAutocomplete({
   label,
   type,
   value,
+  subjectKind,
   onChange,
 }: {
   label: string
   type: string
   value: LabelRef | null
+  subjectKind?: 'litter' | 'plant'
   onChange: (val: LabelRef | null) => void
 }) {
   const { sessionToken } = useAuthStore()
@@ -53,16 +63,20 @@ export function LabelAutocomplete({
     if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
 
     const params = new URLSearchParams({ type, search: q, limit: '10' })
+    if (subjectKind) params.set('subjectKind', subjectKind)
     try {
       const res = await fetch(`${API_BASE}/labels?${params}`, { headers })
       if (res.ok) {
         const data = await res.json() as LabelSearchResult[]
         setResults(data)
         const exactMatch = data.some(r => r.name.toLowerCase() === q.toLowerCase())
-        setShowAddOption(!exactMatch && q.trim().length > 0)
+        // Suppress "Add" for plant species — the create endpoint can't set scientific_name,
+        // so a new label here wouldn't be findable from plant-subject autocomplete.
+        const suppressAdd = subjectKind === 'plant' && type === 'object'
+        setShowAddOption(!suppressAdd && !exactMatch && q.trim().length > 0)
       }
     } catch { /* ignore */ }
-  }, [sessionToken, type])
+  }, [sessionToken, type, subjectKind])
 
   const handleInput = (text: string) => {
     setQuery(text)
@@ -156,11 +170,13 @@ export function LabelAutocomplete({
 export function ItemEditor({
   spotId,
   item,
+  subjectKind,
   onUpdated,
   onRemoved,
 }: {
   spotId: string
   item: DetectedItemData
+  subjectKind?: 'litter' | 'plant'
   onUpdated: () => void
   onRemoved: () => void
 }) {
@@ -228,11 +244,36 @@ export function ItemEditor({
     }
   }
 
+  const invasiveListLabel = item.plantInvasive?.list === 'infoflora_black'
+    ? 'Black list'
+    : item.plantInvasive?.list === 'infoflora_watch' ? 'Watch list' : null
+
   return (
     <div className="item-editor">
-      <LabelAutocomplete label="Object" type="object" value={objectLabel} onChange={setObjectLabel} />
-      <LabelAutocomplete label="Material" type="material" value={materialLabel} onChange={setMaterialLabel} />
-      <LabelAutocomplete label="Brand" type="brand" value={brandLabel} onChange={setBrandLabel} />
+      <LabelAutocomplete
+        label={subjectKind === 'plant' ? 'Species' : 'Object'}
+        type="object"
+        value={objectLabel}
+        subjectKind={subjectKind}
+        onChange={setObjectLabel}
+      />
+      {subjectKind !== 'plant' && (
+        <>
+          <LabelAutocomplete
+            label="Material"
+            type="material"
+            value={materialLabel}
+            onChange={setMaterialLabel}
+          />
+          <LabelAutocomplete label="Brand" type="brand" value={brandLabel} onChange={setBrandLabel} />
+        </>
+      )}
+      {item.plantInvasive && (
+        <div className={`plant-id-badge plant-id-badge--${item.plantInvasive.list === 'infoflora_black' ? 'black' : 'watch'}`}>
+          Invasive plant — InfoFlora {invasiveListLabel}
+          <p className="plant-id-action">{item.plantInvasive.recommendedAction}</p>
+        </div>
+      )}
       <div className="item-editor-weight">
         <label className="label-autocomplete-label">Weight (g)</label>
         <input

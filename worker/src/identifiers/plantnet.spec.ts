@@ -1,6 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import { PlantNetIdentifier } from './plantnet';
-import { lookupInvasive } from '../infoflora';
+import { lookupInvasive } from '@cleancentive/shared/infoflora';
 
 const originalFetch = globalThis.fetch;
 
@@ -50,10 +50,19 @@ describe('PlantNetIdentifier', () => {
     expect(result.confidence).toBe(0.3);
   });
 
-  test('throws on non-2xx response', async () => {
-    mockFetch({ ok: false, status: 429, body: { error: 'rate limited' } });
+  test('returns no-match for 4xx (e.g. 404 species not found)', async () => {
+    mockFetch({ ok: false, status: 404, body: { statusCode: 404, error: 'Not Found', message: 'Species not found' } });
     const id = new PlantNetIdentifier('key', 'https://example.test/v2', 'weurope', 0.6);
-    await expect(id.identify(new Uint8Array([0xff]), 'image/jpeg')).rejects.toThrow(/429/);
+    const result = await id.identify(new Uint8Array([0xff]), 'image/jpeg');
+    expect(result.scientificName).toBeNull();
+    expect(result.confidence).toBeNull();
+    expect((result.raw as any).httpStatus).toBe(404);
+  });
+
+  test('throws on 5xx so BullMQ retries', async () => {
+    mockFetch({ ok: false, status: 503, body: { error: 'unavailable' } });
+    const id = new PlantNetIdentifier('key', 'https://example.test/v2', 'weurope', 0.6);
+    await expect(id.identify(new Uint8Array([0xff]), 'image/jpeg')).rejects.toThrow(/503/);
   });
 
   test('InfoFlora flags an identified Japanese knotweed as black-list', () => {

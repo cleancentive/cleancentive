@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
-import { lookupInvasive, resetInfoFloraCache } from './infoflora';
+import { lookupInvasive, resetInfoFloraCache } from './index';
 
 describe('lookupInvasive', () => {
   beforeEach(() => {

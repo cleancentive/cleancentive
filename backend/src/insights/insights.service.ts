@@ -9,6 +9,7 @@ import { Team } from '../team/team.entity';
 import { Cleanup } from '../cleanup/cleanup.entity';
 import { redisConnection } from '../common/redis-connection';
 import type { ProcessingStatus } from '@cleancentive/shared';
+import { lookupInvasive } from '@cleancentive/shared';
 
 interface TimeSeriesEntry {
   week: string;
@@ -101,15 +102,19 @@ export class InsightsService {
                  JOIN labels l2 ON l2.id = di2.object_label_id
                  JOIN label_translations lt2 ON lt2.label_id = l2.id AND lt2.locale = 'en'
                  WHERE di2.spot_id = s.id ORDER BY di2.weight_grams DESC NULLS LAST LIMIT 1) AS top_category,
-                pi.common_name_en AS plant_common_name,
-                pi.scientific_name AS plant_scientific_name,
-                pi.is_invasive AS plant_is_invasive,
-                pi.invasive_list AS plant_invasive_list
+                (SELECT lt3.name FROM detected_items di3
+                 JOIN labels l3 ON l3.id = di3.object_label_id
+                 JOIN label_translations lt3 ON lt3.label_id = l3.id AND lt3.locale = 'en'
+                 WHERE di3.spot_id = s.id AND l3.scientific_name IS NOT NULL
+                 ORDER BY di3.confidence DESC NULLS LAST LIMIT 1) AS plant_common_name,
+                (SELECT l4.scientific_name FROM detected_items di4
+                 JOIN labels l4 ON l4.id = di4.object_label_id
+                 WHERE di4.spot_id = s.id AND l4.scientific_name IS NOT NULL
+                 ORDER BY di4.confidence DESC NULLS LAST LIMIT 1) AS plant_scientific_name
          FROM spots s
          LEFT JOIN detected_items di ON di.spot_id = s.id
-         LEFT JOIN plant_identifications pi ON pi.spot_id = s.id
          ${where}
-         GROUP BY s.id, pi.common_name_en, pi.scientific_name, pi.is_invasive, pi.invasive_list
+         GROUP BY s.id
          ORDER BY s.captured_at DESC
          LIMIT 5000`,
         params,
@@ -130,24 +135,27 @@ export class InsightsService {
 
     const spots = {
       type: 'FeatureCollection',
-      features: spotRows.map((r: any) => ({
-        type: 'Feature' as const,
-        geometry: { type: 'Point' as const, coordinates: [Number(r.longitude), Number(r.latitude)] },
-        properties: {
-          id: r.id,
-          capturedAt: r.captured_at,
-          itemCount: Number(r.item_count),
-          totalWeight: Number(r.total_weight),
-          topObject: r.top_category,
-          status: r.processing_status,
-          pickedUp: r.picked_up,
-          subjectKind: r.subject_kind ?? 'litter',
-          plantCommonName: r.plant_common_name,
-          plantScientificName: r.plant_scientific_name,
-          plantIsInvasive: r.plant_is_invasive ?? false,
-          plantInvasiveList: r.plant_invasive_list,
-        },
-      })),
+      features: spotRows.map((r: any) => {
+        const invasive = r.plant_scientific_name ? lookupInvasive(r.plant_scientific_name) : null;
+        return {
+          type: 'Feature' as const,
+          geometry: { type: 'Point' as const, coordinates: [Number(r.longitude), Number(r.latitude)] },
+          properties: {
+            id: r.id,
+            capturedAt: r.captured_at,
+            itemCount: Number(r.item_count),
+            totalWeight: Number(r.total_weight),
+            topObject: r.top_category,
+            status: r.processing_status,
+            pickedUp: r.picked_up,
+            subjectKind: r.subject_kind ?? 'litter',
+            plantCommonName: r.plant_common_name,
+            plantScientificName: r.plant_scientific_name,
+            plantIsInvasive: invasive !== null,
+            plantInvasiveList: invasive?.list ?? null,
+          },
+        };
+      }),
     };
 
     const cleanupLocations = {
