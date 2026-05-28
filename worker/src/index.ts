@@ -5,7 +5,7 @@ import { Pool, PoolClient } from 'pg';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { hostname } from 'os';
 import sharp from 'sharp';
-import { PROCESSING_STATUS } from '@cleancentive/shared';
+import { PROCESSING_STATUS, clampWeightGrams } from '@cleancentive/shared';
 import type { LitterDetectionJobData, DetectedObject, DetectionResult } from '@cleancentive/shared';
 import { persistDetection as persistDetectionToDb } from './detection';
 import { PlantNetIdentifier } from './identifiers/plantnet';
@@ -205,7 +205,7 @@ function normalizeObjects(rawObjects: unknown): DetectedObject[] {
         category: asOptionalString(value.category),
         material: asOptionalString(value.material),
         brand: asOptionalString(value.brand),
-        weightGrams: asOptionalNumber(value.weightGrams),
+        weightGrams: clampWeightGrams(asOptionalNumber(value.weightGrams)),
         confidence: normalizeConfidence(value.confidence),
       };
     })

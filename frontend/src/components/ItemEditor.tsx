@@ -279,7 +279,7 @@ export function ItemEditor({
         <input
           className="label-autocomplete-input"
           type="number"
-          min="0"
+          min="1"
           step="1"
           value={weight}
           onChange={(e) => setWeight(e.target.value)}

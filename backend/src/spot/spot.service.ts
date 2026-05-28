@@ -13,7 +13,7 @@ import { CleanupService } from '../cleanup/cleanup.service';
 import { LabelService } from '../label/label.service';
 import { redisConnection } from '../common/redis-connection';
 import { createS3Client } from '../common/s3-client';
-import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters } from '@cleancentive/shared';
+import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters, clampWeightGrams } from '@cleancentive/shared';
 
 interface CreateSpotInput {
   userId: string;
@@ -589,7 +589,7 @@ export class SpotService {
 
       if (updates.weightGrams !== undefined) {
         const oldWeight = item.weight_grams;
-        const newWeight = updates.weightGrams;
+        const newWeight = clampWeightGrams(updates.weightGrams);
         if (oldWeight !== newWeight) {
           const edit = this.detectedItemEditRepository.create({
             detected_item_id: itemId,
@@ -634,13 +634,15 @@ export class SpotService {
       if (!label) throw new BadRequestException(`Invalid ${type} label ID`);
     }
 
+    const weightGrams = clampWeightGrams(input.weightGrams);
+
     return this.dataSource.transaction(async (manager) => {
       const item = this.detectedItemRepository.create({
         spot_id: spotId,
         object_label_id: input.objectLabelId ?? null,
         material_label_id: input.materialLabelId ?? null,
         brand_label_id: input.brandLabelId ?? null,
-        weight_grams: input.weightGrams ?? null,
+        weight_grams: weightGrams,
         human_verified: true,
         source_model: 'manual',
       });
@@ -658,12 +660,12 @@ export class SpotService {
         await manager.save(edit);
       }
 
-      if (input.weightGrams !== undefined && input.weightGrams !== null) {
+      if (weightGrams !== null) {
         const edit = this.detectedItemEditRepository.create({
           detected_item_id: saved.id,
           field_changed: 'weight_grams',
           old_value: null,
-          new_value: String(input.weightGrams),
+          new_value: String(weightGrams),
           created_by: userId,
         });
         await manager.save(edit);

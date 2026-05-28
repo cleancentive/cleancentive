@@ -7,6 +7,7 @@ export interface InfoFloraEntry {
   commonNameEn: string;
   list: InvasiveList;
   recommendedAction: string;
+  typicalWeightGrams: number;
 }
 
 interface RawEntry {
@@ -14,6 +15,7 @@ interface RawEntry {
   common_name_en: string;
   list: 'black' | 'watch';
   recommended_action: string;
+  typical_weight_grams: number;
 }
 
 function normalizeName(name: string): string {
@@ -28,6 +30,7 @@ function buildIndex(): Map<string, InfoFloraEntry> {
       commonNameEn: entry.common_name_en,
       list: entry.list === 'black' ? 'infoflora_black' : 'infoflora_watch',
       recommendedAction: entry.recommended_action,
+      typicalWeightGrams: entry.typical_weight_grams,
     });
   }
   return index;

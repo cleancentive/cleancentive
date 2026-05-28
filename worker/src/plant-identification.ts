@@ -1,6 +1,6 @@
 import { v7 as uuidv7 } from 'uuid';
 import type { PoolClient } from 'pg';
-import { PROCESSING_STATUS } from '@cleancentive/shared';
+import { PROCESSING_STATUS, clampWeightGrams, lookupInvasive } from '@cleancentive/shared';
 import type { PlantIdentificationResult } from './identifiers/types';
 
 const PLANT_MATTER_MATERIAL_NAME = 'Plant matter';
@@ -70,6 +70,8 @@ export async function persistPlantIdentification(
       userId,
     );
     const materialLabelId = await resolvePlantMatterMaterialId(client);
+    const invasive = lookupInvasive(result.scientificName);
+    const weightGrams = clampWeightGrams(invasive?.typicalWeightGrams ?? null);
 
     await client.query(
       `INSERT INTO detected_items (
@@ -78,8 +80,8 @@ export async function persistPlantIdentification(
          weight_grams, confidence, source_model
        ) VALUES ($1, NOW(), NOW(), $2, $2,
          $3, $4, $5, NULL,
-         NULL, $6, $7)`,
-      [uuidv7(), userId, spotId, objectLabelId, materialLabelId, result.confidence, result.source],
+         $6, $7, $8)`,
+      [uuidv7(), userId, spotId, objectLabelId, materialLabelId, weightGrams, result.confidence, result.source],
     );
   }
 
