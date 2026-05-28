@@ -5,7 +5,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useMapStore } from '../stores/mapStore'
 import { useAuthStore } from '../stores/authStore'
-import { useInsightsFilterStore, presetToSince, pickedUpFilterToParam } from '../stores/insightsFilterStore'
+import { useInsightsFilterStore, presetToSince, pickedUpFilterToParam, subjectFilterToParam } from '../stores/insightsFilterStore'
 import { useBasemapStore } from '../stores/basemapStore'
 import { resolveBasemapTheme, type ResolvedBasemap } from '../config/basemaps'
 import { BasemapSwitcher } from './BasemapSwitcher'
@@ -44,15 +44,33 @@ function openSpotPopup(
   const geometry = feature.geometry as GeoJSON.Point
   const coords = popupCoord ?? (geometry.coordinates.slice() as [number, number])
   const p = feature.properties || {}
+
+  let body: string
+  if (p.subjectKind === 'plant') {
+    const title = p.plantCommonName || p.plantScientificName || (p.pickedUp ? 'Plant removed' : 'Plant spot')
+    const invasiveBadge = p.plantIsInvasive
+      ? `<span class="map-popup-invasive">Invasive — ${p.plantInvasiveList === 'infoflora_black' ? 'black list' : 'watch list'}</span>`
+      : ''
+    body = `
+      <strong>${title}</strong>
+      ${p.plantScientificName && p.plantCommonName ? `<span><em>${p.plantScientificName}</em></span>` : ''}
+      ${invasiveBadge}
+      <span>${formatDate(p.capturedAt)}</span>
+      <a class="map-popup-link" href="/spots/${p.id}">Open spot &rarr;</a>
+    `
+  } else {
+    body = `
+      <strong>${p.topObject ? String(p.topObject).replace(/_/g, ' ') : (p.pickedUp === false ? 'Spot' : 'Pick')}</strong>
+      <span>${formatDate(p.capturedAt)}</span>
+      <span>${p.itemCount} item${p.itemCount !== 1 ? 's' : ''} detected</span>
+      <a class="map-popup-link" href="/spots/${p.id}">Open spot &rarr;</a>
+    `
+  }
+
   const html = `
     <div class="map-popup">
       <img src="${API_BASE}/spots/${p.id}/thumbnail" alt="" class="map-popup-thumb" />
-      <div class="map-popup-info">
-        <strong>${p.topObject ? String(p.topObject).replace(/_/g, ' ') : (p.pickedUp === false ? 'Spot' : 'Pick')}</strong>
-        <span>${formatDate(p.capturedAt)}</span>
-        <span>${p.itemCount} item${p.itemCount !== 1 ? 's' : ''} detected</span>
-        <a class="map-popup-link" href="/spots/${p.id}">Open spot &rarr;</a>
-      </div>
+      <div class="map-popup-info">${body}</div>
     </div>
   `
   const popup = new maplibregl.Popup({ offset: 10 }).setLngLat(coords).setHTML(html).addTo(map)
@@ -200,7 +218,7 @@ export function MapPage() {
     heatMetric, setHeatMetric,
   } = useMapStore()
   const { user } = useAuthStore()
-  const { datePreset, pickedUpFilter, myFilter, cleanupFilter } = useInsightsFilterStore()
+  const { datePreset, pickedUpFilter, myFilter, cleanupFilter, subjectFilter } = useInsightsFilterStore()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { copy, copied } = useCopyToClipboard()
@@ -215,6 +233,7 @@ export function MapPage() {
     initialUrlStateRef.current = parsed
     if (parsed.datePreset !== undefined) useInsightsFilterStore.setState({ datePreset: parsed.datePreset })
     if (parsed.pickedUpFilter !== undefined) useInsightsFilterStore.setState({ pickedUpFilter: parsed.pickedUpFilter })
+    if (parsed.subjectFilter !== undefined) useInsightsFilterStore.setState({ subjectFilter: parsed.subjectFilter })
     if (parsed.myFilter !== undefined) useInsightsFilterStore.setState({ myFilter: parsed.myFilter })
     if (parsed.cleanupFilter !== undefined) useInsightsFilterStore.setState({ cleanupFilter: parsed.cleanupFilter })
     if (parsed.heatMetric !== undefined) useMapStore.setState({ heatMetric: parsed.heatMetric })
@@ -249,13 +268,14 @@ export function MapPage() {
       since: presetToSince(datePreset),
       picked_up: pickedUpFilterToParam(pickedUpFilter),
       user_id: myFilter ? user?.id : undefined,
+      subject_kind: subjectFilterToParam(subjectFilter),
     })
-  }, [fetchMapData, teamId, cleanupId, cleanupDateId, datePreset, pickedUpFilter, myFilter, user?.id])
+  }, [fetchMapData, teamId, cleanupId, cleanupDateId, datePreset, pickedUpFilter, myFilter, user?.id, subjectFilter])
 
   // Reset userInteracted when filters change so auto-fit fires again
   useEffect(() => {
     userInteractedRef.current = false
-  }, [teamId, cleanupId, cleanupDateId, datePreset, pickedUpFilter, myFilter])
+  }, [teamId, cleanupId, cleanupDateId, datePreset, pickedUpFilter, myFilter, subjectFilter])
 
   // Initialize map once
   useEffect(() => {
@@ -337,7 +357,7 @@ export function MapPage() {
         id: 'picks-heat',
         type: 'heatmap',
         source: 'spots-heat-source',
-        filter: ['==', ['get', 'pickedUp'], true],
+        filter: ['all', ['==', ['get', 'pickedUp'], true], ['==', ['get', 'subjectKind'], 'litter']],
         paint: {
           'heatmap-weight': ['coalesce', ['get', heatProp], 1],
           'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.4, 11, 2, 22, 3],
@@ -363,7 +383,7 @@ export function MapPage() {
         id: 'spots-heat',
         type: 'heatmap',
         source: 'spots-heat-source',
-        filter: ['==', ['get', 'pickedUp'], false],
+        filter: ['all', ['==', ['get', 'pickedUp'], false], ['==', ['get', 'subjectKind'], 'litter']],
         paint: {
           'heatmap-weight': ['coalesce', ['get', heatProp], 1],
           'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.4, 11, 2, 22, 3],
@@ -440,7 +460,7 @@ export function MapPage() {
         id: 'unclustered-pick',
         type: 'circle',
         source: 'spots-source',
-        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'pickedUp'], true]],
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'pickedUp'], true], ['==', ['get', 'subjectKind'], 'litter']],
         paint: {
           'circle-color': pickDark,
           'circle-radius': 11,
@@ -457,7 +477,7 @@ export function MapPage() {
         id: 'unclustered-spot',
         type: 'circle',
         source: 'spots-source',
-        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'pickedUp'], false]],
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'pickedUp'], false], ['==', ['get', 'subjectKind'], 'litter']],
         paint: {
           'circle-color': spotDark,
           'circle-radius': 11,
@@ -472,9 +492,52 @@ export function MapPage() {
         id: 'unclustered-pick-glyph',
         type: 'symbol',
         source: 'spots-source',
-        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'pickedUp'], true]],
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'pickedUp'], true], ['==', ['get', 'subjectKind'], 'litter']],
         layout: {
           'text-field': '✓',
+          'text-font': ['Open Sans Semibold'],
+          'text-size': 13,
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: { 'text-color': '#ffffff' },
+      })
+
+      // Plant markers: neutral slate fill for picked + non-invasive spots, amber
+      // for unpicked invasive spots. Distinct from emerald/red litter colors and
+      // from the litter heatmap peaks — see feedback_map_marker_heat_contrast.
+      map.addLayer({
+        id: 'unclustered-plant-invasive',
+        type: 'circle',
+        source: 'spots-source',
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'subjectKind'], 'plant'], ['==', ['get', 'plantIsInvasive'], true], ['==', ['get', 'pickedUp'], false]],
+        paint: {
+          'circle-color': '#d97706',
+          'circle-radius': 11,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff',
+        },
+      })
+      map.addLayer({
+        id: 'unclustered-plant-other',
+        type: 'circle',
+        source: 'spots-source',
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'subjectKind'], 'plant'], ['any', ['==', ['get', 'plantIsInvasive'], false], ['==', ['get', 'pickedUp'], true]]],
+        paint: {
+          'circle-color': '#475569',
+          'circle-radius': 11,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff',
+        },
+      })
+      map.addLayer({
+        id: 'unclustered-plant-glyph',
+        type: 'symbol',
+        source: 'spots-source',
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'subjectKind'], 'plant']],
+        layout: {
+          'text-field': ['case', ['==', ['get', 'plantIsInvasive'], true], '!', '⚘',
+          ],
           'text-font': ['Open Sans Semibold'],
           'text-size': 13,
           'text-allow-overlap': true,
@@ -750,14 +813,14 @@ export function MapPage() {
   // replaceState rather than a destructive write.
   useEffect(() => {
     const next = serializeMapState({
-      datePreset, pickedUpFilter, myFilter, cleanupFilter, heatMetric,
+      datePreset, pickedUpFilter, subjectFilter, myFilter, cleanupFilter, heatMetric,
       view: viewState ?? undefined,
     })
     // Avoid a redundant replaceState when nothing changed (cheap string compare).
     if (next.toString() !== searchParams.toString()) {
       setSearchParams(next, { replace: true })
     }
-  }, [datePreset, pickedUpFilter, myFilter, cleanupFilter, heatMetric, viewState, searchParams, setSearchParams])
+  }, [datePreset, pickedUpFilter, subjectFilter, myFilter, cleanupFilter, heatMetric, viewState, searchParams, setSearchParams])
 
   const handleShare = useCallback(() => {
     copy(window.location.href)

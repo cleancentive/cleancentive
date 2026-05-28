@@ -40,6 +40,7 @@ import { Label } from './label/label.entity';
 import { LabelTranslation } from './label/label-translation.entity';
 import { DetectedItemEdit } from './spot/detected-item-edit.entity';
 import { SpotEdit } from './spot/spot-edit.entity';
+import { PlantIdentification } from './spot/plant-identification.entity';
 import { LabelModule } from './label/label.module';
 import { OidcModule } from './oidc/oidc.module';
 import { OidcAuthorizationCode, OidcRefreshToken, OidcClient } from './oidc/oidc.entity';
@@ -87,6 +88,7 @@ import { SystemModule } from './system/system.module';
         LabelTranslation,
         DetectedItemEdit,
         SpotEdit,
+        PlantIdentification,
         OidcAuthorizationCode,
         OidcRefreshToken,
         OidcClient,

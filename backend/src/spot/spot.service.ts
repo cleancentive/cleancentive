@@ -4,10 +4,11 @@ import { DataSource, Repository } from 'typeorm';
 import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
 import { S3Client, PutObjectCommand, HeadBucketCommand, CreateBucketCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { Spot } from './spot.entity';
+import { Spot, type SubjectKind } from './spot.entity';
 import { DetectedItem } from './detected-item.entity';
 import { DetectedItemEdit } from './detected-item-edit.entity';
 import { SpotEdit } from './spot-edit.entity';
+import { PlantIdentification } from './plant-identification.entity';
 import { TeamService } from '../team/team.service';
 import { CleanupService } from '../cleanup/cleanup.service';
 import { LabelService } from '../label/label.service';
@@ -28,6 +29,7 @@ interface CreateSpotInput {
   pickedUp?: boolean;
   cleanupId?: string | null;
   cleanupDateId?: string | null;
+  subjectKind?: SubjectKind;
 }
 
 interface CreateSpotResult {
@@ -76,6 +78,8 @@ export class SpotService {
     private readonly detectedItemEditRepository: Repository<DetectedItemEdit>,
     @InjectRepository(SpotEdit)
     private readonly spotEditRepository: Repository<SpotEdit>,
+    @InjectRepository(PlantIdentification)
+    private readonly plantIdentificationRepository: Repository<PlantIdentification>,
     private readonly dataSource: DataSource,
     private readonly teamService: TeamService,
     private readonly cleanupService: CleanupService,
@@ -219,6 +223,7 @@ export class SpotService {
       picked_up: input.pickedUp ?? true,
       pick_session_id: pickSessionId,
       image_sha256: imageSha256,
+      subject_kind: input.subjectKind ?? 'litter',
     });
 
     const savedSpot = await this.spotRepository.save(spot);
@@ -268,12 +273,13 @@ export class SpotService {
 
     try {
       await this.detectionQueue.add(
-        'detect-litter',
+        savedSpot.subject_kind === 'plant' ? 'identify-plant' : 'detect-litter',
         {
           spotId: savedSpot.id,
           userId: savedSpot.user_id,
           imageKey: savedSpot.image_key,
           mimeType: savedSpot.mime_type,
+          subjectKind: savedSpot.subject_kind,
         },
         {
           jobId: savedSpot.id,
@@ -288,7 +294,7 @@ export class SpotService {
       );
     } catch {
       savedSpot.processing_status = PROCESSING_STATUS.FAILED;
-      savedSpot.processing_error = 'Failed to enqueue litter detection job';
+      savedSpot.processing_error = 'Failed to enqueue detection job';
       await this.spotRepository.save(savedSpot);
 
       throw new ServiceUnavailableException('Spot accepted but detection queue is unavailable');
@@ -305,6 +311,7 @@ export class SpotService {
     'items.object_label', 'items.object_label.translations',
     'items.material_label', 'items.material_label.translations',
     'items.brand_label', 'items.brand_label.translations',
+    'plant_identification',
   ];
 
   private async fetchSpotByOwner(spotId: string, ownerId: string): Promise<Spot> {
@@ -373,6 +380,7 @@ export class SpotService {
       .leftJoinAndSelect('materialLabel.translations', 'materialLabelTranslations')
       .leftJoinAndSelect('items.brand_label', 'brandLabel')
       .leftJoinAndSelect('brandLabel.translations', 'brandLabelTranslations')
+      .leftJoinAndSelect('spot.plant_identification', 'plantIdentification')
       .where('spot.user_id = :userId', { userId })
       .orderBy('spot.captured_at', 'DESC')
       .addOrderBy('spot.id', 'DESC')
@@ -618,6 +626,9 @@ export class SpotService {
   ): Promise<DetectedItem> {
     const spot = await this.spotRepository.findOne({ where: { id: spotId } });
     if (!spot) throw new NotFoundException('Spot not found');
+    if (spot.subject_kind === 'plant') {
+      throw new BadRequestException('Detected items are only valid on litter spots');
+    }
 
     const labelFields: Array<{ field: string; labelId?: string; type: string }> = [
       { field: 'object_label_id', labelId: input.objectLabelId, type: 'object' },
@@ -816,9 +827,13 @@ export class SpotService {
     }
 
     await this.detectionQueue.add(
-      'detect-litter',
-      { spotId: spot.id, userId: spot.user_id, imageKey: spot.image_key, mimeType: spot.mime_type },
+      spot.subject_kind === 'plant' ? 'identify-plant' : 'detect-litter',
+      { spotId: spot.id, userId: spot.user_id, imageKey: spot.image_key, mimeType: spot.mime_type, subjectKind: spot.subject_kind },
       { jobId: spot.id, attempts: 5, backoff: { type: 'exponential', delay: 5000 }, removeOnComplete: true, removeOnFail: false },
     );
+  }
+
+  async getPlantIdentification(spotId: string): Promise<PlantIdentification | null> {
+    return this.plantIdentificationRepository.findOne({ where: { spot_id: spotId } });
   }
 }

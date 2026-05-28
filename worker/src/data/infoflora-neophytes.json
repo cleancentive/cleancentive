@@ -1,0 +1,122 @@
+[
+  {
+    "scientific_name": "Reynoutria japonica",
+    "common_name_en": "Japanese knotweed",
+    "list": "black",
+    "recommended_action": "Do not uproot — fragments regrow. Cut stems repeatedly, bag securely, dispose via municipal incineration. Report to canton."
+  },
+  {
+    "scientific_name": "Fallopia japonica",
+    "common_name_en": "Japanese knotweed",
+    "list": "black",
+    "recommended_action": "Do not uproot — fragments regrow. Cut stems repeatedly, bag securely, dispose via municipal incineration. Report to canton."
+  },
+  {
+    "scientific_name": "Reynoutria sachalinensis",
+    "common_name_en": "Giant knotweed",
+    "list": "black",
+    "recommended_action": "Same as Japanese knotweed: do not uproot, cut + bag + incinerate, report to canton."
+  },
+  {
+    "scientific_name": "Reynoutria x bohemica",
+    "common_name_en": "Bohemian knotweed",
+    "list": "black",
+    "recommended_action": "Same as Japanese knotweed: do not uproot, cut + bag + incinerate, report to canton."
+  },
+  {
+    "scientific_name": "Heracleum mantegazzianum",
+    "common_name_en": "Giant hogweed",
+    "list": "black",
+    "recommended_action": "Phototoxic sap — wear gloves, long sleeves, eye protection. Cut roots 10 cm below soil before flowering. Bag and incinerate. Report to canton."
+  },
+  {
+    "scientific_name": "Impatiens glandulifera",
+    "common_name_en": "Himalayan balsam",
+    "list": "black",
+    "recommended_action": "Uproot before seed-set (before August). Plants compost safely if seeds not yet formed; bag and incinerate if flowering."
+  },
+  {
+    "scientific_name": "Ailanthus altissima",
+    "common_name_en": "Tree of heaven",
+    "list": "black",
+    "recommended_action": "Saplings: pull entire root. Established trees: requires repeated cutting + herbicide — contact canton; sap is irritant."
+  },
+  {
+    "scientific_name": "Ambrosia artemisiifolia",
+    "common_name_en": "Common ragweed",
+    "list": "black",
+    "recommended_action": "Highly allergenic pollen. Wear gloves and mask, uproot whole plant before flowering, bag and incinerate. Mandatory reporting in CH."
+  },
+  {
+    "scientific_name": "Solidago canadensis",
+    "common_name_en": "Canadian goldenrod",
+    "list": "black",
+    "recommended_action": "Cut before flowering (June). Repeated mowing weakens stands; full eradication requires uprooting rhizomes."
+  },
+  {
+    "scientific_name": "Solidago gigantea",
+    "common_name_en": "Giant goldenrod",
+    "list": "black",
+    "recommended_action": "Same as Canadian goldenrod: cut before flowering, repeated mowing, uproot rhizomes for full eradication."
+  },
+  {
+    "scientific_name": "Prunus laurocerasus",
+    "common_name_en": "Cherry laurel",
+    "list": "black",
+    "recommended_action": "Berries and leaves toxic. Uproot saplings, cut larger plants close to ground, monitor for regrowth."
+  },
+  {
+    "scientific_name": "Buddleja davidii",
+    "common_name_en": "Butterfly bush",
+    "list": "black",
+    "recommended_action": "Cut before seed-set (Sep). Uproot whole bush; remove flower heads to prevent seed dispersal."
+  },
+  {
+    "scientific_name": "Robinia pseudoacacia",
+    "common_name_en": "Black locust",
+    "list": "watch",
+    "recommended_action": "Bark and seeds toxic. Saplings: pull whole root. Established trees: girdle + repeated cutting of suckers; contact canton."
+  },
+  {
+    "scientific_name": "Senecio inaequidens",
+    "common_name_en": "Narrow-leaved ragwort",
+    "list": "black",
+    "recommended_action": "Toxic to livestock. Uproot before flowering, bag and incinerate. Wear gloves."
+  },
+  {
+    "scientific_name": "Erigeron annuus",
+    "common_name_en": "Annual fleabane",
+    "list": "watch",
+    "recommended_action": "Cut before flowering; uproot in small infestations to prevent spread."
+  },
+  {
+    "scientific_name": "Lonicera japonica",
+    "common_name_en": "Japanese honeysuckle",
+    "list": "watch",
+    "recommended_action": "Cut climbing stems at base; uproot to prevent regrowth from rhizomes."
+  },
+  {
+    "scientific_name": "Rhus typhina",
+    "common_name_en": "Staghorn sumac",
+    "list": "watch",
+    "recommended_action": "Sap is irritant. Uproot saplings; established trees produce suckers — repeated cutting required."
+  },
+  {
+    "scientific_name": "Cyperus esculentus",
+    "common_name_en": "Yellow nutsedge",
+    "list": "black",
+    "recommended_action": "Mandatory reporting in CH. Do not disturb soil — tubers spread. Contact canton for treatment plan."
+  },
+  {
+    "scientific_name": "Elodea nuttallii",
+    "common_name_en": "Nuttall's waterweed",
+    "list": "black",
+    "recommended_action": "Aquatic — do not transport fragments between waterbodies. Report to canton; clean boats and gear."
+  },
+  {
+    "scientific_name": "Ludwigia grandiflora",
+    "common_name_en": "Water primrose",
+    "list": "black",
+    "recommended_action": "Aquatic — mandatory reporting. Do not handle without canton coordination; fragments regenerate."
+  }
+]

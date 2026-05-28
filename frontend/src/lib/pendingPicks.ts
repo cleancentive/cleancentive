@@ -10,6 +10,8 @@ const REPORT_IDENTITY_MISMATCH_MIN_AGE_MS = 24 * 60 * 60 * 1000
 
 export type OutboxStatus = 'pending' | 'uploading' | 'failed'
 
+export type SubjectKind = 'litter' | 'plant'
+
 export interface OutboxItem {
   id: string
   ownerUserId: string | null
@@ -24,6 +26,7 @@ export interface OutboxItem {
   pickedUp: boolean
   cleanupId: string | null
   cleanupDateId: string | null
+  subjectKind?: SubjectKind
   status: OutboxStatus
   attempts: number
   lastError: string | null
@@ -45,6 +48,7 @@ interface QueueCaptureInput {
   pickedUp?: boolean
   cleanupId?: string | null
   cleanupDateId?: string | null
+  subjectKind?: SubjectKind
 }
 
 interface FlushContext {
@@ -241,6 +245,7 @@ export async function queueCapture(input: QueueCaptureInput): Promise<OutboxItem
     pickedUp: input.pickedUp ?? true,
     cleanupId: input.cleanupId ?? null,
     cleanupDateId: input.cleanupDateId ?? null,
+    subjectKind: input.subjectKind ?? 'litter',
     status: 'pending',
     attempts: 0,
     lastError: null,
@@ -350,6 +355,9 @@ async function uploadItem(item: OutboxItem, context: FlushContext): Promise<void
     formData.append('accuracyMeters', String(item.accuracyMeters))
   }
   formData.append('pickedUp', String(item.pickedUp ?? true))
+  if (item.subjectKind && item.subjectKind !== 'litter') {
+    formData.append('subjectKind', item.subjectKind)
+  }
 
   if (item.cleanupId) {
     formData.append('cleanupId', item.cleanupId)

@@ -34,6 +34,7 @@ export const useMapStore = create<MapState>((set) => ({
       if (params?.since) searchParams.set('since', params.since)
       if (params?.picked_up) searchParams.set('picked_up', params.picked_up)
       if (params?.user_id) searchParams.set('user_id', params.user_id)
+      if (params?.subject_kind) searchParams.set('subject_kind', params.subject_kind)
       const qs = searchParams.toString()
       const response = await axios.get(`${API_BASE}/insights/map${qs ? '?' + qs : ''}`)
       set({

@@ -52,6 +52,17 @@ interface DetectedItemDto {
   confidence: number | null;
 }
 
+interface PlantIdentificationDto {
+  scientificName: string;
+  commonNameEn: string | null;
+  confidence: number | null;
+  identificationSource: string;
+  isInvasive: boolean;
+  invasiveList: string | null;
+  recommendedAction: string | null;
+  humanVerified: boolean;
+}
+
 interface SpotDto {
   id: string;
   status: string;
@@ -64,9 +75,11 @@ interface SpotDto {
   longitude: number;
   accuracyMeters: number | null;
   pickedUp: boolean;
+  subjectKind: 'litter' | 'plant';
   processingError: string | null;
   detectionCompletedAt: Date | null;
   items: DetectedItemDto[];
+  plantIdentification: PlantIdentificationDto | null;
 }
 
 @Controller('spots')
@@ -88,6 +101,7 @@ export class SpotController {
   }
 
   private toSpotDto(spot: any): SpotDto {
+    const pi = spot.plant_identification;
     return {
       id: spot.id,
       status: spot.processing_status,
@@ -100,9 +114,10 @@ export class SpotController {
       longitude: spot.longitude,
       accuracyMeters: spot.location_accuracy_meters,
       pickedUp: spot.picked_up,
+      subjectKind: spot.subject_kind ?? 'litter',
       processingError: spot.processing_error,
       detectionCompletedAt: spot.detection_completed_at,
-      items: spot.items.map((item: any) => ({
+      items: (spot.items ?? []).map((item: any) => ({
         id: item.id,
         objectLabel: this.toLabelRef(item.object_label),
         materialLabel: this.toLabelRef(item.material_label),
@@ -112,6 +127,18 @@ export class SpotController {
         weightGrams: item.weight_grams,
         confidence: item.confidence,
       })),
+      plantIdentification: pi
+        ? {
+            scientificName: pi.scientific_name,
+            commonNameEn: pi.common_name_en,
+            confidence: pi.confidence,
+            identificationSource: pi.identification_source,
+            isInvasive: pi.is_invasive,
+            invasiveList: pi.invasive_list,
+            recommendedAction: pi.recommended_action,
+            humanVerified: pi.human_verified,
+          }
+        : null,
     };
   }
 
@@ -193,6 +220,8 @@ export class SpotController {
     const pickedUp = body.pickedUp === undefined ? true : body.pickedUp !== 'false';
     const cleanupId = body.cleanupId?.trim() || null;
     const cleanupDateId = body.cleanupDateId?.trim() || null;
+    const subjectKindRaw = body.subjectKind?.trim();
+    const subjectKind: 'litter' | 'plant' = subjectKindRaw === 'plant' ? 'plant' : 'litter';
 
     if (!uploadId) {
       throw new BadRequestException('uploadId is required');
@@ -227,6 +256,7 @@ export class SpotController {
       pickedUp,
       cleanupId,
       cleanupDateId,
+      subjectKind,
     });
 
     return {
@@ -440,6 +470,24 @@ export class SpotController {
       brandLabelId: item.brand_label_id,
       weightGrams: item.weight_grams,
       humanVerified: item.human_verified,
+    };
+  }
+
+  @Get(':id/plant-identification')
+  async getPlantIdentification(
+    @Param('id', ParseUUIDPipe) spotId: string,
+  ): Promise<PlantIdentificationDto> {
+    const pi = await this.spotService.getPlantIdentification(spotId);
+    if (!pi) throw new NotFoundException('Plant identification not found');
+    return {
+      scientificName: pi.scientific_name,
+      commonNameEn: pi.common_name_en,
+      confidence: pi.confidence,
+      identificationSource: pi.identification_source,
+      isInvasive: pi.is_invasive,
+      invasiveList: pi.invasive_list,
+      recommendedAction: pi.recommended_action,
+      humanVerified: pi.human_verified,
     };
   }
 

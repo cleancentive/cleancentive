@@ -41,6 +41,7 @@ export interface StatsFilterParams {
   since?: string
   picked_up?: string
   user_id?: string
+  subject_kind?: 'litter' | 'plant'
 }
 
 interface InsightsState {

@@ -50,6 +50,7 @@ export interface StatsFilter {
   since?: string;
   pickedUp?: boolean;
   userId?: string;
+  subjectKind?: 'litter' | 'plant';
 }
 
 @Injectable()
@@ -93,16 +94,22 @@ export class InsightsService {
     const [spotRows, cleanupRows] = await Promise.all([
       this.spotRepository.query(
         `SELECT s.id, s.longitude, s.latitude, s.captured_at, s.processing_status, s.picked_up,
+                s.subject_kind,
                 COUNT(di.id)::int AS item_count,
                 COALESCE(SUM(di.weight_grams), 0) AS total_weight,
                 (SELECT lt2.name FROM detected_items di2
                  JOIN labels l2 ON l2.id = di2.object_label_id
                  JOIN label_translations lt2 ON lt2.label_id = l2.id AND lt2.locale = 'en'
-                 WHERE di2.spot_id = s.id ORDER BY di2.weight_grams DESC NULLS LAST LIMIT 1) AS top_category
+                 WHERE di2.spot_id = s.id ORDER BY di2.weight_grams DESC NULLS LAST LIMIT 1) AS top_category,
+                pi.common_name_en AS plant_common_name,
+                pi.scientific_name AS plant_scientific_name,
+                pi.is_invasive AS plant_is_invasive,
+                pi.invasive_list AS plant_invasive_list
          FROM spots s
          LEFT JOIN detected_items di ON di.spot_id = s.id
+         LEFT JOIN plant_identifications pi ON pi.spot_id = s.id
          ${where}
-         GROUP BY s.id
+         GROUP BY s.id, pi.common_name_en, pi.scientific_name, pi.is_invasive, pi.invasive_list
          ORDER BY s.captured_at DESC
          LIMIT 5000`,
         params,
@@ -134,6 +141,11 @@ export class InsightsService {
           topObject: r.top_category,
           status: r.processing_status,
           pickedUp: r.picked_up,
+          subjectKind: r.subject_kind ?? 'litter',
+          plantCommonName: r.plant_common_name,
+          plantScientificName: r.plant_scientific_name,
+          plantIsInvasive: r.plant_is_invasive ?? false,
+          plantInvasiveList: r.plant_invasive_list,
         },
       })),
     };
@@ -179,6 +191,7 @@ export class InsightsService {
     if (filter.since) parts.push(`s:${filter.since}`);
     if (filter.pickedUp !== undefined) parts.push(`pu:${filter.pickedUp}`);
     if (filter.userId) parts.push(`u:${filter.userId}`);
+    if (filter.subjectKind) parts.push(`sk:${filter.subjectKind}`);
     return parts.join(':');
   }
 
@@ -190,6 +203,7 @@ export class InsightsService {
     if (filter.since) parts.push(`s:${filter.since}`);
     if (filter.pickedUp !== undefined) parts.push(`pu:${filter.pickedUp}`);
     if (filter.userId) parts.push(`u:${filter.userId}`);
+    if (filter.subjectKind) parts.push(`sk:${filter.subjectKind}`);
     return parts.join(':');
   }
 
@@ -219,6 +233,10 @@ export class InsightsService {
     if (filter.userId) {
       conditions.push(`${alias}.user_id = $${idx++}`);
       params.push(filter.userId);
+    }
+    if (filter.subjectKind) {
+      conditions.push(`${alias}.subject_kind = $${idx++}`);
+      params.push(filter.subjectKind);
     }
     return {
       where: conditions.length ? 'WHERE ' + conditions.join(' AND ') : '',
@@ -252,6 +270,10 @@ export class InsightsService {
     if (filter.userId) {
       conditions.push(`${alias}.user_id = $${idx++}`);
       params.push(filter.userId);
+    }
+    if (filter.subjectKind) {
+      conditions.push(`${alias}.subject_kind = $${idx++}`);
+      params.push(filter.subjectKind);
     }
     return {
       and: conditions.length ? 'AND ' + conditions.join(' AND ') : '',

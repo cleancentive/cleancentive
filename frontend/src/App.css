@@ -1112,6 +1112,54 @@
   color: var(--text-muted);
 }
 
+.capture-plant-import {
+  margin: 0.25rem 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.plant-id-card {
+  border: 1px solid var(--border-color, #e5e7eb);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+}
+
+.plant-id-name {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.plant-id-scientific {
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+.plant-id-badge {
+  display: inline-block;
+  margin: 0.5rem 0 0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.plant-id-badge--black {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.plant-id-badge--watch {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.plant-id-action {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+}
+
 .history-panel {
 }
 

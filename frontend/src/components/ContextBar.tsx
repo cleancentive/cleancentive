@@ -4,12 +4,18 @@ import { useAuthStore } from '../stores/authStore'
 import { useTeamStore } from '../stores/teamStore'
 import { useCleanupStore } from '../stores/cleanupStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
-import { useInsightsFilterStore, type CleanupFilter, type DatePreset, type PickedUpFilter } from '../stores/insightsFilterStore'
+import { useInsightsFilterStore, type CleanupFilter, type DatePreset, type PickedUpFilter, type SubjectFilter } from '../stores/insightsFilterStore'
 import { CleanupFilterDropdown } from './CleanupFilterDropdown'
 
 const PICKED_UP_PRESETS: Array<{ value: PickedUpFilter; label: string }> = [
   { value: 'picked', label: 'Picked' },
   { value: 'spotted', label: 'Spotted' },
+  { value: 'all', label: 'All' },
+]
+
+const SUBJECT_PRESETS: Array<{ value: SubjectFilter; label: string }> = [
+  { value: 'litter', label: 'Litter' },
+  { value: 'plants', label: 'Plants' },
   { value: 'all', label: 'All' },
 ]
 
@@ -29,6 +35,7 @@ interface RouteConfig {
   myEnabled: boolean
   myForcedOn: boolean
   pickedUpEnabled: boolean
+  subjectEnabled: boolean
   dateEnabled: boolean
 }
 
@@ -41,6 +48,7 @@ function getRouteConfig(pathname: string): RouteConfig {
       myEnabled: false,
       myForcedOn: true,
       pickedUpEnabled: true,
+      subjectEnabled: false,
       dateEnabled: true,
     }
   }
@@ -52,6 +60,7 @@ function getRouteConfig(pathname: string): RouteConfig {
       myEnabled: true,
       myForcedOn: false,
       pickedUpEnabled: true,
+      subjectEnabled: pathname === '/map',
       dateEnabled: true,
     }
   }
@@ -63,6 +72,7 @@ function getRouteConfig(pathname: string): RouteConfig {
       myEnabled: true,
       myForcedOn: false,
       pickedUpEnabled: false,
+      subjectEnabled: false,
       dateEnabled: false,
     }
   }
@@ -74,6 +84,7 @@ function getRouteConfig(pathname: string): RouteConfig {
     myEnabled: false,
     myForcedOn: false,
     pickedUpEnabled: false,
+    subjectEnabled: false,
     dateEnabled: false,
   }
 }
@@ -157,11 +168,11 @@ function isDateOngoing(startAt: string, endAt: string): boolean {
 }
 
 function hasActiveFilters(
-  myFilter: boolean, pickedUpFilter: PickedUpFilter, datePreset: DatePreset,
+  myFilter: boolean, pickedUpFilter: PickedUpFilter, subjectFilter: SubjectFilter, datePreset: DatePreset,
   cleanupFilter: CleanupFilter,
   activeTeamId?: string | null, activeCleanupDateId?: string | null,
 ): boolean {
-  return myFilter || pickedUpFilter !== 'all' || datePreset !== 'all'
+  return myFilter || pickedUpFilter !== 'all' || subjectFilter !== 'all' || datePreset !== 'all'
     || !!cleanupFilter
     || !!activeTeamId || !!activeCleanupDateId
 }
@@ -174,6 +185,7 @@ export function ContextBar() {
   const {
     datePreset, setDatePreset,
     pickedUpFilter, setPickedUpFilter,
+    subjectFilter, setSubjectFilter,
     myFilter, setMyFilter,
     cleanupFilter,
     clearFilters,
@@ -282,8 +294,8 @@ export function ContextBar() {
 
   const dropdownEmptyLabel = config.dropdownsAreFilters ? 'All' : 'None'
   const filterMode = config.dropdownsAreFilters
-  const anyFiltersActive = hasActiveFilters(myFilter, pickedUpFilter, datePreset, cleanupFilter, user.active_team_id, user.active_cleanup_date_id)
-  const anyFilterEnabled = config.myEnabled || config.pickedUpEnabled || config.dateEnabled
+  const anyFiltersActive = hasActiveFilters(myFilter, pickedUpFilter, subjectFilter, datePreset, cleanupFilter, user.active_team_id, user.active_cleanup_date_id)
+  const anyFilterEnabled = config.myEnabled || config.pickedUpEnabled || config.subjectEnabled || config.dateEnabled
 
   // Compound summary: "My picks in [TeamName]"
   const teamName = user.active_team_name || null
@@ -360,6 +372,22 @@ export function ContextBar() {
             ))}
           </div>
         </div>
+
+        {config.subjectEnabled && (
+          <div className="filter-group filter-group--separated">
+            <div className="context-pickup-chips">
+              {SUBJECT_PRESETS.map(({ value, label }) => (
+                <button
+                  key={value}
+                  className={`context-date-chip${subjectFilter === value ? ' context-date-chip--active' : ''}`}
+                  onClick={() => setSubjectFilter(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="filter-group filter-group--separated">
           <div className="context-date-chips">

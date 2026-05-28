@@ -19,6 +19,7 @@ interface HistoryItem {
   longitude: number
   accuracyMeters: number | null
   pickedUp: boolean
+  subjectKind?: 'litter' | 'plant'
   processingError: string | null
   detectionCompletedAt: string | null
   items: {
@@ -505,6 +506,7 @@ export function HistoryPanel() {
                     spotId={row.item.id}
                     pickedUp={row.item.pickedUp}
                     items={row.item.items}
+                    subjectKind={row.item.subjectKind ?? 'litter'}
                     onSave={() => { void loadHistory() }}
                     onCancel={() => setEditingSpotId(null)}
                   />

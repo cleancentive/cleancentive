@@ -1,8 +1,10 @@
-import { Entity, Column, ManyToOne, JoinColumn, OneToMany, Index } from 'typeorm';
+import { Entity, Column, ManyToOne, OneToOne, JoinColumn, OneToMany, Index } from 'typeorm';
 import { BaseEntity } from '../common/base.entity';
 import { User } from '../user/user.entity';
 import { Team } from '../team/team.entity';
 import type { ProcessingStatus } from '@cleancentive/shared';
+
+export type SubjectKind = 'litter' | 'plant';
 
 @Entity('spots')
 @Index('IDX_spots_upload_id', ['upload_id'], { unique: true })
@@ -97,6 +99,12 @@ export class Spot extends BaseEntity {
   @Column('char', { length: 64, nullable: true })
   image_sha256: string | null;
 
+  @Column('varchar', { length: 16, default: 'litter' })
+  subject_kind: SubjectKind;
+
   @OneToMany('DetectedItem', (item: any) => item.spot)
   items: any[];
+
+  @OneToOne('PlantIdentification', (pi: any) => pi.spot)
+  plant_identification: any | null;
 }

@@ -16,13 +16,20 @@ describe('serializeMapState', () => {
     const params = serializeMapState({
       datePreset: '30d',
       pickedUpFilter: 'picked',
+      subjectFilter: 'plants',
       myFilter: true,
       heatMetric: 'mass',
     })
     expect(params.get('since')).toBe('30d')
     expect(params.get('picked')).toBe('picked')
+    expect(params.get('subject')).toBe('plants')
     expect(params.get('mine')).toBe('1')
     expect(params.get('metric')).toBe('mass')
+  })
+
+  test('omits implicit-all subject filter', () => {
+    const params = serializeMapState({ subjectFilter: 'all' })
+    expect(params.get('subject')).toBeNull()
   })
 
   test('encodes cleanup filter (kind: cleanup)', () => {
@@ -64,17 +71,18 @@ describe('parseMapState', () => {
   })
 
   test('parses valid filters', () => {
-    const params = new URLSearchParams('since=7d&picked=spotted&mine=1&metric=mass')
+    const params = new URLSearchParams('since=7d&picked=spotted&subject=plants&mine=1&metric=mass')
     expect(parseMapState(params)).toEqual({
       datePreset: '7d',
       pickedUpFilter: 'spotted',
+      subjectFilter: 'plants',
       myFilter: true,
       heatMetric: 'mass',
     })
   })
 
   test('drops invalid filter values', () => {
-    const params = new URLSearchParams('since=bogus&picked=invalid&metric=xxx')
+    const params = new URLSearchParams('since=bogus&picked=invalid&subject=fungi&metric=xxx')
     expect(parseMapState(params)).toEqual({})
   })
 
@@ -124,6 +132,7 @@ describe('round-trip', () => {
     const original = {
       datePreset: '30d' as const,
       pickedUpFilter: 'picked' as const,
+      subjectFilter: 'plants' as const,
       myFilter: true,
       heatMetric: 'mass' as const,
       view: { lon: 8.5, lat: 47.4, zoom: 12 },
@@ -132,6 +141,7 @@ describe('round-trip', () => {
     const parsed = parseMapState(params)
     expect(parsed.datePreset).toBe(original.datePreset)
     expect(parsed.pickedUpFilter).toBe(original.pickedUpFilter)
+    expect(parsed.subjectFilter).toBe(original.subjectFilter)
     expect(parsed.myFilter).toBe(true)
     expect(parsed.heatMetric).toBe(original.heatMetric)
     expect(parsed.view).toEqual({ lon: 8.5, lat: 47.4, zoom: 12 })

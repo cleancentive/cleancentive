@@ -59,6 +59,7 @@ export function CapturePanel() {
   const [captureError, setCaptureError] = useState<string | null>(null)
   const [showLocationDetail, setShowLocationDetail] = useState(false)
   const [pickedUp, setPickedUp] = useState(true)
+  const [pendingSubject, setPendingSubject] = useState<'litter' | 'plant'>('litter')
   const [batchFiles, setBatchFiles] = useState<File[] | null>(null)
   const [manualLocation, setManualLocation] = useState<{ latitude: number; longitude: number } | null>(null)
   const [showManualPicker, setShowManualPicker] = useState(false)
@@ -214,7 +215,7 @@ export function CapturePanel() {
     }
   }
 
-  const captureAndQueue = async () => {
+  const captureAndQueue = async (subjectKind: 'litter' | 'plant' = 'litter') => {
     if (!videoRef.current || !captureCanvasRef.current) {
       return
     }
@@ -262,9 +263,10 @@ export function CapturePanel() {
         imageBlob,
         thumbnailBlob,
         pickedUp,
+        subjectKind,
       })
 
-      trackEvent('spot-logged', { source: 'camera', pickedUp: pickedUp ? 'true' : 'false' })
+      trackEvent('spot-logged', { source: 'camera', pickedUp: pickedUp ? 'true' : 'false', subjectKind })
       setPickedUp(true)
       notifyPicksChanged()
 
@@ -279,7 +281,7 @@ export function CapturePanel() {
     }
   }
 
-  const queueImportedFile = async (file: File) => {
+  const queueImportedFile = async (file: File, subjectKind: 'litter' | 'plant' = 'litter') => {
     setIsImportingFile(true)
     setCaptureError(null)
 
@@ -308,9 +310,10 @@ export function CapturePanel() {
         imageBlob,
         thumbnailBlob,
         pickedUp,
+        subjectKind,
       })
 
-      trackEvent('spot-logged', { source: 'import', pickedUp: pickedUp ? 'true' : 'false' })
+      trackEvent('spot-logged', { source: 'import', pickedUp: pickedUp ? 'true' : 'false', subjectKind })
       setPickedUp(true)
       notifyPicksChanged()
 
@@ -334,12 +337,26 @@ export function CapturePanel() {
       return
     }
 
+    const subject = pendingSubject
+    setPendingSubject('litter')
+
     if (selectedFiles.length === 1) {
-      await queueImportedFile(selectedFiles[0])
+      await queueImportedFile(selectedFiles[0], subject)
+    } else if (subject === 'plant') {
+      // Plant captures are single-shot — batch import is litter-only.
+      setCaptureError('Plant captures are single-photo. Pick one file at a time.')
+      if (fileInputRef.current) fileInputRef.current.value = ''
     } else {
       setBatchFiles(Array.from(selectedFiles))
     }
   }
+
+  const triggerImport = (subject: 'litter' | 'plant') => {
+    setPendingSubject(subject)
+    fileInputRef.current?.click()
+  }
+
+  const lowConfidenceSuffix = locationTier === 'low' && !AUTO_ACCEPT_LOW_CONFIDENCE ? ' anyway' : ''
 
   return (
     <fieldset className="page-card capture-panel">
@@ -398,7 +415,7 @@ export function CapturePanel() {
         <div className="camera-actions">
           <button
             className="secondary-button"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => triggerImport('litter')}
             disabled={isImportingFile}
           >
             {isImportingFile ? 'Importing...' : 'Import Photo'}
@@ -415,19 +432,41 @@ export function CapturePanel() {
           <>
             <video ref={videoRef} autoPlay muted playsInline className="camera-preview" />
             <div className="camera-actions">
-                <button
-                  className="primary-button"
-                  onClick={captureAndQueue}
-                  disabled={isCapturing || locationTier === 'unknown'}
-                >
+              <button
+                className="primary-button"
+                onClick={() => captureAndQueue('litter')}
+                disabled={isCapturing || locationTier === 'unknown'}
+              >
                 {isCapturing
                   ? 'Capturing...'
-                  : locationTier === 'low' && !AUTO_ACCEPT_LOW_CONFIDENCE
-                    ? pickedUp ? 'Log Pick anyway' : 'Log Spot anyway'
-                    : pickedUp ? 'Log Pick' : 'Log Spot'}
+                  : `${pickedUp ? 'Log Pick' : 'Log Spot'}${lowConfidenceSuffix}`}
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() => captureAndQueue('plant')}
+                disabled={isCapturing || locationTier === 'unknown'}
+                title="Identify an invasive plant from this photo"
+              >
+                {isCapturing ? '...' : `Spot a plant${lowConfidenceSuffix}`}
               </button>
             </div>
+            <p className="capture-detail">
+              Best plant ID results: close-up of leaf, flower, or whole plant — one species per photo.
+            </p>
           </>
+        )}
+
+        {!isCameraActive && (
+          <p className="capture-plant-import">
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => triggerImport('plant')}
+              disabled={isImportingFile}
+            >
+              Or import a photo of an invasive plant
+            </button>
+          </p>
         )}
         <canvas ref={captureCanvasRef} className="capture-canvas" />
       </div>

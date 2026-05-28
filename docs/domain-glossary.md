@@ -51,6 +51,24 @@ A single piece of litter identified by detection within a photo. Has properties:
 - **UI examples:** "3 items detected", "No detectable litter items were found."
 - **Code entity:** `LitterItem` (or `DetectedItem`)
 
+### Subject Kind
+
+The discriminator on a Spot for what the Spot is *about*. Values: `'litter'` (default — existing litter pick/spot flow) or `'plant'` (an invasive-plant sighting). Drives which detection pipeline runs and how the Spot is rendered.
+
+- **Code:** `spots.subject_kind` column; `'litter' | 'plant'` enum
+
+### Plant Identification
+
+The result of running Pl@ntNet (or another plant-recognition model) on a plant Spot. Holds the scientific name, common name, confidence score, and — when the species matches a Swiss invasive list — invasive flag and recommended action. One row per plant Spot.
+
+- **Code entity:** `PlantIdentification`
+
+### Neophyte / Invasive Plant
+
+A non-native plant species on InfoFlora's black list (high impact, eradicate) or watch list (monitor). The list and per-species recommended action come from [InfoFlora](https://www.infoflora.ch/de/neophyten/) and ship as a curated JSON in the backend. User-facing label: "Invasive plant".
+
+- **UI examples:** "Invasive plant — black list", "Recommended action: …"
+
 ---
 
 ## Community

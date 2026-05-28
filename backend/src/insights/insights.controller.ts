@@ -16,6 +16,7 @@ export class InsightsController {
   @ApiQuery({ name: 'since', required: false, description: 'Filter spots captured on or after this ISO 8601 date' })
   @ApiQuery({ name: 'picked_up', required: false, description: 'Filter by picked_up status (true or false)' })
   @ApiQuery({ name: 'user_id', required: false, description: 'Filter by user UUID (for "My" filter)' })
+  @ApiQuery({ name: 'subject_kind', required: false, description: 'Filter by subject kind (litter or plant)' })
   async getMapData(
     @Query('team_id') teamId?: string,
     @Query('cleanup_id') cleanupId?: string,
@@ -23,11 +24,13 @@ export class InsightsController {
     @Query('since') since?: string,
     @Query('picked_up') pickedUp?: string,
     @Query('user_id') userId?: string,
+    @Query('subject_kind') subjectKind?: string,
   ) {
     return this.insightsService.getMapData({
       teamId, cleanupId, cleanupDateId, since,
       pickedUp: this.parseBooleanParam(pickedUp),
       userId,
+      subjectKind: subjectKind === 'plant' ? 'plant' : subjectKind === 'litter' ? 'litter' : undefined,
     });
   }
 

@@ -9,6 +9,17 @@ import { useCopyToClipboard } from '../lib/useCopyToClipboard'
 
 import { API_BASE } from '../lib/apiBase'
 
+interface PlantIdentificationData {
+  scientificName: string
+  commonNameEn: string | null
+  confidence: number | null
+  identificationSource: string
+  isInvasive: boolean
+  invasiveList: string | null
+  recommendedAction: string | null
+  humanVerified: boolean
+}
+
 interface SpotData {
   id: string
   status: string
@@ -18,7 +29,45 @@ interface SpotData {
   longitude: number
   accuracyMeters: number | null
   pickedUp: boolean
+  subjectKind: 'litter' | 'plant'
   items: DetectedItemData[]
+  plantIdentification: PlantIdentificationData | null
+}
+
+function PlantIdentificationCard({ pi, status }: { pi: PlantIdentificationData | null; status: string }) {
+  if (status !== 'completed' && status !== 'failed') {
+    return <p className="history-meta">Identifying plant...</p>
+  }
+  if (status === 'failed') {
+    return <p className="error-message">Identification failed. Try again from the spot menu.</p>
+  }
+  if (!pi) {
+    return <p className="history-meta">Could not identify with confidence. Try a clearer leaf or flower photo.</p>
+  }
+
+  const list = pi.invasiveList === 'infoflora_black'
+    ? 'Black list'
+    : pi.invasiveList === 'infoflora_watch' ? 'Watch list' : null
+
+  return (
+    <div className="plant-id-card">
+      <p className="plant-id-name">
+        <strong>{pi.commonNameEn ?? pi.scientificName}</strong>
+        {pi.commonNameEn && <span className="plant-id-scientific"> · <em>{pi.scientificName}</em></span>}
+      </p>
+      {pi.confidence !== null && (
+        <p className="history-meta">Confidence {Math.round(pi.confidence * 100)}% · source: {pi.identificationSource}</p>
+      )}
+      {pi.isInvasive && (
+        <p className={`plant-id-badge plant-id-badge--${pi.invasiveList === 'infoflora_black' ? 'black' : 'watch'}`}>
+          Invasive plant — InfoFlora {list}
+        </p>
+      )}
+      {pi.recommendedAction && (
+        <p className="plant-id-action">{pi.recommendedAction}</p>
+      )}
+    </div>
+  )
 }
 
 function formatDateTime(iso: string): string {
@@ -146,48 +195,55 @@ export function SpotDetail() {
         />
       )}
 
-      <section className="spot-detail-items">
-        <h3>Detected items</h3>
-        {!sessionToken && (
-          <p className="spot-detail-readonly-hint">Sign in to edit detected items.</p>
-        )}
-        {spot.items.length === 0 && sessionToken && (
-          <p className="history-meta">No items recorded yet.</p>
-        )}
-        {sessionToken ? (
-          <>
-            {spot.items.map((item) => (
-              <ItemEditor
-                key={item.id}
-                spotId={spot.id}
-                item={item}
-                onUpdated={onItemChanged}
-                onRemoved={onItemChanged}
-              />
-            ))}
-            <button
-              className="secondary-button spot-editor-add-item"
-              onClick={addItem}
-              disabled={addingItem}
-            >
-              {addingItem ? 'Adding...' : '+ Add item'}
-            </button>
-          </>
-        ) : (
-          <ul className="history-items">
-            {spot.items.map((item) => (
-              <li key={item.id} className="history-item-row">
-                <span>
-                  {item.objectLabel?.name ?? '—'}
-                  {item.materialLabel ? ` · ${item.materialLabel.name}` : ''}
-                  {item.brandLabel ? ` · ${item.brandLabel.name}` : ''}
-                </span>
-                <span>{item.weightGrams !== null ? `${Math.round(item.weightGrams)} g` : ''}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {spot.subjectKind === 'plant' ? (
+        <section className="spot-detail-items">
+          <h3>Plant identification</h3>
+          <PlantIdentificationCard pi={spot.plantIdentification} status={spot.status} />
+        </section>
+      ) : (
+        <section className="spot-detail-items">
+          <h3>Detected items</h3>
+          {!sessionToken && (
+            <p className="spot-detail-readonly-hint">Sign in to edit detected items.</p>
+          )}
+          {spot.items.length === 0 && sessionToken && (
+            <p className="history-meta">No items recorded yet.</p>
+          )}
+          {sessionToken ? (
+            <>
+              {spot.items.map((item) => (
+                <ItemEditor
+                  key={item.id}
+                  spotId={spot.id}
+                  item={item}
+                  onUpdated={onItemChanged}
+                  onRemoved={onItemChanged}
+                />
+              ))}
+              <button
+                className="secondary-button spot-editor-add-item"
+                onClick={addItem}
+                disabled={addingItem}
+              >
+                {addingItem ? 'Adding...' : '+ Add item'}
+              </button>
+            </>
+          ) : (
+            <ul className="history-items">
+              {spot.items.map((item) => (
+                <li key={item.id} className="history-item-row">
+                  <span>
+                    {item.objectLabel?.name ?? '—'}
+                    {item.materialLabel ? ` · ${item.materialLabel.name}` : ''}
+                    {item.brandLabel ? ` · ${item.brandLabel.name}` : ''}
+                  </span>
+                  <span>{item.weightGrams !== null ? `${Math.round(item.weightGrams)} g` : ''}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section className="spot-detail-history">
         <button

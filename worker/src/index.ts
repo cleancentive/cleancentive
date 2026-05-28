@@ -8,6 +8,15 @@ import sharp from 'sharp';
 import { PROCESSING_STATUS } from '@cleancentive/shared';
 import type { LitterDetectionJobData, DetectedObject, DetectionResult } from '@cleancentive/shared';
 import { persistDetection as persistDetectionToDb } from './detection';
+import { PlantNetIdentifier } from './identifiers/plantnet';
+import { MistralPlantIdentifier } from './identifiers/mistral-plant';
+import { ShadowPlantIdentifier } from './identifiers/shadow';
+import type { PlantIdentifier } from './identifiers/types';
+import { persistPlantIdentification } from './plant-identification';
+
+interface SpotJobData extends LitterDetectionJobData {
+  subjectKind?: 'litter' | 'plant';
+}
 
 interface WorkerOpsState {
   name: string;
@@ -68,6 +77,28 @@ const openai = detectionApiKey
       ...(detectionBaseUrl ? { baseURL: detectionBaseUrl } : {}),
     })
   : null;
+
+const plantNetApiKey = process.env.PLANTNET_API_KEY;
+const plantNetBaseUrl = process.env.PLANTNET_BASE_URL || 'https://my-api.plantnet.org/v2';
+const plantNetProject = process.env.PLANTNET_PROJECT || 'weurope';
+const plantNetMinConfidence = parseFloat(process.env.PLANTNET_MIN_CONFIDENCE || '0.6');
+const plantIdentifierMode = process.env.PLANT_IDENTIFIER || 'plantnet';
+
+function buildPlantIdentifier(): PlantIdentifier | null {
+  const plantnet = plantNetApiKey
+    ? new PlantNetIdentifier(plantNetApiKey, plantNetBaseUrl, plantNetProject, plantNetMinConfidence)
+    : null;
+  const mistral = openai ? new MistralPlantIdentifier(openai, detectionModel) : null;
+
+  if (plantIdentifierMode === 'mistral') return mistral;
+  if (plantIdentifierMode === 'shadow:plantnet+mistral') {
+    if (plantnet && mistral) return new ShadowPlantIdentifier(plantnet, mistral);
+    return plantnet ?? mistral;
+  }
+  return plantnet;
+}
+
+const plantIdentifier = buildPlantIdentifier();
 
 interface LabelTaxonomy {
   objects: string[];
@@ -355,10 +386,33 @@ async function persistDetection(
   await withTransaction((client) => persistDetectionToDb(client, spotId, userId, detection, model));
 }
 
-const litterDetectionWorker = new Worker<LitterDetectionJobData>(
+async function runLitterDetection(spotId: string, userId: string, imageKey: string): Promise<{ count: number }> {
+  const taxonomy = await fetchLabelTaxonomy();
+  const systemPrompt = buildSystemPrompt(taxonomy);
+
+  const imageBytes = await fetchImageBytes(imageKey);
+  const resizedBytes = await resizeForDetection(imageBytes, detectionMaxImageSize);
+  const detection = await detectLitter(resizedBytes, 'image/jpeg', systemPrompt);
+  await persistDetection(spotId, userId, detection, detectionModel);
+  return { count: detection.objects.length };
+}
+
+async function runPlantIdentification(spotId: string, userId: string, imageKey: string): Promise<{ scientificName: string | null }> {
+  if (!plantIdentifier) {
+    throw new Error('Plant identifier is not configured (set PLANTNET_API_KEY or PLANT_IDENTIFIER=mistral with DETECTION_API_KEY)');
+  }
+
+  const imageBytes = await fetchImageBytes(imageKey);
+  const resizedBytes = await resizeForDetection(imageBytes, detectionMaxImageSize);
+  const result = await plantIdentifier.identify(resizedBytes, 'image/jpeg');
+  await withTransaction((client) => persistPlantIdentification(client, spotId, userId, result));
+  return { scientificName: result.scientificName };
+}
+
+const litterDetectionWorker = new Worker<SpotJobData>(
   queueName,
-  async (job: Job<LitterDetectionJobData>) => {
-    const { spotId, userId, imageKey, mimeType } = job.data;
+  async (job: Job<SpotJobData>) => {
+    const { spotId, userId, imageKey, mimeType, subjectKind } = job.data;
 
     if (!spotId || !userId || !imageKey || !mimeType) {
       throw new Error('Invalid job payload');
@@ -371,19 +425,13 @@ const litterDetectionWorker = new Worker<LitterDetectionJobData>(
 
     await markSpotProcessing(spotId, userId);
 
-    const taxonomy = await fetchLabelTaxonomy();
-    const systemPrompt = buildSystemPrompt(taxonomy);
+    if (subjectKind === 'plant') {
+      const { scientificName } = await runPlantIdentification(spotId, userId, imageKey);
+      return { spotId, scientificName, completedAt: new Date().toISOString() };
+    }
 
-    const imageBytes = await fetchImageBytes(imageKey);
-    const resizedBytes = await resizeForDetection(imageBytes, detectionMaxImageSize);
-    const detection = await detectLitter(resizedBytes, 'image/jpeg', systemPrompt);
-    await persistDetection(spotId, userId, detection, detectionModel);
-
-    return {
-      spotId,
-      detectedItems: detection.objects.length,
-      completedAt: new Date().toISOString(),
-    };
+    const { count } = await runLitterDetection(spotId, userId, imageKey);
+    return { spotId, detectedItems: count, completedAt: new Date().toISOString() };
   },
   {
     connection: redisConnection,
@@ -397,7 +445,7 @@ litterDetectionWorker.on('completed', (job) => {
     lastJobCompletedAt: nowIsoString(),
     lastFailedError: null,
   });
-  console.log(`Litter detection completed for spot ${job.id}`);
+  console.log(`Detection completed for spot ${job.id}`);
 });
 
 litterDetectionWorker.on('failed', async (job, error) => {
@@ -414,7 +462,7 @@ litterDetectionWorker.on('failed', async (job, error) => {
     lastFailedError: error.message.slice(0, 1000),
   });
 
-  console.error(`Litter detection failed for spot ${spotId || 'unknown'}`, error);
+  console.error(`Detection failed for spot ${spotId || 'unknown'}`, error);
 });
 
 await publishHeartbeat();
@@ -422,10 +470,10 @@ const heartbeatInterval = setInterval(() => {
   void publishHeartbeat();
 }, workerHeartbeatIntervalMs);
 
-console.log(`Litter detection worker started. Queue: ${queueName}`);
+console.log(`Detection worker started. Queue: ${queueName}, plant-identifier: ${plantIdentifierMode}`);
 
 const shutdown = async () => {
-  console.log('Shutting down litter detection worker...');
+  console.log('Shutting down detection worker...');
   clearInterval(heartbeatInterval);
   await litterDetectionWorker.close();
   await redisClient.quit();

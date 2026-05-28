@@ -1,4 +1,4 @@
-import type { DatePreset, PickedUpFilter, CleanupFilter } from '../stores/insightsFilterStore'
+import type { DatePreset, PickedUpFilter, CleanupFilter, SubjectFilter } from '../stores/insightsFilterStore'
 import type { HeatMetric } from '../stores/mapStore'
 
 export interface MapViewState {
@@ -10,6 +10,7 @@ export interface MapViewState {
 export interface MapUrlState {
   datePreset?: DatePreset
   pickedUpFilter?: PickedUpFilter
+  subjectFilter?: SubjectFilter
   myFilter?: boolean
   cleanupFilter?: CleanupFilter
   heatMetric?: HeatMetric
@@ -18,6 +19,7 @@ export interface MapUrlState {
 
 const DATE_PRESETS: readonly DatePreset[] = ['7d', '30d', '1y', 'all']
 const PICKED_UP_VALUES: readonly PickedUpFilter[] = ['picked', 'spotted', 'all']
+const SUBJECT_VALUES: readonly SubjectFilter[] = ['litter', 'plants', 'all']
 const HEAT_METRICS: readonly HeatMetric[] = ['items', 'mass']
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -34,6 +36,9 @@ export function serializeMapState(state: MapUrlState): URLSearchParams {
   }
   if (state.pickedUpFilter && state.pickedUpFilter !== 'all') {
     params.set('picked', state.pickedUpFilter)
+  }
+  if (state.subjectFilter && state.subjectFilter !== 'all') {
+    params.set('subject', state.subjectFilter)
   }
   if (state.myFilter) {
     params.set('mine', '1')
@@ -66,6 +71,11 @@ export function parseMapState(searchParams: URLSearchParams): MapUrlState {
   const picked = searchParams.get('picked')
   if (picked && (PICKED_UP_VALUES as readonly string[]).includes(picked)) {
     result.pickedUpFilter = picked as PickedUpFilter
+  }
+
+  const subject = searchParams.get('subject')
+  if (subject && (SUBJECT_VALUES as readonly string[]).includes(subject)) {
+    result.subjectFilter = subject as SubjectFilter
   }
 
   if (searchParams.get('mine') === '1') {
