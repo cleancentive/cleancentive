@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useUiStore } from '../stores/uiStore'
-import { suggestNicknameFromEmail } from '../lib/nicknameSuggestion'
+import { suggestNicknameFromEmail, suggestFullNameFromEmail } from '../lib/nicknameSuggestion'
 import { useCopyToClipboard } from '../lib/useCopyToClipboard'
 import { Avatar } from './Avatar'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -57,6 +57,11 @@ export function ProfileEditor() {
 
   const sortedEmails = useMemo(
     () => [...(user?.emails ?? [])].sort((a, b) => a.id.localeCompare(b.id)),
+    [user?.emails]
+  )
+
+  const suggestedFullName = useMemo(
+    () => suggestFullNameFromEmail(user?.emails),
     [user?.emails]
   )
 
@@ -278,6 +283,16 @@ export function ProfileEditor() {
                 disabled={isLoading}
                 maxLength={100}
               />
+              {!fullName.trim() && suggestedFullName && (
+                <button
+                  type="button"
+                  className="suggested-nickname-chip"
+                  onClick={() => setFullName(suggestedFullName)}
+                  disabled={isLoading}
+                >
+                  Suggested: {suggestedFullName}
+                </button>
+              )}
             </div>
 
             {error && (
