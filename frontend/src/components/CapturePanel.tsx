@@ -460,7 +460,7 @@ export function CapturePanel() {
               </button>
             </div>
             <p className="capture-detail">
-              Best plant ID results: close-up of leaf, flower, or whole plant — one species per photo.
+              For plant ID: frame a single leaf or flower close-up — one species per photo.
             </p>
           </>
         )}
