@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
+import { BackLink } from './BackLink'
 import { v7 as uuidv7 } from 'uuid'
 import { useCleanupStore } from '../stores/cleanupStore'
 import { useAuthStore } from '../stores/authStore'
@@ -100,7 +101,7 @@ export function CleanupDetail() {
     return (
       <div className="community-detail">
         <p className="error-text">{error || 'Cleanup not found'}</p>
-        <Link to="/cleanups" className="back-link">&larr; Back to cleanups</Link>
+        <BackLink to="/cleanups" fallbackNoun="cleanups" />
       </div>
     )
   }
@@ -182,7 +183,7 @@ export function CleanupDetail() {
 
   return (
     <div className="community-detail">
-      <Link to="/cleanups" className="back-link">&larr; Back to cleanups</Link>
+      <BackLink to="/cleanups" fallbackNoun="cleanups" />
 
       <CleanupHeaderCard
         cleanup={cleanup}

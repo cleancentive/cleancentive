@@ -22,6 +22,7 @@ import { FeedbackNew } from './components/FeedbackNew'
 import { DeviceAuthPage } from './components/DeviceAuthPage'
 import { OidcAuthorize } from './components/OidcAuthorize'
 import { useAuthStore, installAuthBroadcastListener } from './stores/authStore'
+import { NavHistoryProvider } from './lib/navHistory'
 import './App.css'
 
 // Install the cross-tab broadcast listener once at module load so even tabs
@@ -66,6 +67,7 @@ function AuthHandler() {
 function App() {
   return (
     <BrowserRouter>
+      <NavHistoryProvider>
       <AuthHandler />
       <Routes>
         <Route element={<AppShell />}>
@@ -96,6 +98,7 @@ function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </NavHistoryProvider>
     </BrowserRouter>
   )
 }

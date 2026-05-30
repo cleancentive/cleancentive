@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, type NavigateFunction } from 'react-router-dom'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useMapStore } from '../stores/mapStore'
@@ -21,7 +21,7 @@ function getCssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
-function wirePopupLinkNavigate(popup: maplibregl.Popup, navigate: (path: string) => void) {
+function wirePopupLinkNavigate(popup: maplibregl.Popup, navigate: NavigateFunction) {
   const link = popup.getElement()?.querySelector<HTMLAnchorElement>('.map-popup-link')
   if (!link) return
   link.addEventListener('click', (ev) => {
@@ -38,7 +38,7 @@ function wirePopupLinkNavigate(popup: maplibregl.Popup, navigate: (path: string)
 function openSpotPopup(
   map: maplibregl.Map,
   feature: GeoJSON.Feature,
-  navigate: (path: string) => void,
+  navigate: NavigateFunction,
   popupCoord?: [number, number],
 ) {
   const geometry = feature.geometry as GeoJSON.Point
@@ -80,7 +80,7 @@ function openSpotPopup(
 function openCleanupPopup(
   map: maplibregl.Map,
   feature: GeoJSON.Feature,
-  navigate: (path: string) => void,
+  navigate: NavigateFunction,
 ) {
   const geometry = feature.geometry as GeoJSON.Point
   const coords = geometry.coordinates.slice() as [number, number]
@@ -272,9 +272,18 @@ export function MapPage() {
     })
   }, [fetchMapData, teamId, cleanupId, cleanupDateId, datePreset, pickedUpFilter, myFilter, user?.id, subjectFilter])
 
-  // Reset userInteracted when filters change so auto-fit fires again
+  // Reset userInteracted when filters *actually* change so auto-fit fires again.
+  // We compare a signature of the filter values rather than firing on every effect
+  // run: the mount run (and StrictMode's double-invoke in dev) must NOT clobber the
+  // `view !== undefined` seed on userInteractedRef, otherwise auto-fit would override
+  // a deep-linked viewport (e.g. returning from a spot via history.back).
+  const lastFilterSigRef = useRef<string | null>(null)
   useEffect(() => {
-    userInteractedRef.current = false
+    const sig = JSON.stringify([teamId, cleanupId, cleanupDateId, datePreset, pickedUpFilter, myFilter, subjectFilter])
+    if (lastFilterSigRef.current === sig) return // mount baseline or StrictMode re-run
+    const isFirstRun = lastFilterSigRef.current === null
+    lastFilterSigRef.current = sig
+    if (!isFirstRun) userInteractedRef.current = false
   }, [teamId, cleanupId, cleanupDateId, datePreset, pickedUpFilter, myFilter, subjectFilter])
 
   // Initialize map once

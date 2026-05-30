@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link, Navigate } from 'react-router-dom'
+import { useParams, Navigate } from 'react-router-dom'
+import { BackLink } from './BackLink'
 import { useAdminStore } from '../stores/adminStore'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
@@ -69,7 +70,7 @@ export function UserDetail() {
     return (
       <div className="user-detail">
         <p className="error-text">{error || 'User not found'}</p>
-        <Link to="/admin" className="back-link">Back</Link>
+        <BackLink to="/steward/users" fallbackNoun="users" />
       </div>
     )
   }

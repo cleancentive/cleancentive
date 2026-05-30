@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
+import { BackLink } from './BackLink'
 import { useTeamStore } from '../stores/teamStore'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
@@ -75,7 +76,7 @@ export function TeamDetail() {
     return (
       <div className="community-detail">
         <p className="error-text">{error || 'Team not found'}</p>
-        <Link to="/teams" className="back-link">&larr; Back to teams</Link>
+        <BackLink to="/teams" fallbackNoun="teams" />
       </div>
     )
   }
@@ -99,7 +100,7 @@ export function TeamDetail() {
 
   return (
     <div className="community-detail">
-      <Link to="/teams" className="back-link">&larr; Back to teams</Link>
+      <BackLink to="/teams" fallbackNoun="teams" />
 
       <fieldset className="page-card">
         {editing ? (

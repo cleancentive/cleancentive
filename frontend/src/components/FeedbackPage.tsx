@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { BackLink } from './BackLink'
 import { useFeedbackStore } from '../stores/feedbackStore'
 import { useAuthStore } from '../stores/authStore'
 import { formatTimestamp } from '../utils/formatTimestamp'
@@ -83,7 +84,7 @@ function FeedbackDetail() {
 
   return (
     <>
-      <Link to="/feedback" className="link-button">&larr; Back to feedback</Link>
+      <BackLink to="/feedback" fallbackNoun="feedback" className="link-button" />
 
       <fieldset className="page-card">
         <legend>

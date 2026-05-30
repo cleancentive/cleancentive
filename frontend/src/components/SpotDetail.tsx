@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
+import { BackLink } from './BackLink'
 import { formatCoord } from '@cleancentive/shared'
 import { useAuthStore } from '../stores/authStore'
 import { ItemEditor, type DetectedItemData } from './ItemEditor'
@@ -80,7 +81,7 @@ export function SpotDetail() {
   if (error) {
     return (
       <div className="spot-detail">
-        <Link to="/map" className="back-link">&larr; Back to map</Link>
+        <BackLink to="/map" fallbackNoun="map" />
         <p className="spot-detail-error">{error}</p>
       </div>
     )
@@ -89,7 +90,7 @@ export function SpotDetail() {
   if (!spot) {
     return (
       <div className="spot-detail">
-        <Link to="/map" className="back-link">&larr; Back to map</Link>
+        <BackLink to="/map" fallbackNoun="map" />
         <p>Loading...</p>
       </div>
     )
@@ -99,7 +100,7 @@ export function SpotDetail() {
 
   return (
     <div className="spot-detail">
-      <Link to="/map" className="back-link">&larr; Back to map</Link>
+      <BackLink to="/map" fallbackNoun="map" />
 
       <div className="spot-detail-header">
         <img
