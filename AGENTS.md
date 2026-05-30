@@ -33,6 +33,12 @@ You are working on Cleancentive, an environmental cleanup and litter tracking ap
 - Do not rename existing variables, functions, or files unless that is the task.
 - When fixing a bug, add a test that reproduces it before fixing it.
 
+## Branching
+
+- Work on `main` directly. Do not create feature branches and do not run agents in git worktrees.
+- Commit small, focused changes straight to `main`. CI handles deploy from `main`.
+- The only branch that should ever exist on a dev machine is `main`. If you find yourself on another branch, stop and check why before making changes.
+
 ## Commits and PRs
 
 - Follow the conventional commit format specified in CONTRIBUTING.md.
