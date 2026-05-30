@@ -193,8 +193,24 @@ services:
       retries: 5
       start_period: 60s
 
+# Production data volumes are declared `external: true` so that a stray
+# `docker compose down -v` (or `docker compose down --volumes`) can NOT delete
+# them — Compose only removes volumes it manages, never external ones. The
+# `name:` is pinned to the `deploy_*` names used by the production compose
+# project (it runs from /opt/cleancentive/deploy with no `-p` override). The
+# volumes are created idempotently by infrastructure/scripts/reconcile.sh before
+# the stack starts; if an external volume is ever missing, `up` fails loudly
+# instead of silently initializing an empty database.
 volumes:
   caddy_data:
+    external: true
+    name: deploy_caddy_data
   caddy_config:
+    external: true
+    name: deploy_caddy_config
   postgres_data:
+    external: true
+    name: deploy_postgres_data
   redis_data:
+    external: true
+    name: deploy_redis_data

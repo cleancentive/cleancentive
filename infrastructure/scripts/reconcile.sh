@@ -72,6 +72,31 @@ if [[ "$compose_checksum" == "$last_compose_checksum" && "$caddy_checksum" == "$
 fi
 
 cd "$DEPLOY_DIR"
+
+# Ensure the external data volumes exist before bringing the stack up. They are
+# declared `external: true` in the compose file so `docker compose down -v` can
+# never delete them; the trade-off is that Compose will not auto-create them, so
+# we do it here idempotently. As a safety net, if the expected volume is missing
+# but a differently-named volume with the same suffix already exists (e.g. the
+# compose project was renamed), abort rather than create an empty volume that
+# would strand the real data.
+DATA_VOLUMES=(deploy_caddy_data deploy_caddy_config deploy_postgres_data deploy_redis_data)
+for vol in "${DATA_VOLUMES[@]}"; do
+  if docker volume inspect "$vol" >/dev/null 2>&1; then
+    continue
+  fi
+  suffix="${vol#deploy_}"
+  stray=$(docker volume ls --format '{{.Name}}' | grep -E "_${suffix}\$" || true)
+  if [[ -n "$stray" ]]; then
+    echo "Refusing to create '$vol': found existing data volume(s) with a matching suffix:" >&2
+    echo "$stray" >&2
+    echo "This usually means the compose project name changed. Migrate/rename the data manually; do not let reconcile create an empty volume." >&2
+    exit 1
+  fi
+  docker volume create "$vol" >/dev/null
+  echo "Created external data volume: $vol"
+done
+
 docker compose --env-file "$PRIVATE_DIR/.env" -f docker-compose.prod.yml pull
 docker compose --env-file "$PRIVATE_DIR/.env" -f docker-compose.prod.yml up -d
 

@@ -47,4 +47,24 @@ for image in "${images[@]}"; do
   fi
 done
 
+# Irreplaceable data volumes must be declared `external: true` so an accidental
+# `docker compose down -v` cannot delete them. Fail the deploy if that guard was
+# dropped from the compose file.
+assert_external_volume() {
+  local vol="$1"
+  if ! awk -v v="$vol" '
+    /^volumes:/ { invol = 1; next }
+    invol && $1 == v ":" { inblock = 1; next }
+    invol && inblock && /^  [^[:space:]]/ && $1 != v ":" { inblock = 0 }
+    inblock && /external:[[:space:]]*true/ { found = 1 }
+    END { exit (found ? 0 : 1) }
+  ' "$compose_file"; then
+    echo "Production volume '$vol' must be declared 'external: true' to prevent data loss via 'docker compose down -v'" >&2
+    exit 1
+  fi
+}
+
+assert_external_volume postgres_data
+assert_external_volume redis_data
+
 echo "Production compose image references are valid"
