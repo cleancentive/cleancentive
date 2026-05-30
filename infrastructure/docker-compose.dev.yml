@@ -24,7 +24,7 @@ services:
       - ./init-umami-db.sql:/docker-entrypoint-initdb.d/10-create-umami-db.sql:ro
       - ./init-outline-db.sql:/docker-entrypoint-initdb.d/20-create-outline-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cleancentive"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U cleancentive -d cleancentive"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -87,6 +87,19 @@ services:
       postgres:
         condition: service_healthy
 
+  umami-db-init:
+    image: postgis/postgis:15-3.4
+    container_name: cleancentive-umami-db-init
+    restart: "no"
+    command: >
+      sh -c "until psql -h postgres -U cleancentive -d umami -c 'SELECT 1' >/dev/null 2>&1;
+      do echo 'waiting for umami db over TCP...'; sleep 1; done"
+    environment:
+      PGPASSWORD: cleancentive_dev_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   umami:
     image: ghcr.io/umami-software/umami:postgresql-latest
     container_name: cleancentive-umami
@@ -98,14 +111,15 @@ services:
     ports:
       - "127.0.0.1:3001:3000"
     depends_on:
-      postgres:
-        condition: service_healthy
+      umami-db-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/heartbeat"]
-      interval: 30s
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/heartbeat"]
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 60s
 
   outline:
     image: ${OUTLINE_IMAGE:-ghcr.io/cleancentive/outline:latest}
@@ -156,10 +170,11 @@ services:
       - ./certs:/certs:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/_health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/_health"]
       interval: 30s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 60s
 
 volumes:
   postgres_data:
