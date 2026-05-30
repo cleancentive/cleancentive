@@ -114,7 +114,7 @@ services:
         condition: service_healthy
 
   outline:
-    image: ghcr.io/cleancentive/outline:5175ded6924600fe600ffd9b2ff5c74a45711df4
+    image: ghcr.io/cleancentive/outline:55d12410778387aa39cdbcef9229eb5b52793d8a
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
@@ -122,6 +122,7 @@ services:
       PORT: 3000
       APP_NAME: CleanCentive Wiki
       BRANDING_ENABLED: "false"
+      FAVICON_URL: https://${DOMAIN}/favicon.svg
       URL: https://wiki.${DOMAIN}
       DATABASE_URL: postgresql://${DB_USERNAME:-cleancentive}:${DB_PASSWORD}@postgres:5432/outline
       PGSSLMODE: disable
