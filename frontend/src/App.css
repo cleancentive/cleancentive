@@ -432,6 +432,24 @@
   flex: 1;
 }
 
+/* Confirm dialogs: even out danger/secondary widths, stack when 3+ buttons */
+.confirm-dialog .form-actions .danger-button,
+.confirm-dialog .form-actions .primary-button,
+.confirm-dialog .form-actions .secondary-button {
+  flex: 1;
+  width: auto;
+  margin-top: 0;
+}
+
+.confirm-dialog .form-actions:has(> button:nth-child(3)) {
+  flex-direction: column;
+}
+
+.confirm-dialog .form-actions:has(> button:nth-child(3)) > button {
+  width: 100%;
+  flex: none;
+}
+
 .error-message {
   background: var(--color-danger-subtle);
   color: var(--color-danger);
