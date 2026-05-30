@@ -2650,6 +2650,11 @@
   background: white;
 }
 
+.message-item:target {
+  border-color: var(--color-primary);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
 .message-header {
   display: flex;
   align-items: center;
@@ -2661,6 +2666,23 @@
 .message-date {
   color: var(--color-text-faint);
   font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.message-date:hover {
+  text-decoration: underline;
+}
+
+.message-cc-self {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.message-cc-self input {
+  width: auto;
 }
 
 .message-subject {

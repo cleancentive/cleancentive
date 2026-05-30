@@ -49,6 +49,7 @@ interface CreateTeamMessageInput {
   audience: 'members' | 'organizers';
   subject: string;
   body: string;
+  ccSender: boolean;
 }
 
 const REGEX_INDICATORS = /[*+\\()^$\[]/;
@@ -611,7 +612,7 @@ export class TeamService {
     });
     const saved = await this.teamMessageRepository.save(message);
 
-    await this.sendTeamMessageEmailFanout(team.name, saved, input.authorUserId);
+    await this.sendTeamMessageEmailFanout(team.name, saved, input.authorUserId, input.ccSender);
     return saved;
   }
 
@@ -1166,7 +1167,7 @@ export class TeamService {
     });
   }
 
-  private async sendTeamMessageEmailFanout(teamName: string, message: TeamMessage, authorUserId: string): Promise<void> {
+  private async sendTeamMessageEmailFanout(teamName: string, message: TeamMessage, authorUserId: string, ccSender: boolean): Promise<void> {
     // 'members' audience → all members and organizers; 'organizers' audience → organizers only
     const recipients = message.audience === 'organizers'
       ? await this.teamMembershipRepository.find({ where: { team_id: message.team_id, role: 'organizer' } })
@@ -1178,16 +1179,19 @@ export class TeamService {
       ? await this.userEmailRepository.find({ where: { user_id: In(recipientIds), is_selected_for_login: true } })
       : [];
 
-    // CC the sender so they get a copy
-    const senderEmails = await this.userEmailRepository.find({ where: { user_id: authorUserId, is_selected_for_login: true } });
-    const senderEmail = senderEmails[0]?.email || null;
+    // CC the sender only if they opted in to receive a copy of their own message
+    let senderEmail: string | null = null;
+    if (ccSender) {
+      const senderEmails = await this.userEmailRepository.find({ where: { user_id: authorUserId, is_selected_for_login: true } });
+      senderEmail = senderEmails[0]?.email || null;
+    }
 
     const uniqueRecipientEmails = [...new Set(recipientEmails.map((e) => e.email))];
     await this.emailService.sendCommunityMessage(uniqueRecipientEmails, senderEmail, {
       subject: `[Team: ${teamName}] ${message.subject}`,
       preheader: 'New team message in Cleancentive',
       title: teamName,
-      body: message.body,
+      body: message.body.replace(/\n/g, '  \n'),
       disclosure: 'Stewards can read team and cleanup messages for moderation purposes.',
     });
   }

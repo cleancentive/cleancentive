@@ -294,7 +294,7 @@ export class CleanupController {
   async createMessage(
     @Request() req: any,
     @Param('id', ParseUUIDPipe) cleanupId: string,
-    @Body() body: { audience?: 'members' | 'organizers'; subject?: string; body?: string },
+    @Body() body: { audience?: 'members' | 'organizers'; subject?: string; body?: string; ccSender?: boolean },
   ) {
     const message = await this.cleanupService.createMessage({
       cleanupId,
@@ -302,6 +302,7 @@ export class CleanupController {
       audience: body.audience || 'members',
       subject: body.subject || '',
       body: body.body || '',
+      ccSender: body.ccSender ?? false,
     });
 
     return {

@@ -140,7 +140,7 @@ export class TeamController {
   async createMessage(
     @Request() req: any,
     @Param('id', ParseUUIDPipe) teamId: string,
-    @Body() body: { audience?: 'members' | 'organizers'; subject?: string; body?: string },
+    @Body() body: { audience?: 'members' | 'organizers'; subject?: string; body?: string; ccSender?: boolean },
   ) {
     const message = await this.teamService.createMessage({
       teamId,
@@ -148,6 +148,7 @@ export class TeamController {
       audience: body.audience || 'members',
       subject: body.subject || '',
       body: body.body || '',
+      ccSender: body.ccSender ?? false,
     });
 
     return {

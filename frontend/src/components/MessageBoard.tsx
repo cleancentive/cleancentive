@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { UserDisplay } from './UserDisplay'
 import { formatTimestamp } from '../utils/formatTimestamp'
 
@@ -14,7 +14,7 @@ interface Message {
 
 interface MessageBoardProps {
   messages: Message[]
-  onPost: (audience: 'members' | 'organizers', subject: string, body: string) => Promise<void>
+  onPost: (audience: 'members' | 'organizers', subject: string, body: string, ccSender: boolean) => Promise<void>
   canPost: boolean
   isOrganizer: boolean
   isLoading: boolean
@@ -31,16 +31,27 @@ export function MessageBoard({ messages, onPost, canPost, isOrganizer, isLoading
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [audience, setAudience] = useState<'members' | 'organizers'>('organizers')
+  const [ccSender, setCcSender] = useState(false)
   const [isSending, setIsSending] = useState(false)
+
+  // Messages load asynchronously, so the browser's native hash scroll fires before the
+  // target message exists in the DOM. Re-run the scroll once messages are rendered.
+  useEffect(() => {
+    if (isLoading || messages.length === 0) return
+    const hash = window.location.hash
+    if (!hash.startsWith('#message-')) return
+    document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'center' })
+  }, [messages, isLoading])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!subject.trim() || !body.trim()) return
     setIsSending(true)
     try {
-      await onPost(audience, subject.trim(), body.trim())
+      await onPost(audience, subject.trim(), body.trim(), ccSender)
       setSubject('')
       setBody('')
+      setCcSender(false)
     } finally {
       setIsSending(false)
     }
@@ -70,6 +81,10 @@ export function MessageBoard({ messages, onPost, canPost, isOrganizer, isLoading
             required
           />
           <p className="message-disclosure">{getDisclosure(audience)}</p>
+          <label className="message-cc-self">
+            <input type="checkbox" checked={ccSender} onChange={(e) => setCcSender(e.target.checked)} />
+            Email me a copy
+          </label>
           <div className="message-compose-footer">
             <label>
               To:
@@ -97,7 +112,7 @@ export function MessageBoard({ messages, onPost, canPost, isOrganizer, isLoading
 
       <div className="message-list">
         {messages.map((msg) => (
-          <div key={msg.id} className="message-item">
+          <div key={msg.id} id={`message-${msg.id}`} className="message-item">
             <div className="message-header">
               <UserDisplay
                 userId={msg.author_user_id}
@@ -107,7 +122,9 @@ export function MessageBoard({ messages, onPost, canPost, isOrganizer, isLoading
                 size={24}
                 showAvatar={!!msg.author}
               />
-              <span className="message-date">{formatTimestamp(msg.created_at)}</span>
+              <a className="message-date" href={`#message-${msg.id}`} title={new Date(msg.created_at).toLocaleString()}>
+                {formatTimestamp(msg.created_at)}
+              </a>
               <span className="badge">{msg.audience === 'organizers' ? 'To organizers' : 'To members'}</span>
             </div>
             <h4 className="message-subject">{msg.subject}</h4>

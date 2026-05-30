@@ -260,7 +260,7 @@ export function TeamDetail() {
           <legend>Messages</legend>
           <MessageBoard
             messages={messages}
-            onPost={(audience, subject, body) => postMessage(id!, audience, subject, body)}
+            onPost={(audience, subject, body, ccSender) => postMessage(id!, audience, subject, body, ccSender)}
             canPost={isMember}
             isOrganizer={isOrganizer}
             isLoading={isLoadingMessages}

@@ -75,7 +75,7 @@ interface TeamState {
   archiveTeam: (id: string) => Promise<void>
   setTeamUnlisted: (id: string, isUnlisted: boolean) => Promise<void>
   fetchMessages: (id: string) => Promise<void>
-  postMessage: (id: string, audience: 'members' | 'organizers', subject: string, body: string) => Promise<void>
+  postMessage: (id: string, audience: 'members' | 'organizers', subject: string, body: string, ccSender: boolean) => Promise<void>
   updateEmailPatterns: (teamId: string, patterns: string[]) => Promise<void>
   updateCustomCss: (teamId: string, customCss: string | null) => Promise<void>
   importPartnerUrl: (url: string) => Promise<{ domain: string; favicon_url: string | null; colors: { primary: string | null; accent: string | null }; name: string | null; description: string | null } | null>
@@ -243,10 +243,10 @@ export const useTeamStore = create<TeamState>()((set, get) => ({
     }
   },
 
-  postMessage: async (id: string, audience: 'members' | 'organizers', subject: string, body: string) => {
+  postMessage: async (id: string, audience: 'members' | 'organizers', subject: string, body: string, ccSender: boolean) => {
     set({ error: null })
     try {
-      await axios.post(`${API_BASE}/teams/${id}/messages`, { audience, subject, body }, { headers: getAuthHeaders() })
+      await axios.post(`${API_BASE}/teams/${id}/messages`, { audience, subject, body, ccSender }, { headers: getAuthHeaders() })
       await get().fetchMessages(id)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to send message' })

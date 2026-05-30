@@ -105,7 +105,7 @@ interface CleanupState {
   promoteParticipant: (cleanupId: string, userId: string) => Promise<void>
   archiveCleanup: (id: string) => Promise<void>
   fetchMessages: (id: string) => Promise<void>
-  postMessage: (id: string, audience: 'members' | 'organizers', subject: string, body: string) => Promise<void>
+  postMessage: (id: string, audience: 'members' | 'organizers', subject: string, body: string, ccSender: boolean) => Promise<void>
   toggleStatusFilter: (status: CleanupStatus) => void
   clearError: () => void
 }
@@ -342,10 +342,10 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
     }
   },
 
-  postMessage: async (id: string, audience: 'members' | 'organizers', subject: string, body: string) => {
+  postMessage: async (id: string, audience: 'members' | 'organizers', subject: string, body: string, ccSender: boolean) => {
     set({ error: null })
     try {
-      await axios.post(`${API_BASE}/cleanups/${id}/messages`, { audience, subject, body }, { headers: getAuthHeaders() })
+      await axios.post(`${API_BASE}/cleanups/${id}/messages`, { audience, subject, body, ccSender }, { headers: getAuthHeaders() })
       await get().fetchMessages(id)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to send message' })
