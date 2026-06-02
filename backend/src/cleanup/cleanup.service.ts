@@ -18,6 +18,9 @@ import { CalendarService } from '../calendar/calendar.service';
 import { InsightsCacheService } from '../insights/insights-cache.service';
 import type { CleanupStatus } from './cleanup-query';
 import { haversineKm } from '@cleancentive/shared';
+// tz-lookup is a CommonJS `module.exports = fn` with no type declarations.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import tzLookup = require('tz-lookup');
 
 interface CreateCleanupInput {
   name: string;
@@ -548,7 +551,12 @@ export class CleanupService {
       for (const cleanupDate of futureDates) {
         sequence += 1;
         const { ics } = await this.calendarService.buildSingleEventForEmail(cleanupDate.id, method, sequence);
-        const when = this.formatWhen(cleanupDate.start_at, cleanupDate.end_at);
+        const when = this.formatWhen(
+          cleanupDate.start_at,
+          cleanupDate.end_at,
+          cleanupDate.latitude,
+          cleanupDate.longitude,
+        );
         for (const recipient of recipientEmails) {
           await this.emailService.sendCleanupInvite(recipient.email, {
             method,
@@ -574,21 +582,34 @@ export class CleanupService {
     }
   }
 
-  private formatWhen(start: Date, end: Date): string {
-    const fmt = new Intl.DateTimeFormat('en-US', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-      timeZone: 'UTC',
-    });
-    const sameDay =
-      start.getUTCFullYear() === end.getUTCFullYear() &&
-      start.getUTCMonth() === end.getUTCMonth() &&
-      start.getUTCDate() === end.getUTCDate();
-    if (sameDay) {
-      const endTime = new Intl.DateTimeFormat('en-US', { timeStyle: 'short', timeZone: 'UTC' }).format(end);
-      return `${fmt.format(start)} – ${endTime} UTC`;
+  // Resolve the event's local IANA timezone from its coordinates so server-rendered
+  // emails show the same wall-clock time an on-site attendee sees. The website renders
+  // in the viewer's browser tz; the server has no browser context, so it uses the
+  // event's location instead. Falls back to UTC for missing/invalid coordinates.
+  private resolveEventTimeZone(latitude: number, longitude: number): string {
+    try {
+      return tzLookup(latitude, longitude);
+    } catch {
+      return 'UTC';
     }
-    return `${fmt.format(start)} – ${fmt.format(end)} UTC`;
+  }
+
+  private formatWhen(start: Date, end: Date, latitude: number, longitude: number): string {
+    const timeZone = this.resolveEventTimeZone(latitude, longitude);
+    const date = new Intl.DateTimeFormat('en-US', { timeZone, year: 'numeric', month: 'short', day: 'numeric' });
+    const time = new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' });
+    const zoneName = (d: Date): string =>
+      new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'short' })
+        .formatToParts(d)
+        .find((p) => p.type === 'timeZoneName')?.value ?? '';
+    // Compare calendar days in the event's timezone, not UTC.
+    const dayKey = (d: Date): string =>
+      new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+
+    if (dayKey(start) === dayKey(end)) {
+      return `${date.format(start)}, ${time.format(start)} – ${time.format(end)} ${zoneName(end)}`.trim();
+    }
+    return `${date.format(start)}, ${time.format(start)} – ${date.format(end)}, ${time.format(end)} ${zoneName(end)}`.trim();
   }
 
   private async promoteStewards(cleanupId: string, leavingUserId: string): Promise<void> {

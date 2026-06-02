@@ -191,3 +191,29 @@ describe('CleanupService.fireCalendarEmailsForFutureDates 6h cutoff', () => {
     expect(sentEmails).toHaveLength(0);
   });
 });
+
+describe('CleanupService.formatWhen event-local timezone', () => {
+  const service: any = Object.create(CleanupService.prototype);
+
+  test('renders same-day event in its location timezone, not UTC', () => {
+    // Basel, Switzerland in late May → CEST (UTC+2).
+    const when = service.formatWhen(
+      new Date('2026-05-29T16:00:00Z'),
+      new Date('2026-05-29T18:00:00Z'),
+      47.5596,
+      7.5886,
+    );
+    // 16:00–18:00 UTC == 18:00–20:00 local, matching the website.
+    expect(when).toBe('May 29, 2026, 6:00 PM – 8:00 PM GMT+2');
+  });
+
+  test('falls back to UTC for invalid coordinates', () => {
+    const when = service.formatWhen(
+      new Date('2026-01-15T09:00:00Z'),
+      new Date('2026-01-15T11:00:00Z'),
+      NaN,
+      NaN,
+    );
+    expect(when).toBe('Jan 15, 2026, 9:00 AM – 11:00 AM UTC');
+  });
+});

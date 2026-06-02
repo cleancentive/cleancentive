@@ -23,7 +23,11 @@ export class CalendarService {
   ) {}
 
   getAppBaseUrl(): string {
-    return (this.configService.get<string>('APP_BASE_URL') || 'http://localhost:5173').replace(/\/+$/, '');
+    return (
+      this.configService.get<string>('APP_BASE_URL') ||
+      this.configService.get<string>('FRONTEND_URL') ||
+      'http://localhost:5173'
+    ).replace(/\/+$/, '');
   }
 
   getApiBaseUrl(): string {
