@@ -104,10 +104,12 @@
   --color-text: var(--gray-800);
   --color-text-muted: var(--gray-500);
   --color-text-faint: var(--gray-400);
+  --color-text-inverse: #ffffff;
 
   /* Surfaces & borders */
   --color-surface: #ffffff;
   --color-surface-alt: var(--slate-50);
+  --color-surface-inverse: var(--slate-800);
   --color-surface-hover: var(--gray-100);
   --color-border: var(--gray-200);
   --color-border-input: var(--gray-300);
