@@ -35,7 +35,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   private readonly umamiBaseUrl = process.env.UMAMI_PUBLIC_URL ?? 'https://analytics.cleancentive.local';
   private readonly umamiAdminUrl = process.env.UMAMI_URL ?? 'http://localhost:3001';
   private readonly umamiWikiDomain = process.env.UMAMI_WIKI_DOMAIN ?? new URL(this.outlinePublicUrl).hostname;
-  private readonly outlineTeamLogoUrl = process.env.OUTLINE_TEAM_LOGO_URL ?? 'https://cleancentive.local/icon.svg';
+  private readonly outlineTeamLogoUrl = process.env.OUTLINE_TEAM_LOGO_URL ?? 'https://cleancentive.local/favicon.svg';
   private readonly outlineWorkspaceName = process.env.OUTLINE_TEAM_NAME ?? 'CleanCentive Wiki';
   private readonly outlineS3Bucket = process.env.OUTLINE_S3_BUCKET ?? 'cleancentive-wiki';
   private outlineApiKey = '';
