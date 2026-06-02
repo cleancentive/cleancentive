@@ -1,0 +1,22 @@
+{
+  "layerId": "pack-zuerich",
+  "seed": 99,
+  "scenarioType": "pack",
+  "window": { "start": "2025-06-01", "end": "2026-05-25" },
+  "cities": [
+    {
+      "name": "Zürich",
+      "box": { "minLat": 47.345, "maxLat": 47.41, "minLng": 8.49, "maxLng": 8.59 },
+      "weight": 1
+    }
+  ],
+  "counts": { "users": 18, "spots": 300 },
+  "teams": [
+    { "name": "CSR Zürich Versicherungen", "description": "Freiwilligen-Programm für nachhaltige Cleanups.", "organizers": 2, "isUnlisted": true }
+  ],
+  "cleanups": [
+    { "name": "Seebecken Cleanup Zürich", "description": "Cleanup rund um das Seebecken.", "city": "Zürich", "dates": 5 }
+  ],
+  "feedback": { "count": 5 },
+  "taco": { "downscaleMaxPx": 1600 }
+}

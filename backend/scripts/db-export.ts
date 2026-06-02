@@ -1,10 +1,21 @@
 import { createWriteStream } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
 import { Client, types } from 'pg';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DATA_DIR,
+  WATERMARK_COLUMN,
+  type BundleManifest,
+  type BundleType,
+  bundleId,
+  discoverBundles,
+  findBase,
+  resolvePath,
+  sourceLabel,
+} from './lib/bundles';
 
 // Preserve raw timestamp strings from Postgres (avoid JS Date precision loss)
 types.setTypeParser(1114, (val) => val); // timestamp without timezone
@@ -12,12 +23,13 @@ types.setTypeParser(1184, (val) => val); // timestamp with timezone
 
 type ScopeGroup = 'users' | 'teams' | 'cleanups' | 'spots' | 'labels' | 'feedback';
 
+// NOTE: keep SCOPE_GROUPS and TABLE_ORDER identical to db-import.ts (duplicated by design).
 const SCOPE_GROUPS: Record<ScopeGroup, string[]> = {
   labels: ['labels', 'label_translations'],
   users: ['users', 'user_emails', 'admins'],
   teams: ['teams', 'team_email_patterns', 'team_memberships', 'team_messages'],
   cleanups: ['cleanups', 'cleanup_dates', 'cleanup_participants', 'cleanup_messages'],
-  spots: ['spots', 'detected_items', 'detected_item_edits'],
+  spots: ['spots', 'detected_items', 'detected_item_edits', 'spot_edits'],
   feedback: ['feedback', 'feedback_responses'],
 };
 
@@ -54,6 +66,7 @@ const TABLE_ORDER: string[] = [
   'spots',
   'detected_items',
   'detected_item_edits',
+  'spot_edits',
   'feedback',
   'feedback_responses',
 ];
@@ -69,10 +82,16 @@ function hasArg(flag: string): boolean {
 }
 
 function printUsage(): void {
-  console.log('Usage: bun run scripts/db-export.ts --output <dir>');
+  console.log('Usage: bun run scripts/db-export.ts [--full | --incremental]');
+  console.log('');
+  console.log('By default writes an auto-named bundle into data/ (repo root), choosing');
+  console.log('incremental when a compatible previous bundle exists, else a full export.');
   console.log('');
   console.log('Flags:');
-  console.log('  --output <dir>      Target directory for export (created if missing)');
+  console.log('  --full              Force a full export (snapshot of all rows in scope)');
+  console.log('  --incremental       Force an incremental export (error if no prior bundle)');
+  console.log('  --output-root <dir> Folder to hold auto-named bundles (default: data/)');
+  console.log('  --output <dir>      Write the bundle to exactly this dir (one-off)');
   console.log('  --scope <groups>    Comma-separated scope groups (default: all)');
   console.log('                      Groups: users, teams, cleanups, spots, labels, feedback, all');
   console.log('  --no-images         Skip S3 image download');
@@ -165,14 +184,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  const outputDir = getArgValue('--output');
-  if (!outputDir) {
-    printUsage();
-    process.exit(1);
-  }
-
   const skipImages = hasArg('--no-images');
   const scopeArg = getArgValue('--scope');
+  const forceFull = hasArg('--full');
+  const forceIncremental = hasArg('--incremental');
+
+  if (forceFull && forceIncremental) {
+    console.error('Pass only one of --full / --incremental.');
+    process.exit(1);
+  }
 
   const { groups, expanded, warnings } = resolveScope(scopeArg);
 
@@ -184,10 +204,21 @@ async function main(): Promise<void> {
   }
 
   const tables = getTablesForGroups(groups);
-  console.log(`Exporting ${tables.length} tables: ${tables.join(', ')}`);
+
+  const dbHost = process.env.DB_HOST || 'localhost';
+  const srcLabel = sourceLabel(dbHost);
+
+  // Where bundles live (for naming + base discovery) and where this one is written.
+  const explicitOutput = getArgValue('--output');
+  const outputRootArg = getArgValue('--output-root');
+  const root = explicitOutput
+    ? dirname(resolvePath(explicitOutput))
+    : outputRootArg
+      ? resolvePath(outputRootArg)
+      : DATA_DIR;
 
   const dbClient = new Client({
-    host: process.env.DB_HOST || 'localhost',
+    host: dbHost,
     port: parseInt(process.env.DB_PORT || '5432', 10),
     user: process.env.DB_USERNAME || 'cleancentive',
     password: process.env.DB_PASSWORD || 'cleancentive_dev_password',
@@ -206,21 +237,42 @@ async function main(): Promise<void> {
   });
 
   await dbClient.connect();
+
+  // One boundary for the whole export, taken from the DB clock in the same timestamp frame
+  // as the created_at/updated_at columns (which are `timestamp` without tz).
+  const boundary = (await dbClient.query('SELECT now()::timestamp AS wm')).rows[0].wm as string;
+
+  // Full vs incremental: incremental when a compatible base bundle exists (unless --full).
+  const base = forceFull ? null : findBase(discoverBundles(root), { sourceLabel: srcLabel, scope: groups });
+  if (forceIncremental && !base) {
+    console.error(
+      `No compatible base bundle in ${root} for source '${srcLabel}' with this scope — ` +
+        'run a full export first (or drop --incremental).',
+    );
+    await dbClient.end();
+    process.exit(1);
+  }
+  const type: BundleType = base ? 'incremental' : 'full';
+  const since = base ? base.manifest.high_watermark ?? null : null;
+  const parent = base ? base.manifest.bundle_id ?? base.id : null;
+
+  const outputDir = explicitOutput ? resolvePath(explicitOutput) : join(root, bundleId(srcLabel, boundary, type));
   await mkdir(outputDir, { recursive: true });
 
-  const manifest: {
-    version: number;
-    exported_at: string;
-    source_database: string;
-    source_host: string;
-    scope: string[];
-    tables: Record<string, { row_count: number }>;
-    images: { downloaded: number; failed: number; skipped: boolean };
-  } = {
-    version: 1,
+  console.log(`Export type: ${type}${type === 'incremental' ? ` (changes since ${since})` : ''}`);
+  console.log(`Exporting ${tables.length} tables: ${tables.join(', ')}`);
+
+  const manifest: BundleManifest = {
+    version: 2,
     exported_at: new Date().toISOString(),
     source_database: process.env.DB_DATABASE || 'cleancentive',
-    source_host: process.env.DB_HOST || 'localhost',
+    source_host: dbHost,
+    source_label: srcLabel,
+    type,
+    bundle_id: basename(outputDir),
+    since,
+    high_watermark: boundary,
+    parent,
     scope: groups,
     tables: {},
     images: { downloaded: 0, failed: 0, skipped: skipImages },
@@ -234,8 +286,16 @@ async function main(): Promise<void> {
     const cursorName = `export_cursor_${table}`;
     const batchSize = 1000;
 
+    // Incremental: only rows changed in (since, boundary]. since/boundary are DB-produced
+    // timestamp strings, safe to inline as quoted literals.
+    const wmCol = WATERMARK_COLUMN[table] ?? 'updated_at';
+    const where =
+      type === 'incremental' && since
+        ? ` WHERE "${wmCol}" > '${since}'::timestamp AND "${wmCol}" <= '${boundary}'::timestamp`
+        : '';
+
     await dbClient.query('BEGIN');
-    await dbClient.query(`DECLARE ${cursorName} CURSOR FOR SELECT * FROM "${table}"`);
+    await dbClient.query(`DECLARE ${cursorName} CURSOR FOR SELECT * FROM "${table}"${where}`);
 
     while (true) {
       const result = await dbClient.query(`FETCH ${batchSize} FROM ${cursorName}`);
@@ -261,7 +321,7 @@ async function main(): Promise<void> {
     console.log(`  ${table}: ${rowCount} rows`);
   }
 
-  // Download images if spots are in scope and images not skipped
+  // Download images for the spots in THIS bundle (incremental → only changed spots).
   const includeImages = !skipImages && groups.includes('spots');
   if (includeImages) {
     console.log('Downloading images from S3...');
@@ -296,12 +356,12 @@ async function main(): Promise<void> {
   await dbClient.end();
 
   console.log('');
-  console.log(`Export complete → ${outputDir}`);
+  console.log(`Export complete (${type}) → ${outputDir}`);
   console.log(`  Scope: ${groups.join(', ')}`);
   console.log(`  Tables: ${Object.keys(manifest.tables).length}`);
   console.log(`  Total rows: ${Object.values(manifest.tables).reduce((sum, t) => sum + t.row_count, 0)}`);
   if (includeImages) {
-    console.log(`  Images: ${manifest.images.downloaded} downloaded, ${manifest.images.failed} failed`);
+    console.log(`  Images: ${manifest.images?.downloaded ?? 0} downloaded, ${manifest.images?.failed ?? 0} failed`);
   }
 }
 

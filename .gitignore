@@ -64,6 +64,9 @@ Thumbs.db
 *.sqlite3
 *.db
 
+# Data export/import bundles (full + incremental snapshots, may be large / contain real data)
+/data/
+
 # Docker
 docker-compose.override.yml
 

@@ -10,6 +10,7 @@
     "import:mongo-export": "bun run scripts/import-mongo-export.ts",
     "db:export": "bun run scripts/db-export.ts",
     "db:import": "bun run scripts/db-import.ts",
+    "db:generate": "bun run scripts/generate-synthetic.ts",
     "build": "nest build",
     "start": "bun run dist/src/main.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",

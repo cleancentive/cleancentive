@@ -36,6 +36,7 @@ Want to contribute or run your own instance?
 
 - **[DEVELOPMENT.md](DEVELOPMENT.md)** - Setup and technical guide
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute
+- **[DATA-WORKFLOWS.md](DATA-WORKFLOWS.md)** - Export, import, backup/restore, and synthetic data generation
 
 ## License
 

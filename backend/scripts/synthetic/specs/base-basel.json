@@ -1,0 +1,24 @@
+{
+  "layerId": "base-basel",
+  "seed": 42,
+  "scenarioType": "base",
+  "window": { "start": "2024-12-01", "end": "2026-05-25" },
+  "cities": [
+    {
+      "name": "Basel",
+      "box": { "minLat": 47.532, "maxLat": 47.589, "minLng": 7.557, "maxLng": 7.633 },
+      "weight": 1
+    }
+  ],
+  "counts": { "users": 30, "spots": 600 },
+  "teams": [
+    { "name": "Pfadfinder Basel", "description": "Wir halten unsere Stadt sauber – jede Woche ein Stück mehr.", "organizers": 2 },
+    { "name": "Quartierverein Kleinbasel", "description": "Nachbarn, die gemeinsam ihr Quartier pflegen.", "organizers": 1 }
+  ],
+  "cleanups": [
+    { "name": "Rheinputz Basel", "description": "Monatlicher Cleanup entlang des Rheinufers.", "city": "Basel", "dates": 8 },
+    { "name": "Frühlingsputz Kleinbasel", "description": "Saisonale Putzaktion im Quartier.", "city": "Basel", "dates": 3 }
+  ],
+  "feedback": { "count": 10 },
+  "taco": { "downscaleMaxPx": null }
+}

@@ -1,9 +1,16 @@
-import { createReadStream } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import { Client, types } from 'pg';
 import { CreateBucketCommand, HeadBucketCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DATA_DIR,
+  type BundleManifest,
+  discoverBundles,
+  resolveChain,
+  resolvePath,
+  sourceLabels,
+} from './lib/bundles';
 
 // Preserve raw timestamp strings from Postgres
 types.setTypeParser(1114, (val) => val);
@@ -11,12 +18,13 @@ types.setTypeParser(1184, (val) => val);
 
 type ScopeGroup = 'users' | 'teams' | 'cleanups' | 'spots' | 'labels' | 'feedback';
 
+// NOTE: keep SCOPE_GROUPS and TABLE_ORDER identical to db-export.ts (duplicated by design).
 const SCOPE_GROUPS: Record<ScopeGroup, string[]> = {
   labels: ['labels', 'label_translations'],
   users: ['users', 'user_emails', 'admins'],
   teams: ['teams', 'team_email_patterns', 'team_memberships', 'team_messages'],
   cleanups: ['cleanups', 'cleanup_dates', 'cleanup_participants', 'cleanup_messages'],
-  spots: ['spots', 'detected_items', 'detected_item_edits'],
+  spots: ['spots', 'detected_items', 'detected_item_edits', 'spot_edits'],
   feedback: ['feedback', 'feedback_responses'],
 };
 
@@ -46,6 +54,7 @@ const TABLE_ORDER: string[] = [
   'spots',
   'detected_items',
   'detected_item_edits',
+  'spot_edits',
   'feedback',
   'feedback_responses',
 ];
@@ -55,15 +64,7 @@ const TABLE_ORDER: string[] = [
 // and restored in a second pass after all tables are loaded.
 const USERS_DEFERRED_COLUMNS = ['active_team_id', 'active_cleanup_date_id', 'avatar_email_id'];
 
-type Manifest = {
-  version: number;
-  exported_at: string;
-  source_database: string;
-  source_host: string;
-  scope: string[];
-  tables: Record<string, { row_count: number }>;
-  images?: { downloaded: number; failed: number; skipped: boolean };
-};
+const BATCH_SIZE = 500;
 
 function getArgValue(flag: string): string | null {
   const index = process.argv.indexOf(flag);
@@ -76,13 +77,18 @@ function hasArg(flag: string): boolean {
 }
 
 function printUsage(): void {
-  console.log('Usage: bun run scripts/db-import.ts --input <dir> --mode <replace|merge>');
+  console.log('Usage:');
+  console.log('  Single bundle: bun run scripts/db-import.ts --input <dir> --mode <replace|merge>');
+  console.log('  Chain restore: bun run scripts/db-import.ts --chain [--input <root>] [--source <label>]');
   console.log('');
   console.log('Flags:');
-  console.log('  --input <dir>           Directory from a previous export');
-  console.log('  --mode <replace|merge>  replace = truncate + insert; merge = upsert on PK');
-  console.log('  --scope <groups>        Override: only import these groups from the export');
-  console.log('  --no-images             Skip S3 image upload even if export contains images');
+  console.log('  --input <dir>           Bundle dir (single) or root holding bundles (chain; default: data/)');
+  console.log('  --mode <replace|merge>  Single-bundle: replace = truncate + insert; merge = upsert on PK');
+  console.log('  --chain                 Rebuild from the latest full + its increments (full=replace, incr=merge)');
+  console.log('  --source <label>        Chain: which source to restore (default: the only one present)');
+  console.log('  --merge-base            Chain: apply the full via merge too (additive, no truncate)');
+  console.log('  --scope <groups>        Override: only import these groups from the bundle(s)');
+  console.log('  --no-images             Skip S3 image upload even if the bundle contains images');
   console.log('  --target-is-production  Required when DB_HOST is not localhost');
   console.log('  --dry-run               Print plan without writing');
   console.log('  --help                  Show this help');
@@ -227,142 +233,79 @@ async function collectImageFiles(imagesDir: string): Promise<string[]> {
   return files;
 }
 
-async function main(): Promise<void> {
-  if (hasArg('--help')) {
-    printUsage();
-    return;
-  }
+function dbConfig() {
+  return {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    user: process.env.DB_USERNAME || 'cleancentive',
+    password: process.env.DB_PASSWORD || 'cleancentive_dev_password',
+    database: process.env.DB_DATABASE || 'cleancentive',
+  };
+}
 
-  const inputDir = getArgValue('--input');
-  const mode = getArgValue('--mode');
-
-  if (!inputDir || !mode) {
-    printUsage();
-    process.exit(1);
-  }
-
-  if (mode !== 'replace' && mode !== 'merge') {
-    console.error(`Invalid mode: ${mode}. Must be 'replace' or 'merge'.`);
-    process.exit(1);
-  }
-
-  const skipImages = hasArg('--no-images');
-  const dryRun = hasArg('--dry-run');
-  const targetIsProduction = hasArg('--target-is-production');
-
-  // Read manifest
+async function readManifest(inputDir: string): Promise<BundleManifest> {
   const manifestPath = join(inputDir, 'manifest.json');
-  let manifest: Manifest;
+  let manifest: BundleManifest;
   try {
     manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   } catch {
     console.error(`Cannot read manifest at: ${manifestPath}`);
     process.exit(1);
   }
-
-  if (manifest.version !== 1) {
+  if (manifest.version !== 1 && manifest.version !== 2) {
     console.error(`Unsupported manifest version: ${manifest.version}`);
     process.exit(1);
   }
+  return manifest;
+}
 
-  // Production safety
-  const dbHost = process.env.DB_HOST || 'localhost';
-  const isLocalhost = dbHost === 'localhost' || dbHost === '127.0.0.1';
-  if (!isLocalhost && !targetIsProduction) {
-    console.error('ERROR: DB_HOST is not localhost. Pass --target-is-production to confirm.');
-    process.exit(1);
-  }
-
-  const scopeArg = getArgValue('--scope');
-  const groups = resolveScope(scopeArg, manifest.scope);
-  const tables = getTablesForGroups(groups);
-
-  // Filter tables to those actually present in the export
-  const availableTables = tables.filter((t) => manifest.tables[t]);
-  const missingTables = tables.filter((t) => !manifest.tables[t]);
-  if (missingTables.length > 0) {
-    console.log(`Tables not in export (skipped): ${missingTables.join(', ')}`);
-  }
-
-  // Check for images directory
-  const imagesDir = join(inputDir, 'images');
-  let hasImages = false;
+async function imagesDirExists(inputDir: string): Promise<boolean> {
   try {
-    const imgStat = await stat(imagesDir);
-    hasImages = imgStat.isDirectory();
+    return (await stat(join(inputDir, 'images'))).isDirectory();
   } catch {
-    // no images directory
+    return false;
   }
-  const importImages = hasImages && !skipImages;
+}
 
-  console.log(`Import mode: ${mode}`);
-  console.log(`Tables: ${availableTables.join(', ')}`);
-  console.log(`Images: ${importImages ? 'yes' : hasImages ? 'skipped (--no-images)' : 'none in export'}`);
-
-  if (dryRun) {
-    console.log('');
-    console.log('Dry run — no changes will be made.');
-    for (const table of availableTables) {
-      console.log(`  ${table}: ${manifest.tables[table].row_count} rows`);
-    }
-    return;
+async function trySetReplica(dbClient: Client): Promise<boolean> {
+  try {
+    await dbClient.query("SET session_replication_role = 'replica'");
+    return true;
+  } catch {
+    console.log('Cannot set session_replication_role — using two-pass approach for circular FKs');
+    return false;
   }
+}
 
-  // Production confirmation for replace mode
-  if (targetIsProduction && mode === 'replace') {
-    const dbClient = new Client({
-      host: dbHost,
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      user: process.env.DB_USERNAME || 'cleancentive',
-      password: process.env.DB_PASSWORD || 'cleancentive_dev_password',
-      database: process.env.DB_DATABASE || 'cleancentive',
-    });
-    await dbClient.connect();
+async function printReplaceDiff(dbClient: Client, tables: string[], manifest: BundleManifest): Promise<void> {
+  for (const table of tables) {
+    const result = await dbClient.query(`SELECT COUNT(*) as count FROM "${table}"`);
+    const currentCount = parseInt(result.rows[0].count, 10);
+    const exportCount = manifest.tables[table]?.row_count ?? 0;
+    const diff = exportCount - currentCount;
+    console.log(`  ${table}: ${currentCount} rows in DB → ${exportCount} in bundle (net ${diff >= 0 ? '+' : ''}${diff})`);
+  }
+}
 
-    console.log('');
-    console.log('WARNING: About to REPLACE production data.');
-    for (const table of availableTables) {
-      const result = await dbClient.query(`SELECT COUNT(*) as count FROM "${table}"`);
-      const currentCount = parseInt(result.rows[0].count, 10);
-      const exportCount = manifest.tables[table].row_count;
-      const diff = exportCount - currentCount;
-      const diffStr = diff >= 0 ? `+${diff}` : `${diff}`;
-      console.log(`  ${table}: ${currentCount} rows in DB → ${exportCount} rows in export (net ${diffStr})`);
-    }
-    await dbClient.end();
+type Stats = Record<string, { inserted: number; updated: number }>;
 
-    const confirmed = await askConfirmation('\nType YES to proceed: ');
-    if (!confirmed) {
-      console.log('Aborted.');
-      process.exit(0);
-    }
+// Apply ONE bundle to an already-open connection/transaction. The caller owns
+// connect / BEGIN / COMMIT / session_replication_role. Returns per-table counts.
+async function applyBundle(
+  dbClient: Client,
+  inputDir: string,
+  manifest: BundleManifest,
+  mode: 'replace' | 'merge',
+  opts: { scopeArg: string | null; canDeferFKs: boolean },
+): Promise<Stats> {
+  const groups = resolveScope(opts.scopeArg, manifest.scope);
+  const availableTables = getTablesForGroups(groups).filter((t) => manifest.tables[t]);
+  const missingTables = getTablesForGroups(groups).filter((t) => !manifest.tables[t]);
+  if (missingTables.length > 0) {
+    console.log(`  (not in bundle, skipped: ${missingTables.join(', ')})`);
   }
 
-  const dbClient = new Client({
-    host: dbHost,
-    port: parseInt(process.env.DB_PORT || '5432', 10),
-    user: process.env.DB_USERNAME || 'cleancentive',
-    password: process.env.DB_PASSWORD || 'cleancentive_dev_password',
-    database: process.env.DB_DATABASE || 'cleancentive',
-  });
-
-  await dbClient.connect();
-
-  // Try to use session_replication_role for deferred FK checks
-  let canDeferFKs = false;
-  if (mode === 'replace') {
-    try {
-      await dbClient.query("SET session_replication_role = 'replica'");
-      canDeferFKs = true;
-    } catch {
-      console.log('Cannot set session_replication_role — using two-pass approach for circular FKs');
-    }
-  }
-
-  await dbClient.query('BEGIN');
-
-  const stats: Record<string, { inserted: number; updated: number }> = {};
-  const BATCH_SIZE = 500;
+  const stats: Stats = {};
 
   if (mode === 'replace') {
     // Truncate in reverse order
@@ -370,75 +313,56 @@ async function main(): Promise<void> {
     for (const table of truncateOrder) {
       await dbClient.query(`TRUNCATE "${table}" CASCADE`);
     }
-    console.log(`Truncated ${truncateOrder.length} tables`);
+    console.log(`  Truncated ${truncateOrder.length} tables`);
 
     // Track deferred user rows if we can't defer FKs
     let userRows: Record<string, unknown>[] | null = null;
 
-    // Insert in forward order
     for (const table of availableTables) {
-      const filePath = join(inputDir, `${table}.ndjson`);
-      const rows = await readNdjsonLines(filePath);
+      const rows = await readNdjsonLines(join(inputDir, `${table}.ndjson`));
       stats[table] = { inserted: 0, updated: 0 };
-
       if (rows.length === 0) {
         console.log(`  ${table}: 0 rows (empty)`);
         continue;
       }
 
-      let columns = Object.keys(rows[0]);
-
-      // If we can't defer FKs and this is the users table, null out circular FK columns
-      const needsTwoPass = !canDeferFKs && table === 'users';
-      if (needsTwoPass) {
-        userRows = rows;
-      }
+      const columns = Object.keys(rows[0]);
+      const needsTwoPass = !opts.canDeferFKs && table === 'users';
+      if (needsTwoPass) userRows = rows;
 
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {
         const batch = rows.slice(i, i + BATCH_SIZE);
-
         if (batch.length === BATCH_SIZE) {
           const sql = buildBatchInsertSql(table, columns, BATCH_SIZE);
           const values: unknown[] = [];
           for (const row of batch) {
             for (const col of columns) {
               let val = (row as Record<string, unknown>)[col];
-              if (needsTwoPass && USERS_DEFERRED_COLUMNS.includes(col)) {
-                val = null;
-              }
-              if (val !== null && typeof val === 'object') {
-                val = JSON.stringify(val);
-              }
+              if (needsTwoPass && USERS_DEFERRED_COLUMNS.includes(col)) val = null;
+              if (val !== null && typeof val === 'object') val = JSON.stringify(val);
               values.push(val);
             }
           }
           await dbClient.query(sql, values);
         } else {
-          // Remaining partial batch — insert one by one
           for (const row of batch) {
             const sql = buildInsertSql(table, columns);
             const values = columns.map((col) => {
               let val = (row as Record<string, unknown>)[col];
-              if (needsTwoPass && USERS_DEFERRED_COLUMNS.includes(col)) {
-                val = null;
-              }
-              if (val !== null && typeof val === 'object') {
-                val = JSON.stringify(val);
-              }
+              if (needsTwoPass && USERS_DEFERRED_COLUMNS.includes(col)) val = null;
+              if (val !== null && typeof val === 'object') val = JSON.stringify(val);
               return val;
             });
             await dbClient.query(sql, values);
           }
         }
-
         stats[table].inserted += batch.length;
       }
-
       console.log(`  ${table}: ${stats[table].inserted} rows inserted`);
     }
 
     // Second pass: restore deferred user columns
-    if (!canDeferFKs && userRows) {
+    if (!opts.canDeferFKs && userRows) {
       let updated = 0;
       for (const row of userRows) {
         const r = row as Record<string, unknown>;
@@ -458,44 +382,31 @@ async function main(): Promise<void> {
           }
         }
       }
-      if (updated > 0) {
-        console.log(`  users: ${updated} rows updated (deferred FK columns restored)`);
-      }
-    }
-
-    if (canDeferFKs) {
-      await dbClient.query("SET session_replication_role = 'origin'");
+      if (updated > 0) console.log(`  users: ${updated} rows updated (deferred FK columns restored)`);
     }
   } else {
     // Merge mode: upsert
     for (const table of availableTables) {
-      const filePath = join(inputDir, `${table}.ndjson`);
-      const rows = await readNdjsonLines(filePath);
+      const rows = await readNdjsonLines(join(inputDir, `${table}.ndjson`));
       stats[table] = { inserted: 0, updated: 0 };
-
       if (rows.length === 0) {
         console.log(`  ${table}: 0 rows (empty)`);
         continue;
       }
 
       const columns = Object.keys(rows[0]);
-
-      // Get existing IDs for this table to track insert vs update
       const existingResult = await dbClient.query(`SELECT "id" FROM "${table}"`);
       const existingIds = new Set(existingResult.rows.map((r) => r.id));
 
       for (let i = 0; i < rows.length; i += BATCH_SIZE) {
         const batch = rows.slice(i, i + BATCH_SIZE);
-
         if (batch.length === BATCH_SIZE) {
           const sql = buildBatchUpsertSql(table, columns, BATCH_SIZE);
           const values: unknown[] = [];
           for (const row of batch) {
             for (const col of columns) {
               let val = (row as Record<string, unknown>)[col];
-              if (val !== null && typeof val === 'object') {
-                val = JSON.stringify(val);
-              }
+              if (val !== null && typeof val === 'object') val = JSON.stringify(val);
               values.push(val);
             }
           }
@@ -505,85 +416,248 @@ async function main(): Promise<void> {
             const sql = buildUpsertSql(table, columns);
             const values = columns.map((col) => {
               let val = (row as Record<string, unknown>)[col];
-              if (val !== null && typeof val === 'object') {
-                val = JSON.stringify(val);
-              }
+              if (val !== null && typeof val === 'object') val = JSON.stringify(val);
               return val;
             });
             await dbClient.query(sql, values);
           }
         }
-
         for (const row of batch) {
           const id = (row as Record<string, unknown>).id as string;
-          if (existingIds.has(id)) {
-            stats[table].updated++;
-          } else {
-            stats[table].inserted++;
-          }
+          if (existingIds.has(id)) stats[table].updated++;
+          else stats[table].inserted++;
         }
       }
-
       console.log(`  ${table}: ${stats[table].inserted} inserted, ${stats[table].updated} updated`);
     }
   }
 
+  return stats;
+}
+
+async function uploadBundleImages(
+  inputDir: string,
+  skipImages: boolean,
+): Promise<{ uploaded: number; failed: number } | null> {
+  if (skipImages || !(await imagesDirExists(inputDir))) return null;
+  const imagesDir = join(inputDir, 'images');
+  const bucketName = process.env.S3_BUCKET || 'cleancentive-images';
+  const s3Client = new S3Client({
+    region: process.env.S3_REGION || 'us-east-1',
+    endpoint: process.env.S3_ENDPOINT || 'http://localhost:9002',
+    forcePathStyle: true,
+    credentials: {
+      accessKeyId: process.env.S3_ACCESS_KEY || 'minioadmin',
+      secretAccessKey: process.env.S3_SECRET_KEY || 'minioadmin',
+    },
+  });
+  await ensureBucketExists(s3Client, bucketName);
+
+  const imageFiles = await collectImageFiles(imagesDir);
+  let uploaded = 0;
+  let failed = 0;
+  for (const relPath of imageFiles) {
+    try {
+      const body = await readFile(join(imagesDir, relPath));
+      const contentType = relPath.endsWith('.png') ? 'image/png' : relPath.endsWith('.webp') ? 'image/webp' : 'image/jpeg';
+      await s3Client.send(new PutObjectCommand({ Bucket: bucketName, Key: relPath, Body: body, ContentType: contentType }));
+      uploaded++;
+    } catch (error) {
+      failed++;
+      console.error(`  Failed to upload ${relPath}: ${error instanceof Error ? error.message : error}`);
+    }
+  }
+  return { uploaded, failed };
+}
+
+function printSummary(statsList: Stats[]): void {
+  let inserted = 0;
+  let updated = 0;
+  for (const s of statsList) {
+    for (const v of Object.values(s)) {
+      inserted += v.inserted;
+      updated += v.updated;
+    }
+  }
+  console.log('');
+  console.log('Import complete.');
+  console.log(`  Total: ${inserted} inserted, ${updated} updated`);
+}
+
+async function runSingleBundle(opts: {
+  skipImages: boolean;
+  dryRun: boolean;
+  targetIsProduction: boolean;
+  scopeArg: string | null;
+}): Promise<void> {
+  const inputArg = getArgValue('--input');
+  const mode = getArgValue('--mode');
+  if (!inputArg || !mode) {
+    printUsage();
+    process.exit(1);
+  }
+  if (mode !== 'replace' && mode !== 'merge') {
+    console.error(`Invalid mode: ${mode}. Must be 'replace' or 'merge'.`);
+    process.exit(1);
+  }
+  const inputDir = resolvePath(inputArg);
+  const manifest = await readManifest(inputDir);
+
+  const groups = resolveScope(opts.scopeArg, manifest.scope);
+  const availableTables = getTablesForGroups(groups).filter((t) => manifest.tables[t]);
+  const imagesPresent = await imagesDirExists(inputDir);
+
+  console.log(`Import mode: ${mode}`);
+  console.log(`Tables: ${availableTables.join(', ')}`);
+  console.log(`Images: ${imagesPresent ? (opts.skipImages ? 'skipped (--no-images)' : 'yes') : 'none in export'}`);
+
+  if (opts.dryRun) {
+    console.log('');
+    console.log('Dry run — no changes will be made.');
+    for (const table of availableTables) console.log(`  ${table}: ${manifest.tables[table].row_count} rows`);
+    return;
+  }
+
+  if (opts.targetIsProduction && mode === 'replace') {
+    const c = new Client(dbConfig());
+    await c.connect();
+    console.log('');
+    console.log('WARNING: About to REPLACE production data.');
+    await printReplaceDiff(c, availableTables, manifest);
+    await c.end();
+    if (!(await askConfirmation('\nType YES to proceed: '))) {
+      console.log('Aborted.');
+      process.exit(0);
+    }
+  }
+
+  const dbClient = new Client(dbConfig());
+  await dbClient.connect();
+  const canDeferFKs = mode === 'replace' ? await trySetReplica(dbClient) : false;
+  await dbClient.query('BEGIN');
+  const stats = await applyBundle(dbClient, inputDir, manifest, mode, { scopeArg: opts.scopeArg, canDeferFKs });
+  if (canDeferFKs) await dbClient.query("SET session_replication_role = 'origin'");
   await dbClient.query('COMMIT');
   await dbClient.end();
   console.log('Database import complete.');
 
-  // Import images
-  if (importImages) {
-    console.log('Uploading images to S3...');
-    const bucketName = process.env.S3_BUCKET || 'cleancentive-images';
-    const s3Client = new S3Client({
-      region: process.env.S3_REGION || 'us-east-1',
-      endpoint: process.env.S3_ENDPOINT || 'http://localhost:9002',
-      forcePathStyle: true,
-      credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY || 'minioadmin',
-        secretAccessKey: process.env.S3_SECRET_KEY || 'minioadmin',
-      },
-    });
+  const img = await uploadBundleImages(inputDir, opts.skipImages);
+  if (img) console.log(`  Images: ${img.uploaded} uploaded, ${img.failed} failed`);
 
-    await ensureBucketExists(s3Client, bucketName);
+  printSummary([stats]);
+}
 
-    const imageFiles = await collectImageFiles(imagesDir);
-    let uploaded = 0;
-    let failed = 0;
-
-    for (const relPath of imageFiles) {
-      const fullPath = join(imagesDir, relPath);
-      try {
-        const body = await readFile(fullPath);
-        const contentType = relPath.endsWith('.png')
-          ? 'image/png'
-          : relPath.endsWith('.webp')
-            ? 'image/webp'
-            : 'image/jpeg';
-        await s3Client.send(
-          new PutObjectCommand({
-            Bucket: bucketName,
-            Key: relPath,
-            Body: body,
-            ContentType: contentType,
-          }),
-        );
-        uploaded++;
-      } catch (error) {
-        failed++;
-        console.error(`  Failed to upload ${relPath}: ${error instanceof Error ? error.message : error}`);
-      }
-    }
-
-    console.log(`  Images: ${uploaded} uploaded, ${failed} failed`);
+async function runChain(opts: {
+  skipImages: boolean;
+  dryRun: boolean;
+  targetIsProduction: boolean;
+  scopeArg: string | null;
+  mergeBase: boolean;
+}): Promise<void> {
+  const inputArg = getArgValue('--input');
+  const root = inputArg ? resolvePath(inputArg) : DATA_DIR;
+  const bundles = discoverBundles(root);
+  if (bundles.length === 0) {
+    console.error(`No bundles found in ${root}.`);
+    process.exit(1);
   }
 
-  console.log('');
-  console.log('Import complete.');
-  const totalInserted = Object.values(stats).reduce((sum, s) => sum + s.inserted, 0);
-  const totalUpdated = Object.values(stats).reduce((sum, s) => sum + s.updated, 0);
-  console.log(`  Total: ${totalInserted} inserted, ${totalUpdated} updated`);
+  let src = getArgValue('--source');
+  if (!src) {
+    const labels = sourceLabels(bundles);
+    if (labels.length === 1) {
+      src = labels[0];
+    } else {
+      console.error(`Multiple sources in ${root} — pass --source <label> (found: ${labels.join(', ') || 'none'}).`);
+      process.exit(1);
+    }
+  }
+
+  const chain = resolveChain(bundles, { sourceLabel: src });
+  if (chain.length === 0) {
+    console.error(`No full bundle found for source '${src}' in ${root}.`);
+    process.exit(1);
+  }
+
+  const bundleMode = (i: number): 'replace' | 'merge' => (i === 0 && !opts.mergeBase ? 'replace' : 'merge');
+
+  console.log(`Chain restore for source '${src}' — ${chain.length} bundle(s):`);
+  chain.forEach((b, i) => {
+    const rows = Object.values(b.manifest.tables).reduce((s, t) => s + t.row_count, 0);
+    console.log(`  ${i + 1}. ${b.id} [${b.manifest.type}] → ${bundleMode(i)} (${rows} rows)`);
+  });
+
+  if (opts.dryRun) {
+    console.log('');
+    console.log('Dry run — no changes will be made.');
+    return;
+  }
+
+  const base = chain[0];
+  if (opts.targetIsProduction && !opts.mergeBase) {
+    const c = new Client(dbConfig());
+    await c.connect();
+    console.log('');
+    console.log('WARNING: About to REPLACE production data via chain restore.');
+    const groups = resolveScope(opts.scopeArg, base.manifest.scope);
+    const availableTables = getTablesForGroups(groups).filter((t) => base.manifest.tables[t]);
+    await printReplaceDiff(c, availableTables, base.manifest);
+    await c.end();
+    if (!(await askConfirmation('\nType YES to proceed: '))) {
+      console.log('Aborted.');
+      process.exit(0);
+    }
+  }
+
+  const dbClient = new Client(dbConfig());
+  await dbClient.connect();
+  const canDeferFKs = await trySetReplica(dbClient);
+  await dbClient.query('BEGIN');
+  const allStats: Stats[] = [];
+  for (let i = 0; i < chain.length; i++) {
+    const b = chain[i];
+    console.log(`\nApplying ${b.id} (${bundleMode(i)}):`);
+    allStats.push(await applyBundle(dbClient, b.dir, b.manifest, bundleMode(i), { scopeArg: opts.scopeArg, canDeferFKs }));
+  }
+  if (canDeferFKs) await dbClient.query("SET session_replication_role = 'origin'");
+  await dbClient.query('COMMIT');
+  await dbClient.end();
+  console.log('\nDatabase chain restore complete.');
+
+  for (const b of chain) {
+    const img = await uploadBundleImages(b.dir, opts.skipImages);
+    if (img) console.log(`  ${b.id} images: ${img.uploaded} uploaded, ${img.failed} failed`);
+  }
+
+  printSummary(allStats);
+}
+
+async function main(): Promise<void> {
+  if (hasArg('--help')) {
+    printUsage();
+    return;
+  }
+
+  const opts = {
+    skipImages: hasArg('--no-images'),
+    dryRun: hasArg('--dry-run'),
+    targetIsProduction: hasArg('--target-is-production'),
+    scopeArg: getArgValue('--scope'),
+  };
+
+  // Production safety (applies to single-bundle and chain modes)
+  const dbHost = process.env.DB_HOST || 'localhost';
+  const isLocalhost = dbHost === 'localhost' || dbHost === '127.0.0.1';
+  if (!isLocalhost && !opts.targetIsProduction) {
+    console.error('ERROR: DB_HOST is not localhost. Pass --target-is-production to confirm.');
+    process.exit(1);
+  }
+
+  if (hasArg('--chain')) {
+    await runChain({ ...opts, mergeBase: hasArg('--merge-base') });
+  } else {
+    await runSingleBundle(opts);
+  }
 }
 
 main().catch((error) => {
