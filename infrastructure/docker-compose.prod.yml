@@ -44,6 +44,10 @@ services:
     environment:
       OUTLINE_PUBLIC_URL: https://wiki.${DOMAIN}
       OUTLINE_TEAM_LOGO_URL: https://${DOMAIN}/favicon.svg
+      # Public URL Outline uses to deliver webhooks back to our receiver. Must
+      # be reachable from inside the Outline container; defaults to the
+      # unroutable cleancentive.local if unset, which disables the webhook.
+      CLEANCENTIVE_PUBLIC_URL: https://${DOMAIN}
       UMAMI_URL: http://umami:3000
       UMAMI_PUBLIC_URL: https://analytics.${DOMAIN}
       UMAMI_WIKI_DOMAIN: wiki.${DOMAIN}

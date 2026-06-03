@@ -314,6 +314,50 @@ describe('OutlineSyncService maintenance', () => {
     }]);
   });
 
+  test('backfills existing team members into their Outline group', async () => {
+    const { service, apiCalls } = createOutlineSyncHarness({
+      ready: true,
+      apiKey: 'ol_api_test',
+      teams: [{ id: 'team-active', name: 'River Crew', archived_at: null, system_key: null }],
+      memberships: [
+        { team_id: 'team-active', user_id: 'user-1' },
+        { team_id: 'team-active', user_id: 'user-2' },
+      ],
+      emailsByUserId: { 'user-1': 'a@example.com', 'user-2': 'b@example.com' },
+      usersByEmail: { 'a@example.com': 'outline-user-1', 'b@example.com': 'outline-user-2' },
+      groupsByExternalId: { 'team-active': 'group-team-active' },
+    });
+
+    await (service as any).syncExistingTeamMembers();
+
+    const addUserCalls = apiCalls.filter((call) => call.endpoint === '/groups.add_user');
+    expect(addUserCalls).toEqual([
+      { endpoint: '/groups.add_user', body: { id: 'group-team-active', userId: 'outline-user-1' } },
+      { endpoint: '/groups.add_user', body: { id: 'group-team-active', userId: 'outline-user-2' } },
+    ]);
+  });
+
+  test('team member backfill skips archived and system teams', async () => {
+    const { service, apiCalls } = createOutlineSyncHarness({
+      ready: true,
+      apiKey: 'ol_api_test',
+      teams: [
+        { id: 'team-archived', name: 'Old Crew', archived_at: new Date(), system_key: null },
+        { id: 'team-stewards', name: 'Stewards', archived_at: null, system_key: 'stewards' },
+      ],
+      memberships: [
+        { team_id: 'team-archived', user_id: 'user-1' },
+        { team_id: 'team-stewards', user_id: 'user-2' },
+      ],
+      emailsByUserId: { 'user-1': 'a@example.com', 'user-2': 'b@example.com' },
+      usersByEmail: { 'a@example.com': 'outline-user-1', 'b@example.com': 'outline-user-2' },
+    });
+
+    await (service as any).syncExistingTeamMembers();
+
+    expect(apiCalls.some((call) => call.endpoint === '/groups.add_user')).toBe(false);
+  });
+
   test('backfill and reconciliation skip system teams', async () => {
     const { service, apiCalls } = createOutlineSyncHarness({
       ready: true,
@@ -420,6 +464,7 @@ function createOutlineSyncHarness(options: {
   ready?: boolean;
   apiKey?: string;
   teams?: any[];
+  memberships?: any[];
   mappings?: any[];
   groupsByExternalId?: Record<string, string>;
   collectionsByName?: Record<string, string>;
@@ -448,6 +493,7 @@ function createOutlineSyncHarness(options: {
     { findById: async () => null } as any,
     { getAdminUserIds: async () => [] } as any,
     createRepository(options.teams ?? []) as any,
+    createRepository(options.memberships ?? []) as any,
     createTeamCollectionRepository(mappings) as any,
     createRepository([]) as any,
     createRepository((options.maintenanceStates ?? []).map((key) => ({ key, completed_at: new Date() }))) as any,

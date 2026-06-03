@@ -8,6 +8,7 @@ import { createS3Client } from '../common/s3-client';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
 import { Team } from '../team/team.entity';
+import { TeamMembership } from '../team/team-membership.entity';
 import { TeamOutlineCollection } from '../team/team-outline-collection.entity';
 import { OutlineWebhookConfig } from './outline-webhook-config.entity';
 import { OutlineMaintenanceState } from './outline-maintenance-state.entity';
@@ -56,6 +57,8 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     private readonly userService: UserService,
     private readonly adminService: AdminService,
     @InjectRepository(Team) private readonly teamRepository: Repository<Team>,
+    @InjectRepository(TeamMembership)
+    private readonly teamMembershipRepository: Repository<TeamMembership>,
     @InjectRepository(TeamOutlineCollection)
     private readonly teamCollectionRepository: Repository<TeamOutlineCollection>,
     @InjectRepository(OutlineWebhookConfig)
@@ -98,6 +101,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       await this.ensureStewardsGroup();
       await this.syncExistingAdmins();
       await this.backfillTeamCollections();
+      await this.syncExistingTeamMembers();
       await this.backfillUserAvatars();
     } catch (e) {
       this.logger.warn(`Outline sync disabled (${e instanceof Error ? e.message : e}). Wiki integration will not sync until the outline DB is reachable.`);
@@ -244,6 +248,34 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
         await this.addToGroup(outlineUserId, 'stewards');
       } catch (e) {
         this.logger.warn(`Admin backfill failed for ${email}: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+  }
+
+  /**
+   * Backfill: ensure all current members of every active team are in their
+   * team's Outline group. The reactive `team.member-joined` handler only adds
+   * users who join *after* the group exists, so members who joined earlier (or
+   * whose event was dropped before the API key was provisioned) would otherwise
+   * never appear — leaving the "Team: …" groups empty. Idempotent: re-adding an
+   * existing group member is a no-op.
+   */
+  private async syncExistingTeamMembers(): Promise<void> {
+    if (!this.isReady() || !this.outlineApiKey) return;
+    const teams = await this.teamRepository.find({ where: { archived_at: IsNull(), system_key: IsNull() } });
+    for (const team of teams) {
+      try {
+        await this.ensureTeamGroup(team.id, team.name);
+        const memberships = await this.teamMembershipRepository.find({ where: { team_id: team.id } });
+        for (const membership of memberships) {
+          const email = await this.getEmail(membership.user_id);
+          if (!email) continue;
+          const outlineUserId = await this.findOutlineUserId(email);
+          if (!outlineUserId) continue;
+          await this.addToGroup(outlineUserId, team.id);
+        }
+      } catch (e) {
+        this.logger.warn(`Team member backfill failed for team ${team.name}: ${e instanceof Error ? e.message : e}`);
       }
     }
   }
@@ -554,12 +586,25 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Subscribe Outline to push events back to Cleancentive. Generates a stable
-   * HMAC secret on first run (persisted in `outline_webhook_config`) and
-   * reuses it on subsequent runs. Soft-deletes any prior `cleancentive-webhook`
-   * subscription rows so exactly one is live at a time.
+   * HMAC secret on first run (persisted in `outline_webhook_config`) and reuses
+   * it on subsequent runs.
+   *
+   * The `webhook_subscriptions.secret` column is `@Encrypted` in Outline, so a
+   * raw SQL insert of the plaintext secret (as earlier versions did) gets
+   * decrypted to garbage on read: every delivery is signed with the wrong key,
+   * our receiver 401s, and Outline auto-disables the webhook. Worse, the broken
+   * row poisons `webhookSubscriptions.list` — Outline decrypts each secret when
+   * presenting, so listing throws `bad decrypt` and 500s, which also blanks the
+   * settings/webhooks page. So we can't read or update the corrupt row via the
+   * API at all.
+   *
+   * Instead: soft-delete any existing `cleancentive-webhook` rows directly in
+   * SQL (a write that never decrypts), then create a fresh subscription through
+   * the API so Outline encrypts the secret itself and signs with the matching
+   * plaintext. Idempotent — exactly one live subscription after each run.
    */
   private async provisionWebhookSubscription(): Promise<void> {
-    if (!this.isReady()) return;
+    if (!this.isReady() || !this.outlineApiKey) return;
 
     let config = await this.webhookConfigRepository.findOne({ where: {}, order: { created_at: 'ASC' } });
     if (!config) {
@@ -570,26 +615,22 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     const publicUrl = process.env.CLEANCENTIVE_PUBLIC_URL ?? 'https://cleancentive.local';
     const webhookUrl = `${publicUrl}/api/v1/outline-webhooks/incoming`;
 
-    await this.pg.query(
-      `UPDATE webhook_subscriptions SET "deletedAt" = NOW(), "updatedAt" = NOW()
-       WHERE name = $1 AND "deletedAt" IS NULL`,
-      [OutlineSyncService.WEBHOOK_NAME],
-    );
-    await this.pg.query(
-      `INSERT INTO webhook_subscriptions
-         (id, "teamId", "createdById", url, enabled, name, events, secret, "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, $4, true, $5, $6, $7, NOW(), NOW())`,
-      [
-        randomUUID(),
-        this.outlineTeamId,
-        this.outlineAdminUserId,
-        webhookUrl,
-        OutlineSyncService.WEBHOOK_NAME,
-        OutlineSyncService.WEBHOOK_EVENTS,
-        Buffer.from(config.secret, 'utf8'),
-      ],
-    );
-    this.logger.log(`Provisioned Outline webhook subscription → ${webhookUrl}`);
+    try {
+      await this.pg.query(
+        `UPDATE webhook_subscriptions SET "deletedAt" = NOW(), "updatedAt" = NOW()
+         WHERE name = $1 AND "deletedAt" IS NULL`,
+        [OutlineSyncService.WEBHOOK_NAME],
+      );
+      await this.callOutlineApi('/webhookSubscriptions.create', {
+        name: OutlineSyncService.WEBHOOK_NAME,
+        url: webhookUrl,
+        secret: config.secret,
+        events: OutlineSyncService.WEBHOOK_EVENTS,
+      });
+      this.logger.log(`Provisioned Outline webhook subscription → ${webhookUrl}`);
+    } catch (e) {
+      this.logger.warn(`Outline webhook provisioning skipped (${e instanceof Error ? e.message : e})`);
+    }
   }
 
   async wipeOutlineContentOnce(confirmation: string): Promise<{
@@ -1174,6 +1215,10 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
     // an extra confidential collection and uses the existing 'stewards' group
     // rather than a per-team group.
     await this.backfillStewardsCollections();
+
+    // 5. Heal team-group membership drift (e.g. members who joined before the
+    // group existed, or whose member-joined event was dropped pre-bootstrap).
+    await this.syncExistingTeamMembers();
 
     this.logger.log(
       `Reconciliation finished: ${provisioned} provisioned, ${missing} missing-collection warnings, ${archivedMapped} archived mapped teams left unchanged, ${orphans} orphan mappings`,
