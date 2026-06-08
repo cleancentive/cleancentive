@@ -30,5 +30,7 @@ assert_not_contains 'PRIVATE_ENV_TOKEN=' 'reconcile should not require private r
 assert_not_contains 'fetch_private()' 'reconcile should not fetch private env itself'
 assert_contains 'env_checksum=' 'reconcile should track env file checksum'
 assert_contains 'env.sha256' 'reconcile should persist env checksum to state directory'
+assert_contains 'git ls-remote' 'reconcile should resolve the ref to an immutable SHA before fetching'
+assert_not_contains 'raw.githubusercontent.com/cleancentive/cleancentive/main' 'reconcile must not fetch the mutable main ref from the raw CDN'
 
 echo "PASS reconcile bash tests"

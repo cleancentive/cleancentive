@@ -6,7 +6,25 @@ DEPLOY_DIR="$DEPLOY_ROOT/deploy"
 STATE_DIR="$DEPLOY_ROOT/state"
 PRIVATE_DIR="$DEPLOY_ROOT/private"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PUBLIC_REPO_RAW_BASE="${PUBLIC_REPO_RAW_BASE:-https://raw.githubusercontent.com/cleancentive/cleancentive/main}"
+REPO_SLUG="${RECONCILE_REPO:-cleancentive/cleancentive}"
+RECONCILE_REF="${RECONCILE_REF:-main}"
+
+# Resolve the mutable ref to an immutable commit SHA before fetching. Fetching
+# the `main` ref straight from raw.githubusercontent risks its ~5-min CDN cache
+# serving a stale snapshot right after a deploy push — reconcile would then
+# checksum the old bundle, decide "already deployed", and skip pulling the new
+# images. `git ls-remote` uses the git protocol (not the raw CDN) so it always
+# sees the current tip; per-SHA raw URLs are content-addressed and never stale.
+# An explicit PUBLIC_REPO_RAW_BASE (tests / local) still wins and skips this.
+if [[ -z "${PUBLIC_REPO_RAW_BASE:-}" ]]; then
+  resolved_sha="${RECONCILE_COMMIT:-$(git ls-remote "https://github.com/$REPO_SLUG" "$RECONCILE_REF" | awk 'NR==1{print $1}')}"
+  if [[ ! "$resolved_sha" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "Failed to resolve $REPO_SLUG@$RECONCILE_REF to a commit SHA (got: '${resolved_sha:-empty}')" >&2
+    exit 1
+  fi
+  PUBLIC_REPO_RAW_BASE="https://raw.githubusercontent.com/$REPO_SLUG/$resolved_sha"
+  echo "Reconciling $REPO_SLUG@$resolved_sha"
+fi
 
 mkdir -p "$DEPLOY_DIR/caddy" "$STATE_DIR" "$PRIVATE_DIR"
 
