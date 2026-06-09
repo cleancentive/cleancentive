@@ -53,7 +53,7 @@ function FeedbackIcon() {
 }
 
 const TABS: Array<{ to: string; label: string; icon: ReactNode }> = [
-  { to: 'feedback', label: 'Feedback', icon: <FeedbackIcon /> },
+  { to: 'feedback?status=new,acknowledged,in_progress', label: 'Feedback', icon: <FeedbackIcon /> },
   { to: 'users', label: 'Users', icon: <UsersIcon /> },
   { to: 'operations', label: 'Operations', icon: <OperationsIcon /> },
   { to: 'storage', label: 'Storage', icon: <StorageIcon /> },

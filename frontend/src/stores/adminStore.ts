@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import axios from 'axios'
 import { useAuthStore } from './authStore'
 import { API_BASE, getAuthHeaders } from '../lib/apiBase'
+import { DEFAULT_FEEDBACK_STATUS_FILTER } from '../lib/feedbackUrlState'
 
 interface UserEmail {
   id: string
@@ -141,7 +142,6 @@ interface AdminState {
   fetchFeedbackDetail: (id: string) => Promise<void>
   updateFeedbackStatus: (id: string, status: string) => Promise<void>
   addAdminResponse: (id: string, message: string) => Promise<void>
-  toggleFeedbackStatus: (status: string) => void
   clearError: () => void
   reset: () => void
 }
@@ -169,7 +169,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   retryFailedSpotsResult: null,
   feedbackItems: [],
   feedbackTotal: 0,
-  feedbackStatusFilter: new Set(['new', 'acknowledged', 'in_progress']),
+  feedbackStatusFilter: new Set(DEFAULT_FEEDBACK_STATUS_FILTER),
   feedbackCounts: null,
   isLoadingFeedback: false,
   isSubmittingResponse: false,
@@ -413,16 +413,6 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     } finally {
       set({ isSubmittingResponse: false })
     }
-  },
-
-  toggleFeedbackStatus: (status) => {
-    const current = new Set(get().feedbackStatusFilter)
-    if (current.has(status)) {
-      current.delete(status)
-    } else {
-      current.add(status)
-    }
-    get().fetchFeedback(current)
   },
 
   clearError: () => set({ error: null }),

@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAdminStore } from '../../stores/adminStore'
 import { formatTimestamp } from '../../utils/formatTimestamp'
 import { FEEDBACK_STATUS_COLORS } from '../../lib/statusColors'
+import {
+  FEEDBACK_STATUSES,
+  parseFeedbackStatusFilter,
+  serializeFeedbackStatusFilter,
+} from '../../lib/feedbackUrlState'
 
 export function StewardFeedback() {
   const { feedbackId: feedbackIdParam } = useParams<{ feedbackId?: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const feedbackItems = useAdminStore((s) => s.feedbackItems)
   const feedbackTotal = useAdminStore((s) => s.feedbackTotal)
-  const feedbackStatusFilter = useAdminStore((s) => s.feedbackStatusFilter)
   const feedbackCounts = useAdminStore((s) => s.feedbackCounts)
   const isLoadingFeedback = useAdminStore((s) => s.isLoadingFeedback)
   const isSubmittingResponse = useAdminStore((s) => s.isSubmittingResponse)
@@ -18,16 +23,33 @@ export function StewardFeedback() {
   const fetchFeedbackDetail = useAdminStore((s) => s.fetchFeedbackDetail)
   const updateFeedbackStatus = useAdminStore((s) => s.updateFeedbackStatus)
   const addAdminResponse = useAdminStore((s) => s.addAdminResponse)
-  const toggleFeedbackStatus = useAdminStore((s) => s.toggleFeedbackStatus)
+
+  // The URL ?status= param is the source of truth for the filter (deep-linkable, refresh-safe).
+  const statusFilter = parseFeedbackStatusFilter(searchParams)
+  const statusParam = searchParams.get('status')
 
   const [expandedFeedbackId, setExpandedFeedbackId] = useState<string | null>(null)
   const [adminReply, setAdminReply] = useState('')
   const [feedbackStatus, setFeedbackStatus] = useState('')
 
+  const toggleStatus = (status: string) => {
+    const next = parseFeedbackStatusFilter(searchParams)
+    if (next.has(status)) {
+      next.delete(status)
+    } else {
+      next.add(status)
+    }
+    setSearchParams(serializeFeedbackStatusFilter(next), { replace: true })
+  }
+
   useEffect(() => {
-    fetchFeedback()
+    // The permalink effect below fetches all statuses; don't fight it.
+    if (feedbackIdParam) return
+    fetchFeedback(parseFeedbackStatusFilter(searchParams))
     fetchFeedbackCounts()
-  }, [fetchFeedback, fetchFeedbackCounts])
+    // Keyed on the raw status string so URL changes refetch; searchParams identity is unstable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusParam, feedbackIdParam, fetchFeedback, fetchFeedbackCounts])
 
   useEffect(() => {
     if (feedbackIdParam) {
@@ -42,14 +64,14 @@ export function StewardFeedback() {
     <fieldset className="page-card">
       <legend>Feedback ({feedbackTotal})</legend>
       <div className="feedback-admin-filters">
-        {(['new', 'acknowledged', 'in_progress', 'resolved'] as const).map((s) => {
+        {FEEDBACK_STATUSES.map((s) => {
           const label = s === 'in_progress' ? 'In progress' : s.charAt(0).toUpperCase() + s.slice(1)
           const count = feedbackCounts?.[s]
           return (
             <button
               key={s}
-              className={`filter-tab${feedbackStatusFilter.has(s) ? ' filter-tab--active' : ''}`}
-              onClick={() => toggleFeedbackStatus(s)}
+              className={`filter-tab${statusFilter.has(s) ? ' filter-tab--active' : ''}`}
+              onClick={() => toggleStatus(s)}
             >
               {label}{count != null ? ` (${count})` : ''}
             </button>
