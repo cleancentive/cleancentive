@@ -63,7 +63,7 @@ services:
       retries: 5
 
   worker:
-    image: ghcr.io/cleancentive/cleancentive-worker:5248bf98a797865664004d417db6512a2c9ce77d
+    image: ghcr.io/cleancentive/cleancentive-worker:8bc0a3c947329afa96de7f178361e8751582cf67
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
