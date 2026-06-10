@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test';
 import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
-import { persistDetection, batchResolveLabels, insertDetectedItems } from './detection';
+import { persistDetection, batchResolveLabels, insertDetectedItems, titleCase } from './detection';
 
 interface RecordedQuery {
   text: string;
@@ -33,6 +33,26 @@ function createMockClient(responses: MockResponse[]): {
   } as unknown as PoolClient;
   return { client, queries };
 }
+
+describe('titleCase', () => {
+  test('capitalizes the first letter of an accented word without breaking mid-word', () => {
+    // Regression: the old ASCII /\b\w/g treated ö as a word boundary and
+    // produced "FeldschlösSchen".
+    expect(titleCase('feldschlösschen')).toBe('Feldschlösschen');
+  });
+
+  test('capitalizes each space-separated word', () => {
+    expect(titleCase('coca cola')).toBe('Coca Cola');
+  });
+
+  test('does not re-introduce the mid-word uppercase from a lowercase input', () => {
+    expect(titleCase('feldschlösschen')).not.toBe('FeldschlösSchen');
+  });
+
+  test('capitalizes after hyphens and leaves intra-word casing otherwise untouched', () => {
+    expect(titleCase('coca-cola')).toBe('Coca-Cola');
+  });
+});
 
 describe('batchResolveLabels', () => {
   test('returns empty map when no requests are provided', async () => {

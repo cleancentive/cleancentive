@@ -14,8 +14,12 @@ function labelKey(type: LabelType, enName: string): string {
   return `${type}:${enName.toLowerCase()}`;
 }
 
-function titleCase(name: string): string {
-  return name.replace(/\b\w/g, (c) => c.toUpperCase());
+export function titleCase(name: string): string {
+  // Capitalize the first letter of each word, where a word is a run of Unicode
+  // letters separated by non-letters. The `u` flag + \p{L} keeps accented
+  // letters (ö, é, …) as word characters, so "feldschlösschen" → "Feldschlösschen"
+  // rather than the ASCII \b\w bug that produced "FeldschlösSchen".
+  return name.replace(/(^|[^\p{L}])(\p{L})/gu, (_, sep, first) => sep + first.toUpperCase());
 }
 
 function uniqueLabelRequests(objects: DetectedObject[]): LabelRequest[] {
