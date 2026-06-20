@@ -11,7 +11,7 @@
     "shared"
   ],
   "scripts": {
-    "dev": "bun run dev:infra:start && (bun run dev:infra:provision &) && bun run --filter '*' dev",
+    "dev": "bun run infrastructure/check-deps.ts && bun run dev:infra:start && (bun run dev:infra:provision &) && bun run --filter '*' dev",
     "dev:stop": "bun run --filter '*' dev:stop",
     "dev:infra:start": "bun run infrastructure/check-hosts.ts && bun run infrastructure/setup-certs.ts && docker compose -f infrastructure/docker-compose.dev.yml up -d",
     "dev:infra:provision": "bun run infrastructure/setup-umami.ts && bun run infrastructure/setup-outline.ts",
@@ -20,7 +20,7 @@
     "test": "bun run --filter '*' test",
     "lint": "bun run --filter '*' lint",
     "install:all": "bun install && bun install --cwd backend && bun install --cwd frontend && bun install --cwd worker",
-    "browse": "bun run dev:infra:start && (bun run dev:infra:provision &) && bun run --filter '@cleancentive/frontend' browse &",
+    "browse": "bun run infrastructure/check-deps.ts && bun run dev:infra:start && (bun run dev:infra:provision &) && bun run --filter '@cleancentive/frontend' browse &",
     "data:export": "bun run --filter '@cleancentive/backend' db:export --",
     "data:import": "bun run --filter '@cleancentive/backend' db:import --",
     "data:backup": "bun run --filter '@cleancentive/backend' db:export -- --full",

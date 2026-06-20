@@ -58,6 +58,8 @@ bun run dev
 
 `bun run dev` now starts infrastructure (Docker) and all app services (backend, frontend, worker).
 
+Workspace deps are hoisted to the repo root — `bun run dev` and `bun browse` install them automatically. If you bypass those and run per-workspace scripts directly (`cd worker && bun ...`), run `bun install` at the root first.
+
 ### Development
 
 The development workflow uses Docker for all infrastructure services (PostgreSQL, Redis, MinIO, and Mailpit for email testing).
