@@ -20,7 +20,7 @@
     "test": "bun run --filter '*' test",
     "lint": "bun run --filter '*' lint",
     "install:all": "bun install && bun install --cwd backend && bun install --cwd frontend && bun install --cwd worker",
-    "browse": "bun run infrastructure/check-deps.ts && bun run dev:infra:start && (bun run dev:infra:provision &) && bun run --filter '@cleancentive/frontend' browse &",
+    "browse": "bun run infrastructure/check-deps.ts && bun run infrastructure/check-playwright.ts && bun run dev:infra:start && (bun run dev:infra:provision &) && bun run --filter '@cleancentive/frontend' browse &",
     "data:export": "bun run --filter '@cleancentive/backend' db:export --",
     "data:import": "bun run --filter '@cleancentive/backend' db:import --",
     "data:backup": "bun run --filter '@cleancentive/backend' db:export -- --full",

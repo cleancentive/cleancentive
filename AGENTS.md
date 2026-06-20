@@ -78,6 +78,8 @@ bun browse   # opens the shared Chromium with all dev tabs
 5. [infrastructure/setup-umami.ts](infrastructure/setup-umami.ts) — creates the "Cleancentive Dev" website in Umami and writes the ID into `frontend/.env.local`.
 6. [infrastructure/setup-outline.ts](infrastructure/setup-outline.ts) — ensures the Outline MinIO bucket exists and idempotently provisions Outline's workspace branding, Umami analytics integration, and admin role sync directly via SQL on the Outline database. No API token needed. On the very first `bun dev` (before any user has signed in to the wiki), the script skips provisioning because Outline hasn't created a team row yet — sign in once via SSO and the next `bun dev` will pick it up.
 
+`bun browse` runs the same `check-deps.ts` preflight, plus [infrastructure/check-playwright.ts](infrastructure/check-playwright.ts) — verifies a Chromium build is cached for Playwright and prints the right `cd frontend && bunx playwright install chromium` command if it's not (instead of Playwright's default "run npx playwright install" hint, which doesn't apply here).
+
 **Never add a step that requires the dev to run a one-off command manually.** If you're tempted to document "also run X once", instead make `bun dev` run X idempotently. Exception: system-level installs on Linux (we print commands for those).
 
 Dev URLs all use HTTPS with trusted certs — geolocation permissions, service workers, and `Secure` cookies all behave as they would in prod:
