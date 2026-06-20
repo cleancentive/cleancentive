@@ -4,7 +4,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { AdminGuard } from '../admin/admin.guard';
-import { buildRequestMetadata } from './request-metadata';
+import { buildRequestMetadata, type RequestMetadata } from './request-metadata';
 
 @Controller('auth')
 @ApiTags('auth')
@@ -20,8 +20,15 @@ export class AuthController {
     const origin = req.headers.origin || req.headers.referer?.replace(/\/$/, '');
     // Capture the requester's browser + approximate location + time so the
     // email can show them; lets the recipient distinguish their own sign-in
-    // attempt from someone else's attempted impersonation.
-    const requestMetadata = buildRequestMetadata(req);
+    // attempt from someone else's attempted impersonation. This is a
+    // nice-to-have for the email body and must never block sign-in, so any
+    // failure degrades to undefined (email falls back to "Unknown …").
+    let requestMetadata: RequestMetadata | undefined;
+    try {
+      requestMetadata = buildRequestMetadata(req);
+    } catch {
+      requestMetadata = undefined;
+    }
     const result = await this.authService.sendMagicLink(email, guestId, origin, requestMetadata);
     return { success: true, requestId: result?.requestId };
   }

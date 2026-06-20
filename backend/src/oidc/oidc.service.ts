@@ -320,11 +320,16 @@ export class OidcService implements OnModuleInit {
       return null;
     }
 
-    // Issue new access token (reuse scope from stored refresh token)
-    const accessToken = this.jwtService.sign(
-      { sub: refreshToken.userId, clientId, scope: refreshToken.scope },
-      { expiresIn: `${ACCESS_TOKEN_EXPIRY_MINUTES}m`, algorithm: 'RS256' },
-    );
+    // Issue new access token (reuse scope from stored refresh token).
+    // Sign with the RSA key (RS256) via signWithRsa — the injected JwtService
+    // is configured with a symmetric JWT_SECRET and cannot produce RS256.
+    const accessToken = await this.signWithRsa({
+      sub: refreshToken.userId,
+      clientId,
+      scope: refreshToken.scope,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + ACCESS_TOKEN_EXPIRY_MINUTES * 60,
+    });
 
     return {
       accessToken,

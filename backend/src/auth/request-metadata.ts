@@ -1,4 +1,4 @@
-import geoip from 'geoip-lite';
+import * as geoip from 'geoip-lite';
 import type { Request } from 'express';
 
 export interface RequestMetadata {
