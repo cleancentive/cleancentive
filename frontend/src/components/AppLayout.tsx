@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
 import { useUiStore } from '../stores/uiStore'
@@ -7,6 +8,7 @@ import { HistoryPanel } from './HistoryPanel'
 import { API_BASE } from '../lib/apiBase'
 
 export function AppLayout() {
+  const { t } = useTranslation(['shell', 'common'])
   const { user, guestId, initializeGuest, refreshTokenIfNeeded } = useAuthStore()
   const { checkAdminStatus } = useAdminStore()
   const { openSignInModal } = useUiStore()
@@ -45,16 +47,16 @@ export function AppLayout() {
       <div className="auth-section">
         <div className="auth-content">
           <div className="auth-intro">
-            <h2>Welcome to CleanCentive</h2>
-            <p>Track your litter picks with offline-first photo logging.</p>
+            <h2>{t('welcome.title')}</h2>
+            <p>{t('welcome.intro')}</p>
             <ul>
-              <li>Log litter picks with geolocation</li>
-              <li>Queue picks offline with thumbnails</li>
-              <li>Auto-sync as soon as you reconnect</li>
+              <li>{t('welcome.bullets.geolocation')}</li>
+              <li>{t('welcome.bullets.offline')}</li>
+              <li>{t('welcome.bullets.autoSync')}</li>
             </ul>
           </div>
           <button onClick={openSignInModal} className="primary-button">
-            Sign In
+            {t('common:actions.signIn')}
           </button>
         </div>
       </div>

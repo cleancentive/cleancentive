@@ -1,0 +1,88 @@
+{
+  "list": {
+    "title": "Teams",
+    "searchPlaceholder": "Teams suchen...",
+    "empty": "Keine Teams gefunden",
+    "create": "Team erstellen",
+    "createForm": {
+      "nameLabel": "Name",
+      "namePlaceholder": "Teamname",
+      "descriptionLabel": "Beschreibung",
+      "descriptionPlaceholder": "Worum geht es in diesem Team?",
+      "partnerSettings": "Partner-Einstellungen",
+      "creating": "Wird erstellt...",
+      "submit": "Erstellen"
+    },
+    "badges": {
+      "stewards": "Stewards",
+      "managed": "Verwaltet",
+      "partner": "Partner",
+      "unlisted": "Nicht gelistet",
+      "active": "Aktiv"
+    }
+  },
+  "roles": {
+    "admin": "Admin",
+    "organizer": "Organizer",
+    "member": "Mitglied"
+  },
+  "detail": {
+    "notFound": "Team nicht gefunden",
+    "editName": "Name",
+    "editDescription": "Beschreibung",
+    "signInToJoin": "Melde dich an, um diesem Team beizutreten",
+    "stewardsNotice": "Die Mitgliedschaft wird über die Steward-Rolle verwaltet.",
+    "partnerNotice": "Die Mitgliedschaft wird automatisch anhand deiner E-Mail-Domain verwaltet.",
+    "joinTeam": "Team beitreten",
+    "deactivateTeam": "Team deaktivieren",
+    "setActiveTeam": "Als aktives Team festlegen",
+    "leaveTeam": "Team verlassen",
+    "organizerActions": "Organizer-Aktionen",
+    "listTeam": "Team listen",
+    "unlistTeam": "Team verbergen",
+    "unlistTitle": "Nicht gelistete Teams sind in der öffentlichen Teamliste verborgen. Nur Teammitglieder und Stewards können sie sehen.",
+    "archiveTeam": "Team archivieren",
+    "archiveTitle": "Verbirgt das Team aus der Suche und verhindert neue Aktivitäten. Vorhandene Daten bleiben erhalten.",
+    "wiki": "Wiki ↗",
+    "partnerSettingsSteward": "Partner-Einstellungen (Steward)",
+    "savePartnerSettings": "Partner-Einstellungen speichern",
+    "members": "Mitglieder ({{count}})",
+    "messages": "Nachrichten",
+    "archiveConfirm": "Archivieren",
+    "archivePrompt": "Möchtest du <strong>{{name}}</strong> wirklich archivieren? Dadurch wird das Team für alle Mitglieder deaktiviert."
+  },
+  "partner": {
+    "importLabel": "Von URL importieren",
+    "importPlaceholder": "https://www.baloise.ch/",
+    "importing": "Wird importiert...",
+    "import": "Importieren",
+    "importHint": "Gib eine Unternehmenswebsite ein, um E-Mail-Domain, Farben und Favicon automatisch zu erkennen.",
+    "patternsLabel": "E-Mail-Muster (eines pro Zeile)",
+    "patternsHint": "Einfache Domains (z. B. <code>helvetia.com</code>) oder Regex-Muster. Leer lassen für ein reguläres Team.",
+    "customCssLabel": "Benutzerdefiniertes CSS"
+  },
+  "user": {
+    "notFound": "Benutzer nicht gefunden",
+    "loadFailed": "Benutzer konnte nicht geladen werden",
+    "adminBadge": "Admin",
+    "userId": "Benutzer-ID",
+    "created": "Erstellt",
+    "lastUpdated": "Zuletzt aktualisiert",
+    "lastLogin": "Letzte Anmeldung",
+    "never": "Nie",
+    "emailAddresses": "E-Mail-Adressen",
+    "loginEmail": "Anmelde-E-Mail",
+    "noEmails": "Keine E-Mails (Gastkonto)",
+    "adminActions": "Admin-Aktionen",
+    "promoteToAdmin": "Zum Admin befördern",
+    "removeAdminRole": "Admin-Rolle entfernen",
+    "adminNote": "Hinweis: Wenn die E-Mail dieses Benutzers in ADMIN_EMAILS steht, wird er bei der nächsten Anmeldung oder einem Serverneustart erneut befördert."
+  },
+  "display": {
+    "namePlaceholder": "Dein Name",
+    "nicknameLabel": "Spitzname"
+  },
+  "avatar": {
+    "setPhoto": "Profilfoto festlegen"
+  }
+}

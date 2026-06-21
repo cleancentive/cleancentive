@@ -1,0 +1,76 @@
+{
+  "signInPrompt": "Melde dich an, um dein Profil anzusehen und zu bearbeiten.",
+  "guestData": {
+    "button": "Gastdaten löschen",
+    "title": "Gastdaten löschen",
+    "deleteAll": "Alle Daten löschen",
+    "forgetLocally": "Mich nur lokal vergessen",
+    "prompt": "Wähle, was mit deinem Gesammelten geschehen soll:"
+  },
+  "name": {
+    "legend": "Name",
+    "nicknameField": "Spitzname *",
+    "nicknamePlaceholder": "Wähle einen eindeutigen Spitznamen",
+    "fullNameField": "Vollständiger Name",
+    "fullNamePlaceholder": "Dein vollständiger Name (optional)",
+    "suggested": "Vorschlag: {{value}}",
+    "nicknameLabel": "Spitzname:",
+    "fullNameLabel": "Vollständiger Name:",
+    "editProfile": "Profil bearbeiten"
+  },
+  "language": {
+    "legend": "Sprache",
+    "hint": "Sprache für App und E-Mails. Auf Automatisch lassen, um die Browsereinstellungen zu übernehmen.",
+    "automatic": "Automatisch (Browser)",
+    "en": "English",
+    "de": "Deutsch",
+    "fr": "Français"
+  },
+  "picture": {
+    "legend": "Bild",
+    "uploading": "Wird hochgeladen...",
+    "replacePhoto": "Foto ersetzen",
+    "uploadPhoto": "Foto hochladen",
+    "removePhoto": "Foto entfernen",
+    "uploadFailed": "Hochladen des Avatars fehlgeschlagen",
+    "gravatarHint": "Oder nutze <gravatar>Gravatar</gravatar> — lege einmal ein Foto fest, und es erscheint überall, wo deine E-Mail erkannt wird. Deine E-Mail wird vor der Abfrage gehasht und niemals anderen Nutzern preisgegeben.",
+    "uploadedHint": "Du hast ein hochgeladenes Foto. Entferne es, um Gravatar zu nutzen.",
+    "noGravatar": "Kein Gravatar"
+  },
+  "emails": {
+    "legend": "E-Mails",
+    "loginTitle": "Magic Links an diese Adresse erhalten",
+    "login": "Login",
+    "calendarTitle": "Cleanup-Einladungen an diese Adresse erhalten",
+    "calendar": "Kalender",
+    "removeTitle": "E-Mail entfernen",
+    "addPlaceholder": "Weitere E-Mail hinzufügen",
+    "verificationSent": "Bestätigungs-E-Mail gesendet! Sieh in deinem Posteingang nach.",
+    "alreadyYours": "Diese E-Mail ist bereits in deinem Konto.",
+    "mergeSent": "Zusammenführungsanfrage gesendet! Der Kontoinhaber muss per E-Mail bestätigen."
+  },
+  "calendar": {
+    "legend": "Kalender",
+    "hint": "Halte deinen persönlichen Kalender mit den Cleanups synchron, an denen du teilnimmst. Einmal abonnieren, und Aktualisierungen erscheinen automatisch — beim ersten Abruf des Feeds deaktivieren wir die obigen Kalender-E-Mails stillschweigend. Hake eine E-Mail erneut an, um wieder Einladungen zu erhalten.",
+    "joined": "Meine beigetretenen Cleanups",
+    "discover": "Entdecken (bevorstehend, nicht beigetreten)",
+    "copied": "Kopiert!",
+    "instructions": "Füge den Link hinzu in Google Kalender → Weitere Kalender → Per URL, Apple Kalender → Ablage → Neues Kalenderabonnement, oder Outlook → Kalender hinzufügen → Aus dem Web abonnieren."
+  },
+  "merge": {
+    "title": "E-Mail gehört zu einem anderen Konto",
+    "send": "Zusammenführungsanfrage senden",
+    "body": "Diese E-Mail gehört zum Konto „{{nickname}}“. Wenn du sie hinzufügst, wird eine Zusammenführungsanfrage gesendet. Bei Bestätigung werden deren Daten in deine übernommen und deren Konto gelöscht."
+  },
+  "removeLastEmail": {
+    "title": "Letzte E-Mail entfernen",
+    "body": "Das ist deine einzige E-Mail-Adresse. Wenn du sie entfernst, verliert dein Konto die Authentifizierung. Wähle, was mit deinen Daten geschehen soll:"
+  },
+  "deleteAccount": {
+    "button": "Konto löschen",
+    "title": "Konto löschen",
+    "deleteAll": "Alle Daten löschen",
+    "onlyPersonal": "Nur persönliche Daten löschen",
+    "body": "Diese Aktion kann nicht rückgängig gemacht werden. Wähle, was mit deinen Daten geschehen soll:"
+  }
+}

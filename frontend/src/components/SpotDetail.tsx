@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router-dom'
 import { BackLink } from './BackLink'
 import { formatCoord } from '@cleancentive/shared'
@@ -28,6 +29,7 @@ function formatDateTime(iso: string): string {
 }
 
 export function SpotDetail() {
+  const { t } = useTranslation(['spot', 'common'])
   const { id } = useParams<{ id: string }>()
   const { sessionToken, user } = useAuthStore()
   const [spot, setSpot] = useState<SpotData | null>(null)
@@ -44,7 +46,7 @@ export function SpotDetail() {
     try {
       const res = await fetch(`${API_BASE}/spots/${id}/view`)
       if (!res.ok) {
-        if (res.status === 404) throw new Error('Spot not found')
+        if (res.status === 404) throw new Error(t('detail.notFound'))
         throw new Error(`HTTP ${res.status}`)
       }
       const data = await res.json() as SpotData
@@ -52,7 +54,7 @@ export function SpotDetail() {
     } catch (err: any) {
       setError(err.message)
     }
-  }, [id])
+  }, [id, t])
 
   useEffect(() => { loadSpot() }, [loadSpot])
 
@@ -91,7 +93,7 @@ export function SpotDetail() {
     return (
       <div className="spot-detail">
         <BackLink to="/map" fallbackNoun="map" />
-        <p>Loading...</p>
+        <p>{t('common:actions.loading')}</p>
       </div>
     )
   }
@@ -106,15 +108,19 @@ export function SpotDetail() {
         <img
           className="spot-detail-image"
           src={`${API_BASE}/spots/${spot.id}/thumbnail`}
-          alt="Spot"
+          alt={t('detail.alt')}
         />
         <div className="spot-detail-meta">
           <p className="history-timestamp">
             {formatDateTime(spot.capturedAt)}
-            {!spot.pickedUp && <span className="history-spotted-badge">Spotted</span>}
+            {!spot.pickedUp && <span className="history-spotted-badge">{t('detail.spotted')}</span>}
           </p>
           <p className="history-meta">
-            {formatCoord(spot.latitude)}, {formatCoord(spot.longitude)} | accuracy {spot.accuracyMeters !== null ? `±${Math.round(spot.accuracyMeters)}m` : 'unknown'}
+            {t('detail.metaAccuracy', {
+              lat: formatCoord(spot.latitude),
+              lng: formatCoord(spot.longitude),
+              accuracy: spot.accuracyMeters !== null ? `±${Math.round(spot.accuracyMeters)}m` : t('detail.accuracyUnknown'),
+            })}
           </p>
           <div className="spot-location-actions">
             <button
@@ -122,11 +128,11 @@ export function SpotDetail() {
               className="secondary-button"
               onClick={() => copyLocation(`${formatCoord(spot.latitude, 6)},${formatCoord(spot.longitude, 6)}`)}
             >
-              {locationCopied ? 'Copied!' : 'Copy location'}
+              {locationCopied ? t('detail.copied') : t('detail.copyLocation')}
             </button>
             {isOwner && (
               <button type="button" className="secondary-button" onClick={() => setEditingLocation(true)}>
-                Edit location
+                {t('detail.editLocation')}
               </button>
             )}
           </div>
@@ -149,27 +155,27 @@ export function SpotDetail() {
       )}
 
       <section className="spot-detail-items">
-        <h3>{spot.subjectKind === 'plant' ? 'Identified plant' : 'Detected items'}</h3>
+        <h3>{spot.subjectKind === 'plant' ? t('detail.identifiedPlant') : t('detail.detectedItems')}</h3>
         {!sessionToken && (
           <p className="spot-detail-readonly-hint">
-            {spot.subjectKind === 'plant' ? 'Sign in to edit the identification.' : 'Sign in to edit detected items.'}
+            {spot.subjectKind === 'plant' ? t('detail.signInToEditPlant') : t('detail.signInToEditItems')}
           </p>
         )}
         {spot.items.length === 0 && spot.status !== 'completed' && spot.status !== 'failed' && (
           <p className="history-meta">
-            {spot.subjectKind === 'plant' ? 'Identifying plant...' : 'Detecting items...'}
+            {spot.subjectKind === 'plant' ? t('detail.identifyingPlant') : t('detail.detectingItems')}
           </p>
         )}
         {spot.items.length === 0 && spot.status === 'completed' && (
           <p className="history-meta">
             {spot.subjectKind === 'plant'
-              ? 'Could not identify with confidence. Try a clearer leaf or flower photo.'
-              : 'No items recorded yet.'}
+              ? t('detail.plantNotConfident')
+              : t('detail.noItemsYet')}
           </p>
         )}
         {spot.items.length === 0 && spot.status === 'failed' && (
           <p className="error-message">
-            {spot.subjectKind === 'plant' ? 'Identification failed.' : 'Detection failed.'} Try again from the spot menu.
+            {spot.subjectKind === 'plant' ? t('detail.identificationFailed') : t('detail.detectionFailed')} {t('detail.failedRetryHint')}
           </p>
         )}
         {sessionToken ? (
@@ -189,7 +195,7 @@ export function SpotDetail() {
               onClick={addItem}
               disabled={addingItem}
             >
-              {addingItem ? 'Adding...' : '+ Add item'}
+              {addingItem ? t('detail.adding') : t('detail.addItem')}
             </button>
           </>
         ) : (
@@ -216,7 +222,7 @@ export function SpotDetail() {
           className="secondary-button"
           onClick={() => setShowHistory((v) => !v)}
         >
-          {showHistory ? 'Hide edit history' : 'View edit history'}
+          {showHistory ? t('detail.hideHistory') : t('detail.viewHistory')}
         </button>
         {showHistory && <SpotEditHistory key={historyTick} spotId={spot.id} />}
       </section>

@@ -1,20 +1,22 @@
+import { useTranslation } from 'react-i18next'
+
 interface CleanupCalendarSectionProps {
   joinedWebcal: string | null
 }
 
 export function CleanupCalendarSection({ joinedWebcal }: CleanupCalendarSectionProps) {
+  const { t } = useTranslation(['cleanups'])
   return (
     <div className="cleanup-add-to-calendar">
-      <strong>Add to your calendar</strong>
+      <strong>{t('cleanups:calendar.heading')}</strong>
       <div className="calendar-actions">
         {joinedWebcal && (
           <a className="secondary-button" href={joinedWebcal}>
-            Subscribe (all joined cleanups)
+            {t('cleanups:calendar.subscribe')}
           </a>
         )}
         <span className="calendar-hint">
-          Subscribing keeps Google / Apple / Outlook in sync as you join, leave, or organizers update dates.
-          Or use the per-date links below to add a single event.
+          {t('cleanups:calendar.hint')}
         </span>
       </div>
     </div>

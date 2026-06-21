@@ -1,0 +1,62 @@
+{
+  "share": {
+    "copy": "Teilbaren Link zu dieser Kartenansicht kopieren",
+    "copied": "Link kopiert"
+  },
+  "heat": {
+    "legend": "Heatmap-Metrik",
+    "items": "Objekte",
+    "mass": "Masse"
+  },
+  "overlay": {
+    "empty": "Nichts für diese Filter gefunden"
+  },
+  "popup": {
+    "plantRemoved": "Pflanze entfernt",
+    "plantSpot": "Pflanzen-Spot",
+    "invasive": "Invasiv — {{list}}",
+    "invasiveBlackList": "Schwarze Liste",
+    "invasiveWatchList": "Beobachtungsliste",
+    "spot": "Spot",
+    "pick": "Gesammelt",
+    "itemsDetected_one": "{{count}} Objekt erkannt",
+    "itemsDetected_other": "{{count}} Objekte erkannt",
+    "openSpot": "Spot öffnen →",
+    "cleanup": "Cleanup",
+    "picks_one": "{{count}}× gesammelt",
+    "picks_other": "{{count}}× gesammelt",
+    "openCleanup": "Cleanup öffnen →"
+  },
+  "basemap": {
+    "switch": "Basiskarte wechseln",
+    "options": "Basiskarten-Optionen",
+    "style": "Kartenstil",
+    "themesLabel": "Themen",
+    "themes": {
+      "standard": "Standard",
+      "aerial": "Luftbild",
+      "topo": "Topografisch",
+      "dark": "Dunkel"
+    }
+  },
+  "import": {
+    "title_one": "{{count}} Foto importieren",
+    "title_other": "{{count}} Fotos importieren",
+    "processing": "Verarbeite {{processed}} von {{total}} Fotos…",
+    "skipped_one": "{{count}} Foto übersprungen (keine GPS-Daten)",
+    "skipped_other": "{{count}} Fotos übersprungen (keine GPS-Daten)",
+    "imported_one": "{{count}} Foto importiert.",
+    "imported_other": "{{count}} Fotos importiert.",
+    "noneImported": "Es konnten keine Fotos importiert werden.",
+    "done": "Fertig",
+    "associate": "Mit diesem Cleanup verknüpfen",
+    "unknownDate": "Unbekanntes Datum",
+    "unknownError": "Unbekannter Fehler",
+    "noCleanupMatch": "Kein Cleanup-Treffer",
+    "groupHeader": "{{label}} ({{count}})",
+    "discard": "Verwerfen",
+    "import": "Importieren",
+    "importing": "Wird importiert...",
+    "importAll": "Alle importieren"
+  }
+}

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useUiStore } from '../stores/uiStore'
@@ -39,8 +41,10 @@ type Row =
 
 type StageStatus = 'not-reached' | 'in-progress' | 'success' | 'failed'
 
+type StageKey = 'local' | 'synced' | 'detected'
+
 interface StageState {
-  label: string
+  key: StageKey
   status: StageStatus
 }
 
@@ -57,9 +61,9 @@ function mapRowToStages(row: Row): { stages: [StageState, StageState, StageState
     const s = row.item.status
     return {
       stages: [
-        { label: 'Local', status: s === 'failed' ? 'failed' : 'in-progress' },
-        { label: 'Synced', status: 'not-reached' },
-        { label: 'Detected', status: 'not-reached' },
+        { key: 'local', status: s === 'failed' ? 'failed' : 'in-progress' },
+        { key: 'synced', status: 'not-reached' },
+        { key: 'detected', status: 'not-reached' },
       ],
       errorMessage: s === 'failed' ? row.item.lastError : null,
     }
@@ -69,9 +73,9 @@ function mapRowToStages(row: Row): { stages: [StageState, StageState, StageState
   if (s === 'completed') {
     return {
       stages: [
-        { label: 'Local', status: 'success' },
-        { label: 'Synced', status: 'success' },
-        { label: 'Detected', status: 'success' },
+        { key: 'local', status: 'success' },
+        { key: 'synced', status: 'success' },
+        { key: 'detected', status: 'success' },
       ],
       errorMessage: null,
     }
@@ -79,9 +83,9 @@ function mapRowToStages(row: Row): { stages: [StageState, StageState, StageState
   if (s === 'failed') {
     return {
       stages: [
-        { label: 'Local', status: 'success' },
-        { label: 'Synced', status: 'success' },
-        { label: 'Detected', status: 'failed' },
+        { key: 'local', status: 'success' },
+        { key: 'synced', status: 'success' },
+        { key: 'detected', status: 'failed' },
       ],
       errorMessage: row.item.processingError,
     }
@@ -89,9 +93,9 @@ function mapRowToStages(row: Row): { stages: [StageState, StageState, StageState
   // queued or processing
   return {
     stages: [
-      { label: 'Local', status: 'success' },
-      { label: 'Synced', status: 'success' },
-      { label: 'Detected', status: 'in-progress' },
+      { key: 'local', status: 'success' },
+      { key: 'synced', status: 'success' },
+      { key: 'detected', status: 'in-progress' },
     ],
     errorMessage: null,
   }
@@ -137,17 +141,18 @@ function stageIcon(status: StageStatus) {
   return <DotIcon />
 }
 
-function LifecycleStepper({ stages, errorMessage, onRetry, retryInMs }: {
+function LifecycleStepper({ stages, errorMessage, onRetry, retryInMs, t }: {
   stages: [StageState, StageState, StageState]
   errorMessage: string | null
   onRetry: (() => void) | null
   retryInMs: number | null
+  t: TFunction
 }) {
   return (
     <div className="lifecycle-stepper">
       <div className="lifecycle-stepper-row">
         {stages.map((stage, i) => (
-          <div key={stage.label} className="lifecycle-stepper-segment">
+          <div key={stage.key} className="lifecycle-stepper-segment">
             {i > 0 && (
               <div className={`lifecycle-stepper-line${stage.status !== 'not-reached' ? ' lifecycle-stepper-line--done' : ''}`} />
             )}
@@ -155,18 +160,18 @@ function LifecycleStepper({ stages, errorMessage, onRetry, retryInMs }: {
               <div className={`lifecycle-stepper-circle lifecycle-stepper-circle--${stage.status}`}>
                 {stageIcon(stage.status)}
               </div>
-              <span className="lifecycle-stepper-label">{stage.label}</span>
+              <span className="lifecycle-stepper-label">{t(`panel.stages.${stage.key}`)}</span>
             </div>
           </div>
         ))}
       </div>
       {errorMessage && <p className="history-error">{errorMessage}</p>}
       {retryInMs !== null && retryInMs > 0 && (
-        <p className="history-retry-countdown">Retrying in {formatRetryCountdown(retryInMs)}</p>
+        <p className="history-retry-countdown">{t('panel.retryingIn', { time: formatRetryCountdown(retryInMs) })}</p>
       )}
       {onRetry && (
         <button className="secondary-button history-retry-button" onClick={onRetry}>
-          Retry now
+          {t('panel.retryNow')}
         </button>
       )}
     </div>
@@ -177,15 +182,16 @@ function formatDateTime(value: string): string {
   return formatTimestamp(value)
 }
 
-function itemLabel(item: HistoryItem['items'][number]): string {
+function itemLabel(item: HistoryItem['items'][number], t: TFunction): string {
   const objectName = item.objectLabel?.name
   const scientific = item.objectLabel?.scientificName
   const head = scientific && objectName ? `${objectName} (${scientific})` : objectName
   const parts = [head, item.materialLabel?.name, item.brandLabel?.name].filter(Boolean)
-  return parts.length > 0 ? parts.join(' / ') : 'Unspecified item'
+  return parts.length > 0 ? parts.join(' / ') : t('panel.unspecifiedItem')
 }
 
 export function HistoryPanel() {
+  const { t } = useTranslation(['spot', 'common'])
   const { sessionToken, guestId, user } = useAuthStore()
   const { isOnline } = useConnectivityStore()
   const [reports, setReports] = useState<HistoryItem[]>([])
@@ -260,12 +266,12 @@ export function HistoryPanel() {
       }
       setNextCursor(payload.nextCursor ?? null)
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : 'Failed to load pick history'
+      const message = loadError instanceof Error ? loadError.message : t('panel.loadFailed')
       setError(message)
     } finally {
       setIsLoading(false)
     }
-  }, [guestId, buildRequestUrl, sessionToken])
+  }, [guestId, buildRequestUrl, sessionToken, t])
 
   const loadMore = useCallback(() => {
     if (!nextCursor || isLoading) return
@@ -398,7 +404,7 @@ export function HistoryPanel() {
 
   return (
     <fieldset className="page-card history-panel">
-      <legend>My Picks</legend>
+      <legend>{t('panel.legend')}</legend>
       <header className="history-header">
         <CountdownButton
           intervalSeconds={hasInFlight ? 3 : 30}
@@ -412,7 +418,7 @@ export function HistoryPanel() {
 
       {!isLoading && rows.length === 0 && (
         <p className="history-empty">
-          No picks yet. Take or import a photo to log your first pick.
+          {t('panel.empty')}
         </p>
       )}
 
@@ -453,20 +459,20 @@ export function HistoryPanel() {
                     <span className="history-timestamp">
                       {formatDateTime(row.item.capturedAt)}
                       {(row.kind === 'server' ? !row.item.pickedUp : row.item.pickedUp === false) && (
-                        <span className="history-spotted-badge">Spotted</span>
+                        <span className="history-spotted-badge">{t('panel.spotted')}</span>
                       )}
                       {row.kind === 'server' && (
                         <>
                           <button
                             className="history-edit-btn"
-                            title="Edit"
+                            title={t('panel.edit')}
                             onClick={() => setEditingSpotId(editingSpotId === row.item.id ? null : row.item.id)}
                           >
                             &#9998;
                           </button>
                           <button
                             className="history-delete-btn"
-                            title="Delete"
+                            title={t('panel.delete')}
                             onClick={() => setConfirmDeleteId(row.item.id)}
                           >
                             &#128465;
@@ -475,21 +481,25 @@ export function HistoryPanel() {
                       )}
                     </span>
 
-                    <LifecycleStepper stages={stages} errorMessage={errorMessage} onRetry={onRetry} retryInMs={retryInMs} />
+                    <LifecycleStepper stages={stages} errorMessage={errorMessage} onRetry={onRetry} retryInMs={retryInMs} t={t} />
 
                     <p className="history-meta">
-                      {formatCoord(row.item.latitude)}, {formatCoord(row.item.longitude)} | accuracy {row.item.accuracyMeters !== null ? `±${Math.round(row.item.accuracyMeters)}m` : 'unknown'}
+                      {t('detail.metaAccuracy', {
+                        lat: formatCoord(row.item.latitude),
+                        lng: formatCoord(row.item.longitude),
+                        accuracy: row.item.accuracyMeters !== null ? `±${Math.round(row.item.accuracyMeters)}m` : t('detail.accuracyUnknown'),
+                      })}
                     </p>
 
                     {row.kind === 'local' && row.item.attempts > 0 && (
-                      <p className="history-meta">Attempt {row.item.attempts}</p>
+                      <p className="history-meta">{t('panel.attempt', { count: row.item.attempts })}</p>
                     )}
 
                     {serverItem?.status === 'completed' && serverItem.items.length === 0 && (
                       <p className="history-meta">
                         {serverItem.subjectKind === 'plant'
-                          ? 'Could not identify with confidence. Try a clearer leaf or flower photo.'
-                          : 'No detectable litter items were found.'}
+                          ? t('panel.plantNotConfident')
+                          : t('panel.noLitterFound')}
                       </p>
                     )}
 
@@ -500,12 +510,12 @@ export function HistoryPanel() {
                           return (
                             <li key={detected.id} className="history-item-row">
                               <span>
-                                {itemLabel(detected)}
+                                {itemLabel(detected, t)}
                                 {detected.plantInvasive && (
                                   <>
                                     {' · '}
                                     <span className={`plant-id-badge plant-id-badge--${detected.plantInvasive.list === 'infoflora_black' ? 'black' : 'watch'}`}>
-                                      Invasive — {detected.plantInvasive.list === 'infoflora_black' ? 'black list' : 'watch list'}
+                                      {detected.plantInvasive.list === 'infoflora_black' ? t('panel.invasiveBlack') : t('panel.invasiveWatch')}
                                     </span>
                                     {' '}
                                     <button
@@ -518,7 +528,7 @@ export function HistoryPanel() {
                                         return next
                                       })}
                                     >
-                                      {isExpanded ? 'Hide' : 'How to remove'}
+                                      {isExpanded ? t('panel.hide') : t('panel.howToRemove')}
                                     </button>
                                   </>
                                 )}
@@ -563,7 +573,7 @@ export function HistoryPanel() {
             onClick={loadMore}
             disabled={isLoading}
           >
-            {isLoading ? 'Loading...' : 'Load more'}
+            {isLoading ? t('common:actions.loading') : t('panel.loadMore')}
           </button>
         </div>
       )}
@@ -571,10 +581,10 @@ export function HistoryPanel() {
       {confirmDeleteId && (
         <div className="lightbox-overlay" onClick={() => setConfirmDeleteId(null)}>
           <div className="confirm-dialog" onClick={(e) => e.stopPropagation()}>
-            <p>Delete this pick? This cannot be undone.</p>
+            <p>{t('panel.deleteConfirm')}</p>
             <div className="confirm-dialog-actions">
-              <button className="secondary-button" onClick={() => setConfirmDeleteId(null)}>Cancel</button>
-              <button className="danger-button" onClick={() => startDelete(confirmDeleteId)}>Delete</button>
+              <button className="secondary-button" onClick={() => setConfirmDeleteId(null)}>{t('common:actions.cancel')}</button>
+              <button className="danger-button" onClick={() => startDelete(confirmDeleteId)}>{t('common:actions.delete')}</button>
             </div>
           </div>
         </div>
@@ -582,8 +592,8 @@ export function HistoryPanel() {
 
       {pendingDeleteId && (
         <div className="undo-toast">
-          <span>Pick deleted</span>
-          <button className="undo-toast-btn" onClick={undoDelete}>Undo</button>
+          <span>{t('panel.pickDeleted')}</span>
+          <button className="undo-toast-btn" onClick={undoDelete}>{t('panel.undo')}</button>
         </div>
       )}
 

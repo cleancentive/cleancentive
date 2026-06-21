@@ -1,7 +1,8 @@
 import { Component, type ReactNode } from 'react'
+import { withTranslation, type WithTranslation } from 'react-i18next'
 import { useFeedbackStore } from '../stores/feedbackStore'
 
-interface Props {
+interface Props extends WithTranslation {
   children: ReactNode
 }
 
@@ -10,7 +11,7 @@ interface State {
   error: Error | null
 }
 
-export class ErrorBoundary extends Component<Props, State> {
+class ErrorBoundaryInner extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
     this.state = { hasError: false, error: null }
@@ -40,17 +41,18 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   render() {
+    const { t } = this.props
     if (this.state.hasError) {
       return (
         <div className="error-boundary">
-          <h2>Something went wrong</h2>
-          <p>An unexpected error occurred. You can send feedback to help us fix it.</p>
+          <h2>{t('error.title')}</h2>
+          <p>{t('error.body')}</p>
           <div className="form-actions">
             <button className="primary-button" onClick={this.handleSendFeedback}>
-              Send Feedback
+              {t('error.sendFeedback')}
             </button>
             <button className="secondary-button" onClick={this.handleReload}>
-              Reload
+              {t('error.reload')}
             </button>
           </div>
         </div>
@@ -60,3 +62,5 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children
   }
 }
+
+export const ErrorBoundary = withTranslation(['shell', 'common'])(ErrorBoundaryInner)

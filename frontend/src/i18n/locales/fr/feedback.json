@@ -1,0 +1,50 @@
+{
+  "page": {
+    "title": "Mon Feedback"
+  },
+  "status": {
+    "new": "nouveau",
+    "in_progress": "en cours",
+    "resolved": "résolu",
+    "closed": "fermé"
+  },
+  "category": {
+    "bug": "Bug",
+    "suggestion": "Suggestion",
+    "question": "Question"
+  },
+  "list": {
+    "loading": "Chargement de votre feedback...",
+    "empty": "Aucun feedback envoyé pour le moment.",
+    "responses_one": "{{count}} réponse",
+    "responses_other": "{{count}} réponses"
+  },
+  "detail": {
+    "notFound": "Feedback introuvable.",
+    "technicalDetails": "Détails techniques",
+    "submitted": "Envoyé {{date}}",
+    "conversationLegend": "Conversation privée avec les Stewards de CleanCentive",
+    "noResponses": "Aucune réponse pour le moment. Un Steward vous répondra.",
+    "steward": "Steward",
+    "you": "Vous",
+    "replyPlaceholder": "Écrire un suivi...",
+    "sending": "Envoi...",
+    "reply": "Répondre"
+  },
+  "modal": {
+    "successTitle": "Merci !",
+    "successBody": "Votre feedback a été envoyé. Vous pouvez le suivre dans votre <link>historique de feedback</link>.",
+    "title": "Envoyer un Feedback",
+    "privacy": "Ceci est un message privé adressé aux Stewards de CleanCentive. Vous seul·e et les Stewards pouvez le voir.",
+    "categoryLabel": "Catégorie",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "Dites-nous ce qui s'est passé ou ce que vous aimeriez voir...",
+    "contactToggle": "Vous pouvez me contacter à {{email}}",
+    "emailLabel": "E-mail (facultatif, pour le suivi)",
+    "emailPlaceholder": "votre@email.com",
+    "showDetails": "Afficher les détails techniques",
+    "hideDetails": "Masquer les détails techniques",
+    "sending": "Envoi...",
+    "submit": "Envoyer le Feedback"
+  }
+}

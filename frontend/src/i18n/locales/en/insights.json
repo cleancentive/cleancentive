@@ -1,0 +1,30 @@
+{
+  "loading": "Loading insights...",
+  "scope": {
+    "team": "{{team}} Insights",
+    "community": "Community Overview"
+  },
+  "summary": {
+    "cleanups": "Cleanups",
+    "users": "Users",
+    "teams": "Teams",
+    "spots": "Spots",
+    "itemsDetected": "Items Detected",
+    "weightEstimate": "Weight (Estimate)"
+  },
+  "charts": {
+    "spotsOverTime": "Spots Over Time",
+    "itemsOverTime": "Items Detected Over Time",
+    "weightOverTime": "Estimated Weight Over Time",
+    "cleanupsOverTime": "Cleanups Over Time",
+    "noData": "No data yet"
+  },
+  "ranks": {
+    "topObjects": "Top Objects",
+    "topMaterials": "Top Materials",
+    "topBrands": "Top Brands",
+    "noObjects": "No objects detected yet",
+    "noMaterials": "No materials detected yet",
+    "noBrands": "No brands detected yet"
+  }
+}

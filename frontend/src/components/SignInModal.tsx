@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 import { useUiStore } from '../stores/uiStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
@@ -7,6 +8,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 
 export function SignInModal() {
+  const { t } = useTranslation(['auth', 'common'])
   const { signInModalOpen, closeSignInModal, pickCount } = useUiStore()
   const { user, guestId, deleteGuestData, isLoading } = useAuthStore()
   const { isOnline } = useConnectivityStore()
@@ -31,7 +33,7 @@ export function SignInModal() {
   return (
     <div className="sign-in-overlay" onClick={closeSignInModal}>
       <div className="sign-in-dialog" onClick={(e) => e.stopPropagation()}>
-        <button className="sign-in-close" onClick={closeSignInModal} aria-label="Close">
+        <button className="sign-in-close" onClick={closeSignInModal} aria-label={t('modal.closeLabel')}>
           ×
         </button>
         <SignIn />
@@ -41,13 +43,13 @@ export function SignInModal() {
               className="link-button danger-link"
               onClick={() => setShowDeleteConfirm(true)}
             >
-              Delete guest data
+              {t('modal.deleteGuestData')}
             </button>
           </div>
         )}
         {showDeleteConfirm && (
           <ConfirmDialog
-            title="Delete Guest Data"
+            title={t('guestData.title')}
             actions={
               <>
                 <button
@@ -59,7 +61,7 @@ export function SignInModal() {
                   disabled={!isOnline || isLoading}
                   className="danger-button"
                 >
-                  Delete all data
+                  {t('guestData.deleteAll')}
                 </button>
                 <button
                   onClick={async () => {
@@ -69,18 +71,18 @@ export function SignInModal() {
                   }}
                   className="secondary-button"
                 >
-                  Just forget me locally
+                  {t('guestData.forgetLocally')}
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
                   className="secondary-button"
                 >
-                  Cancel
+                  {t('common:actions.cancel')}
                 </button>
               </>
             }
           >
-            <p>This will remove all data associated with your guest session.</p>
+            <p>{t('guestData.prompt')}</p>
           </ConfirmDialog>
         )}
       </div>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { type Frequency } from '../../lib/cleanupDates'
 import { formatDateRange } from '../../utils/datetime'
 import { LocationPicker } from '../LocationPicker'
@@ -13,11 +14,12 @@ interface DateFormProps {
 }
 
 export function DateForm({ form, onSubmit, submitLabel, onCancel, showRepeat = false, isOnline }: DateFormProps) {
+  const { t } = useTranslation(['cleanups', 'common'])
   return (
     <form className="community-create-form" onSubmit={onSubmit}>
       <div className="form-row">
         <div className="form-group">
-          <label>Start</label>
+          <label>{t('cleanups:dateForm.startLabel')}</label>
           <input
             type="datetime-local"
             value={form.startAt}
@@ -28,7 +30,7 @@ export function DateForm({ form, onSubmit, submitLabel, onCancel, showRepeat = f
           />
         </div>
         <div className="form-group">
-          <label>End</label>
+          <label>{t('cleanups:dateForm.endLabel')}</label>
           <input
             type="datetime-local"
             value={form.endAt}
@@ -40,7 +42,7 @@ export function DateForm({ form, onSubmit, submitLabel, onCancel, showRepeat = f
         </div>
       </div>
       {form.durationHoursValue !== null && form.durationHoursValue > 0 && form.durationHoursValue < 2 ? (
-        <p className="form-warning">Duration is less than 2 hours. Are you sure?</p>
+        <p className="form-warning">{t('cleanups:dateForm.shortDurationWarning')}</p>
       ) : null}
 
       {showRepeat && (
@@ -51,25 +53,25 @@ export function DateForm({ form, onSubmit, submitLabel, onCancel, showRepeat = f
               checked={form.repeatEnabled}
               onChange={(e) => form.setRepeatEnabled(e.target.checked)}
             />
-            Repeat
+            {t('cleanups:dateForm.repeat')}
           </label>
           {form.repeatEnabled && (
             <div className="repeat-options">
               <label>
-                Frequency
+                {t('cleanups:dateForm.frequencyLabel')}
                 <select
                   value={form.repeatFrequency}
                   onChange={(e) => form.setRepeatFrequency(e.target.value as Frequency)}
                 >
-                  <option value="weekly">Weekly</option>
-                  <option value="biweekly">Biweekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="quarterly">Quarterly</option>
-                  <option value="yearly">Yearly</option>
+                  <option value="weekly">{t('cleanups:dateForm.frequency.weekly')}</option>
+                  <option value="biweekly">{t('cleanups:dateForm.frequency.biweekly')}</option>
+                  <option value="monthly">{t('cleanups:dateForm.frequency.monthly')}</option>
+                  <option value="quarterly">{t('cleanups:dateForm.frequency.quarterly')}</option>
+                  <option value="yearly">{t('cleanups:dateForm.frequency.yearly')}</option>
                 </select>
               </label>
               <label>
-                Occurrences
+                {t('cleanups:dateForm.occurrencesLabel')}
                 <input
                   type="number"
                   min={2}
@@ -82,7 +84,7 @@ export function DateForm({ form, onSubmit, submitLabel, onCancel, showRepeat = f
           )}
           {form.repeatPreview.length > 1 && (
             <div className="repeat-preview">
-              <strong>{form.repeatPreview.length} dates:</strong>
+              <strong>{t('cleanups:dateForm.preview', { count: form.repeatPreview.length })}</strong>
               <ul>
                 {form.repeatPreview.map((p, i) => (
                   <li key={i}>{formatDateRange(p.startAt, p.endAt)}</li>
@@ -105,7 +107,7 @@ export function DateForm({ form, onSubmit, submitLabel, onCancel, showRepeat = f
         <button type="submit" className="primary-button" disabled={!isOnline}>
           {submitLabel}{form.repeatEnabled && form.repeatPreview.length > 1 ? ` (${form.repeatPreview.length})` : ''}
         </button>
-        <button type="button" className="secondary-button" onClick={onCancel}>Cancel</button>
+        <button type="button" className="secondary-button" onClick={onCancel}>{t('common:actions.cancel')}</button>
       </div>
     </form>
   )

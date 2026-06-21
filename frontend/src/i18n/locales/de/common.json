@@ -1,0 +1,53 @@
+{
+  "appName": "CleanCentive",
+  "nav": {
+    "teams": "Teams",
+    "cleanups": "Cleanups",
+    "insights": "Statistiken",
+    "map": "Karte",
+    "steward": "Steward"
+  },
+  "actions": {
+    "save": "Speichern",
+    "saveChanges": "Änderungen speichern",
+    "saving": "Speichern...",
+    "cancel": "Abbrechen",
+    "add": "Hinzufügen",
+    "remove": "Entfernen",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "close": "Schließen",
+    "confirm": "Bestätigen",
+    "back": "Zurück",
+    "retry": "Erneut versuchen",
+    "copy": "Kopieren",
+    "share": "Teilen",
+    "loading": "Lädt...",
+    "signIn": "Anmelden",
+    "signOut": "Abmelden"
+  },
+  "status": {
+    "offline": "Du bist offline — Bearbeitung pausiert.",
+    "notSet": "Nicht festgelegt",
+    "na": "—",
+    "copied": "In die Zwischenablage kopiert",
+    "copyFailed": "Kopieren fehlgeschlagen"
+  },
+  "processing": {
+    "queued": "Warten auf Erkennung",
+    "processing": "Müll wird erkannt...",
+    "completed": "Fertig",
+    "failed": "Erkennung fehlgeschlagen"
+  },
+  "domain": {
+    "pick": "Gesammelt",
+    "picks": "Gesammelt",
+    "spot": "Spot",
+    "cleanup": "Cleanup",
+    "team": "Team",
+    "organizer": "Organizer",
+    "steward": "Steward",
+    "feedback": "Feedback",
+    "guest": "Gast"
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "pickNow": "Pick now!",
+  "connectivity": {
+    "noNetwork": "No network",
+    "offline": "Offline",
+    "online": "Online",
+    "noNetworkTitle": "No network connection",
+    "goOnlineTitle": "Click to go online",
+    "goOfflineTitle": "Click to go offline"
+  },
+  "userMenu": {
+    "signInLabel": "Sign in",
+    "menuLabel": "User menu",
+    "profile": "Profile",
+    "myFeedback": "My Feedback",
+    "share": "Share",
+    "about": "About",
+    "teamLabel": "Team:",
+    "cleanupLabel": "Cleanup:"
+  },
+  "shareQr": {
+    "title": "Share CleanCentive",
+    "closeLabel": "Close QR code dialog",
+    "tapToCopy": "Tap URL to copy"
+  },
+  "welcome": {
+    "title": "Welcome to CleanCentive",
+    "intro": "Track your litter picks with offline-first photo logging.",
+    "bullets": {
+      "geolocation": "Log litter picks with geolocation",
+      "offline": "Queue picks offline with thumbnails",
+      "autoSync": "Auto-sync as soon as you reconnect"
+    }
+  },
+  "about": {
+    "description": "Empowering communities to make the world visibly cleaner.",
+    "version": "Version",
+    "source": "Source",
+    "license": "License"
+  },
+  "context": {
+    "controlsTitle": "Controls which team and cleanup your picks join",
+    "narrowsTitle": "Narrows what data you see on this page",
+    "notApplicableTitle": "Not applicable on this page",
+    "emptyAll": "All",
+    "emptyNone": "None",
+    "my": "My",
+    "clearTitle": "Clear all filters",
+    "date": {
+      "d7": "7d",
+      "d30": "30d",
+      "y1": "1y"
+    },
+    "compoundSummary": "My picks in {{teamName}}",
+    "pickedUp": {
+      "picked": "Picked",
+      "spotted": "Spotted",
+      "all": "All"
+    },
+    "subject": {
+      "litter": "Litter",
+      "plants": "Plants",
+      "all": "All"
+    }
+  },
+  "backLink": {
+    "label": "Back to {{noun}}",
+    "title": "Go back ({{shortcut}})",
+    "nouns": {
+      "home": "home",
+      "map": "map",
+      "cleanups": "cleanups",
+      "teams": "teams",
+      "insights": "insights",
+      "feedback": "feedback",
+      "users": "users",
+      "steward": "steward"
+    }
+  },
+  "error": {
+    "title": "Something went wrong",
+    "body": "An unexpected error occurred. You can send feedback to help us fix it.",
+    "sendFeedback": "Send Feedback",
+    "reload": "Reload"
+  }
+}

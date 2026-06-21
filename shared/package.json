@@ -10,6 +10,7 @@
     "./geo": "./src/geo/haversine.ts",
     "./spot": "./src/spot/processing-status.ts",
     "./detection": "./src/detection/types.ts",
-    "./infoflora": "./src/infoflora/index.ts"
+    "./infoflora": "./src/infoflora/index.ts",
+    "./locale": "./src/locale/index.ts"
   }
 }

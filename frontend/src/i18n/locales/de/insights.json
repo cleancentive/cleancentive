@@ -1,0 +1,30 @@
+{
+  "loading": "Statistiken werden geladen...",
+  "scope": {
+    "team": "{{team}} Statistiken",
+    "community": "Community-Übersicht"
+  },
+  "summary": {
+    "cleanups": "Cleanups",
+    "users": "Nutzer",
+    "teams": "Teams",
+    "spots": "Spots",
+    "itemsDetected": "Erkannte Objekte",
+    "weightEstimate": "Gewicht (Schätzung)"
+  },
+  "charts": {
+    "spotsOverTime": "Spots im Zeitverlauf",
+    "itemsOverTime": "Erkannte Objekte im Zeitverlauf",
+    "weightOverTime": "Geschätztes Gewicht im Zeitverlauf",
+    "cleanupsOverTime": "Cleanups im Zeitverlauf",
+    "noData": "Noch keine Daten"
+  },
+  "ranks": {
+    "topObjects": "Top-Objekte",
+    "topMaterials": "Top-Materialien",
+    "topBrands": "Top-Marken",
+    "noObjects": "Noch keine Objekte erkannt",
+    "noMaterials": "Noch keine Materialien erkannt",
+    "noBrands": "Noch keine Marken erkannt"
+  }
+}

@@ -110,6 +110,7 @@ describe('AuthService', () => {
         uploaded_avatar_key: null,
         uploaded_avatar_updated_at: null,
         calendar_feed_last_fetched_at: null,
+        locale: null,
         generateId: jest.fn(),
       };
       const mockToken = 'jwt-token-123';

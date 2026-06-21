@@ -1,0 +1,139 @@
+{
+  "list": {
+    "title": "Cleanups",
+    "searchPlaceholder": "Search cleanups...",
+    "empty": "No cleanups found",
+    "create": "Create Cleanup",
+    "status": {
+      "ongoing": "Ongoing",
+      "future": "Future",
+      "past": "Past"
+    },
+    "badge": {
+      "active": "Active"
+    }
+  },
+  "createForm": {
+    "nameLabel": "Name",
+    "namePlaceholder": "e.g. Saturday Park Cleanup",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "What is this cleanup about?",
+    "startLabel": "Start",
+    "endLabel": "End",
+    "shortDurationWarning": "Duration is less than 2 hours. Are you sure?",
+    "creating": "Creating...",
+    "submit": "Create"
+  },
+  "detail": {
+    "notFound": "Cleanup not found",
+    "dates": "Dates ({{count}})",
+    "noDates": "No dates scheduled",
+    "addDate": "+ Add date",
+    "addDateSubmit": "Add Date",
+    "participants": "Participants ({{count}})",
+    "messages": "Messages",
+    "archive": {
+      "title": "Archive Cleanup",
+      "confirm": "Archive"
+    },
+    "deleteDate": {
+      "title": "Delete Date",
+      "body": "Are you sure you want to delete this date? Users with this date active will be deactivated."
+    },
+    "deleteDates": {
+      "title": "Delete Dates",
+      "button_one": "Delete {{count}} date",
+      "button_other": "Delete {{count}} dates",
+      "body_one": "Are you sure you want to delete <strong>{{count}}</strong> date? Users with these dates active will be deactivated.",
+      "body_other": "Are you sure you want to delete <strong>{{count}}</strong> dates? Users with these dates active will be deactivated."
+    }
+  },
+  "header": {
+    "nameLabel": "Name",
+    "descriptionLabel": "Description",
+    "signInToJoin": "Sign in to join this cleanup",
+    "join": "Join Cleanup",
+    "leave": "Leave Cleanup",
+    "organizerActions": "Organizer Actions",
+    "archive": "Archive Cleanup",
+    "archiveTitle": "Hides the cleanup from search and prevents new activity. Existing data is preserved.",
+    "archiveConfirmBody": "Are you sure you want to archive <strong>{{name}}</strong>? This will deactivate the cleanup for all participants."
+  },
+  "calendar": {
+    "heading": "Add to your calendar",
+    "subscribe": "Subscribe (all joined cleanups)",
+    "hint": "Subscribing keeps Google / Apple / Outlook in sync as you join, leave, or organizers update dates. Or use the per-date links below to add a single event."
+  },
+  "dateCard": {
+    "ongoing": "Ongoing",
+    "active": "Active",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "addToCalendar": "Add to calendar",
+    "downloadIcsTitle": "Download .ics for this date"
+  },
+  "bulk": {
+    "selectRelated": "Select related dates",
+    "selectAllAfter": "Select all after {{date}}",
+    "delete_one": "Delete {{count}} date",
+    "delete_other": "Delete {{count}} dates",
+    "clearSelection": "Clear selection"
+  },
+  "dateForm": {
+    "startLabel": "Start",
+    "endLabel": "End",
+    "shortDurationWarning": "Duration is less than 2 hours. Are you sure?",
+    "repeat": "Repeat",
+    "frequencyLabel": "Frequency",
+    "frequency": {
+      "weekly": "Weekly",
+      "biweekly": "Biweekly",
+      "monthly": "Monthly",
+      "quarterly": "Quarterly",
+      "yearly": "Yearly"
+    },
+    "occurrencesLabel": "Occurrences",
+    "preview_one": "{{count}} date:",
+    "preview_other": "{{count}} dates:"
+  },
+  "filter": {
+    "label": "Cleanup:",
+    "all": "All",
+    "scopeMine": "Mine",
+    "scopeAll": "All",
+    "allCleanups": "All cleanups",
+    "loading": "Loading…",
+    "noCleanups": "No cleanups",
+    "dates_one": "{{count}} date",
+    "dates_other": "{{count}} dates",
+    "allDates": "All dates",
+    "sheetClose": "Close"
+  },
+  "card": {
+    "viewDetails": "View"
+  },
+  "members": {
+    "empty": "No {{entity}}s yet",
+    "promote": "Promote",
+    "roleMember": "Member",
+    "entityMember": "member",
+    "entityParticipant": "participant"
+  },
+  "messages": {
+    "subjectPlaceholder": "Subject",
+    "bodyPlaceholder": "Write a message...",
+    "disclosureMembers": "All current and future team members will see this message in the history. An email will be sent to all current members.",
+    "disclosureOrganizers": "All current and future organizers will see this message in the history. An email will be sent to all current organizers.",
+    "ccSelf": "Email me a copy",
+    "to": "To:",
+    "audienceMembers": "All members",
+    "audienceOrganizers": "Organizers",
+    "sending": "Sending...",
+    "send": "Send",
+    "loading": "Loading messages...",
+    "empty": "No messages yet",
+    "toOrganizers": "To organizers",
+    "toMembers": "To members",
+    "unknownAuthor": "Unknown"
+  }
+}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { getStandardBasemapSource } from '../config/basemaps'
@@ -16,6 +17,7 @@ export function ManualLocationDialog({
   onConfirm,
   onCancel,
 }: ManualLocationDialogProps) {
+  const { t } = useTranslation(['spot', 'common'])
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markerRef = useRef<maplibregl.Marker | null>(null)
@@ -80,22 +82,22 @@ export function ManualLocationDialog({
   return (
     <div className="sign-in-overlay" onClick={onCancel}>
       <div className="sign-in-dialog manual-location-dialog" onClick={(e) => e.stopPropagation()}>
-        <button className="sign-in-close" onClick={onCancel} aria-label="Close">
+        <button className="sign-in-close" onClick={onCancel} aria-label={t('common:actions.close')}>
           &times;
         </button>
-        <h2>Pick location on map</h2>
-        <p className="capture-detail">Tap the map to drop a pin. Accuracy will be marked as unknown.</p>
+        <h2>{t('manualLocation.title')}</h2>
+        <p className="capture-detail">{t('manualLocation.hint')}</p>
         <div className="manual-location-map" ref={mapContainerRef} />
         <div className="manual-location-actions">
           <button className="secondary-button" onClick={onCancel}>
-            Cancel
+            {t('common:actions.cancel')}
           </button>
           <button
             className="primary-button"
             onClick={() => picked && onConfirm(picked.latitude, picked.longitude)}
             disabled={!picked}
           >
-            Use this location
+            {t('manualLocation.useThisLocation')}
           </button>
         </div>
       </div>

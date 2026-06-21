@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useCleanupStore } from '../stores/cleanupStore'
@@ -34,6 +35,7 @@ function notifyPicksChanged() {
 }
 
 export function CapturePanel() {
+  const { t } = useTranslation(['spot', 'common'])
   const { user, sessionToken, guestId } = useAuthStore()
   const { isOnline } = useConnectivityStore()
   const { cleanups, activateDate: activateCleanupDate } = useCleanupStore()
@@ -148,16 +150,16 @@ export function CapturePanel() {
     if (error && typeof error === 'object' && 'name' in error) {
       const errorName = String((error as { name?: string }).name || '')
       if (errorName === 'NotAllowedError') {
-        return 'Camera permission was denied. Please allow camera access in your browser\'s site settings.'
+        return t('capture.errors.permissionDenied')
       }
       if (errorName === 'NotFoundError') {
-        return 'No camera was found for this browser session.'
+        return t('capture.errors.notFound')
       }
       if (errorName === 'NotReadableError') {
-        return 'Camera is busy or unavailable. Close other apps using the camera and try again.'
+        return t('capture.errors.notReadable')
       }
       if (errorName === 'OverconstrainedError') {
-        return 'Requested camera constraints are not supported on this device.'
+        return t('capture.errors.overconstrained')
       }
     }
 
@@ -165,19 +167,19 @@ export function CapturePanel() {
       return error.message
     }
 
-    return 'Unable to access camera'
+    return t('capture.errors.generic')
   }
 
   const startCamera = async () => {
     setCaptureError(null)
 
     if (typeof navigator === 'undefined') {
-      setCaptureError('Camera is unavailable in this environment.')
+      setCaptureError(t('capture.errors.unavailableEnv'))
       return
     }
 
     if (!navigator.mediaDevices?.getUserMedia) {
-      setCaptureError('Camera is not supported in this browser.')
+      setCaptureError(t('capture.errors.notSupported'))
       return
     }
 
@@ -221,14 +223,13 @@ export function CapturePanel() {
     }
 
     if (!location) {
-      setCaptureError('Waiting for a GPS fix. Please wait a few seconds, or set the location manually.')
+      setCaptureError(t('capture.errors.waitingForFix'))
       return
     }
 
     if (locationTier === 'low' && location.accuracy !== null && !AUTO_ACCEPT_LOW_CONFIDENCE) {
       const confirmed = window.confirm(
-        `GPS confidence is low (±${Math.round(location.accuracy)}m). ` +
-          `Save anyway? Your true position is likely within this radius.`,
+        t('capture.errors.lowConfidenceConfirm', { meters: Math.round(location.accuracy) }),
       )
       if (!confirmed) return
     }
@@ -244,7 +245,7 @@ export function CapturePanel() {
 
       const context = canvas.getContext('2d')
       if (!context) {
-        throw new Error('Failed to capture frame context')
+        throw new Error(t('capture.errors.frameContext'))
       }
 
       context.drawImage(video, 0, 0, canvas.width, canvas.height)
@@ -274,7 +275,7 @@ export function CapturePanel() {
         await runSync()
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to queue capture'
+      const message = error instanceof Error ? error.message : t('capture.errors.queueFailed')
       setCaptureError(message)
     } finally {
       setIsCapturing(false)
@@ -321,7 +322,7 @@ export function CapturePanel() {
         await runSync()
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to import file'
+      const message = error instanceof Error ? error.message : t('capture.errors.importFailed')
       setCaptureError(message)
     } finally {
       setIsImportingFile(false)
@@ -344,7 +345,7 @@ export function CapturePanel() {
       await queueImportedFile(selectedFiles[0], subject)
     } else if (subject === 'plant') {
       // Plant captures are single-shot — batch import is litter-only.
-      setCaptureError('Plant captures are single-photo. Pick one file at a time.')
+      setCaptureError(t('capture.errors.plantSinglePhoto'))
       if (fileInputRef.current) fileInputRef.current.value = ''
     } else {
       setBatchFiles(Array.from(selectedFiles))
@@ -356,25 +357,25 @@ export function CapturePanel() {
     fileInputRef.current?.click()
   }
 
-  const lowConfidenceSuffix = locationTier === 'low' && !AUTO_ACCEPT_LOW_CONFIDENCE ? ' anyway' : ''
+  const lowConfidenceSuffix = locationTier === 'low' && !AUTO_ACCEPT_LOW_CONFIDENCE ? t('capture.lowConfidenceSuffix') : ''
 
   return (
     <fieldset className="page-card capture-panel">
-      <legend>{pickedUp ? 'Log a Pick' : 'Log a Spot'}</legend>
+      <legend>{pickedUp ? t('capture.legendPick') : t('capture.legendSpot')}</legend>
       <div className="capture-toolbar">
         <span
           className={`capture-status-pill capture-status-pill--${locationTier === 'unknown' ? 'warning' : locationTier}`}
           onClick={() => setShowLocationDetail(prev => !prev)}
-          title="GPS confidence radius — your true location is likely within this distance, not off by it."
+          title={t('capture.gpsTitle')}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M7 1C4.5 1 3 3 3 5.25 3 8.5 7 13 7 13s4-4.5 4-7.75C11 3 9.5 1 7 1z" /><circle cx="7" cy="5.25" r="1.5" />
           </svg>
           {locationTier === 'manual'
-            ? 'Manual'
+            ? t('capture.manual')
             : location && location.accuracy !== null
-              ? `±${Math.round(location.accuracy)}m`
-              : 'Waiting...'}
+              ? t('capture.accuracyMeters', { meters: Math.round(location.accuracy) })
+              : t('capture.waiting')}
         </span>
       </div>
 
@@ -382,21 +383,21 @@ export function CapturePanel() {
         <p className="capture-detail">
           {locationTier === 'manual' && location && (
             <>
-              Manual location: {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}.{' '}
-              <button className="link-button" onClick={() => setManualLocation(null)}>Use GPS instead</button>
+              {t('capture.detail.manualLocation', { lat: location.latitude.toFixed(5), lng: location.longitude.toFixed(5) })}{' '}
+              <button className="link-button" onClick={() => setManualLocation(null)}>{t('capture.detail.useGps')}</button>
             </>
           )}
           {locationTier === 'good' && location && location.accuracy !== null &&
-            `Accuracy: ±${Math.round(location.accuracy)}m`}
+            t('capture.detail.accuracy', { meters: Math.round(location.accuracy) })}
           {locationTier === 'warning' && location && location.accuracy !== null &&
-            `Accuracy: ±${Math.round(location.accuracy)}m — slight uncertainty`}
+            t('capture.detail.accuracyWarning', { meters: Math.round(location.accuracy) })}
           {locationTier === 'low' && location && location.accuracy !== null &&
-            `Low GPS confidence: ±${Math.round(location.accuracy)}m. Your true position is likely within this radius.`}
-          {locationTier === 'unknown' && 'Waiting for a GPS fix.'}
+            t('capture.detail.lowConfidence', { meters: Math.round(location.accuracy) })}
+          {locationTier === 'unknown' && t('capture.detail.waitingForFix')}
           {locationTier !== 'manual' && (
             <>
               {' '}
-              <button className="link-button" onClick={() => setShowManualPicker(true)}>Set location manually</button>
+              <button className="link-button" onClick={() => setShowManualPicker(true)}>{t('capture.detail.setManually')}</button>
             </>
           )}
         </p>
@@ -417,21 +418,21 @@ export function CapturePanel() {
             className={isCameraActive ? "secondary-button" : "primary-button"}
             onClick={isCameraActive ? stopCamera : startCamera}
           >
-            {isCameraActive ? 'Stop Camera' : 'Enable Camera'}
+            {isCameraActive ? t('capture.stopCamera') : t('capture.enableCamera')}
         </button>
          <button
             className="secondary-button"
             onClick={() => triggerImport('litter')}
             disabled={isImportingFile}
           >
-            {isImportingFile ? 'Importing...' : 'Import Litter Photo'}
+            {isImportingFile ? t('capture.importing') : t('capture.importLitter')}
           </button>
           <button
             className="secondary-button"
             onClick={() => triggerImport('plant')}
             disabled={isImportingFile}
           >
-            {isImportingFile ? 'Importing...' : 'Import Plant Photo'}
+            {isImportingFile ? t('capture.importing') : t('capture.importPlant')}
           </button>
         </div>
 
@@ -445,22 +446,22 @@ export function CapturePanel() {
                 disabled={isCapturing || locationTier === 'unknown'}
               >
                 {isCapturing
-                  ? 'Capturing...'
-                  : `${pickedUp ? 'Litter picked' : 'Litter spotted'}${lowConfidenceSuffix}`}
+                  ? t('capture.capturing')
+                  : `${pickedUp ? t('capture.litterPicked') : t('capture.litterSpotted')}${lowConfidenceSuffix}`}
               </button>
               <button
                 className="primary-button"
                 onClick={() => captureAndQueue('plant')}
                 disabled={isCapturing || locationTier === 'unknown'}
-                title="Identify an invasive plant from this photo"
+                title={t('capture.plantTitle')}
               >
                 {isCapturing
-                  ? 'Capturing...'
-                  : `${pickedUp ? 'Plant picked' : 'Plant spotted'}${lowConfidenceSuffix}`}
+                  ? t('capture.capturing')
+                  : `${pickedUp ? t('capture.plantPicked') : t('capture.plantSpotted')}${lowConfidenceSuffix}`}
               </button>
             </div>
             <p className="capture-detail">
-              For plant ID: frame a single leaf or flower close-up — one species per photo.
+              {t('capture.plantHint')}
             </p>
           </>
         )}
@@ -482,19 +483,19 @@ export function CapturePanel() {
 
       <p className="capture-picked-up-toggle">
         <button className="link-button" onClick={() => setPickedUp(prev => !prev)}>
-          {pickedUp ? "Didn\u2019t pick it up?" : 'I picked it up'}
+          {pickedUp ? t('capture.didntPickUp') : t('capture.didPickUp')}
         </button>
       </p>
 
       {ongoingCleanup && (
         <p className="warning-message">
-          "{ongoingCleanup.name}" is ongoing.{' '}
+          {t('capture.ongoing', { name: ongoingCleanup.name })}{' '}
           <button className="link-button" onClick={() => activateCleanupDate(ongoingCleanup.dateId)}>
-            Join now! :-)
+            {t('capture.joinNow')}
           </button>
         </p>
       )}
-      {locationError && <p className="error-message">Location error: {locationError}</p>}
+      {locationError && <p className="error-message">{t('capture.locationError', { message: locationError })}</p>}
       {captureError && <p className="error-message">{captureError}</p>}
 
       {batchFiles && (

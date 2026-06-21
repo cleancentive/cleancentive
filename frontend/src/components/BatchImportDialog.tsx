@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 import { fetchParticipatedDates } from '../stores/cleanupStore'
 import { extractImageMetadata, extractTimestampFromFilename } from '../lib/imageMetadata'
@@ -29,6 +30,7 @@ interface ProcessedPhoto extends ImportedPhoto {
 type Phase = 'processing' | 'review'
 
 export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchImportDialogProps) {
+  const { t } = useTranslation(['map', 'common'])
   const { user, guestId } = useAuthStore()
 
   const [phase, setPhase] = useState<Phase>('processing')
@@ -87,7 +89,7 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
         } catch (err) {
           failed.push({
             name: file.name,
-            reason: err instanceof Error ? err.message : 'Unknown error',
+            reason: err instanceof Error ? err.message : t('import.unknownError'),
           })
         }
 
@@ -247,9 +249,9 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
   const allDone = remainingGroups.length === 0 && phase === 'review'
 
   function formatDate(iso: string | null): string {
-    if (!iso) return 'Unknown date'
+    if (!iso) return t('import.unknownDate')
     const d = new Date(iso)
-    if (isNaN(d.getTime())) return 'Unknown date'
+    if (isNaN(d.getTime())) return t('import.unknownDate')
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   }
 
@@ -260,16 +262,16 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
           className="sign-in-close"
           onClick={onCancel}
           disabled={importing}
-          aria-label="Close"
+          aria-label={t('common:actions.close')}
         >
           &times;
         </button>
 
-        <h2>Import {files.length} Photo{files.length !== 1 ? 's' : ''}</h2>
+        <h2>{t('import.title', { count: files.length })}</h2>
 
         {phase === 'processing' && (
           <div className="batch-import-progress">
-            <p>Processing {processedCount} of {files.length} photos&hellip;</p>
+            <p>{t('import.processing', { processed: processedCount, total: files.length })}</p>
             <progress value={processedCount} max={files.length} />
           </div>
         )}
@@ -278,28 +280,28 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
           <>
             {skipped.length > 0 && (
               <p className="batch-import-skipped">
-                {skipped.length} photo{skipped.length !== 1 ? 's' : ''} skipped (no GPS data)
+                {t('import.skipped', { count: skipped.length })}
               </p>
             )}
 
             {allDone && (importedCount > 0 || photos.length > 0) && (
               <div className="batch-import-done">
-                <p>{importedCount} photo{importedCount !== 1 ? 's' : ''} imported.</p>
-                <button className="primary-button" onClick={onDone}>Done</button>
+                <p>{t('import.imported', { count: importedCount })}</p>
+                <button className="primary-button" onClick={onDone}>{t('import.done')}</button>
               </div>
             )}
 
             {!allDone && photos.length === 0 && (
               <div className="batch-import-done">
-                <p>No photos could be imported.</p>
-                <button className="secondary-button" onClick={onCancel}>Close</button>
+                <p>{t('import.noneImported')}</p>
+                <button className="secondary-button" onClick={onCancel}>{t('common:actions.close')}</button>
               </div>
             )}
 
             {remainingGroups.map((group) => (
               <div key={group.key} className="batch-import-group">
                 <div className="batch-import-group-header">
-                  <strong>{group.label} ({group.items.length})</strong>
+                  <strong>{t('import.groupHeader', { label: group.cleanupDate ? group.label : t('import.noCleanupMatch'), count: group.items.length })}</strong>
                   {group.cleanupDate && (
                     <label className="batch-import-associate">
                       <input
@@ -309,7 +311,7 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
                           setAssociateCleanup((prev) => ({ ...prev, [group.key]: e.target.checked }))
                         }
                       />
-                      Associate with this cleanup
+                      {t('import.associate')}
                     </label>
                   )}
                 </div>
@@ -360,14 +362,14 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
                     onClick={() => discardGroup(group.key)}
                     disabled={importing}
                   >
-                    Discard
+                    {t('import.discard')}
                   </button>
                   <button
                     className="secondary-button"
                     onClick={() => importGroup(group)}
                     disabled={importing}
                   >
-                    {importing ? 'Importing...' : 'Import'}
+                    {importing ? t('import.importing') : t('import.import')}
                   </button>
                 </div>
               </div>
@@ -376,10 +378,10 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
             {remainingGroups.length > 1 && (
               <div className="batch-import-actions">
                 <button className="secondary-button" onClick={onCancel} disabled={importing}>
-                  Cancel
+                  {t('common:actions.cancel')}
                 </button>
                 <button className="primary-button" onClick={importAll} disabled={importing}>
-                  {importing ? 'Importing...' : 'Import All'}
+                  {importing ? t('import.importing') : t('import.importAll')}
                 </button>
               </div>
             )}
@@ -387,7 +389,7 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
             {remainingGroups.length === 1 && (
               <div className="batch-import-actions">
                 <button className="secondary-button" onClick={onCancel} disabled={importing}>
-                  Cancel
+                  {t('common:actions.cancel')}
                 </button>
               </div>
             )}

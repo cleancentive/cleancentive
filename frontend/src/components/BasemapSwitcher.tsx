@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
 
 import { BASEMAP_THEMES, type BasemapTheme } from '../config/basemaps'
 import { useBasemapStore } from '../stores/basemapStore'
@@ -31,13 +32,14 @@ function Row({
   selected: boolean
   onSelect: () => void
 }) {
+  const { t } = useTranslation(['map', 'common'])
   return (
     <button
       type="button"
       className={`basemap-row${selected ? ' basemap-row--selected' : ''}`}
       onClick={onSelect}
     >
-      <span className="basemap-row-label">{theme.label}</span>
+      <span className="basemap-row-label">{t(`basemap.themes.${theme.id}`, theme.label)}</span>
       {selected && <span className="basemap-row-check" aria-hidden>✓</span>}
     </button>
   )
@@ -52,6 +54,7 @@ interface BasemapSwitcherProps {
 }
 
 export function BasemapSwitcher({ triggerSlot }: BasemapSwitcherProps = {}) {
+  const { t } = useTranslation(['map', 'common'])
   const [open, setOpen] = useState(false)
   const selectedTheme = useBasemapStore((s) => s.selectedTheme)
   const setSelectedTheme = useBasemapStore((s) => s.setSelectedTheme)
@@ -90,7 +93,7 @@ export function BasemapSwitcher({ triggerSlot }: BasemapSwitcherProps = {}) {
     <button
       type="button"
       className="basemap-trigger maplibregl-ctrl-icon"
-      aria-label="Switch basemap"
+      aria-label={t('basemap.switch')}
       aria-expanded={open}
       onClick={(e) => {
         e.stopPropagation()
@@ -106,21 +109,21 @@ export function BasemapSwitcher({ triggerSlot }: BasemapSwitcherProps = {}) {
       {triggerSlot === undefined ? trigger : (triggerSlot && createPortal(trigger, triggerSlot))}
 
       {open && (
-        <div className="basemap-sheet-backdrop" role="dialog" aria-label="Basemap options">
+        <div className="basemap-sheet-backdrop" role="dialog" aria-label={t('basemap.options')}>
           <div className="basemap-sheet" ref={sheetRef}>
             <div className="basemap-sheet-header">
-              <span className="basemap-sheet-title">Map style</span>
+              <span className="basemap-sheet-title">{t('basemap.style')}</span>
               <button
                 type="button"
                 className="basemap-sheet-close"
-                aria-label="Close"
+                aria-label={t('common:actions.close')}
                 onClick={() => setOpen(false)}
               >
                 <CloseIcon />
               </button>
             </div>
 
-            <div className="basemap-section-label">Themes</div>
+            <div className="basemap-section-label">{t('basemap.themesLabel')}</div>
             <div className="basemap-list">
               {BASEMAP_THEMES.map((theme) => (
                 <Row

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useTranslation, Trans } from 'react-i18next'
 import { BackLink } from './BackLink'
 import { useTeamStore } from '../stores/teamStore'
 import { useAuthStore } from '../stores/authStore'
@@ -16,6 +17,7 @@ const WIKI_URL = window.__CLEANCENTIVE_CONFIG__?.wikiUrl
   || 'https://wiki.cleancentive.local'
 
 export function TeamDetail() {
+  const { t } = useTranslation(['teams', 'common'])
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuthStore()
@@ -69,13 +71,13 @@ export function TeamDetail() {
   }, [currentTeam?.team.id])
 
   if (isLoading) {
-    return <div className="community-detail"><p className="loading">Loading...</p></div>
+    return <div className="community-detail"><p className="loading">{t('common:actions.loading')}</p></div>
   }
 
   if (error || !currentTeam) {
     return (
       <div className="community-detail">
-        <p className="error-text">{error || 'Team not found'}</p>
+        <p className="error-text">{error || t('detail.notFound')}</p>
         <BackLink to="/teams" fallbackNoun="teams" />
       </div>
     )
@@ -106,11 +108,11 @@ export function TeamDetail() {
         {editing ? (
           <div className="community-edit-form">
             <div className="form-group">
-              <label>Name</label>
+              <label>{t('detail.editName')}</label>
               <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} required />
             </div>
             <div className="form-group">
-              <label>Description</label>
+              <label>{t('detail.editDescription')}</label>
               <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={4} />
             </div>
             <div className="community-actions">
@@ -118,22 +120,22 @@ export function TeamDetail() {
                 if (!id) return
                 await updateTeam(id, { name: editName, description: editDescription })
                 setEditing(false)
-              }}>Save</button>
-              <button className="secondary-button" onClick={() => setEditing(false)}>Cancel</button>
+              }}>{t('common:actions.save')}</button>
+              <button className="secondary-button" onClick={() => setEditing(false)}>{t('common:actions.cancel')}</button>
             </div>
           </div>
         ) : (
           <>
             <legend>
               {team.name}
-              {isOrganizer && !isStewardsTeam && <button className="link-button legend-edit-button" onClick={() => { setEditName(team.name); setEditDescription(team.description); setEditing(true) }}>Edit</button>}
+              {isOrganizer && !isStewardsTeam && <button className="link-button legend-edit-button" onClick={() => { setEditName(team.name); setEditDescription(team.description); setEditing(true) }}>{t('common:actions.edit')}</button>}
               {currentTeam?.outlineCollectionId && (
                 <a
                   className="link-button legend-edit-button"
                   href={`${WIKI_URL}/collection/${currentTeam.outlineCollectionId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                >Wiki ↗</a>
+                >{t('detail.wiki')}</a>
               )}
             </legend>
             {team.description && <p>{team.description}</p>}
@@ -149,28 +151,28 @@ export function TeamDetail() {
 
         {!user && !isStewardsTeam && !isPartner && (
           <div className="community-guest-cta">
-            <span>Sign in to join this team</span>
-            <button className="sign-in-cta-button" onClick={openSignInModal}>Sign In</button>
+            <span>{t('detail.signInToJoin')}</span>
+            <button className="sign-in-cta-button" onClick={openSignInModal}>{t('common:actions.signIn')}</button>
           </div>
         )}
 
         {isStewardsTeam && (
           <p className="partner-notice">
-            <span className="badge steward-badge">Stewards</span>
-            {' '}Membership is managed by the steward role.
+            <span className="badge steward-badge">{t('list.badges.stewards')}</span>
+            {' '}{t('detail.stewardsNotice')}
           </p>
         )}
 
         {isPartner && !isStewardsTeam && (
           <p className="partner-notice">
-            <span className="badge" style={{ background: 'var(--color-badge-partner)' }}>Partner</span>
-            {' '}Membership is managed automatically based on your email domain.
+            <span className="badge" style={{ background: 'var(--color-badge-partner)' }}>{t('list.badges.partner')}</span>
+            {' '}{t('detail.partnerNotice')}
           </p>
         )}
 
         {user && !isMember && !isPartner && !isStewardsTeam && (
           <button className="primary-button" onClick={handleJoin} disabled={!isOnline}>
-            Join Team
+            {t('detail.joinTeam')}
           </button>
         )}
 
@@ -178,16 +180,16 @@ export function TeamDetail() {
           <div className="community-actions">
             {activeTeamId === team.id ? (
               <button className="secondary-button" onClick={handleDeactivate} disabled={!isOnline}>
-                Deactivate Team
+                {t('detail.deactivateTeam')}
               </button>
             ) : (
               <button className="secondary-button" onClick={handleActivate} disabled={!isOnline}>
-                Set as Active Team
+                {t('detail.setActiveTeam')}
               </button>
             )}
             {!isPartner && !isStewardsTeam && (
               <button className="danger-button" onClick={handleLeave} disabled={!isOnline}>
-                Leave Team
+                {t('detail.leaveTeam')}
               </button>
             )}
           </div>
@@ -195,24 +197,24 @@ export function TeamDetail() {
 
         {isOrganizer && !isStewardsTeam && (
           <div className="community-admin-actions">
-            <h3>Organizer Actions</h3>
+            <h3>{t('detail.organizerActions')}</h3>
             {isPartner && (
               <button
                 className="secondary-button"
                 onClick={() => id && setTeamUnlisted(id, !team.is_unlisted)}
                 disabled={!isOnline}
-                title="Unlisted teams are hidden from the public team list. Only team members and stewards can see them."
+                title={t('detail.unlistTitle')}
               >
-                {team.is_unlisted ? 'List Team' : 'Unlist Team'}
+                {team.is_unlisted ? t('detail.listTeam') : t('detail.unlistTeam')}
               </button>
             )}
             <button
               className="danger-button"
               onClick={() => setShowArchiveConfirm(true)}
               disabled={!isOnline}
-              title="Hides the team from search and prevents new activity. Existing data is preserved."
+              title={t('detail.archiveTitle')}
             >
-              Archive Team
+              {t('detail.archiveTeam')}
             </button>
           </div>
         )}
@@ -221,7 +223,7 @@ export function TeamDetail() {
       {isPlatformAdmin && !isStewardsTeam && (
         <fieldset className="page-card">
           <details className="partner-settings-collapsible" open={isPartner}>
-            <summary><legend style={{ display: 'inline' }}>Partner Settings (Steward)</legend></summary>
+            <summary><legend style={{ display: 'inline' }}>{t('detail.partnerSettingsSteward')}</legend></summary>
             <div className="partner-settings-body">
               <PartnerSettingsFields
                 patterns={editPatterns}
@@ -240,7 +242,7 @@ export function TeamDetail() {
                   await updateCustomCss(id, editCss || null)
                 }}
               >
-                Save Partner Settings
+                {t('detail.savePartnerSettings')}
               </button>
             </div>
           </details>
@@ -248,7 +250,7 @@ export function TeamDetail() {
       )}
 
       <fieldset className="page-card">
-        <legend>Members ({members.length})</legend>
+        <legend>{t('detail.members', { count: members.length })}</legend>
         <MemberList
           members={members}
           canPromote={isOrganizer && !isStewardsTeam}
@@ -258,7 +260,7 @@ export function TeamDetail() {
 
       {isMember && (
         <fieldset className="page-card">
-          <legend>Messages</legend>
+          <legend>{t('detail.messages')}</legend>
           <MessageBoard
             messages={messages}
             onPost={(audience, subject, body, ccSender) => postMessage(id!, audience, subject, body, ccSender)}
@@ -271,15 +273,22 @@ export function TeamDetail() {
 
       {showArchiveConfirm && (
         <ConfirmDialog
-          title="Archive Team"
+          title={t('detail.archiveTeam')}
           actions={
             <>
-              <button className="secondary-button" onClick={() => setShowArchiveConfirm(false)}>Cancel</button>
-              <button className="danger-button" onClick={handleArchive}>Archive</button>
+              <button className="secondary-button" onClick={() => setShowArchiveConfirm(false)}>{t('common:actions.cancel')}</button>
+              <button className="danger-button" onClick={handleArchive}>{t('detail.archiveConfirm')}</button>
             </>
           }
         >
-          <p>Are you sure you want to archive <strong>{team.name}</strong>? This will deactivate the team for all members.</p>
+          <p>
+            <Trans
+              t={t}
+              i18nKey="detail.archivePrompt"
+              values={{ name: team.name }}
+              components={{ strong: <strong /> }}
+            />
+          </p>
         </ConfirmDialog>
       )}
     </div>

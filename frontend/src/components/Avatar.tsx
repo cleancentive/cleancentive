@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 import { API_BASE } from '../lib/apiBase'
 
@@ -35,6 +36,7 @@ export function Avatar({
   nickname,
   size = 40,
 }: AvatarProps) {
+  const { t } = useTranslation(['teams', 'common'])
   const [failed, setFailed] = useState(false)
   const [cacheBust, setCacheBust] = useState(0)
   const currentUser = useAuthStore((state) => state.user)
@@ -89,7 +91,7 @@ export function Avatar({
         to="/profile#picture"
         className="avatar-edit-overlay"
         onClick={(e) => e.stopPropagation()}
-        aria-label="Set a profile photo"
+        aria-label={t('avatar.setPhoto')}
         style={{ width: overlaySize, height: overlaySize }}
       >
         <svg width="60%" height="60%" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">

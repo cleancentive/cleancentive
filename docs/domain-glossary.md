@@ -219,6 +219,48 @@ Programs where groups commit to regularly cleaning stretches of road. Common in 
 
 ---
 
+## Canonical translations (DE / FR)
+
+For i18n consistency, domain terms map to fixed translations. **Coined product
+nouns stay in English across all locales** (they are product vocabulary, like a
+brand): **Spot**, **Cleanup**, **Team**, **Steward**, **Organizer**, **Feedback**.
+Surrounding prose and verbs are translated.
+
+**Pick is the exception** — it reads as an anglicism in DE/FR, so it *is*
+translated. DE uses the verb **sammeln** / participle **gesammelt** and rephrases
+instead of coining a fixed noun (e.g. "Meine gesammelten Funde", "3× gesammelt",
+picked-up state = "Gesammelt"). FR uses verb **ramasser** + noun **ramassage(s)**
+("Mes ramassages", "Ramasser maintenant !"). **Spot** stays English in both; the
+"spotted" state (picked_up = false) is DE **"Gesehen"** (the older "erspäht"/
+"gesichtet" was dropped as dated) and FR **"Repéré"**. So the picked-up/spotted
+pair is **"Gesammelt / Gesehen"** (de) and **"Ramassé / Repéré"** (fr).
+
+> First-pass translations — review with a native speaker before wider rollout.
+
+| English | German (de) | French (fr) |
+|---|---|---|
+| Pick (verb / noun) | sammeln · gesammelt (kein festes Nomen; umschreiben) | ramasser · ramassage(s) |
+| Spotted (picked_up = false) | gesehen / Gesehen | repéré / Repéré |
+| Detection | Erkennung | Détection |
+| Sync | Synchronisierung | Synchronisation |
+| Item / Detected item | Objekt / Erkanntes Objekt | Objet / Objet détecté |
+| Invasive plant | Invasive Pflanze | Plante invasive |
+| Participant | Teilnehmer | Participant·e |
+| Guest | Gast | Invité·e |
+| Magic link | Magic Link | Lien magique |
+| Nickname | Spitzname | Pseudo |
+| Nav: Teams | Teams | Équipes |
+| Nav: Cleanups | Cleanups | Nettoyages |
+| Nav: Insights | Statistiken | Analyses |
+| Nav: Map | Karte | Carte |
+| Nav: Steward | Steward | Steward |
+| Waiting for detection | Warten auf Erkennung | En attente de détection |
+| Detecting litter… | Müll wird erkannt… | Détection des déchets… |
+| Complete | Fertig | Terminé |
+| Detection failed | Erkennung fehlgeschlagen | Échec de la détection |
+
+---
+
 ## Style Guide
 
 1. Use **"pick"** when addressing users about their submissions — not "upload", "capture", "report", or "submission".

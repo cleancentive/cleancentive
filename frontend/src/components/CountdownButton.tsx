@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface CountdownButtonProps {
   intervalSeconds: number
@@ -16,11 +17,15 @@ export function CountdownButton({
   isLoading,
   disabled = false,
   onRefresh,
-  label = 'Refresh',
-  loadingLabel = 'Refreshing...',
-  disabledLabel = 'Offline',
+  label,
+  loadingLabel,
+  disabledLabel,
   className,
 }: CountdownButtonProps) {
+  const { t } = useTranslation(['spot', 'common'])
+  const resolvedLabel = label ?? t('countdown.refresh')
+  const resolvedLoadingLabel = loadingLabel ?? t('countdown.refreshing')
+  const resolvedDisabledLabel = disabledLabel ?? t('countdown.offline')
   const [countdown, setCountdown] = useState(intervalSeconds)
   const btnRef = useRef<HTMLButtonElement | null>(null)
   const onRefreshRef = useRef(onRefresh)
@@ -94,9 +99,9 @@ export function CountdownButton({
 
   const progress = (disabled || isLoading) ? 0 : (intervalSeconds - countdown) / intervalSeconds
 
-  let buttonLabel = label
-  if (disabled) buttonLabel = disabledLabel
-  else if (isLoading) buttonLabel = loadingLabel
+  let buttonLabel = resolvedLabel
+  if (disabled) buttonLabel = resolvedDisabledLabel
+  else if (isLoading) buttonLabel = resolvedLoadingLabel
 
   return (
     <button

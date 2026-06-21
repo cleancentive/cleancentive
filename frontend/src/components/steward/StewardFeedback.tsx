@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useAdminStore } from '../../stores/adminStore'
 import { formatTimestamp } from '../../utils/formatTimestamp'
@@ -10,6 +11,7 @@ import {
 } from '../../lib/feedbackUrlState'
 
 export function StewardFeedback() {
+  const { t } = useTranslation(['steward', 'common'])
   const { feedbackId: feedbackIdParam } = useParams<{ feedbackId?: string }>()
   const [searchParams, setSearchParams] = useSearchParams()
   const feedbackItems = useAdminStore((s) => s.feedbackItems)
@@ -62,10 +64,10 @@ export function StewardFeedback() {
 
   return (
     <fieldset className="page-card">
-      <legend>Feedback ({feedbackTotal})</legend>
+      <legend>{t('feedback.legend', { count: feedbackTotal })}</legend>
       <div className="feedback-admin-filters">
         {FEEDBACK_STATUSES.map((s) => {
-          const label = s === 'in_progress' ? 'In progress' : s.charAt(0).toUpperCase() + s.slice(1)
+          const label = t(`feedback.status.${s}`)
           const count = feedbackCounts?.[s]
           return (
             <button
@@ -79,10 +81,10 @@ export function StewardFeedback() {
         })}
       </div>
 
-      {isLoadingFeedback && <p className="loading">Loading...</p>}
+      {isLoadingFeedback && <p className="loading">{t('feedback.loading')}</p>}
 
       {!isLoadingFeedback && feedbackItems.length === 0 && (
-        <p className="end-of-list">No feedback found.</p>
+        <p className="end-of-list">{t('feedback.none')}</p>
       )}
 
       <div className="feedback-admin-list">
@@ -103,17 +105,17 @@ export function StewardFeedback() {
             >
               <span className="badge">{f.category}</span>
               <span className="badge" style={{ backgroundColor: FEEDBACK_STATUS_COLORS[f.status] || 'var(--color-status-new)', color: '#fff' }}>
-                {f.status === 'in_progress' ? 'In progress' : f.status.replace('_', ' ')}
+                {t(`feedback.status.${f.status}`)}
               </span>
               <span className="feedback-admin-description">{f.description.slice(0, 80)}{f.description.length > 80 ? '...' : ''}</span>
               <span className="feedback-admin-meta">
                 {f.user_id
-                  ? <Link to={`/steward/users/${f.user_id}`} onClick={(e) => e.stopPropagation()}>{f.submitter_nickname || 'Anonymous'}</Link>
-                  : (f.submitter_nickname || 'Anonymous')
+                  ? <Link to={`/steward/users/${f.user_id}`} onClick={(e) => e.stopPropagation()}>{f.submitter_nickname || t('feedback.anonymous')}</Link>
+                  : (f.submitter_nickname || t('feedback.anonymous'))
                 } &middot; {formatTimestamp(f.created_at)}
-                {f.responses.length > 0 && ` · ${f.responses.length} response${f.responses.length !== 1 ? 's' : ''}`}
+                {f.responses.length > 0 && ` · ${t('feedback.responseCount', { count: f.responses.length })}`}
               </span>
-              <Link to={`/steward/feedback/${f.id}`} className="feedback-permalink" onClick={(e) => e.stopPropagation()} title="Permalink">🔗</Link>
+              <Link to={`/steward/feedback/${f.id}`} className="feedback-permalink" onClick={(e) => e.stopPropagation()} title={t('feedback.permalink')}>🔗</Link>
             </div>
 
             {expandedFeedbackId === f.id && activeFeedbackItem && (
@@ -122,13 +124,13 @@ export function StewardFeedback() {
 
                 {activeFeedbackItem.error_context && (
                   <details>
-                    <summary>Error context</summary>
+                    <summary>{t('feedback.errorContext')}</summary>
                     <pre className="feedback-error-details">{JSON.stringify(activeFeedbackItem.error_context, null, 2)}</pre>
                   </details>
                 )}
 
                 {activeFeedbackItem.contact_email && (
-                  <p><strong>Contact:</strong> {activeFeedbackItem.contact_email}</p>
+                  <p><strong>{t('feedback.contact')}</strong> {activeFeedbackItem.contact_email}</p>
                 )}
 
                 <div className="feedback-thread">
@@ -137,8 +139,8 @@ export function StewardFeedback() {
                       <div className="feedback-thread-header">
                         <strong>
                           {r.is_from_steward
-                            ? <>{r.created_by ? <Link to={`/steward/users/${r.created_by}`}>{r.author_nickname || 'Steward'}</Link> : (r.author_nickname || 'Steward')} <span className="badge steward-badge">Steward</span></>
-                            : activeFeedbackItem.user_id ? <Link to={`/steward/users/${activeFeedbackItem.user_id}`}>{activeFeedbackItem.submitter_nickname || 'User'}</Link> : (activeFeedbackItem.submitter_nickname || 'User')
+                            ? <>{r.created_by ? <Link to={`/steward/users/${r.created_by}`}>{r.author_nickname || t('feedback.steward')}</Link> : (r.author_nickname || t('feedback.steward'))} <span className="badge steward-badge">{t('feedback.stewardBadge')}</span></>
+                            : activeFeedbackItem.user_id ? <Link to={`/steward/users/${activeFeedbackItem.user_id}`}>{activeFeedbackItem.submitter_nickname || t('feedback.user')}</Link> : (activeFeedbackItem.submitter_nickname || t('feedback.user'))
                           }
                         </strong>
                         <span className="feedback-thread-date">{formatTimestamp(r.created_at)}</span>
@@ -150,12 +152,12 @@ export function StewardFeedback() {
 
                 <div className="feedback-admin-actions">
                   <label>
-                    Status:
+                    {t('feedback.statusLabel')}
                     <select value={feedbackStatus} onChange={(e) => setFeedbackStatus(e.target.value)}>
-                      <option value="new">New</option>
-                      <option value="acknowledged">Acknowledged</option>
-                      <option value="in_progress">In progress</option>
-                      <option value="resolved">Resolved</option>
+                      <option value="new">{t('feedback.status.new')}</option>
+                      <option value="acknowledged">{t('feedback.status.acknowledged')}</option>
+                      <option value="in_progress">{t('feedback.status.in_progress')}</option>
+                      <option value="resolved">{t('feedback.status.resolved')}</option>
                     </select>
                   </label>
                   <button
@@ -163,7 +165,7 @@ export function StewardFeedback() {
                     onClick={() => updateFeedbackStatus(f.id, feedbackStatus)}
                     disabled={feedbackStatus === f.status}
                   >
-                    Update Status
+                    {t('feedback.updateStatus')}
                   </button>
                 </div>
 
@@ -180,11 +182,11 @@ export function StewardFeedback() {
                   <textarea
                     value={adminReply}
                     onChange={(e) => setAdminReply(e.target.value)}
-                    placeholder="Reply to this feedback..."
+                    placeholder={t('feedback.replyPlaceholder')}
                     rows={2}
                   />
                   <button type="submit" className="primary-button" disabled={!adminReply.trim() || isSubmittingResponse}>
-                    {isSubmittingResponse ? 'Sending…' : 'Send Reply'}
+                    {isSubmittingResponse ? t('feedback.sending') : t('feedback.sendReply')}
                   </button>
                 </form>
               </div>

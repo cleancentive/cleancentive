@@ -1,0 +1,86 @@
+{
+  "pickNow": "Ramasser maintenant !",
+  "connectivity": {
+    "noNetwork": "Pas de réseau",
+    "offline": "Hors ligne",
+    "online": "En ligne",
+    "noNetworkTitle": "Aucune connexion réseau",
+    "goOnlineTitle": "Cliquer pour passer en ligne",
+    "goOfflineTitle": "Cliquer pour passer hors ligne"
+  },
+  "userMenu": {
+    "signInLabel": "Se connecter",
+    "menuLabel": "Menu utilisateur",
+    "profile": "Profil",
+    "myFeedback": "Mon Feedback",
+    "share": "Partager",
+    "about": "À propos",
+    "teamLabel": "Team :",
+    "cleanupLabel": "Cleanup :"
+  },
+  "shareQr": {
+    "title": "Partager CleanCentive",
+    "closeLabel": "Fermer la boîte de dialogue du code QR",
+    "tapToCopy": "Touchez l'URL pour copier"
+  },
+  "welcome": {
+    "title": "Bienvenue sur CleanCentive",
+    "intro": "Suivez vos ramassages de déchets grâce à la journalisation photo hors ligne d'abord.",
+    "bullets": {
+      "geolocation": "Enregistrez les ramassages de déchets avec géolocalisation",
+      "offline": "Mettez les ramassages en file d'attente hors ligne avec des vignettes",
+      "autoSync": "Synchronisation automatique dès que vous vous reconnectez"
+    }
+  },
+  "about": {
+    "description": "Donner aux communautés les moyens de rendre le monde visiblement plus propre.",
+    "version": "Version",
+    "source": "Source",
+    "license": "Licence"
+  },
+  "context": {
+    "controlsTitle": "Détermine à quel team et à quel cleanup vos ramassages sont rattachés",
+    "narrowsTitle": "Restreint les données affichées sur cette page",
+    "notApplicableTitle": "Non applicable sur cette page",
+    "emptyAll": "Tous",
+    "emptyNone": "Aucun",
+    "my": "Mes",
+    "clearTitle": "Effacer tous les filtres",
+    "date": {
+      "d7": "7j",
+      "d30": "30j",
+      "y1": "1a"
+    },
+    "compoundSummary": "Mes ramassages dans {{teamName}}",
+    "pickedUp": {
+      "picked": "Ramassé",
+      "spotted": "Repéré",
+      "all": "Tous"
+    },
+    "subject": {
+      "litter": "Déchets",
+      "plants": "Plantes",
+      "all": "Tous"
+    }
+  },
+  "backLink": {
+    "label": "Retour vers {{noun}}",
+    "title": "Retour ({{shortcut}})",
+    "nouns": {
+      "home": "l'accueil",
+      "map": "la carte",
+      "cleanups": "les cleanups",
+      "teams": "les teams",
+      "insights": "les analyses",
+      "feedback": "le feedback",
+      "users": "les utilisateurs",
+      "steward": "le steward"
+    }
+  },
+  "error": {
+    "title": "Une erreur s'est produite",
+    "body": "Une erreur inattendue s'est produite. Vous pouvez envoyer un feedback pour nous aider à la corriger.",
+    "sendFeedback": "Envoyer un feedback",
+    "reload": "Recharger"
+  }
+}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { formatCoord } from '@cleancentive/shared'
 import { useAuthStore } from '../stores/authStore'
 import { useCopyToClipboard } from '../lib/useCopyToClipboard'
@@ -22,6 +23,7 @@ export function SpotLocationDialog({
   onSaved,
   onCancel,
 }: SpotLocationDialogProps) {
+  const { t } = useTranslation(['spot', 'common'])
   const { sessionToken, guestId } = useAuthStore()
   const [latitude, setLatitude] = useState(String(initialLatitude))
   const [longitude, setLongitude] = useState(String(initialLongitude))
@@ -73,10 +75,10 @@ export function SpotLocationDialog({
   return (
     <div className="sign-in-overlay" onClick={onCancel}>
       <div className="sign-in-dialog spot-location-dialog" onClick={(e) => e.stopPropagation()}>
-        <button className="sign-in-close" onClick={onCancel} aria-label="Close">
+        <button className="sign-in-close" onClick={onCancel} aria-label={t('common:actions.close')}>
           &times;
         </button>
-        <h2>Edit location</h2>
+        <h2>{t('locationDialog.title')}</h2>
 
         <LocationPicker
           hideLocationName
@@ -91,24 +93,24 @@ export function SpotLocationDialog({
 
         <div className="spot-location-clipboard">
           <button type="button" className="secondary-button" onClick={handleCopy} disabled={!coordsValid}>
-            {copied ? 'Copied!' : 'Copy location'}
+            {copied ? t('locationDialog.copied') : t('locationDialog.copyLocation')}
           </button>
           {initialAccuracyMeters !== null && (
-            <span className="spot-location-hint">Original accuracy: ±{Math.round(initialAccuracyMeters)} m</span>
+            <span className="spot-location-hint">{t('locationDialog.originalAccuracy', { meters: Math.round(initialAccuracyMeters) })}</span>
           )}
         </div>
         {saveError && <p className="spot-location-error">{saveError}</p>}
 
         <div className="manual-location-actions">
           <button className="secondary-button" onClick={onCancel}>
-            Cancel
+            {t('common:actions.cancel')}
           </button>
           <button
             className="primary-button"
             onClick={handleSave}
             disabled={!dirty || saving || !coordsValid}
           >
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? t('common:actions.saving') : t('common:actions.save')}
           </button>
         </div>
       </div>

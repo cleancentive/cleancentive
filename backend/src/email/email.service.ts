@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import * as nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
 import { render } from 'emailmd';
+import { type Locale } from '@cleancentive/shared';
+import { getCurrentLocale } from '../common/request-context';
 import { defaultTheme, dangerTheme } from './email.theme';
+import { emailStrings } from './email.i18n';
 import {
   magicLinkMd,
   recoveryMd,
@@ -46,15 +49,16 @@ export class EmailService {
     email: string,
     link: string,
     requestMetadata?: { browser: string; location: string; requestedAt: string },
+    locale: Locale = getCurrentLocale(),
   ): Promise<void> {
     const fromAddress = this.configService.get<string>('SMTP_FROM', 'noreply@cleancentive.local');
-    const { html, text } = render(magicLinkMd(link, requestMetadata), { theme: defaultTheme });
+    const { html, text } = render(magicLinkMd(link, requestMetadata, locale), { theme: defaultTheme });
 
     try {
       const info = await this.transporter.sendMail({
         from: fromAddress,
         to: email,
-        subject: 'Your CleanCentive Magic Link',
+        subject: emailStrings(locale).magicLinkSubject,
         text,
         html,
       });
@@ -66,17 +70,21 @@ export class EmailService {
     }
   }
 
-  async sendRecoveryLinks(emails: string[], links: string[]): Promise<void> {
+  async sendRecoveryLinks(
+    emails: string[],
+    links: string[],
+    locale: Locale = getCurrentLocale(),
+  ): Promise<void> {
     const fromAddress = this.configService.get<string>('SMTP_FROM', 'noreply@cleancentive.local');
 
     for (let i = 0; i < emails.length; i++) {
-      const { html, text } = render(recoveryMd(links[i]), { theme: defaultTheme });
+      const { html, text } = render(recoveryMd(links[i], locale), { theme: defaultTheme });
 
       try {
         await this.transporter.sendMail({
           from: fromAddress,
           to: emails[i],
-          subject: 'CleanCentive Account Recovery',
+          subject: emailStrings(locale).recoverySubject,
           text,
           html,
         });
@@ -87,15 +95,20 @@ export class EmailService {
     }
   }
 
-  async sendMergeWarning(email: string, link: string, requesterNickname: string): Promise<void> {
+  async sendMergeWarning(
+    email: string,
+    link: string,
+    requesterNickname: string,
+    locale: Locale = getCurrentLocale(),
+  ): Promise<void> {
     const fromAddress = this.configService.get<string>('SMTP_FROM', 'noreply@cleancentive.local');
-    const { html, text } = render(mergeWarningMd(link, requesterNickname), { theme: dangerTheme });
+    const { html, text } = render(mergeWarningMd(link, requesterNickname, locale), { theme: dangerTheme });
 
     try {
       await this.transporter.sendMail({
         from: fromAddress,
         to: email,
-        subject: 'CleanCentive — Someone wants to merge your account',
+        subject: emailStrings(locale).mergeSubject,
         text,
         html,
       });
@@ -118,28 +131,29 @@ export class EmailService {
       profileLink: string;
       icsContent: string;
     },
+    locale: Locale = getCurrentLocale(),
   ): Promise<void> {
     const fromAddress = this.configService.get<string>('SMTP_FROM', 'noreply@cleancentive.local');
     const isCancel = payload.method === 'CANCEL';
-    const title = isCancel
-      ? `Cancelled: ${payload.cleanupName}`
-      : `You're going: ${payload.cleanupName}`;
-    const intro = isCancel
-      ? `Your participation in **${payload.cleanupName}** has been removed. This event will be cancelled in your calendar.`
-      : `Thanks for joining **${payload.cleanupName}**. We've attached a calendar invite so you don't miss it.`;
-    const locationLine = payload.locationName ? `**Where:** ${payload.locationName}` : '';
-    const subject = `${title} — ${payload.when}`;
+    const s = emailStrings(locale).cleanup;
+    const title = isCancel ? s.cancelTitle(payload.cleanupName) : s.goingTitle(payload.cleanupName);
+    const intro = isCancel ? s.cancelIntro(payload.cleanupName) : s.goingIntro(payload.cleanupName);
+    const locationLine = payload.locationName ? s.whereLine(payload.locationName) : '';
+    const subject = s.subject(title, payload.when);
 
     const { html, text } = render(
-      cleanupInviteMd({
-        title,
-        intro,
-        when: payload.when,
-        locationLine,
-        cleanupLink: payload.cleanupLink,
-        feedUrl: payload.feedUrl,
-        profileLink: payload.profileLink,
-      }),
+      cleanupInviteMd(
+        {
+          title,
+          intro,
+          when: payload.when,
+          locationLine,
+          cleanupLink: payload.cleanupLink,
+          feedUrl: payload.feedUrl,
+          profileLink: payload.profileLink,
+        },
+        locale,
+      ),
       { theme: defaultTheme },
     );
 
@@ -183,7 +197,7 @@ export class EmailService {
       return;
     }
 
-    const { html, text } = render(communityMessageMd(payload), { theme: defaultTheme });
+    const { html, text } = render(communityMessageMd(payload, getCurrentLocale()), { theme: defaultTheme });
 
     // Send one email: CC the sender, BCC all other recipients to keep addresses private
     try {

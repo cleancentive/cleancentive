@@ -1,18 +1,18 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 import { useUiStore } from '../stores/uiStore'
 import { Avatar } from './Avatar'
 
 type Surface = 'cleanup-create' | 'team-create'
 
-const COPY: Record<Surface, string> = {
-  'cleanup-create':
-    "Participants will see you as the organizer. Add a name or photo so people know who's hosting.",
-  'team-create':
-    "Members will see you as the team's founder. A name or photo makes the team feel less anonymous.",
+const COPY_KEY: Record<Surface, string> = {
+  'cleanup-create': 'profileHint.cleanupCreate',
+  'team-create': 'profileHint.teamCreate',
 }
 
 export function ProfileHintBanner({ surface }: { surface: Surface }) {
+  const { t } = useTranslation(['auth', 'common'])
   const user = useAuthStore((state) => state.user)
   const dismissedHints = useUiStore((state) => state.dismissedHints)
   const dismissHint = useUiStore((state) => state.dismissHint)
@@ -33,11 +33,11 @@ export function ProfileHintBanner({ surface }: { surface: Surface }) {
         nickname={user.nickname}
         size={32}
       />
-      <p className="profile-hint-banner-text">{COPY[surface]}</p>
+      <p className="profile-hint-banner-text">{t(COPY_KEY[surface])}</p>
       <div className="profile-hint-banner-actions">
-        <Link to="/profile" className="link-button">Edit profile</Link>
+        <Link to="/profile" className="link-button">{t('profileHint.editProfile')}</Link>
         <button type="button" className="link-button" onClick={() => dismissHint(key)}>
-          Not now
+          {t('profileHint.notNow')}
         </button>
       </div>
     </div>

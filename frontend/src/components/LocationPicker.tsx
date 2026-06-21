@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { parseLatLngInput } from '@cleancentive/shared'
@@ -55,6 +56,7 @@ export function LocationPicker({
   hideLocationName = false,
   onCoordsPasted,
 }: LocationPickerProps) {
+  const { t } = useTranslation(['spot', 'common'])
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const markerRef = useRef<maplibregl.Marker | null>(null)
@@ -256,14 +258,14 @@ export function LocationPicker({
         <input
           type="text"
           className="search-input"
-          placeholder="Search a place or paste lat,lng…"
+          placeholder={t('locationPicker.searchPlaceholder')}
           value={searchQuery}
           onChange={(e) => handleSearchInput(e.target.value)}
           onKeyDown={handleSearchKeyDown}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
           onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true) }}
         />
-        <button type="button" className="location-use-gps" onClick={useMyLocation} disabled={locatingGps} title="Use my location">
+        <button type="button" className="location-use-gps" onClick={useMyLocation} disabled={locatingGps} title={t('locationPicker.useMyLocation')}>
           {locatingGps ? '...' : '📍'}
         </button>
         {showSuggestions && (
@@ -289,22 +291,22 @@ export function LocationPicker({
       <div className="location-coords">
         {!hideLocationName && (
           <div className="form-group">
-            <label>Location name</label>
+            <label>{t('locationPicker.locationName')}</label>
             <input
               type="text"
               value={locationName}
               onChange={(e) => onLocationNameChange(e.target.value)}
-              placeholder="e.g. Central Park"
+              placeholder={t('locationPicker.locationNamePlaceholder')}
             />
           </div>
         )}
         <div className="form-row">
           <div className="form-group">
-            <label>Lat</label>
+            <label>{t('locationPicker.lat')}</label>
             <input type="number" step="any" inputMode="decimal" value={latitude} onChange={(e) => onLatitudeChange(e.target.value)} placeholder="40.785" required />
           </div>
           <div className="form-group">
-            <label>Lon</label>
+            <label>{t('locationPicker.lon')}</label>
             <input type="number" step="any" inputMode="decimal" value={longitude} onChange={(e) => onLongitudeChange(e.target.value)} placeholder="-73.968" required />
           </div>
         </div>

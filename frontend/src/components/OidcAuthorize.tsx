@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useUiStore } from '../stores/uiStore'
@@ -16,6 +17,7 @@ import { useUiStore } from '../stores/uiStore'
  *   Once the auth store updates, this effect re-runs and completes the flow.
  */
 export function OidcAuthorize() {
+  const { t } = useTranslation(['auth', 'common'])
   const location = useLocation()
   const sessionToken = useAuthStore((s) => s.sessionToken)
   const openSignInModal = useUiStore((s) => s.openSignInModal)
@@ -45,7 +47,7 @@ export function OidcAuthorize() {
         })
         if (res.status === 403) {
           const body = await res.json().catch(() => null)
-          setError(body?.message ?? 'Wiki access requires a verified email. Sign in with a magic link first.')
+          setError(body?.message ?? t('oidc.verifiedEmailRequired'))
           return
         }
         if (!res.ok) {
@@ -59,20 +61,20 @@ export function OidcAuthorize() {
         completingRef.current = false
       }
     })()
-  }, [sessionToken, location.search, openSignInModal])
+  }, [sessionToken, location.search, openSignInModal, t])
 
   if (error) {
     return (
       <div className="p-4">
-        <h2>Sign-in handoff failed</h2>
+        <h2>{t('oidc.handoffFailedTitle')}</h2>
         <p>{error}</p>
       </div>
     )
   }
 
   if (!sessionToken) {
-    return <div className="p-4">Please sign in to continue to the wiki…</div>
+    return <div className="p-4">{t('oidc.pleaseSignIn')}</div>
   }
 
-  return <div className="p-4">Signing you in to the wiki…</div>
+  return <div className="p-4">{t('oidc.signingIn')}</div>
 }

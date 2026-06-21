@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAdminStore } from '../../stores/adminStore'
 import { useVersionStore } from '../../stores/versionStore'
 import { useConnectivityStore } from '../../stores/connectivityStore'
@@ -40,6 +41,7 @@ function formatAge(seconds: number | null) {
 }
 
 export function StewardOperations() {
+  const { t } = useTranslation(['steward', 'common'])
   const { isOnline } = useConnectivityStore()
   const opsOverview = useAdminStore((s) => s.opsOverview)
   const isLoadingOps = useAdminStore((s) => s.isLoadingOps)
@@ -61,18 +63,18 @@ export function StewardOperations() {
 
   return (
     <fieldset className="page-card ops-overview-panel">
-      <legend>Operations Overview</legend>
+      <legend>{t('operations.legend')}</legend>
       <div className="ops-overview-header">
         <div>
           <p>
             {opsOverview
-              ? `Updated ${new Date(opsOverview.timestamp).toLocaleTimeString()}`
-              : 'Live processing status for stewards'}
+              ? t('operations.updated', { time: new Date(opsOverview.timestamp).toLocaleTimeString() })
+              : t('operations.liveStatus')}
             {UMAMI_SHARE_URL && (
               <>
                 {' · '}
                 <a href={UMAMI_SHARE_URL} target="_blank" rel="noopener noreferrer" className="ops-analytics-link">
-                  Analytics ↗
+                  {t('operations.analytics')}
                 </a>
               </>
             )}
@@ -89,7 +91,7 @@ export function StewardOperations() {
       {(opsOverview?.spots.counts.failed ?? 0) > 0 && (
         <div className="ops-actions-row">
           <label className="ops-batch-label">
-            Retry batch size
+            {t('operations.retryBatchSize')}
             <input
               type="number"
               min="1"
@@ -105,7 +107,7 @@ export function StewardOperations() {
             onClick={() => retryFailedSpots(retryLimit)}
             disabled={!isOnline || isRetryingFailedSpots || isLoadingOps}
           >
-            {isRetryingFailedSpots ? 'Retrying...' : 'Retry failed spots'}
+            {isRetryingFailedSpots ? t('operations.retrying') : t('operations.retryFailedSpots')}
           </button>
           {retryFailedSpotsResult && <p className="ops-retry-result">{retryFailedSpotsResult}</p>}
         </div>
@@ -114,78 +116,78 @@ export function StewardOperations() {
       <div className="ops-metrics-grid">
         <article className="ops-card ops-card-status">
           <span className={`ops-status-pill ops-status-${opsOverview?.health.status || 'degraded'}`}>
-            {opsOverview?.health.status || 'loading'}
+            {opsOverview?.health.status || t('operations.statusLoading')}
           </span>
-          <h3>System Health</h3>
+          <h3>{t('operations.systemHealth')}</h3>
           <p>
-            Worker {opsOverview?.worker.healthy ? 'heartbeat is fresh' : 'heartbeat is stale'}
+            {opsOverview?.worker.healthy ? t('operations.workerHeartbeatFresh') : t('operations.workerHeartbeatStale')}
           </p>
         </article>
 
         <article className="ops-card">
-          <h3>Queue</h3>
+          <h3>{t('operations.queue')}</h3>
           <dl className="ops-key-values">
-            <div><dt>Waiting</dt><dd>{opsOverview?.queue.counts.waiting ?? '-'}</dd></div>
-            <div><dt>Active</dt><dd>{opsOverview?.queue.counts.active ?? '-'}</dd></div>
-            <div><dt>Delayed</dt><dd>{opsOverview?.queue.counts.delayed ?? '-'}</dd></div>
-            <div><dt>Failed</dt><dd>{opsOverview?.queue.counts.failed ?? '-'}</dd></div>
+            <div><dt>{t('operations.queueWaiting')}</dt><dd>{opsOverview?.queue.counts.waiting ?? '-'}</dd></div>
+            <div><dt>{t('operations.queueActive')}</dt><dd>{opsOverview?.queue.counts.active ?? '-'}</dd></div>
+            <div><dt>{t('operations.queueDelayed')}</dt><dd>{opsOverview?.queue.counts.delayed ?? '-'}</dd></div>
+            <div><dt>{t('operations.queueFailed')}</dt><dd>{opsOverview?.queue.counts.failed ?? '-'}</dd></div>
           </dl>
         </article>
 
         <article className="ops-card">
-          <h3>Spots</h3>
+          <h3>{t('operations.spots')}</h3>
           <dl className="ops-key-values">
-            <div><dt>Queued</dt><dd>{opsOverview?.spots.counts.queued ?? '-'}</dd></div>
-            <div><dt>Processing</dt><dd>{opsOverview?.spots.counts.processing ?? '-'}</dd></div>
-            <div><dt>Completed</dt><dd>{opsOverview?.spots.counts.completed ?? '-'}</dd></div>
-            <div><dt>Failed</dt><dd>{opsOverview?.spots.counts.failed ?? '-'}</dd></div>
+            <div><dt>{t('operations.spotsQueued')}</dt><dd>{opsOverview?.spots.counts.queued ?? '-'}</dd></div>
+            <div><dt>{t('operations.spotsProcessing')}</dt><dd>{opsOverview?.spots.counts.processing ?? '-'}</dd></div>
+            <div><dt>{t('operations.spotsCompleted')}</dt><dd>{opsOverview?.spots.counts.completed ?? '-'}</dd></div>
+            <div><dt>{t('operations.spotsFailed')}</dt><dd>{opsOverview?.spots.counts.failed ?? '-'}</dd></div>
           </dl>
         </article>
 
         <article className="ops-card">
-          <h3>Worker Activity</h3>
+          <h3>{t('operations.workerActivity')}</h3>
           <dl className="ops-timestamps">
-            <div><dt>Heartbeat</dt><dd>{formatTimestamp(opsOverview?.worker.lastHeartbeatAt ?? null)}</dd></div>
-            <div><dt>Started</dt><dd>{formatTimestamp(opsOverview?.worker.lastJobStartedAt ?? null)}</dd></div>
-            <div><dt>Completed</dt><dd>{formatTimestamp(opsOverview?.worker.lastJobCompletedAt ?? null)}</dd></div>
-            <div><dt>Failed</dt><dd>{formatTimestamp(opsOverview?.worker.lastJobFailedAt ?? null)}</dd></div>
+            <div><dt>{t('operations.heartbeat')}</dt><dd>{formatTimestamp(opsOverview?.worker.lastHeartbeatAt ?? null)}</dd></div>
+            <div><dt>{t('operations.started')}</dt><dd>{formatTimestamp(opsOverview?.worker.lastJobStartedAt ?? null)}</dd></div>
+            <div><dt>{t('operations.completed')}</dt><dd>{formatTimestamp(opsOverview?.worker.lastJobCompletedAt ?? null)}</dd></div>
+            <div><dt>{t('operations.failed')}</dt><dd>{formatTimestamp(opsOverview?.worker.lastJobFailedAt ?? null)}</dd></div>
           </dl>
         </article>
       </div>
 
       <div className="ops-age-grid">
         <div className="ops-age-card">
-          <span>Oldest queued spot</span>
+          <span>{t('operations.oldestQueuedSpot')}</span>
           <strong>{formatAge(opsOverview?.spots.oldestQueuedAgeSeconds ?? null)}</strong>
         </div>
         <div className="ops-age-card">
-          <span>Oldest processing spot</span>
+          <span>{t('operations.oldestProcessingSpot')}</span>
           <strong>{formatAge(opsOverview?.spots.oldestProcessingAgeSeconds ?? null)}</strong>
         </div>
       </div>
 
-      <h3>Deployed Versions</h3>
+      <h3>{t('operations.deployedVersions')}</h3>
       <table className="ops-version-table">
         <thead>
           <tr>
-            <th>Artifact</th>
-            <th>Version</th>
-            <th>Built</th>
+            <th>{t('operations.artifact')}</th>
+            <th>{t('operations.version')}</th>
+            <th>{t('operations.built')}</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Backend</td>
+            <td>{t('operations.backend')}</td>
             <td className="ops-version-hash">{renderCommit(versionInfo?.backend?.commit, versionInfo?.backend?.commitShort)}</td>
             <td>{versionInfo?.backend.buildTime ? formatTimestamp(new Date(versionInfo.backend.buildTime * 1000).toISOString()) : '-'}</td>
           </tr>
           <tr>
-            <td>Frontend</td>
+            <td>{t('operations.frontend')}</td>
             <td className="ops-version-hash">{renderCommit(__APP_COMMIT__, __APP_COMMIT_SHORT__)}</td>
             <td>{__APP_BUILD_TIME__ ? formatTimestamp(new Date(__APP_BUILD_TIME__ * 1000).toISOString()) : '-'}</td>
           </tr>
           <tr>
-            <td>Worker</td>
+            <td>{t('operations.worker')}</td>
             <td className="ops-version-hash">{renderCommit(versionInfo?.worker?.commit, versionInfo?.worker?.commitShort)}</td>
             <td>{versionInfo?.worker?.buildTime ? formatTimestamp(new Date(versionInfo.worker.buildTime * 1000).toISOString()) : '-'}</td>
           </tr>

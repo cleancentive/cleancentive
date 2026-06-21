@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useTeamStore } from '../stores/teamStore'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
@@ -11,6 +12,7 @@ import { PartnerSettingsFields } from './PartnerSettingsFields'
 import { ProfileHintBanner } from './ProfileHintBanner'
 
 export function TeamList() {
+  const { t } = useTranslation(['teams', 'common'])
   const { user } = useAuthStore()
   const { isAdmin: isPlatformAdmin } = useAdminStore()
   const { isOnline } = useConnectivityStore()
@@ -65,14 +67,14 @@ export function TeamList() {
 
   return (
     <CommunityList
-      title="Teams"
-      searchPlaceholder="Search teams..."
+      title={t('list.title')}
+      searchPlaceholder={t('list.searchPlaceholder')}
       onSearchChange={handleSearch}
       isLoading={isLoading}
       error={error}
       hideSearch={showCreate}
       onClearError={clearError}
-      emptyMessage="No teams found"
+      emptyMessage={t('list.empty')}
       isEmpty={teams.filter(t => {
         if (myFilter && t.userRole === null) return false
         if (user?.active_team_id && t.team.id !== user.active_team_id) return false
@@ -81,7 +83,7 @@ export function TeamList() {
       actions={
         user && (
           <button className="primary-button" onClick={handleToggleCreate}>
-            {showCreate ? 'Cancel' : 'Create Team'}
+            {showCreate ? t('common:actions.cancel') : t('list.create')}
           </button>
         )
       }
@@ -90,30 +92,30 @@ export function TeamList() {
         <form className="community-create-form" onSubmit={handleCreate}>
           <ProfileHintBanner surface="team-create" />
           <div className="form-group">
-            <label htmlFor="team-name">Name</label>
+            <label htmlFor="team-name">{t('list.createForm.nameLabel')}</label>
             <input
               id="team-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Team name"
+              placeholder={t('list.createForm.namePlaceholder')}
               required
             />
           </div>
           <div className="form-group">
-            <label htmlFor="team-description">Description</label>
+            <label htmlFor="team-description">{t('list.createForm.descriptionLabel')}</label>
             <textarea
               id="team-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="What is this team about?"
+              placeholder={t('list.createForm.descriptionPlaceholder')}
               rows={10}
             />
           </div>
 
           {isPlatformAdmin && (
             <details className="partner-settings-collapsible" open={partnerOpen} onToggle={(e) => setPartnerOpen((e.target as HTMLDetailsElement).open)}>
-              <summary>Partner Settings</summary>
+              <summary>{t('list.createForm.partnerSettings')}</summary>
               <div className="partner-settings-body">
                 <PartnerSettingsFields
                   patterns={patterns}
@@ -128,7 +130,7 @@ export function TeamList() {
           )}
 
           <button type="submit" className="primary-button" disabled={isLoading || !isOnline}>
-            {isLoading ? 'Creating...' : 'Create'}
+            {isLoading ? t('list.createForm.creating') : t('list.createForm.submit')}
           </button>
         </form>
       )}
@@ -148,12 +150,12 @@ export function TeamList() {
             description={team.description}
             tags={
               <>
-                {isStewardsTeam && <span className="badge steward-badge">Stewards</span>}
-                {!isStewardsTeam && membershipManagedBy && <span className="badge">Managed</span>}
-                {isPartner && <span className="badge" style={{ background: 'var(--color-badge-partner)' }}>Partner</span>}
-                {team.is_unlisted && <span className="badge">Unlisted</span>}
-                {userRole && <span className={`badge ${userRole === 'admin' ? 'admin-badge' : ''}`}>{userRole}</span>}
-                {activeTeamId === team.id && <span className="badge" style={{ background: 'var(--color-badge-active)' }}>Active</span>}
+                {isStewardsTeam && <span className="badge steward-badge">{t('list.badges.stewards')}</span>}
+                {!isStewardsTeam && membershipManagedBy && <span className="badge">{t('list.badges.managed')}</span>}
+                {isPartner && <span className="badge" style={{ background: 'var(--color-badge-partner)' }}>{t('list.badges.partner')}</span>}
+                {team.is_unlisted && <span className="badge">{t('list.badges.unlisted')}</span>}
+                {userRole && <span className={`badge ${userRole === 'admin' ? 'admin-badge' : ''}`}>{t(`roles.${userRole}`, { defaultValue: userRole })}</span>}
+                {activeTeamId === team.id && <span className="badge" style={{ background: 'var(--color-badge-active)' }}>{t('list.badges.active')}</span>}
               </>
             }
           />

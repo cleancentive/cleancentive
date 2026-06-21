@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
+import { useTranslation, Trans } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 
 const lastUsedEmailStorageKey = 'lastUsedSignInEmail'
 
 export function SignIn() {
+  const { t } = useTranslation(['auth', 'common'])
   const [email, setEmail] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isRecovery, setIsRecovery] = useState(false)
@@ -59,8 +61,8 @@ export function SignIn() {
   if (recoverySent && !error) {
     return (
       <div className="login-form success">
-        <h2>Recovery emails sent!</h2>
-        <p>If an account exists for <strong>{email}</strong>, magic links have been sent to all linked email addresses.</p>
+        <h2>{t('recoverySent.title')}</h2>
+        <p><Trans t={t} i18nKey="recoverySent.body" values={{ email }} components={{ strong: <strong /> }} /></p>
         <button
           onClick={() => {
             setRecoverySent(false)
@@ -69,7 +71,7 @@ export function SignIn() {
           }}
           className="secondary-button"
         >
-          Back to sign in
+          {t('recoverySent.backToSignIn')}
         </button>
       </div>
     )
@@ -78,9 +80,9 @@ export function SignIn() {
   if (isSubmitted && !error) {
     return (
       <div className="login-form success">
-        <h2>Check your email!</h2>
-        <p>We've sent a magic link to <strong>{email}</strong></p>
-        <p>Click the link in your email to sign in.</p>
+        <h2>{t('magicLinkSent.title')}</h2>
+        <p><Trans t={t} i18nKey="magicLinkSent.body" values={{ email }} components={{ strong: <strong /> }} /></p>
+        <p>{t('magicLinkSent.instructions')}</p>
         <button
           onClick={() => {
             setIsSubmitted(false)
@@ -88,7 +90,7 @@ export function SignIn() {
           }}
           className="secondary-button"
         >
-          Send another link
+          {t('magicLinkSent.sendAnother')}
         </button>
       </div>
     )
@@ -97,17 +99,17 @@ export function SignIn() {
   if (isRecovery) {
     return (
       <div className="login-form">
-        <h2>Account Recovery</h2>
-        <p className="form-description">Enter an email linked to your account. Magic links will be sent to <strong>all</strong> email addresses on that account.</p>
+        <h2>{t('recovery.title')}</h2>
+        <p className="form-description"><Trans t={t} i18nKey="recovery.description" components={{ strong: <strong /> }} /></p>
         <form onSubmit={handleRecover}>
           <div className="form-group">
-            <label htmlFor="recovery-email">Email address</label>
+            <label htmlFor="recovery-email">{t('signIn.emailLabel')}</label>
             <input
               id="recovery-email"
               type="email"
               value={email}
               onChange={(e) => updateEmail(e.target.value)}
-              placeholder="your@email.com"
+              placeholder={t('signIn.emailPlaceholder')}
               required
               disabled={isLoading}
             />
@@ -119,14 +121,14 @@ export function SignIn() {
             </div>
           )}
 
-          {!isOnline && <p className="offline-banner">Sign in requires an internet connection.</p>}
+          {!isOnline && <p className="offline-banner">{t('signIn.offlineNotice')}</p>}
 
           <button
             type="submit"
             disabled={!isOnline || isLoading || !email}
             className="primary-button"
           >
-            {isLoading ? 'Sending...' : 'Send recovery links'}
+            {isLoading ? t('signIn.sending') : t('recovery.sendLinks')}
           </button>
         </form>
 
@@ -135,7 +137,7 @@ export function SignIn() {
             onClick={() => { setIsRecovery(false); clearError() }}
             className="link-button"
           >
-            Back to sign in
+            {t('recovery.backToSignIn')}
           </button>
         </div>
       </div>
@@ -144,17 +146,17 @@ export function SignIn() {
 
   return (
     <div className="login-form">
-      <h2>Welcome to CleanCentive!</h2>
-      <p className="form-description">We're excited to have you join the community. Enter your email to get started.</p>
+      <h2>{t('signIn.welcomeTitle')}</h2>
+      <p className="form-description">{t('signIn.welcomeDescription')}</p>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-            <label htmlFor="email">Email address</label>
+            <label htmlFor="email">{t('signIn.emailLabel')}</label>
             <input
               id="email"
               type="email"
               value={email}
               onChange={(e) => updateEmail(e.target.value)}
-              placeholder="your@email.com"
+              placeholder={t('signIn.emailPlaceholder')}
               required
               disabled={isLoading}
           />
@@ -166,24 +168,24 @@ export function SignIn() {
           </div>
         )}
 
-        {!isOnline && <p className="offline-banner">Sign in requires an internet connection.</p>}
+        {!isOnline && <p className="offline-banner">{t('signIn.offlineNotice')}</p>}
 
         <button
           type="submit"
           disabled={!isOnline || isLoading || !email}
           className="primary-button"
         >
-          {isLoading ? 'Sending...' : 'Send magic link'}
+          {isLoading ? t('signIn.sending') : t('signIn.sendMagicLink')}
         </button>
       </form>
 
       <div className="form-footer">
-        <p>No password needed — we'll send you a secure link.</p>
+        <p>{t('signIn.noPasswordHint')}</p>
         <button
           onClick={() => { setIsRecovery(true); clearError() }}
           className="link-button"
         >
-          Can't access your email? Recover account
+          {t('signIn.recoverPrompt')}
         </button>
       </div>
     </div>

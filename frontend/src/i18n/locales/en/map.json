@@ -1,0 +1,62 @@
+{
+  "share": {
+    "copy": "Copy shareable link to this map view",
+    "copied": "Link copied"
+  },
+  "heat": {
+    "legend": "Heat map metric",
+    "items": "Items",
+    "mass": "Mass"
+  },
+  "overlay": {
+    "empty": "No picks found for these filters"
+  },
+  "popup": {
+    "plantRemoved": "Plant removed",
+    "plantSpot": "Plant spot",
+    "invasive": "Invasive — {{list}}",
+    "invasiveBlackList": "black list",
+    "invasiveWatchList": "watch list",
+    "spot": "Spot",
+    "pick": "Pick",
+    "itemsDetected_one": "{{count}} item detected",
+    "itemsDetected_other": "{{count}} items detected",
+    "openSpot": "Open spot →",
+    "cleanup": "Cleanup",
+    "picks_one": "{{count}} pick",
+    "picks_other": "{{count}} picks",
+    "openCleanup": "Open cleanup →"
+  },
+  "basemap": {
+    "switch": "Switch basemap",
+    "options": "Basemap options",
+    "style": "Map style",
+    "themesLabel": "Themes",
+    "themes": {
+      "standard": "Standard",
+      "aerial": "Aerial",
+      "topo": "Topo",
+      "dark": "Dark"
+    }
+  },
+  "import": {
+    "title_one": "Import {{count}} Photo",
+    "title_other": "Import {{count}} Photos",
+    "processing": "Processing {{processed}} of {{total}} photos…",
+    "skipped_one": "{{count}} photo skipped (no GPS data)",
+    "skipped_other": "{{count}} photos skipped (no GPS data)",
+    "imported_one": "{{count}} photo imported.",
+    "imported_other": "{{count}} photos imported.",
+    "noneImported": "No photos could be imported.",
+    "done": "Done",
+    "associate": "Associate with this cleanup",
+    "unknownDate": "Unknown date",
+    "unknownError": "Unknown error",
+    "noCleanupMatch": "No cleanup match",
+    "groupHeader": "{{label}} ({{count}})",
+    "discard": "Discard",
+    "import": "Import",
+    "importing": "Importing...",
+    "importAll": "Import All"
+  }
+}

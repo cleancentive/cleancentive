@@ -1,3 +1,5 @@
+import i18n from '../i18n'
+
 const MINUTE = 60_000
 const HOUR = 3_600_000
 const DAY = 86_400_000
@@ -6,52 +8,62 @@ function startOfDay(date: Date): number {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
 }
 
-function pad(n: number): string {
-  return n < 10 ? `0${n}` : `${n}`
+function activeLocale(): string {
+  return i18n.resolvedLanguage || i18n.language || 'en'
 }
 
-function time24(date: Date): string {
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
+function timeOnly(date: Date, locale: string): string {
+  return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', hour12: false }).format(date)
 }
 
-const SHORT_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const SHORT_MONTHS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-]
-
+/**
+ * Locale-aware relative/absolute timestamp, keyed to the active UI language.
+ * Recent values render relative ("just now", "2 minutes ago", "yesterday"),
+ * older ones absolute (weekday, then date). Formatting is delegated to Intl, so
+ * month/day names and relative phrasing follow the locale.
+ */
 export function formatTimestamp(value: string | number | null | undefined): string {
   if (value == null) return 'n/a'
 
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value)
 
+  const locale = activeLocale()
   const now = new Date()
   const diff = now.getTime() - date.getTime()
 
   const todayStart = startOfDay(now)
   const yesterdayStart = todayStart - DAY
 
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+
   if (date.getTime() >= todayStart) {
-    if (diff < MINUTE) return 'just now'
-    if (diff < HOUR) return `${Math.floor(diff / MINUTE)}m ago`
-    return time24(date)
+    if (diff < MINUTE) return rtf.format(0, 'second')
+    if (diff < HOUR) {
+      return new Intl.RelativeTimeFormat(locale, { numeric: 'always' }).format(
+        -Math.floor(diff / MINUTE),
+        'minute',
+      )
+    }
+    return timeOnly(date, locale)
   }
 
   if (date.getTime() >= yesterdayStart) {
-    return `Yesterday ${time24(date)}`
+    // "Yesterday" / "Gestern" / "Hier", capitalized, plus the time.
+    const word = rtf.format(-1, 'day')
+    const label = word.charAt(0).toUpperCase() + word.slice(1)
+    return `${label} ${timeOnly(date, locale)}`
   }
 
   if (diff < 7 * DAY) {
-    return `${SHORT_DAYS[date.getDay()]} ${time24(date)}`
+    const weekday = new Intl.DateTimeFormat(locale, { weekday: 'short' }).format(date)
+    return `${weekday} ${timeOnly(date, locale)}`
   }
-
-  const day = date.getDate()
-  const month = SHORT_MONTHS[date.getMonth()]
 
   if (date.getFullYear() === now.getFullYear()) {
-    return `${day} ${month} ${time24(date)}`
+    const dayMonth = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(date)
+    return `${dayMonth} ${timeOnly(date, locale)}`
   }
 
-  return `${day} ${month} ${date.getFullYear()}`
+  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(date)
 }

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CleanupCalendarSection } from './CleanupCalendarSection'
 
 interface CleanupHeaderCardProps {
@@ -32,6 +33,7 @@ export function CleanupHeaderCard({
   onClearError,
   onSignIn,
 }: CleanupHeaderCardProps) {
+  const { t } = useTranslation(['cleanups', 'common'])
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
@@ -41,11 +43,11 @@ export function CleanupHeaderCard({
       {editing ? (
         <div className="community-edit-form">
           <div className="form-group">
-            <label>Name</label>
+            <label>{t('cleanups:header.nameLabel')}</label>
             <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} required />
           </div>
           <div className="form-group">
-            <label>Description</label>
+            <label>{t('cleanups:header.descriptionLabel')}</label>
             <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={4} />
           </div>
           <div className="community-actions">
@@ -57,9 +59,9 @@ export function CleanupHeaderCard({
                 setEditing(false)
               }}
             >
-              Save
+              {t('common:actions.save')}
             </button>
-            <button className="secondary-button" onClick={() => setEditing(false)}>Cancel</button>
+            <button className="secondary-button" onClick={() => setEditing(false)}>{t('common:actions.cancel')}</button>
           </div>
         </div>
       ) : (
@@ -71,7 +73,7 @@ export function CleanupHeaderCard({
                 className="link-button legend-edit-button"
                 onClick={() => { setEditName(cleanup.name); setEditDescription(cleanup.description); setEditing(true) }}
               >
-                Edit
+                {t('common:actions.edit')}
               </button>
             )}
           </legend>
@@ -88,21 +90,21 @@ export function CleanupHeaderCard({
 
       {!hasUser && (
         <div className="community-guest-cta">
-          <span>Sign in to join this cleanup</span>
-          <button className="sign-in-cta-button" onClick={onSignIn}>Sign In</button>
+          <span>{t('cleanups:header.signInToJoin')}</span>
+          <button className="sign-in-cta-button" onClick={onSignIn}>{t('common:actions.signIn')}</button>
         </div>
       )}
 
       {hasUser && !isParticipant && (
         <button className="primary-button" onClick={onJoin} disabled={!isOnline}>
-          Join Cleanup
+          {t('cleanups:header.join')}
         </button>
       )}
 
       {hasUser && isParticipant && (
         <div className="community-actions">
           <button className="danger-button" onClick={onLeave} disabled={!isOnline}>
-            Leave Cleanup
+            {t('cleanups:header.leave')}
           </button>
         </div>
       )}
@@ -111,14 +113,14 @@ export function CleanupHeaderCard({
 
       {isOrganizer && (
         <div className="community-admin-actions">
-          <h3>Organizer Actions</h3>
+          <h3>{t('cleanups:header.organizerActions')}</h3>
           <button
             className="danger-button"
             onClick={onArchiveRequest}
             disabled={!isOnline}
-            title="Hides the cleanup from search and prevents new activity. Existing data is preserved."
+            title={t('cleanups:header.archiveTitle')}
           >
-            Archive Cleanup
+            {t('cleanups:header.archive')}
           </button>
         </div>
       )}

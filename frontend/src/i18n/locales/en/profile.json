@@ -1,0 +1,76 @@
+{
+  "signInPrompt": "Sign in to view and edit your profile.",
+  "guestData": {
+    "button": "Delete Guest Data",
+    "title": "Delete Guest Data",
+    "deleteAll": "Delete all data",
+    "forgetLocally": "Just forget me locally",
+    "prompt": "Choose what to do with your picks:"
+  },
+  "name": {
+    "legend": "Name",
+    "nicknameField": "Nickname *",
+    "nicknamePlaceholder": "Choose a unique nickname",
+    "fullNameField": "Full Name",
+    "fullNamePlaceholder": "Your full name (optional)",
+    "suggested": "Suggested: {{value}}",
+    "nicknameLabel": "Nickname:",
+    "fullNameLabel": "Full Name:",
+    "editProfile": "Edit Profile"
+  },
+  "language": {
+    "legend": "Language",
+    "hint": "Language for the app and emails. Leave on Automatic to use your browser settings.",
+    "automatic": "Automatic (browser)",
+    "en": "English",
+    "de": "Deutsch",
+    "fr": "Français"
+  },
+  "picture": {
+    "legend": "Picture",
+    "uploading": "Uploading...",
+    "replacePhoto": "Replace photo",
+    "uploadPhoto": "Upload a photo",
+    "removePhoto": "Remove photo",
+    "uploadFailed": "Failed to upload avatar",
+    "gravatarHint": "Or use <gravatar>Gravatar</gravatar> — set a photo once and it shows up wherever your email is recognized. Your email is hashed before lookup and never exposed to other users.",
+    "uploadedHint": "You have an uploaded photo. Remove it to use Gravatar.",
+    "noGravatar": "No Gravatar"
+  },
+  "emails": {
+    "legend": "Emails",
+    "loginTitle": "Receive magic links at this address",
+    "login": "login",
+    "calendarTitle": "Receive cleanup invites at this address",
+    "calendar": "calendar",
+    "removeTitle": "Remove email",
+    "addPlaceholder": "Add another email",
+    "verificationSent": "Verification email sent! Check your inbox.",
+    "alreadyYours": "This email is already on your account.",
+    "mergeSent": "Merge request sent! The account owner must confirm via email."
+  },
+  "calendar": {
+    "legend": "Calendar",
+    "hint": "Keep your personal calendar in sync with the cleanups you join. Subscribe once and updates appear automatically — the first time you pull the feed we'll silently turn off the calendar emails above. Re-tick any email to start receiving invites again.",
+    "joined": "My joined cleanups",
+    "discover": "Discover (upcoming, not joined)",
+    "copied": "Copied!",
+    "instructions": "Add the link in Google Calendar → Other calendars → From URL, Apple Calendar → File → New Calendar Subscription, or Outlook → Add calendar → Subscribe from web."
+  },
+  "merge": {
+    "title": "Email belongs to another account",
+    "send": "Send merge request",
+    "body": "This email belongs to account ‘{{nickname}}’. Adding it will send them a merge request. If they confirm, their data merges into yours and their account is deleted."
+  },
+  "removeLastEmail": {
+    "title": "Remove last email",
+    "body": "This is your only email address. Removing it will de-authenticate your account. Choose what to do with your data:"
+  },
+  "deleteAccount": {
+    "button": "Delete Account",
+    "title": "Delete Account",
+    "deleteAll": "Delete all data",
+    "onlyPersonal": "Only delete personal info",
+    "body": "This action cannot be undone. Choose what to do with your data:"
+  }
+}

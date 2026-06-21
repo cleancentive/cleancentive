@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 import { ItemEditor, type DetectedItemData } from './ItemEditor'
 
@@ -14,6 +15,7 @@ interface SpotEditorProps {
 }
 
 export function SpotEditor({ spotId, pickedUp, items, subjectKind = 'litter', onSave, onCancel }: SpotEditorProps) {
+  const { t } = useTranslation(['spot', 'common'])
   const { sessionToken, guestId } = useAuthStore()
   const [currentPickedUp, setCurrentPickedUp] = useState(pickedUp)
   const [savingMeta, setSavingMeta] = useState(false)
@@ -71,18 +73,18 @@ export function SpotEditor({ spotId, pickedUp, items, subjectKind = 'litter', on
             checked={currentPickedUp}
             onChange={(e) => setCurrentPickedUp(e.target.checked)}
           />
-          Picked up
+          {t('editor.pickedUp')}
         </label>
         {pickedUpChanged && (
           <button className="secondary-button" onClick={saveMetadata} disabled={savingMeta}>
-            {savingMeta ? 'Saving...' : 'Save'}
+            {savingMeta ? t('common:actions.saving') : t('common:actions.save')}
           </button>
         )}
       </div>
 
       <div className="spot-editor-items">
         <h4 className="spot-editor-items-title">
-          {subjectKind === 'plant' ? 'Identified plant' : 'Detected Items'}
+          {subjectKind === 'plant' ? t('editor.identifiedPlant') : t('editor.detectedItems')}
         </h4>
         {items.map((item) => (
           <ItemEditor
@@ -95,12 +97,12 @@ export function SpotEditor({ spotId, pickedUp, items, subjectKind = 'litter', on
           />
         ))}
         <button className="secondary-button spot-editor-add-item" onClick={addItem} disabled={addingItem}>
-          {addingItem ? 'Adding...' : '+ Add item'}
+          {addingItem ? t('editor.adding') : t('editor.addItem')}
         </button>
       </div>
 
       <button className="secondary-button spot-editor-close" onClick={onCancel}>
-        Close
+        {t('common:actions.close')}
       </button>
     </div>
   )

@@ -19,3 +19,11 @@ export {
   type InvasiveList,
   type InfoFloraEntry,
 } from './infoflora/index';
+export {
+  SUPPORTED_LOCALES,
+  DEFAULT_LOCALE,
+  isSupportedLocale,
+  normalizeLocale,
+  parseAcceptLanguage,
+  type Locale,
+} from './locale/index';

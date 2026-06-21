@@ -1,5 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useNavigate, useSearchParams, type NavigateFunction } from 'react-router-dom'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -39,6 +41,7 @@ function openSpotPopup(
   map: maplibregl.Map,
   feature: GeoJSON.Feature,
   navigate: NavigateFunction,
+  t: TFunction,
   popupCoord?: [number, number],
 ) {
   const geometry = feature.geometry as GeoJSON.Point
@@ -47,23 +50,23 @@ function openSpotPopup(
 
   let body: string
   if (p.subjectKind === 'plant') {
-    const title = p.plantCommonName || p.plantScientificName || (p.pickedUp ? 'Plant removed' : 'Plant spot')
+    const title = p.plantCommonName || p.plantScientificName || (p.pickedUp ? t('popup.plantRemoved') : t('popup.plantSpot'))
     const invasiveBadge = p.plantIsInvasive
-      ? `<span class="map-popup-invasive">Invasive — ${p.plantInvasiveList === 'infoflora_black' ? 'black list' : 'watch list'}</span>`
+      ? `<span class="map-popup-invasive">${t('popup.invasive', { list: p.plantInvasiveList === 'infoflora_black' ? t('popup.invasiveBlackList') : t('popup.invasiveWatchList') })}</span>`
       : ''
     body = `
       <strong>${title}</strong>
       ${p.plantScientificName && p.plantCommonName ? `<span><em>${p.plantScientificName}</em></span>` : ''}
       ${invasiveBadge}
       <span>${formatDate(p.capturedAt)}</span>
-      <a class="map-popup-link" href="/spots/${p.id}">Open spot &rarr;</a>
+      <a class="map-popup-link" href="/spots/${p.id}">${t('popup.openSpot')}</a>
     `
   } else {
     body = `
-      <strong>${p.topObject ? String(p.topObject).replace(/_/g, ' ') : (p.pickedUp === false ? 'Spot' : 'Pick')}</strong>
+      <strong>${p.topObject ? String(p.topObject).replace(/_/g, ' ') : (p.pickedUp === false ? t('popup.spot') : t('popup.pick'))}</strong>
       <span>${formatDate(p.capturedAt)}</span>
-      <span>${p.itemCount} item${p.itemCount !== 1 ? 's' : ''} detected</span>
-      <a class="map-popup-link" href="/spots/${p.id}">Open spot &rarr;</a>
+      <span>${t('popup.itemsDetected', { count: p.itemCount })}</span>
+      <a class="map-popup-link" href="/spots/${p.id}">${t('popup.openSpot')}</a>
     `
   }
 
@@ -81,6 +84,7 @@ function openCleanupPopup(
   map: maplibregl.Map,
   feature: GeoJSON.Feature,
   navigate: NavigateFunction,
+  t: TFunction,
 ) {
   const geometry = feature.geometry as GeoJSON.Point
   const coords = geometry.coordinates.slice() as [number, number]
@@ -88,11 +92,11 @@ function openCleanupPopup(
   const html = `
     <div class="map-popup">
       <div class="map-popup-info">
-        <strong>${p.cleanupName || 'Cleanup'}</strong>
+        <strong>${p.cleanupName || t('popup.cleanup')}</strong>
         ${p.locationName ? `<span>${p.locationName}</span>` : ''}
         ${p.startAt ? `<span>${formatDate(p.startAt)}</span>` : ''}
-        <span>${p.spotCount} pick${p.spotCount !== 1 ? 's' : ''}</span>
-        <a class="map-popup-link" href="/cleanups/${p.cleanupId}">Open cleanup &rarr;</a>
+        <span>${t('popup.picks', { count: p.spotCount })}</span>
+        <a class="map-popup-link" href="/cleanups/${p.cleanupId}">${t('popup.openCleanup')}</a>
       </div>
     </div>
   `
@@ -218,6 +222,7 @@ export function MapPage() {
     heatMetric, setHeatMetric,
   } = useMapStore()
   const { user } = useAuthStore()
+  const { t } = useTranslation(['map', 'common'])
   const { datePreset, pickedUpFilter, myFilter, cleanupFilter, subjectFilter } = useInsightsFilterStore()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -259,6 +264,11 @@ export function MapPage() {
   const setupOverlaysRef = useRef<(() => void) | null>(null)
   const spiderRef = useRef<{ markers: maplibregl.Marker[]; openedAtZoom: number } | null>(null)
   const closeSpiderRef = useRef<(() => void) | null>(null)
+  // The map-init effect runs once; popup HTML is built inside its event handlers.
+  // Keep the latest t in a ref so popups opened after a language change translate
+  // with the current language instead of the one captured at mount.
+  const tRef = useRef(t)
+  tRef.current = t
 
   useEffect(() => {
     fetchMapData({
@@ -695,7 +705,7 @@ export function MapPage() {
           .addTo(map)
         el.addEventListener('click', (ev) => {
           ev.stopPropagation()
-          openSpotPopup(map, leaf, navigate, offsetCoord)
+          openSpotPopup(map, leaf, navigate, tRef.current, offsetCoord)
         })
         markers.push(marker)
         lines.push({
@@ -762,13 +772,13 @@ export function MapPage() {
         return
       }
       closeSpider()
-      openSpotPopup(map, clicked, navigate)
+      openSpotPopup(map, clicked, navigate, tRef.current)
     })
 
     map.on('click', 'cleanup-locations', (e) => {
       if (!e.features?.length) return
       closeSpider()
-      openCleanupPopup(map, e.features[0], navigate)
+      openCleanupPopup(map, e.features[0], navigate, tRef.current)
     })
 
     map.on('mouseenter', 'clusters', () => { map.getCanvas().style.cursor = 'pointer' })
@@ -937,7 +947,7 @@ export function MapPage() {
           type="button"
           className="map-share-control maplibregl-ctrl-icon"
           onClick={handleShare}
-          aria-label={copied ? 'Link copied' : 'Copy shareable link to this map view'}
+          aria-label={copied ? t('share.copied') : t('share.copy')}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             {copied ? (
@@ -953,7 +963,7 @@ export function MapPage() {
         ctrlSlot,
       )}
       <div className="map-heat-control">
-        <div className="map-heat-control__row" role="radiogroup" aria-label="Heat map metric">
+        <div className="map-heat-control__row" role="radiogroup" aria-label={t('heat.legend')}>
           <button
             type="button"
             role="radio"
@@ -961,7 +971,7 @@ export function MapPage() {
             className={`map-heat-control__btn${heatMetric === 'items' ? ' is-active' : ''}`}
             onClick={() => setHeatMetric('items')}
           >
-            Items
+            {t('heat.items')}
           </button>
           <button
             type="button"
@@ -970,18 +980,18 @@ export function MapPage() {
             className={`map-heat-control__btn${heatMetric === 'mass' ? ' is-active' : ''}`}
             onClick={() => setHeatMetric('mass')}
           >
-            Mass
+            {t('heat.mass')}
           </button>
         </div>
       </div>
       {isLoading && (
-        <div className="map-overlay">Loading...</div>
+        <div className="map-overlay">{t('common:actions.loading')}</div>
       )}
       {error && (
         <div className="map-overlay map-overlay--error">{error}</div>
       )}
       {!isLoading && !error && !hasData && spotGeoJson && (
-        <div className="map-overlay">No picks found for these filters</div>
+        <div className="map-overlay">{t('overlay.empty')}</div>
       )}
     </div>
   )

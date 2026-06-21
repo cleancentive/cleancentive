@@ -7,6 +7,7 @@ import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import sharp from 'sharp';
+import { isSupportedLocale } from '@cleancentive/shared';
 import { User } from './user.entity';
 import { UserEmail } from './user-email.entity';
 import { createS3Client } from '../common/s3-client';
@@ -542,7 +543,10 @@ export class UserService {
     await this.userRepository.update({ id: userId }, { last_login: new Date(), updated_by: userId });
   }
 
-  async updateProfile(userId: string, updates: { nickname?: string; fullName?: string | null }): Promise<User> {
+  async updateProfile(
+    userId: string,
+    updates: { nickname?: string; fullName?: string | null; locale?: string | null },
+  ): Promise<User> {
     const user = await this.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
@@ -560,6 +564,15 @@ export class UserService {
 
     if (updates.fullName !== undefined) {
       user.full_name = updates.fullName || null;
+    }
+
+    if (updates.locale !== undefined) {
+      // null clears the preference (revert to browser auto-detect); otherwise
+      // it must be a supported locale.
+      if (updates.locale !== null && !isSupportedLocale(updates.locale)) {
+        throw new BadRequestException('Unsupported locale');
+      }
+      user.locale = updates.locale;
     }
 
     const saved = await this.userRepository.save(user);

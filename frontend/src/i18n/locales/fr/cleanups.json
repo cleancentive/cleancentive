@@ -1,0 +1,139 @@
+{
+  "list": {
+    "title": "Cleanups",
+    "searchPlaceholder": "Rechercher des cleanups...",
+    "empty": "Aucun cleanup trouvé",
+    "create": "Créer un cleanup",
+    "status": {
+      "ongoing": "En cours",
+      "future": "À venir",
+      "past": "Passé"
+    },
+    "badge": {
+      "active": "Actif"
+    }
+  },
+  "createForm": {
+    "nameLabel": "Nom",
+    "namePlaceholder": "ex. Cleanup du samedi au parc",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "De quoi s'agit-il dans ce cleanup ?",
+    "startLabel": "Début",
+    "endLabel": "Fin",
+    "shortDurationWarning": "La durée est inférieure à 2 heures. Êtes-vous sûr ?",
+    "creating": "Création...",
+    "submit": "Créer"
+  },
+  "detail": {
+    "notFound": "Cleanup introuvable",
+    "dates": "Dates ({{count}})",
+    "noDates": "Aucune date prévue",
+    "addDate": "+ Ajouter une date",
+    "addDateSubmit": "Ajouter une date",
+    "participants": "Participant·es ({{count}})",
+    "messages": "Messages",
+    "archive": {
+      "title": "Archiver le cleanup",
+      "confirm": "Archiver"
+    },
+    "deleteDate": {
+      "title": "Supprimer la date",
+      "body": "Voulez-vous vraiment supprimer cette date ? Les utilisateurs ayant cette date active seront désactivés."
+    },
+    "deleteDates": {
+      "title": "Supprimer les dates",
+      "button_one": "Supprimer {{count}} date",
+      "button_other": "Supprimer {{count}} dates",
+      "body_one": "Voulez-vous vraiment supprimer <strong>{{count}}</strong> date ? Les utilisateurs ayant ces dates actives seront désactivés.",
+      "body_other": "Voulez-vous vraiment supprimer <strong>{{count}}</strong> dates ? Les utilisateurs ayant ces dates actives seront désactivés."
+    }
+  },
+  "header": {
+    "nameLabel": "Nom",
+    "descriptionLabel": "Description",
+    "signInToJoin": "Connectez-vous pour rejoindre ce cleanup",
+    "join": "Rejoindre le cleanup",
+    "leave": "Quitter le cleanup",
+    "organizerActions": "Actions de l'Organizer",
+    "archive": "Archiver le cleanup",
+    "archiveTitle": "Masque le cleanup de la recherche et empêche toute nouvelle activité. Les données existantes sont conservées.",
+    "archiveConfirmBody": "Voulez-vous vraiment archiver <strong>{{name}}</strong> ? Cela désactivera le cleanup pour tous les participant·es."
+  },
+  "calendar": {
+    "heading": "Ajouter à votre calendrier",
+    "subscribe": "S'abonner (tous les cleanups rejoints)",
+    "hint": "L'abonnement garde Google / Apple / Outlook synchronisés lorsque vous rejoignez, quittez ou que les organizers modifient des dates. Ou utilisez les liens par date ci-dessous pour ajouter un seul événement."
+  },
+  "dateCard": {
+    "ongoing": "En cours",
+    "active": "Actif",
+    "activate": "Activer",
+    "deactivate": "Désactiver",
+    "addToCalendar": "Ajouter au calendrier",
+    "downloadIcsTitle": "Télécharger le .ics pour cette date"
+  },
+  "bulk": {
+    "selectRelated": "Sélectionner les dates liées",
+    "selectAllAfter": "Tout sélectionner après le {{date}}",
+    "delete_one": "Supprimer {{count}} date",
+    "delete_other": "Supprimer {{count}} dates",
+    "clearSelection": "Effacer la sélection"
+  },
+  "dateForm": {
+    "startLabel": "Début",
+    "endLabel": "Fin",
+    "shortDurationWarning": "La durée est inférieure à 2 heures. Êtes-vous sûr ?",
+    "repeat": "Répéter",
+    "frequencyLabel": "Fréquence",
+    "frequency": {
+      "weekly": "Hebdomadaire",
+      "biweekly": "Toutes les deux semaines",
+      "monthly": "Mensuel",
+      "quarterly": "Trimestriel",
+      "yearly": "Annuel"
+    },
+    "occurrencesLabel": "Occurrences",
+    "preview_one": "{{count}} date :",
+    "preview_other": "{{count}} dates :"
+  },
+  "filter": {
+    "label": "Cleanup :",
+    "all": "Tous",
+    "scopeMine": "Les miens",
+    "scopeAll": "Tous",
+    "allCleanups": "Tous les cleanups",
+    "loading": "Chargement…",
+    "noCleanups": "Aucun cleanup",
+    "dates_one": "{{count}} date",
+    "dates_other": "{{count}} dates",
+    "allDates": "Toutes les dates",
+    "sheetClose": "Fermer"
+  },
+  "card": {
+    "viewDetails": "Voir"
+  },
+  "members": {
+    "empty": "Aucun·e {{entity}} pour l'instant",
+    "promote": "Promouvoir",
+    "roleMember": "Membre",
+    "entityMember": "membre",
+    "entityParticipant": "participant·e"
+  },
+  "messages": {
+    "subjectPlaceholder": "Objet",
+    "bodyPlaceholder": "Écrire un message...",
+    "disclosureMembers": "Tous les membres actuels et futurs de l'équipe verront ce message dans l'historique. Un e-mail sera envoyé à tous les membres actuels.",
+    "disclosureOrganizers": "Tous les organizers actuels et futurs verront ce message dans l'historique. Un e-mail sera envoyé à tous les organizers actuels.",
+    "ccSelf": "M'envoyer une copie par e-mail",
+    "to": "À :",
+    "audienceMembers": "Tous les membres",
+    "audienceOrganizers": "Organizers",
+    "sending": "Envoi...",
+    "send": "Envoyer",
+    "loading": "Chargement des messages...",
+    "empty": "Aucun message pour l'instant",
+    "toOrganizers": "Aux organizers",
+    "toMembers": "Aux membres",
+    "unknownAuthor": "Inconnu"
+  }
+}

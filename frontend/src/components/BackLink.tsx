@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { usePreviousPath } from '../lib/navHistory'
 
@@ -10,9 +11,9 @@ const platform =
 const isMac = /mac|iphone|ipad/i.test(platform)
 const BACK_SHORTCUT = isMac ? '⌘←' : 'Alt+←'
 
-// Friendly noun for a route, used to phrase "Back to {noun}". Returns null for
-// routes we don't have a good word for, so the caller's fallbackNoun is used.
-function routeNoun(pathname: string): string | null {
+// Friendly noun key for a route, used to phrase "Back to {noun}". Returns null
+// for routes we don't have a good word for, so the caller's fallbackNoun is used.
+function routeNounKey(pathname: string): string | null {
   if (pathname === '/') return 'home'
   if (pathname === '/map') return 'map'
   if (pathname.startsWith('/cleanups')) return 'cleanups'
@@ -39,6 +40,7 @@ interface BackLinkProps {
  * adapts to where the user actually came from.
  */
 export function BackLink({ to, fallbackNoun, className = 'back-link' }: BackLinkProps) {
+  const { t } = useTranslation(['shell', 'common'])
   const navigate = useNavigate()
   const location = useLocation()
   const previousPath = usePreviousPath()
@@ -46,7 +48,8 @@ export function BackLink({ to, fallbackNoun, className = 'back-link' }: BackLink
   // key === 'default' is React Router's marker for the first entry in this SPA
   // session (deep link / reload / new tab) — there's nothing in-app to pop.
   const hasInAppHistory = location.key !== 'default'
-  const noun = (hasInAppHistory ? routeNoun(previousPath ?? '') : null) ?? fallbackNoun
+  const nounKey = hasInAppHistory ? routeNounKey(previousPath ?? '') : null
+  const noun = nounKey ? t(`backLink.nouns.${nounKey}`) : fallbackNoun
 
   const onClick = (e: React.MouseEvent) => {
     // Let modifier / middle / right clicks use the native href (new tab, etc.).
@@ -58,8 +61,8 @@ export function BackLink({ to, fallbackNoun, className = 'back-link' }: BackLink
   }
 
   return (
-    <Link to={to} className={className} onClick={onClick} title={`Go back (${BACK_SHORTCUT})`}>
-      &larr; Back to {noun}
+    <Link to={to} className={className} onClick={onClick} title={t('backLink.title', { shortcut: BACK_SHORTCUT })}>
+      &larr; {t('backLink.label', { noun })}
     </Link>
   )
 }

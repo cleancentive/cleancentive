@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useInsightsStore } from '../stores/insightsStore'
 import { useAuthStore } from '../stores/authStore'
 import { useInsightsFilterStore, presetToSince, pickedUpFilterToParam } from '../stores/insightsFilterStore'
@@ -14,8 +15,9 @@ function formatNumber(n: number): string {
 }
 
 function BarChart({ data, valueKey, maxBars = 12 }: { data: Array<{ week: string; [key: string]: any }>; valueKey: string; maxBars?: number }) {
+  const { t } = useTranslation(['insights', 'common'])
   const sliced = data.slice(-maxBars)
-  if (sliced.length === 0) return <p className="insights-empty">No data yet</p>
+  if (sliced.length === 0) return <p className="insights-empty">{t('charts.noData')}</p>
 
   const maxValue = Math.max(...sliced.map(d => Number(d[valueKey]) || 0), 1)
 
@@ -57,6 +59,7 @@ function RankTable({ rows, labelKey, countKey, emptyText }: { rows: Array<Record
 }
 
 export function InsightsPage() {
+  const { t } = useTranslation(['insights', 'common'])
   const { stats, isLoading, error, fetchStats } = useInsightsStore()
   const { user } = useAuthStore()
   const { datePreset, pickedUpFilter, myFilter, cleanupFilter } = useInsightsFilterStore()
@@ -77,11 +80,11 @@ export function InsightsPage() {
   }, [fetchStats, teamId, cleanupId, cleanupDateId, datePreset, pickedUpFilter, myFilter, user?.id])
 
   const scopeLabel = user?.active_team_name
-    ? `${user.active_team_name} Insights`
-    : 'Community Overview'
+    ? t('scope.team', { team: user.active_team_name })
+    : t('scope.community')
 
   if (isLoading && !stats) {
-    return <div className="insights-page"><p className="loading">Loading insights...</p></div>
+    return <div className="insights-page"><p className="loading">{t('loading')}</p></div>
   }
 
   if (error && !stats) {
@@ -99,64 +102,64 @@ export function InsightsPage() {
         <div className="insights-summary-grid">
           <article className="insights-stat-card">
             <span className="insights-stat-value">{formatNumber(summary.totalCleanups)}</span>
-            <span className="insights-stat-label">Cleanups</span>
+            <span className="insights-stat-label">{t('summary.cleanups')}</span>
           </article>
           <article className="insights-stat-card">
             <span className="insights-stat-value">{formatNumber(summary.totalUsers)}</span>
-            <span className="insights-stat-label">Users</span>
+            <span className="insights-stat-label">{t('summary.users')}</span>
           </article>
           <article className="insights-stat-card">
             <span className="insights-stat-value">{formatNumber(summary.totalTeams)}</span>
-            <span className="insights-stat-label">Teams</span>
+            <span className="insights-stat-label">{t('summary.teams')}</span>
           </article>
           <article className="insights-stat-card">
             <span className="insights-stat-value">{formatNumber(summary.totalSpots)}</span>
-            <span className="insights-stat-label">Spots</span>
+            <span className="insights-stat-label">{t('summary.spots')}</span>
           </article>
           <article className="insights-stat-card">
             <span className="insights-stat-value">{formatNumber(summary.totalItems)}</span>
-            <span className="insights-stat-label">Items Detected</span>
+            <span className="insights-stat-label">{t('summary.itemsDetected')}</span>
           </article>
           <article className="insights-stat-card">
             <span className="insights-stat-value">{formatWeight(summary.estimatedWeightGrams)}</span>
-            <span className="insights-stat-label">Weight (Estimate)</span>
+            <span className="insights-stat-label">{t('summary.weightEstimate')}</span>
           </article>
         </div>
       </fieldset>
 
       <fieldset className="page-card">
-        <legend>Spots Over Time</legend>
+        <legend>{t('charts.spotsOverTime')}</legend>
         <BarChart data={timeSeries.spots} valueKey="count" />
       </fieldset>
 
       <fieldset className="page-card">
-        <legend>Items Detected Over Time</legend>
+        <legend>{t('charts.itemsOverTime')}</legend>
         <BarChart data={timeSeries.items} valueKey="count" />
       </fieldset>
 
       <fieldset className="page-card">
-        <legend>Estimated Weight Over Time</legend>
+        <legend>{t('charts.weightOverTime')}</legend>
         <BarChart data={timeSeries.estimatedWeightGrams} valueKey="total" />
       </fieldset>
 
       <fieldset className="page-card">
-        <legend>Cleanups Over Time</legend>
+        <legend>{t('charts.cleanupsOverTime')}</legend>
         <BarChart data={timeSeries.cleanups} valueKey="count" />
       </fieldset>
 
       <fieldset className="page-card">
-        <legend>Top Objects</legend>
-        <RankTable rows={spotStats.topObjects} labelKey="object" countKey="count" emptyText="No objects detected yet" />
+        <legend>{t('ranks.topObjects')}</legend>
+        <RankTable rows={spotStats.topObjects} labelKey="object" countKey="count" emptyText={t('ranks.noObjects')} />
       </fieldset>
 
       <fieldset className="page-card">
-        <legend>Top Materials</legend>
-        <RankTable rows={spotStats.topMaterials} labelKey="material" countKey="count" emptyText="No materials detected yet" />
+        <legend>{t('ranks.topMaterials')}</legend>
+        <RankTable rows={spotStats.topMaterials} labelKey="material" countKey="count" emptyText={t('ranks.noMaterials')} />
       </fieldset>
 
       <fieldset className="page-card">
-        <legend>Top Brands</legend>
-        <RankTable rows={spotStats.topBrands} labelKey="brand" countKey="count" emptyText="No brands detected yet" />
+        <legend>{t('ranks.topBrands')}</legend>
+        <RankTable rows={spotStats.topBrands} labelKey="brand" countKey="count" emptyText={t('ranks.noBrands')} />
       </fieldset>
     </div>
   )

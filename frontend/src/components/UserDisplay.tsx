@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 import { suggestNicknameFromEmail } from '../lib/nicknameSuggestion'
 import { Avatar } from './Avatar'
@@ -20,6 +21,7 @@ export function UserDisplay({
   showAvatar?: boolean
   editableIfPlaceholder?: boolean
 }) {
+  const { t } = useTranslation(['teams', 'common'])
   const currentUser = useAuthStore((state) => state.user)
   const updateProfile = useAuthStore((state) => state.updateProfile)
   const clearError = useAuthStore((state) => state.clearError)
@@ -101,8 +103,8 @@ export function UserDisplay({
             onKeyDown={handleKeyDown}
             onBlur={() => void commit()}
             disabled={saving}
-            placeholder="Your name"
-            aria-label="Nickname"
+            placeholder={t('display.namePlaceholder')}
+            aria-label={t('display.nicknameLabel')}
             className="user-display-edit-input"
           />
           {localError && <span className="user-display-edit-error">{localError}</span>}

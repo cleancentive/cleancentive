@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation, Trans } from 'react-i18next'
 import { useParams, useNavigate } from 'react-router-dom'
 import { BackLink } from './BackLink'
 import { v7 as uuidv7 } from 'uuid'
@@ -18,6 +19,7 @@ import { DateForm } from './cleanup/DateForm'
 import { CleanupHeaderCard } from './cleanup/CleanupHeaderCard'
 
 export function CleanupDetail() {
+  const { t } = useTranslation(['cleanups', 'common'])
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user, getCalendarUrls } = useAuthStore()
@@ -94,13 +96,13 @@ export function CleanupDetail() {
   } = useCleanupSelection(dates)
 
   if (isLoading) {
-    return <div className="community-detail"><p className="loading">Loading...</p></div>
+    return <div className="community-detail"><p className="loading">{t('common:actions.loading')}</p></div>
   }
 
   if (error || !currentCleanup) {
     return (
       <div className="community-detail">
-        <p className="error-text">{error || 'Cleanup not found'}</p>
+        <p className="error-text">{error || t('cleanups:detail.notFound')}</p>
         <BackLink to="/cleanups" fallbackNoun="cleanups" />
       </div>
     )
@@ -205,8 +207,8 @@ export function CleanupDetail() {
       />
 
       <fieldset className="page-card">
-        <legend>Dates ({dates.length})</legend>
-        {dates.length === 0 && <p className="end-of-list">No dates scheduled</p>}
+        <legend>{t('cleanups:detail.dates', { count: dates.length })}</legend>
+        {dates.length === 0 && <p className="end-of-list">{t('cleanups:detail.noDates')}</p>}
 
         {isOrganizer && selectedDateIds.size > 0 && (
           <BulkDateActions
@@ -235,7 +237,7 @@ export function CleanupDetail() {
                 <DateForm
                   form={form}
                   onSubmit={handleUpdateDate}
-                  submitLabel="Save"
+                  submitLabel={t('common:actions.save')}
                   onCancel={() => { setEditDateId(null); form.reset() }}
                   isOnline={isOnline}
                 />
@@ -270,13 +272,13 @@ export function CleanupDetail() {
         {isOrganizer && (
           <>
             <button className="link-button" onClick={() => { setShowAddDate(!showAddDate); setEditDateId(null); if (!showAddDate) form.reset() }}>
-              {showAddDate ? 'Cancel' : '+ Add date'}
+              {showAddDate ? t('common:actions.cancel') : t('cleanups:detail.addDate')}
             </button>
             {showAddDate && (
               <DateForm
                 form={form}
                 onSubmit={handleAddDate}
-                submitLabel="Add Date"
+                submitLabel={t('cleanups:detail.addDateSubmit')}
                 onCancel={() => { setShowAddDate(false); form.reset() }}
                 showRepeat
                 isOnline={isOnline}
@@ -287,7 +289,7 @@ export function CleanupDetail() {
       </fieldset>
 
       <fieldset className="page-card">
-        <legend>Participants ({participants.length})</legend>
+        <legend>{t('cleanups:detail.participants', { count: participants.length })}</legend>
         <MemberList
           members={participants}
           canPromote={isOrganizer}
@@ -298,7 +300,7 @@ export function CleanupDetail() {
 
       {isParticipant && (
         <fieldset className="page-card">
-          <legend>Messages</legend>
+          <legend>{t('cleanups:detail.messages')}</legend>
           <MessageBoard
             messages={messages}
             onPost={(audience, subject, body, ccSender) => postMessage(id!, audience, subject, body, ccSender)}
@@ -311,43 +313,58 @@ export function CleanupDetail() {
 
       {showArchiveConfirm && (
         <ConfirmDialog
-          title="Archive Cleanup"
+          title={t('cleanups:detail.archive.title')}
           actions={
             <>
-              <button className="secondary-button" onClick={() => setShowArchiveConfirm(false)}>Cancel</button>
-              <button className="danger-button" onClick={handleArchive}>Archive</button>
+              <button className="secondary-button" onClick={() => setShowArchiveConfirm(false)}>{t('common:actions.cancel')}</button>
+              <button className="danger-button" onClick={handleArchive}>{t('cleanups:detail.archive.confirm')}</button>
             </>
           }
         >
-          <p>Are you sure you want to archive <strong>{cleanup.name}</strong>? This will deactivate the cleanup for all participants.</p>
+          <p>
+            <Trans
+              t={t}
+              i18nKey="cleanups:header.archiveConfirmBody"
+              values={{ name: cleanup.name }}
+              components={{ strong: <strong /> }}
+            />
+          </p>
         </ConfirmDialog>
       )}
 
       {deleteDateId && (
         <ConfirmDialog
-          title="Delete Date"
+          title={t('cleanups:detail.deleteDate.title')}
           actions={
             <>
-              <button className="secondary-button" onClick={() => setDeleteDateId(null)}>Cancel</button>
-              <button className="danger-button" onClick={handleDeleteDate}>Delete</button>
+              <button className="secondary-button" onClick={() => setDeleteDateId(null)}>{t('common:actions.cancel')}</button>
+              <button className="danger-button" onClick={handleDeleteDate}>{t('common:actions.delete')}</button>
             </>
           }
         >
-          <p>Are you sure you want to delete this date? Users with this date active will be deactivated.</p>
+          <p>{t('cleanups:detail.deleteDate.body')}</p>
         </ConfirmDialog>
       )}
 
       {showBulkDeleteConfirm && (
         <ConfirmDialog
-          title="Delete Dates"
+          title={t('cleanups:detail.deleteDates.title')}
           actions={
             <>
-              <button className="secondary-button" onClick={() => setShowBulkDeleteConfirm(false)}>Cancel</button>
-              <button className="danger-button" onClick={handleBulkDelete}>Delete {selectedDateIds.size} date{selectedDateIds.size > 1 ? 's' : ''}</button>
+              <button className="secondary-button" onClick={() => setShowBulkDeleteConfirm(false)}>{t('common:actions.cancel')}</button>
+              <button className="danger-button" onClick={handleBulkDelete}>{t('cleanups:detail.deleteDates.button', { count: selectedDateIds.size })}</button>
             </>
           }
         >
-          <p>Are you sure you want to delete <strong>{selectedDateIds.size}</strong> date{selectedDateIds.size > 1 ? 's' : ''}? Users with these dates active will be deactivated.</p>
+          <p>
+            <Trans
+              t={t}
+              i18nKey="cleanups:detail.deleteDates.body"
+              count={selectedDateIds.size}
+              values={{ count: selectedDateIds.size }}
+              components={{ strong: <strong /> }}
+            />
+          </p>
         </ConfirmDialog>
       )}
     </div>

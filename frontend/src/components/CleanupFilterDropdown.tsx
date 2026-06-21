@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import axios from 'axios'
 import { useAuthStore } from '../stores/authStore'
 import { useInsightsFilterStore, type CleanupFilter } from '../stores/insightsFilterStore'
@@ -51,12 +53,12 @@ function ChevronLeft() {
   )
 }
 
-function triggerLabel(filter: CleanupFilter, items: CleanupListItem[]): string {
-  if (!filter) return 'All'
+function triggerLabel(filter: CleanupFilter, items: CleanupListItem[], t: TFunction): string {
+  if (!filter) return t('cleanups:filter.all')
   // Prefer the freshly-loaded cleanup name over the filter's stored name —
   // matters when the filter was hydrated from a URL with an empty placeholder.
   const cleanup = items.find(i => i.cleanup.id === filter.cleanupId)
-  const name = cleanup?.cleanup.name || filter.cleanupName || 'Cleanup'
+  const name = cleanup?.cleanup.name || filter.cleanupName || t('common:domain.cleanup')
   if (filter.kind === 'cleanup') return name
   const date = cleanup?.dates.find(d => d.id === filter.cleanupDateId)
   if (!date) return name
@@ -64,6 +66,7 @@ function triggerLabel(filter: CleanupFilter, items: CleanupListItem[]): string {
 }
 
 export function CleanupFilterDropdown({ disabled }: { disabled?: boolean }) {
+  const { t } = useTranslation(['cleanups', 'common'])
   const { sessionToken } = useAuthStore()
   const { cleanupFilter, setCleanupFilter } = useInsightsFilterStore()
 
@@ -188,7 +191,7 @@ export function CleanupFilterDropdown({ disabled }: { disabled?: boolean }) {
     ? items.find(i => i.cleanup.id === drilldownCleanupId)
     : null
 
-  const triggerText = triggerLabel(cleanupFilter, items)
+  const triggerText = triggerLabel(cleanupFilter, items, t)
   const isActive = !!cleanupFilter
   const isDisabled = !!disabled
 
@@ -201,25 +204,25 @@ export function CleanupFilterDropdown({ disabled }: { disabled?: boolean }) {
               className={`cleanup-filter-scope-btn${scope === 'mine' ? ' cleanup-filter-scope-btn--active' : ''}`}
               onClick={() => setScope('mine')}
               type="button"
-            >Mine</button>
+            >{t('cleanups:filter.scopeMine')}</button>
             <button
               className={`cleanup-filter-scope-btn${scope === 'all' ? ' cleanup-filter-scope-btn--active' : ''}`}
               onClick={() => setScope('all')}
               type="button"
-            >All</button>
+            >{t('cleanups:filter.scopeAll')}</button>
           </div>
           <button
             className={`cleanup-filter-row${!cleanupFilter ? ' cleanup-filter-row--active' : ''}`}
             onClick={() => applyAndClose(null)}
             type="button"
           >
-            <span className="cleanup-filter-row-name">All cleanups</span>
+            <span className="cleanup-filter-row-name">{t('cleanups:filter.allCleanups')}</span>
           </button>
           {isLoading && items.length === 0 && (
-            <div className="cleanup-filter-status">Loading…</div>
+            <div className="cleanup-filter-status">{t('cleanups:filter.loading')}</div>
           )}
           {!isLoading && items.length === 0 && (
-            <div className="cleanup-filter-status">No cleanups</div>
+            <div className="cleanup-filter-status">{t('cleanups:filter.noCleanups')}</div>
           )}
           {items.map(item => {
             const isCurrent = cleanupFilter?.cleanupId === item.cleanup.id
@@ -234,7 +237,7 @@ export function CleanupFilterDropdown({ disabled }: { disabled?: boolean }) {
                 <span className="cleanup-filter-row-name">{item.cleanup.name}</span>
                 {dateCount > 1 && (
                   <span className="cleanup-filter-row-meta">
-                    {dateCount} dates
+                    {t('cleanups:filter.dates', { count: dateCount })}
                     <ChevronRight />
                   </span>
                 )}
@@ -267,7 +270,7 @@ export function CleanupFilterDropdown({ disabled }: { disabled?: boolean }) {
             })}
             type="button"
           >
-            <span className="cleanup-filter-row-name">All dates</span>
+            <span className="cleanup-filter-row-name">{t('cleanups:filter.allDates')}</span>
             <span className="cleanup-filter-row-meta cleanup-filter-row-meta--muted">{drilldownItem.dates.length}</span>
           </button>
           {drilldownItem.dates.map(d => {
@@ -304,7 +307,7 @@ export function CleanupFilterDropdown({ disabled }: { disabled?: boolean }) {
         disabled={isDisabled}
         type="button"
       >
-        <span className="context-dropdown-label">Cleanup:</span>
+        <span className="context-dropdown-label">{t('cleanups:filter.label')}</span>
         <span className="context-dropdown-value">{triggerText}</span>
         <ChevronDown />
       </button>
@@ -321,8 +324,8 @@ export function CleanupFilterDropdown({ disabled }: { disabled?: boolean }) {
           <div className="cleanup-filter-sheet" role="dialog" aria-modal="true">
             <div className="cleanup-filter-sheet-handle" />
             <div className="cleanup-filter-sheet-header">
-              <span>Cleanup</span>
-              <button className="cleanup-filter-sheet-close" onClick={close} aria-label="Close" type="button">×</button>
+              <span>{t('common:domain.cleanup')}</span>
+              <button className="cleanup-filter-sheet-close" onClick={close} aria-label={t('cleanups:filter.sheetClose')} type="button">×</button>
             </div>
             <div className="cleanup-filter-sheet-body">
               {panel}

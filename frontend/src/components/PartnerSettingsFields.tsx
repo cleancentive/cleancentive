@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation, Trans } from 'react-i18next'
 import { useTeamStore } from '../stores/teamStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 
@@ -21,6 +22,7 @@ function generateCss(colors: { primary: string | null; accent: string | null }, 
 }
 
 export function PartnerSettingsFields({ patterns, onPatternsChange, customCss, onCustomCssChange, onNameSuggestion, onDescriptionSuggestion }: Props) {
+  const { t } = useTranslation(['teams', 'common'])
   const { importPartnerUrl } = useTeamStore()
   const { isOnline } = useConnectivityStore()
   const [importUrl, setImportUrl] = useState('')
@@ -42,14 +44,14 @@ export function PartnerSettingsFields({ patterns, onPatternsChange, customCss, o
   return (
     <>
       <div className="form-group">
-        <label>Import from URL</label>
+        <label>{t('partner.importLabel')}</label>
         <div className="import-url-row">
           <input
             type="url"
             className="full-width"
             value={importUrl}
             onChange={(e) => setImportUrl(e.target.value)}
-            placeholder="https://www.baloise.ch/"
+            placeholder={t('partner.importPlaceholder')}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleImport() } }}
           />
           <button
@@ -58,14 +60,14 @@ export function PartnerSettingsFields({ patterns, onPatternsChange, customCss, o
             disabled={!isOnline || importing || !importUrl.trim()}
             onClick={handleImport}
           >
-            {importing ? 'Importing...' : 'Import'}
+            {importing ? t('partner.importing') : t('partner.import')}
           </button>
         </div>
-        <small>Enter a company website to auto-detect email domain, colors, and favicon.</small>
+        <small>{t('partner.importHint')}</small>
       </div>
 
       <div className="form-group">
-        <label htmlFor="email-patterns">Email Patterns (one per line)</label>
+        <label htmlFor="email-patterns">{t('partner.patternsLabel')}</label>
         <textarea
           id="email-patterns"
           className="full-width"
@@ -74,11 +76,13 @@ export function PartnerSettingsFields({ patterns, onPatternsChange, customCss, o
           placeholder={'helvetia.com\n(helvetia|baloise).ch\nadmin_.*@cleancentive\\..*'}
           rows={5}
         />
-        <small>Plain domains (e.g. <code>helvetia.com</code>) or regex patterns. Leave empty for a regular team.</small>
+        <small>
+          <Trans t={t} i18nKey="partner.patternsHint" components={{ code: <code /> }} />
+        </small>
       </div>
 
       <div className="form-group">
-        <label htmlFor="custom-css">Custom CSS</label>
+        <label htmlFor="custom-css">{t('partner.customCssLabel')}</label>
         <textarea
           id="custom-css"
           className="full-width mono"

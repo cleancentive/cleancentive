@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useUiStore } from '../stores/uiStore'
@@ -61,6 +62,7 @@ function LogoutIcon() {
 }
 
 export function UserMenuButton() {
+  const { t } = useTranslation(['shell', 'common'])
   const { user, logout } = useAuthStore()
   const { openSignInModal, openAboutModal, pickCount } = useUiStore()
   const [open, setOpen] = useState(false)
@@ -113,7 +115,7 @@ export function UserMenuButton() {
       <button
         className={`user-menu-button user-menu-button--icon${pickCount > 0 ? ' user-menu-button--cta' : ''}`}
         onClick={openSignInModal}
-        aria-label="Sign in"
+        aria-label={t('userMenu.signInLabel')}
       >
         <UserIcon size={20} />
       </button>
@@ -126,7 +128,7 @@ export function UserMenuButton() {
       <button
         className="user-menu-button"
         onClick={() => setOpen(!open)}
-        aria-label="User menu"
+        aria-label={t('userMenu.menuLabel')}
         aria-expanded={open}
       >
         <Avatar
@@ -156,40 +158,40 @@ export function UserMenuButton() {
             onClick={() => { setOpen(false); navigate('/profile') }}
           >
             <UserIcon />
-            Profile
+            {t('userMenu.profile')}
           </button>
           <button
             className="user-menu-dropdown-item"
             onClick={() => { setOpen(false); navigate('/feedback') }}
           >
             <FeedbackIcon />
-            My Feedback
+            {t('userMenu.myFeedback')}
           </button>
           <button
             className="user-menu-dropdown-item"
             onClick={() => { setOpen(false); setCopyStatus('idle'); setShareQrOpen(true) }}
           >
             <QrCodeIcon />
-            Share
+            {t('userMenu.share')}
           </button>
           <button
             className="user-menu-dropdown-item"
             onClick={() => { setOpen(false); openAboutModal() }}
           >
             <InfoIcon />
-            About
+            {t('userMenu.about')}
           </button>
           {(user.active_team_name || user.active_cleanup_name) && (
             <>
               <div className="user-menu-dropdown-divider" />
               {user.active_team_name && (
                 <div className="user-menu-dropdown-context">
-                  <span className="user-menu-context-label">Team:</span> {user.active_team_name}
+                  <span className="user-menu-context-label">{t('userMenu.teamLabel')}</span> {user.active_team_name}
                 </div>
               )}
               {user.active_cleanup_name && (
                 <div className="user-menu-dropdown-context">
-                  <span className="user-menu-context-label">Cleanup:</span> {user.active_cleanup_name}
+                  <span className="user-menu-context-label">{t('userMenu.cleanupLabel')}</span> {user.active_cleanup_name}
                 </div>
               )}
             </>
@@ -200,21 +202,21 @@ export function UserMenuButton() {
             onClick={() => { setOpen(false); logout() }}
           >
             <LogoutIcon />
-            Sign Out
+            {t('common:actions.signOut')}
           </button>
         </div>
       )}
       {shareQrOpen && (
         <div className="share-qr-modal-overlay" role="presentation" onClick={() => setShareQrOpen(false)}>
           <div className="share-qr-dialog" role="dialog" aria-modal="true" aria-labelledby="share-qr-title" onClick={(e) => e.stopPropagation()}>
-            <button className="share-qr-close" onClick={() => setShareQrOpen(false)} aria-label="Close QR code dialog">×</button>
-            <h2 id="share-qr-title">Share CleanCentive</h2>
+            <button className="share-qr-close" onClick={() => setShareQrOpen(false)} aria-label={t('shareQr.closeLabel')}>×</button>
+            <h2 id="share-qr-title">{t('shareQr.title')}</h2>
             <div className="share-qr-code" dangerouslySetInnerHTML={{ __html: qrCodeSvg }} />
             <button className="share-qr-url" onClick={handleCopyInstanceUrl} type="button">
               <span>{instanceUrl}</span>
             </button>
             <p className="share-qr-copy-status" aria-live="polite">
-              {copyStatus === 'copied' ? 'Copied to clipboard' : copyStatus === 'failed' ? 'Copy failed' : 'Tap URL to copy'}
+              {copyStatus === 'copied' ? t('common:status.copied') : copyStatus === 'failed' ? t('common:status.copyFailed') : t('shareQr.tapToCopy')}
             </p>
           </div>
         </div>

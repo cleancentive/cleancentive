@@ -1,0 +1,76 @@
+{
+  "signInPrompt": "Connectez-vous pour voir et modifier votre profil.",
+  "guestData": {
+    "button": "Supprimer les données invité",
+    "title": "Supprimer les données invité",
+    "deleteAll": "Supprimer toutes les données",
+    "forgetLocally": "M’oublier seulement localement",
+    "prompt": "Choisissez ce qu’il advient de vos ramassages :"
+  },
+  "name": {
+    "legend": "Nom",
+    "nicknameField": "Pseudo *",
+    "nicknamePlaceholder": "Choisissez un pseudo unique",
+    "fullNameField": "Nom complet",
+    "fullNamePlaceholder": "Votre nom complet (facultatif)",
+    "suggested": "Suggestion : {{value}}",
+    "nicknameLabel": "Pseudo :",
+    "fullNameLabel": "Nom complet :",
+    "editProfile": "Modifier le profil"
+  },
+  "language": {
+    "legend": "Langue",
+    "hint": "Langue de l’application et des e-mails. Laissez sur Automatique pour utiliser les paramètres de votre navigateur.",
+    "automatic": "Automatique (navigateur)",
+    "en": "English",
+    "de": "Deutsch",
+    "fr": "Français"
+  },
+  "picture": {
+    "legend": "Photo",
+    "uploading": "Envoi en cours...",
+    "replacePhoto": "Remplacer la photo",
+    "uploadPhoto": "Téléverser une photo",
+    "removePhoto": "Supprimer la photo",
+    "uploadFailed": "Échec du téléversement de l’avatar",
+    "gravatarHint": "Ou utilisez <gravatar>Gravatar</gravatar> — définissez une photo une fois, et elle apparaît partout où votre e-mail est reconnu. Votre e-mail est haché avant la recherche et n’est jamais exposé aux autres utilisateurs.",
+    "uploadedHint": "Vous avez une photo téléversée. Supprimez-la pour utiliser Gravatar.",
+    "noGravatar": "Pas de Gravatar"
+  },
+  "emails": {
+    "legend": "E-mails",
+    "loginTitle": "Recevoir les liens magiques à cette adresse",
+    "login": "connexion",
+    "calendarTitle": "Recevoir les invitations aux nettoyages à cette adresse",
+    "calendar": "agenda",
+    "removeTitle": "Supprimer l’e-mail",
+    "addPlaceholder": "Ajouter un autre e-mail",
+    "verificationSent": "E-mail de vérification envoyé ! Vérifiez votre boîte de réception.",
+    "alreadyYours": "Cet e-mail est déjà sur votre compte.",
+    "mergeSent": "Demande de fusion envoyée ! Le propriétaire du compte doit confirmer par e-mail."
+  },
+  "calendar": {
+    "legend": "Agenda",
+    "hint": "Gardez votre agenda personnel synchronisé avec les nettoyages que vous rejoignez. Abonnez-vous une fois et les mises à jour apparaissent automatiquement — lors du premier chargement du flux, nous désactiverons discrètement les e-mails d’agenda ci-dessus. Recochez un e-mail pour recevoir à nouveau les invitations.",
+    "joined": "Mes nettoyages rejoints",
+    "discover": "Découvrir (à venir, non rejoints)",
+    "copied": "Copié !",
+    "instructions": "Ajoutez le lien dans Google Agenda → Autres agendas → À partir de l’URL, Apple Calendrier → Fichier → Nouvel abonnement à un calendrier, ou Outlook → Ajouter un calendrier → S’abonner à partir du web."
+  },
+  "merge": {
+    "title": "L’e-mail appartient à un autre compte",
+    "send": "Envoyer la demande de fusion",
+    "body": "Cet e-mail appartient au compte « {{nickname}} ». L’ajouter lui enverra une demande de fusion. S’il confirme, ses données fusionnent avec les vôtres et son compte est supprimé."
+  },
+  "removeLastEmail": {
+    "title": "Supprimer le dernier e-mail",
+    "body": "C’est votre seule adresse e-mail. La supprimer déconnectera votre compte. Choisissez ce qu’il advient de vos données :"
+  },
+  "deleteAccount": {
+    "button": "Supprimer le compte",
+    "title": "Supprimer le compte",
+    "deleteAll": "Supprimer toutes les données",
+    "onlyPersonal": "Supprimer seulement les infos personnelles",
+    "body": "Cette action est irréversible. Choisissez ce qu’il advient de vos données :"
+  }
+}

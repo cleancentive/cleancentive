@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useCleanupStore } from '../stores/cleanupStore'
 import { useAuthStore } from '../stores/authStore'
@@ -33,9 +34,9 @@ function durationHours(startAt: string, endAt: string): number | null {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'ongoing' as const, label: 'Ongoing' },
-  { value: 'future' as const, label: 'Future' },
-  { value: 'past' as const, label: 'Past' },
+  { value: 'ongoing' as const },
+  { value: 'future' as const },
+  { value: 'past' as const },
 ]
 
 function formatDateRange(startAt: string, endAt: string): string {
@@ -49,6 +50,7 @@ function formatDateRange(startAt: string, endAt: string): string {
 }
 
 export function CleanupList() {
+  const { t } = useTranslation(['cleanups', 'common'])
   const { user } = useAuthStore()
   const { isOnline } = useConnectivityStore()
   const { cleanups, cleanupCounts, statusFilter, isLoading, error, searchCleanups, createCleanup, toggleStatusFilter, clearError } = useCleanupStore()
@@ -116,20 +118,20 @@ export function CleanupList() {
 
   return (
     <CommunityList
-      title="Cleanups"
+      title={t('cleanups:list.title')}
       count={visibleCleanups.length}
-      searchPlaceholder="Search cleanups..."
+      searchPlaceholder={t('cleanups:list.searchPlaceholder')}
       onSearchChange={handleSearch}
       isLoading={isLoading}
       error={error}
       hideSearch={showCreate}
       onClearError={clearError}
-      emptyMessage="No cleanups found"
+      emptyMessage={t('cleanups:list.empty')}
       isEmpty={visibleCleanups.length === 0}
       actions={
         user && (
           <button className="primary-button" onClick={handleToggleCreate}>
-            {showCreate ? 'Cancel' : 'Create Cleanup'}
+            {showCreate ? t('common:actions.cancel') : t('cleanups:list.create')}
           </button>
         )
       }
@@ -143,7 +145,7 @@ export function CleanupList() {
                 className={`filter-pill ${statusFilter.has(opt.value) ? 'filter-pill--active' : ''}`}
                 onClick={() => handleStatusToggle(opt.value)}
               >
-                {opt.label}{count != null ? ` (${count})` : ''}
+                {t(`cleanups:list.status.${opt.value}`)}{count != null ? ` (${count})` : ''}
               </button>
             )
           })}
@@ -154,16 +156,16 @@ export function CleanupList() {
         <form className="community-create-form" onSubmit={handleCreate}>
           <ProfileHintBanner surface="cleanup-create" />
           <div className="form-group">
-            <label htmlFor="cleanup-name">Name</label>
-            <input id="cleanup-name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Saturday Park Cleanup" required />
+            <label htmlFor="cleanup-name">{t('cleanups:createForm.nameLabel')}</label>
+            <input id="cleanup-name" type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('cleanups:createForm.namePlaceholder')} required />
           </div>
           <div className="form-group">
-            <label htmlFor="cleanup-description">Description</label>
-            <textarea id="cleanup-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this cleanup about?" rows={10} />
+            <label htmlFor="cleanup-description">{t('cleanups:createForm.descriptionLabel')}</label>
+            <textarea id="cleanup-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('cleanups:createForm.descriptionPlaceholder')} rows={10} />
           </div>
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="cleanup-start">Start</label>
+              <label htmlFor="cleanup-start">{t('cleanups:createForm.startLabel')}</label>
               <input
                 id="cleanup-start"
                 type="datetime-local"
@@ -175,7 +177,7 @@ export function CleanupList() {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="cleanup-end">End</label>
+              <label htmlFor="cleanup-end">{t('cleanups:createForm.endLabel')}</label>
               <input
                 id="cleanup-end"
                 type="datetime-local"
@@ -190,7 +192,7 @@ export function CleanupList() {
           {(() => {
             const hours = durationHours(startAt, endAt)
             return hours !== null && hours > 0 && hours < 2 ? (
-              <p className="form-warning">Duration is less than 2 hours. Are you sure?</p>
+              <p className="form-warning">{t('cleanups:createForm.shortDurationWarning')}</p>
             ) : null
           })()}
           <LocationPicker
@@ -202,7 +204,7 @@ export function CleanupList() {
             onLocationNameChange={setLocationName}
           />
           <button type="submit" className="primary-button" disabled={isLoading || !isOnline}>
-            {isLoading ? 'Creating...' : 'Create'}
+            {isLoading ? t('cleanups:createForm.creating') : t('cleanups:createForm.submit')}
           </button>
         </form>
       )}
@@ -221,8 +223,8 @@ export function CleanupList() {
             description={cleanup.description}
             tags={
               <>
-                {userRole && <span className={`badge ${userRole === 'admin' ? 'admin-badge' : ''}`}>{userRole}</span>}
-                {isActive && <span className="badge" style={{ background: 'var(--color-badge-active)' }}>Active</span>}
+                {userRole && <span className={`badge ${userRole === 'admin' ? 'admin-badge' : ''}`}>{userRole === 'organizer' ? t('common:domain.organizer') : userRole === 'member' ? t('cleanups:members.roleMember') : userRole}</span>}
+                {isActive && <span className="badge" style={{ background: 'var(--color-badge-active)' }}>{t('cleanups:list.badge.active')}</span>}
               </>
             }
             meta={nearestDate && (

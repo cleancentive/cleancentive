@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { API_BASE } from '../../lib/apiBase'
 import { formatDateRange } from '../../utils/datetime'
 
@@ -50,6 +51,7 @@ export function DateCard({
   onEdit,
   onDelete,
 }: DateCardProps) {
+  const { t } = useTranslation(['cleanups', 'common'])
   return (
     <div
       className={`cleanup-date-card ${ongoing ? 'cleanup-date-card--ongoing' : ''} ${isSelected ? 'cleanup-date-card--selected' : ''} ${isGlowing ? 'cleanup-date-card--glow' : ''}`}
@@ -73,31 +75,31 @@ export function DateCard({
       <div className="cleanup-date-info">
         <strong>{formatDateRange(date.start_at, date.end_at)}</strong>
         {date.location_name && <span className="cleanup-date-location"> · {date.location_name}</span>}
-        {ongoing && <span className="badge" style={{ marginLeft: '0.5rem' }}>Ongoing</span>}
-        {isActive && <span className="badge admin-badge" style={{ marginLeft: '0.25rem' }}>Active</span>}
+        {ongoing && <span className="badge" style={{ marginLeft: '0.5rem' }}>{t('cleanups:dateCard.ongoing')}</span>}
+        {isActive && <span className="badge admin-badge" style={{ marginLeft: '0.25rem' }}>{t('cleanups:dateCard.active')}</span>}
       </div>
       <div className="cleanup-date-actions">
         {isParticipant && ongoing && !isActive && (
           <button className="secondary-button" onClick={onActivate} disabled={!isOnline}>
-            Activate
+            {t('cleanups:dateCard.activate')}
           </button>
         )}
         {isParticipant && isActive && (
           <button className="secondary-button" onClick={onDeactivate} disabled={!isOnline}>
-            Deactivate
+            {t('cleanups:dateCard.deactivate')}
           </button>
         )}
         <a
           className="link-button"
           href={`${API_BASE}/calendar/cleanup-dates/${date.id}.ics`}
-          title="Download .ics for this date"
+          title={t('cleanups:dateCard.downloadIcsTitle')}
         >
-          Add to calendar
+          {t('cleanups:dateCard.addToCalendar')}
         </a>
         {isOrganizer && (
           <>
-            <button className="link-button" onClick={onEdit}>Edit</button>
-            <button className="link-button danger-text" onClick={onDelete}>Delete</button>
+            <button className="link-button" onClick={onEdit}>{t('common:actions.edit')}</button>
+            <button className="link-button danger-text" onClick={onDelete}>{t('common:actions.delete')}</button>
           </>
         )}
       </div>

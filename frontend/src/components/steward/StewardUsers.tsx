@@ -1,9 +1,11 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { useAdminStore } from '../../stores/adminStore'
 import { Avatar } from '../Avatar'
 
 export function StewardUsers() {
+  const { t } = useTranslation(['steward', 'common'])
   const users = useAdminStore((s) => s.users)
   const total = useAdminStore((s) => s.total)
   const sort = useAdminStore((s) => s.sort)
@@ -54,17 +56,17 @@ export function StewardUsers() {
 
   return (
     <fieldset className="page-card user-admin-panel">
-      <legend>Users</legend>
+      <legend>{t('users.legend')}</legend>
       <div className="user-admin-header">
         <div>
-          <p>{total} total</p>
+          <p>{t('users.total', { count: total })}</p>
         </div>
       </div>
 
       <div className="admin-controls">
         <input
           type="text"
-          placeholder="Search users by name or email..."
+          placeholder={t('users.searchPlaceholder')}
           value={searchInput}
           onChange={(e) => handleSearchChange(e.target.value)}
           className="search-input"
@@ -72,18 +74,18 @@ export function StewardUsers() {
 
         <div className="sort-controls">
           <label>
-            Sort by:
+            {t('users.sortBy')}
             <select value={sort} onChange={(e) => setSort(e.target.value as any)}>
-              <option value="created_at">Created</option>
-              <option value="last_login">Last Login</option>
+              <option value="created_at">{t('users.sortCreated')}</option>
+              <option value="last_login">{t('users.sortLastLogin')}</option>
             </select>
           </label>
 
           <label>
-            Order:
+            {t('users.order')}
             <select value={order} onChange={(e) => setOrder(e.target.value as any)}>
-              <option value="DESC">Newest First</option>
-              <option value="ASC">Oldest First</option>
+              <option value="DESC">{t('users.orderNewest')}</option>
+              <option value="ASC">{t('users.orderOldest')}</option>
             </select>
           </label>
         </div>
@@ -102,7 +104,7 @@ export function StewardUsers() {
             <div className="user-info">
               <h3>
                 {u.nickname}
-                {u.is_admin && <span className="badge admin-badge">Admin</span>}
+                {u.is_admin && <span className="badge admin-badge">{t('users.adminBadge')}</span>}
               </h3>
               {u.full_name && <p className="full-name">{u.full_name}</p>}
               <div className="user-emails">
@@ -111,22 +113,22 @@ export function StewardUsers() {
                 ))}
               </div>
               <div className="user-meta">
-                <span>Created: {new Date(u.created_at).toLocaleDateString()}</span>
+                <span>{t('users.createdLabel', { date: new Date(u.created_at).toLocaleDateString() })}</span>
                 {u.last_login && (
-                  <span>Last Login: {new Date(u.last_login).toLocaleDateString()}</span>
+                  <span>{t('users.lastLoginLabel', { date: new Date(u.last_login).toLocaleDateString() })}</span>
                 )}
               </div>
             </div>
             <Avatar userId={u.id} avatarEmailId={u.avatar_email_id} nickname={u.nickname} size={36} />
-            <span className="view-details">View Details &rarr;</span>
+            <span className="view-details">{t('users.viewDetails')}</span>
           </Link>
         ))}
 
         <div ref={sentinelRef} className="scroll-sentinel" />
 
-        {isLoading && <p className="loading">Loading...</p>}
+        {isLoading && <p className="loading">{t('users.loading')}</p>}
         {!isLoading && !hasMore && users.length > 0 && (
-          <p className="end-of-list">All users loaded</p>
+          <p className="end-of-list">{t('users.allLoaded')}</p>
         )}
       </div>
     </fieldset>

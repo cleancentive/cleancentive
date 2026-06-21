@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { BackLink } from './BackLink'
 import { useFeedbackStore } from '../stores/feedbackStore'
 import { useAuthStore } from '../stores/authStore'
@@ -7,18 +8,21 @@ import { formatTimestamp } from '../utils/formatTimestamp'
 import { FEEDBACK_STATUS_COLORS } from '../lib/statusColors'
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation(['feedback', 'common'])
   return (
     <span className="badge" style={{ backgroundColor: FEEDBACK_STATUS_COLORS[status] || 'var(--color-status-new)', color: '#fff' }}>
-      {status.replace('_', ' ')}
+      {t(`status.${status}`, { defaultValue: status.replace('_', ' ') })}
     </span>
   )
 }
 
 function CategoryBadge({ category }: { category: string }) {
-  return <span className="badge">{category}</span>
+  const { t } = useTranslation(['feedback', 'common'])
+  return <span className="badge">{t(`category.${category}`, { defaultValue: category })}</span>
 }
 
 function FeedbackList() {
+  const { t } = useTranslation(['feedback', 'common'])
   const { myFeedback, isLoadingMine, fetchMyFeedback } = useFeedbackStore()
 
   useEffect(() => {
@@ -26,11 +30,11 @@ function FeedbackList() {
   }, [fetchMyFeedback])
 
   if (isLoadingMine) {
-    return <p className="loading">Loading your feedback...</p>
+    return <p className="loading">{t('list.loading')}</p>
   }
 
   if (myFeedback.length === 0) {
-    return <p className="end-of-list">No feedback submitted yet.</p>
+    return <p className="end-of-list">{t('list.empty')}</p>
   }
 
   return (
@@ -44,7 +48,7 @@ function FeedbackList() {
           </div>
           <p className="feedback-list-description">{f.description.slice(0, 120)}{f.description.length > 120 ? '...' : ''}</p>
           {f.responses.length > 0 && (
-            <span className="feedback-list-responses">{f.responses.length} response{f.responses.length !== 1 ? 's' : ''}</span>
+            <span className="feedback-list-responses">{t('list.responses', { count: f.responses.length })}</span>
           )}
         </Link>
       ))}
@@ -53,6 +57,7 @@ function FeedbackList() {
 }
 
 function FeedbackDetail() {
+  const { t } = useTranslation(['feedback', 'common'])
   const { id } = useParams<{ id: string }>()
   const { activeFeedback, isLoadingDetail, fetchFeedbackDetail, addResponse, error } = useFeedbackStore()
   const { user } = useAuthStore()
@@ -64,11 +69,11 @@ function FeedbackDetail() {
   }, [id, fetchFeedbackDetail])
 
   if (isLoadingDetail) {
-    return <p className="loading">Loading...</p>
+    return <p className="loading">{t('common:actions.loading')}</p>
   }
 
   if (!activeFeedback) {
-    return <p className="end-of-list">Feedback not found.</p>
+    return <p className="end-of-list">{t('detail.notFound')}</p>
   }
 
   const canReply = !!user || !!activeFeedback.contact_email
@@ -97,21 +102,21 @@ function FeedbackDetail() {
 
         {activeFeedback.error_context && (
           <details className="feedback-error-context">
-            <summary>Technical details</summary>
+            <summary>{t('detail.technicalDetails')}</summary>
             <pre className="feedback-error-details">
               {JSON.stringify(activeFeedback.error_context, null, 2)}
             </pre>
           </details>
         )}
 
-        <p className="feedback-detail-date">Submitted {formatTimestamp(activeFeedback.created_at)}</p>
+        <p className="feedback-detail-date">{t('detail.submitted', { date: formatTimestamp(activeFeedback.created_at) })}</p>
       </fieldset>
 
       <fieldset className="page-card">
-        <legend>Private conversation with CleanCentive stewards</legend>
+        <legend>{t('detail.conversationLegend')}</legend>
 
         {activeFeedback.responses.length === 0 && (
-          <p className="end-of-list">No responses yet. A steward will get back to you.</p>
+          <p className="end-of-list">{t('detail.noResponses')}</p>
         )}
 
         <div className="feedback-thread">
@@ -120,8 +125,8 @@ function FeedbackDetail() {
               <div className="feedback-thread-header">
                 <strong>
                   {r.is_from_steward
-                    ? <>{r.author_nickname || 'Steward'} <span className="badge steward-badge">Steward</span></>
-                    : 'You'
+                    ? <>{r.author_nickname || t('detail.steward')} <span className="badge steward-badge">{t('detail.steward')}</span></>
+                    : t('detail.you')
                   }
                 </strong>
                 <span className="feedback-thread-date">{formatTimestamp(r.created_at)}</span>
@@ -136,13 +141,13 @@ function FeedbackDetail() {
             <textarea
               value={replyMessage}
               onChange={(e) => setReplyMessage(e.target.value)}
-              placeholder="Write a follow-up..."
+              placeholder={t('detail.replyPlaceholder')}
               rows={2}
               required
             />
             {error && <p className="error-message">{error}</p>}
             <button type="submit" className="primary-button" disabled={isSending || !replyMessage.trim()}>
-              {isSending ? 'Sending...' : 'Reply'}
+              {isSending ? t('detail.sending') : t('detail.reply')}
             </button>
           </form>
         )}
@@ -152,11 +157,12 @@ function FeedbackDetail() {
 }
 
 export function FeedbackPage() {
+  const { t } = useTranslation(['feedback', 'common'])
   const { id } = useParams<{ id: string }>()
 
   return (
     <div className="feedback-page">
-      <h2>My Feedback</h2>
+      <h2>{t('page.title')}</h2>
       {id ? <FeedbackDetail /> : <FeedbackList />}
     </div>
   )

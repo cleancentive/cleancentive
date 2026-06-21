@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface CommunityCardProps {
   to: string
@@ -10,6 +11,7 @@ interface CommunityCardProps {
 }
 
 export function CommunityCard({ to, title, description, tags, meta }: CommunityCardProps) {
+  const { t } = useTranslation(['cleanups'])
   return (
     <Link to={to} className="community-card">
       <div className="community-card-content">
@@ -20,7 +22,7 @@ export function CommunityCard({ to, title, description, tags, meta }: CommunityC
         <p className="community-card-description">{description}</p>
         {meta && <div className="community-card-meta">{meta}</div>}
       </div>
-      <span className="view-details">View &rarr;</span>
+      <span className="view-details">{t('card.viewDetails')} &rarr;</span>
     </Link>
   )
 }

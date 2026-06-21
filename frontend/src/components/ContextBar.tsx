@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useTeamStore } from '../stores/teamStore'
@@ -7,23 +8,25 @@ import { useConnectivityStore } from '../stores/connectivityStore'
 import { useInsightsFilterStore, type CleanupFilter, type DatePreset, type PickedUpFilter, type SubjectFilter } from '../stores/insightsFilterStore'
 import { CleanupFilterDropdown } from './CleanupFilterDropdown'
 
-const PICKED_UP_PRESETS: Array<{ value: PickedUpFilter; label: string }> = [
-  { value: 'picked', label: 'Picked' },
-  { value: 'spotted', label: 'Spotted' },
-  { value: 'all', label: 'All' },
+const PICKED_UP_PRESETS: Array<{ value: PickedUpFilter; labelKey: string }> = [
+  { value: 'picked', labelKey: 'context.pickedUp.picked' },
+  { value: 'spotted', labelKey: 'context.pickedUp.spotted' },
+  { value: 'all', labelKey: 'context.pickedUp.all' },
 ]
 
-const SUBJECT_PRESETS: Array<{ value: SubjectFilter; label: string }> = [
-  { value: 'litter', label: 'Litter' },
-  { value: 'plants', label: 'Plants' },
-  { value: 'all', label: 'All' },
+const SUBJECT_PRESETS: Array<{ value: SubjectFilter; labelKey: string }> = [
+  { value: 'litter', labelKey: 'context.subject.litter' },
+  { value: 'plants', labelKey: 'context.subject.plants' },
+  { value: 'all', labelKey: 'context.subject.all' },
 ]
 
-const DATE_PRESETS: Array<{ value: DatePreset; label: string }> = [
-  { value: '7d', label: '7d' },
-  { value: '30d', label: '30d' },
-  { value: '1y', label: '1y' },
-  { value: 'all', label: 'All' },
+// Date preset labels are localized (e.g. DE 7T/30T/1J, FR 7j/30j/1a); `value`
+// stays a stable token used by the filter store. `label` is the English fallback.
+const DATE_PRESETS: Array<{ value: DatePreset; label: string; labelKey: string }> = [
+  { value: '7d', label: '7d', labelKey: 'context.date.d7' },
+  { value: '30d', label: '30d', labelKey: 'context.date.d30' },
+  { value: '1y', label: '1y', labelKey: 'context.date.y1' },
+  { value: 'all', label: 'All', labelKey: 'context.emptyAll' },
 ]
 
 const REFRESH_INTERVAL_MS = 5 * 60 * 1000
@@ -178,6 +181,7 @@ function hasActiveFilters(
 }
 
 export function ContextBar() {
+  const { t } = useTranslation(['shell', 'common'])
   const { user } = useAuthStore()
   const { myTeams: teamResults, fetchMyTeams, activateTeam, deactivateTeam } = useTeamStore()
   const { myCleanups: cleanupResults, fetchMyCleanups, activateDate, deactivateDate } = useCleanupStore()
@@ -292,7 +296,7 @@ export function ContextBar() {
   const myTeams = teamResults
     .map(t => ({ id: t.team.id, name: t.team.name }))
 
-  const dropdownEmptyLabel = config.dropdownsAreFilters ? 'All' : 'None'
+  const dropdownEmptyLabel = config.dropdownsAreFilters ? t('context.emptyAll') : t('context.emptyNone')
   const filterMode = config.dropdownsAreFilters
   const anyFiltersActive = hasActiveFilters(myFilter, pickedUpFilter, subjectFilter, datePreset, cleanupFilter, user.active_team_id, user.active_cleanup_date_id)
   const anyFilterEnabled = config.myEnabled || config.pickedUpEnabled || config.subjectEnabled || config.dateEnabled
@@ -316,14 +320,14 @@ export function ContextBar() {
       <div
         ref={contextRef}
         className={`context-zone${!config.dropdownsEnabled ? ' context-zone--disabled' : ''}`}
-        title="Controls which team and cleanup your picks join"
+        title={t('context.controlsTitle')}
       >
         <Dropdown
           items={myTeams}
           activeId={user.active_team_id || null}
           onSelect={(id) => activateTeam(id)}
           onClear={() => deactivateTeam()}
-          label="Team"
+          label={t('common:domain.team')}
           emptyLabel={dropdownEmptyLabel}
           disabled={!config.dropdownsEnabled}
         />
@@ -336,7 +340,7 @@ export function ContextBar() {
             activeId={user.active_cleanup_date_id || null}
             onSelect={(id) => activateDate(id)}
             onClear={() => deactivateDate()}
-            label="Cleanup"
+            label={t('common:domain.cleanup')}
             emptyLabel={dropdownEmptyLabel}
             disabled={!config.dropdownsEnabled}
           />
@@ -346,7 +350,7 @@ export function ContextBar() {
       <div
         ref={filterRef}
         className={`filter-zone${!anyFilterEnabled ? ' filter-zone--disabled' : ''}`}
-        title={anyFilterEnabled ? 'Narrows what data you see on this page' : 'Not applicable on this page'}
+        title={anyFilterEnabled ? t('context.narrowsTitle') : t('context.notApplicableTitle')}
       >
         <div className="filter-group">
           <button
@@ -354,20 +358,20 @@ export function ContextBar() {
             onClick={() => config.myEnabled && setMyFilter(!myFilter)}
             disabled={!config.myEnabled}
           >
-            My
+            {t('context.my')}
           </button>
         </div>
 
         <div className="filter-group filter-group--separated">
           <div className="context-pickup-chips">
-            {PICKED_UP_PRESETS.map(({ value, label }) => (
+            {PICKED_UP_PRESETS.map(({ value, labelKey }) => (
               <button
                 key={value}
                 className={`context-date-chip${pickedUpFilter === value ? ' context-date-chip--active' : ''}`}
                 onClick={() => setPickedUpFilter(value)}
                 disabled={!config.pickedUpEnabled}
               >
-                {label}
+                {t(labelKey)}
               </button>
             ))}
           </div>
@@ -376,13 +380,13 @@ export function ContextBar() {
         {config.subjectEnabled && (
           <div className="filter-group filter-group--separated">
             <div className="context-pickup-chips">
-              {SUBJECT_PRESETS.map(({ value, label }) => (
+              {SUBJECT_PRESETS.map(({ value, labelKey }) => (
                 <button
                   key={value}
                   className={`context-date-chip${subjectFilter === value ? ' context-date-chip--active' : ''}`}
                   onClick={() => setSubjectFilter(value)}
                 >
-                  {label}
+                  {t(labelKey)}
                 </button>
               ))}
             </div>
@@ -391,14 +395,14 @@ export function ContextBar() {
 
         <div className="filter-group filter-group--separated">
           <div className="context-date-chips">
-            {DATE_PRESETS.map(({ value, label }) => (
+            {DATE_PRESETS.map(({ value, label, labelKey }) => (
               <button
                 key={value}
                 className={`context-date-chip${datePreset === value ? ' context-date-chip--active' : ''}`}
                 onClick={() => setDatePreset(value)}
                 disabled={!config.dateEnabled}
               >
-                {label}
+                {labelKey ? t(labelKey) : label}
               </button>
             ))}
           </div>
@@ -412,7 +416,7 @@ export function ContextBar() {
               if (user.active_team_id) deactivateTeam()
               if (!filterMode && user.active_cleanup_date_id) deactivateDate()
             }}
-            title="Clear all filters"
+            title={t('context.clearTitle')}
           >
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <line x1="3" y1="3" x2="9" y2="9" /><line x1="9" y1="3" x2="3" y2="9" />
@@ -422,7 +426,7 @@ export function ContextBar() {
       </div>
 
       {showCompoundSummary && (
-        <div className="context-filter-summary">My picks in {teamName}</div>
+        <div className="context-filter-summary">{t('context.compoundSummary', { teamName })}</div>
       )}
     </div>
   )

@@ -5,11 +5,19 @@
  * This module reads them once at startup and interpolates {{variables}}
  * at render time.
  */
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { DEFAULT_LOCALE, type Locale } from '@cleancentive/shared';
 
-function loadTemplate(name: string): string {
-  return readFileSync(join(__dirname, 'templates', `${name}.md`), 'utf-8');
+// Resolve the locale-specific template (`name.de.md`) and fall back to the
+// English base file (`name.md`) when a translation is missing.
+function loadTemplate(name: string, locale: Locale = DEFAULT_LOCALE): string {
+  const dir = join(__dirname, 'templates');
+  const localized = join(dir, `${name}.${locale}.md`);
+  if (locale !== DEFAULT_LOCALE && existsSync(localized)) {
+    return readFileSync(localized, 'utf-8');
+  }
+  return readFileSync(join(dir, `${name}.md`), 'utf-8');
 }
 
 function interpolate(template: string, vars: Record<string, string>): string {
@@ -23,8 +31,9 @@ function interpolate(template: string, vars: Record<string, string>): string {
 export function magicLinkMd(
   link: string,
   requestMetadata?: { browser: string; location: string; requestedAt: string },
+  locale: Locale = DEFAULT_LOCALE,
 ): string {
-  return interpolate(loadTemplate('magic-link'), {
+  return interpolate(loadTemplate('magic-link', locale), {
     link,
     browser: requestMetadata?.browser ?? 'Unknown browser',
     location: requestMetadata?.location ?? 'Unknown location',
@@ -32,33 +41,43 @@ export function magicLinkMd(
   });
 }
 
-export function recoveryMd(link: string): string {
-  return interpolate(loadTemplate('recovery'), { link });
+export function recoveryMd(link: string, locale: Locale = DEFAULT_LOCALE): string {
+  return interpolate(loadTemplate('recovery', locale), { link });
 }
 
-export function mergeWarningMd(link: string, requesterNickname: string): string {
-  return interpolate(loadTemplate('merge-warning'), { link, requesterNickname });
+export function mergeWarningMd(
+  link: string,
+  requesterNickname: string,
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return interpolate(loadTemplate('merge-warning', locale), { link, requesterNickname });
 }
 
-export function cleanupInviteMd(payload: {
-  title: string;
-  intro: string;
-  when: string;
-  locationLine: string;
-  cleanupLink: string;
-  feedUrl: string;
-  profileLink: string;
-}): string {
-  return interpolate(loadTemplate('cleanup-invite'), payload);
+export function cleanupInviteMd(
+  payload: {
+    title: string;
+    intro: string;
+    when: string;
+    locationLine: string;
+    cleanupLink: string;
+    feedUrl: string;
+    profileLink: string;
+  },
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return interpolate(loadTemplate('cleanup-invite', locale), payload);
 }
 
-export function communityMessageMd(payload: {
-  preheader: string;
-  title: string;
-  body: string;
-  disclosure: string;
-}): string {
-  return interpolate(loadTemplate('community-message'), {
+export function communityMessageMd(
+  payload: {
+    preheader: string;
+    title: string;
+    body: string;
+    disclosure: string;
+  },
+  locale: Locale = DEFAULT_LOCALE,
+): string {
+  return interpolate(loadTemplate('community-message', locale), {
     preheader: payload.preheader.replace(/"/g, '\\"'),
     title: payload.title,
     body: payload.body,

@@ -29,14 +29,16 @@ export class LabelService {
     limit: number,
     subjectKind?: 'litter' | 'plant',
   ): Promise<LabelDto[]> {
-    const qb = this.translationRepository
-      .createQueryBuilder('lt')
-      .innerJoin('lt.label', 'l')
-      .select(['l.id AS id', 'lt.name AS name', 'l.type AS type'])
+    // Prefer the requested locale, fall back to the English name when a label
+    // has no translation for it (e.g. brands, which are locale-agnostic).
+    const qb = this.labelRepository
+      .createQueryBuilder('l')
+      .leftJoin('l.translations', 'loc', 'loc.locale = :locale', { locale })
+      .leftJoin('l.translations', 'en', "en.locale = 'en'")
+      .select(['l.id AS id', 'COALESCE(loc.name, en.name) AS name', 'l.type AS type'])
       .where('l.type = :type', { type })
-      .andWhere('lt.locale = :locale', { locale })
-      .andWhere('lt.name ILIKE :search', { search: `%${search}%` })
-      .orderBy('lt.name', 'ASC')
+      .andWhere('COALESCE(loc.name, en.name) ILIKE :search', { search: `%${search}%` })
+      .orderBy('name', 'ASC')
       .limit(limit);
 
     if (subjectKind === 'plant' && type === 'object') {
@@ -49,12 +51,13 @@ export class LabelService {
   }
 
   async getAllByType(locale: string): Promise<Record<string, LabelDto[]>> {
-    const results = await this.translationRepository
-      .createQueryBuilder('lt')
-      .innerJoin('lt.label', 'l')
-      .select(['l.id AS id', 'lt.name AS name', 'l.type AS type'])
-      .where('lt.locale = :locale', { locale })
-      .orderBy('lt.name', 'ASC')
+    const results = await this.labelRepository
+      .createQueryBuilder('l')
+      .leftJoin('l.translations', 'loc', 'loc.locale = :locale', { locale })
+      .leftJoin('l.translations', 'en', "en.locale = 'en'")
+      .select(['l.id AS id', 'COALESCE(loc.name, en.name) AS name', 'l.type AS type'])
+      .where('COALESCE(loc.name, en.name) IS NOT NULL')
+      .orderBy('name', 'ASC')
       .getRawMany();
 
     const grouped: Record<string, LabelDto[]> = { object: [], material: [], brand: [] };

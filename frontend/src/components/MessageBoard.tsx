@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { UserDisplay } from './UserDisplay'
 import { formatTimestamp } from '../utils/formatTimestamp'
 
@@ -20,14 +21,12 @@ interface MessageBoardProps {
   isLoading: boolean
 }
 
-function getDisclosure(audience: 'members' | 'organizers'): string {
-  if (audience === 'members') {
-    return 'All current and future team members will see this message in the history. An email will be sent to all current members.'
-  }
-  return 'All current and future organizers will see this message in the history. An email will be sent to all current organizers.'
-}
-
 export function MessageBoard({ messages, onPost, canPost, isOrganizer, isLoading }: MessageBoardProps) {
+  const { t } = useTranslation(['cleanups'])
+  const getDisclosure = (audience: 'members' | 'organizers'): string =>
+    audience === 'members'
+      ? t('cleanups:messages.disclosureMembers')
+      : t('cleanups:messages.disclosureOrganizers')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [audience, setAudience] = useState<'members' | 'organizers'>('organizers')
@@ -66,14 +65,14 @@ export function MessageBoard({ messages, onPost, canPost, isOrganizer, isLoading
         <form className="message-compose" onSubmit={handleSubmit}>
           <input
             type="text"
-            placeholder="Subject"
+            placeholder={t('cleanups:messages.subjectPlaceholder')}
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             className="search-input"
             required
           />
           <textarea
-            placeholder="Write a message..."
+            placeholder={t('cleanups:messages.bodyPlaceholder')}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             className="message-textarea"
@@ -83,31 +82,31 @@ export function MessageBoard({ messages, onPost, canPost, isOrganizer, isLoading
           <p className="message-disclosure">{getDisclosure(audience)}</p>
           <label className="message-cc-self">
             <input type="checkbox" checked={ccSender} onChange={(e) => setCcSender(e.target.checked)} />
-            Email me a copy
+            {t('cleanups:messages.ccSelf')}
           </label>
           <div className="message-compose-footer">
             <label>
-              To:
+              {t('cleanups:messages.to')}
               {hasMultipleAudienceOptions ? (
                 <select value={audience} onChange={(e) => setAudience(e.target.value as 'members' | 'organizers')}>
-                  <option value="members">All members</option>
-                  <option value="organizers">Organizers</option>
+                  <option value="members">{t('cleanups:messages.audienceMembers')}</option>
+                  <option value="organizers">{t('cleanups:messages.audienceOrganizers')}</option>
                 </select>
               ) : (
-                <span className="message-audience-fixed">Organizers</span>
+                <span className="message-audience-fixed">{t('cleanups:messages.audienceOrganizers')}</span>
               )}
             </label>
             <button type="submit" className="primary-button" disabled={isSending || !subject.trim() || !body.trim()}>
-              {isSending ? 'Sending...' : 'Send'}
+              {isSending ? t('cleanups:messages.sending') : t('cleanups:messages.send')}
             </button>
           </div>
         </form>
       )}
 
-      {isLoading && <p className="loading">Loading messages...</p>}
+      {isLoading && <p className="loading">{t('cleanups:messages.loading')}</p>}
 
       {!isLoading && messages.length === 0 && (
-        <p className="end-of-list">No messages yet</p>
+        <p className="end-of-list">{t('cleanups:messages.empty')}</p>
       )}
 
       <div className="message-list">
@@ -118,14 +117,14 @@ export function MessageBoard({ messages, onPost, canPost, isOrganizer, isLoading
                 userId={msg.author_user_id}
                 avatarEmailId={msg.author?.avatarEmailId}
                 uploadedAvatarUpdatedAt={msg.author?.uploadedAvatarUpdatedAt}
-                nickname={msg.author?.nickname || 'Unknown'}
+                nickname={msg.author?.nickname || t('cleanups:messages.unknownAuthor')}
                 size={24}
                 showAvatar={!!msg.author}
               />
               <a className="message-date" href={`#message-${msg.id}`} title={new Date(msg.created_at).toLocaleString()}>
                 {formatTimestamp(msg.created_at)}
               </a>
-              <span className="badge">{msg.audience === 'organizers' ? 'To organizers' : 'To members'}</span>
+              <span className="badge">{msg.audience === 'organizers' ? t('cleanups:messages.toOrganizers') : t('cleanups:messages.toMembers')}</span>
             </div>
             <h4 className="message-subject">{msg.subject}</h4>
             <p className="message-body">{msg.body}</p>

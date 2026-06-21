@@ -1,0 +1,139 @@
+{
+  "list": {
+    "title": "Cleanups",
+    "searchPlaceholder": "Cleanups suchen...",
+    "empty": "Keine Cleanups gefunden",
+    "create": "Cleanup erstellen",
+    "status": {
+      "ongoing": "Laufend",
+      "future": "Zukünftig",
+      "past": "Vergangen"
+    },
+    "badge": {
+      "active": "Aktiv"
+    }
+  },
+  "createForm": {
+    "nameLabel": "Name",
+    "namePlaceholder": "z. B. Samstags-Cleanup im Park",
+    "descriptionLabel": "Beschreibung",
+    "descriptionPlaceholder": "Worum geht es bei diesem Cleanup?",
+    "startLabel": "Beginn",
+    "endLabel": "Ende",
+    "shortDurationWarning": "Die Dauer beträgt weniger als 2 Stunden. Bist du sicher?",
+    "creating": "Wird erstellt...",
+    "submit": "Erstellen"
+  },
+  "detail": {
+    "notFound": "Cleanup nicht gefunden",
+    "dates": "Termine ({{count}})",
+    "noDates": "Keine Termine geplant",
+    "addDate": "+ Termin hinzufügen",
+    "addDateSubmit": "Termin hinzufügen",
+    "participants": "Teilnehmer ({{count}})",
+    "messages": "Nachrichten",
+    "archive": {
+      "title": "Cleanup archivieren",
+      "confirm": "Archivieren"
+    },
+    "deleteDate": {
+      "title": "Termin löschen",
+      "body": "Möchtest du diesen Termin wirklich löschen? Nutzer, für die dieser Termin aktiv ist, werden deaktiviert."
+    },
+    "deleteDates": {
+      "title": "Termine löschen",
+      "button_one": "{{count}} Termin löschen",
+      "button_other": "{{count}} Termine löschen",
+      "body_one": "Möchtest du wirklich <strong>{{count}}</strong> Termin löschen? Nutzer, für die diese Termine aktiv sind, werden deaktiviert.",
+      "body_other": "Möchtest du wirklich <strong>{{count}}</strong> Termine löschen? Nutzer, für die diese Termine aktiv sind, werden deaktiviert."
+    }
+  },
+  "header": {
+    "nameLabel": "Name",
+    "descriptionLabel": "Beschreibung",
+    "signInToJoin": "Melde dich an, um an diesem Cleanup teilzunehmen",
+    "join": "Cleanup beitreten",
+    "leave": "Cleanup verlassen",
+    "organizerActions": "Organizer-Aktionen",
+    "archive": "Cleanup archivieren",
+    "archiveTitle": "Blendet das Cleanup aus der Suche aus und verhindert neue Aktivitäten. Bestehende Daten bleiben erhalten.",
+    "archiveConfirmBody": "Möchtest du <strong>{{name}}</strong> wirklich archivieren? Dadurch wird das Cleanup für alle Teilnehmer deaktiviert."
+  },
+  "calendar": {
+    "heading": "Zu deinem Kalender hinzufügen",
+    "subscribe": "Abonnieren (alle beigetretenen Cleanups)",
+    "hint": "Durch das Abonnieren bleiben Google / Apple / Outlook synchron, wenn du beitrittst, austrittst oder Organizer Termine ändern. Oder nutze die Links pro Termin unten, um ein einzelnes Ereignis hinzuzufügen."
+  },
+  "dateCard": {
+    "ongoing": "Laufend",
+    "active": "Aktiv",
+    "activate": "Aktivieren",
+    "deactivate": "Deaktivieren",
+    "addToCalendar": "Zum Kalender hinzufügen",
+    "downloadIcsTitle": ".ics für diesen Termin herunterladen"
+  },
+  "bulk": {
+    "selectRelated": "Zugehörige Termine auswählen",
+    "selectAllAfter": "Alle nach {{date}} auswählen",
+    "delete_one": "{{count}} Termin löschen",
+    "delete_other": "{{count}} Termine löschen",
+    "clearSelection": "Auswahl aufheben"
+  },
+  "dateForm": {
+    "startLabel": "Beginn",
+    "endLabel": "Ende",
+    "shortDurationWarning": "Die Dauer beträgt weniger als 2 Stunden. Bist du sicher?",
+    "repeat": "Wiederholen",
+    "frequencyLabel": "Häufigkeit",
+    "frequency": {
+      "weekly": "Wöchentlich",
+      "biweekly": "Zweiwöchentlich",
+      "monthly": "Monatlich",
+      "quarterly": "Vierteljährlich",
+      "yearly": "Jährlich"
+    },
+    "occurrencesLabel": "Vorkommen",
+    "preview_one": "{{count}} Termin:",
+    "preview_other": "{{count}} Termine:"
+  },
+  "filter": {
+    "label": "Cleanup:",
+    "all": "Alle",
+    "scopeMine": "Meine",
+    "scopeAll": "Alle",
+    "allCleanups": "Alle Cleanups",
+    "loading": "Wird geladen…",
+    "noCleanups": "Keine Cleanups",
+    "dates_one": "{{count}} Termin",
+    "dates_other": "{{count}} Termine",
+    "allDates": "Alle Termine",
+    "sheetClose": "Schließen"
+  },
+  "card": {
+    "viewDetails": "Ansehen"
+  },
+  "members": {
+    "empty": "Noch keine {{entity}}",
+    "promote": "Befördern",
+    "roleMember": "Mitglied",
+    "entityMember": "Mitglieder",
+    "entityParticipant": "Teilnehmer"
+  },
+  "messages": {
+    "subjectPlaceholder": "Betreff",
+    "bodyPlaceholder": "Nachricht schreiben...",
+    "disclosureMembers": "Alle aktuellen und zukünftigen Team-Mitglieder sehen diese Nachricht im Verlauf. Eine E-Mail wird an alle aktuellen Mitglieder gesendet.",
+    "disclosureOrganizers": "Alle aktuellen und zukünftigen Organizer sehen diese Nachricht im Verlauf. Eine E-Mail wird an alle aktuellen Organizer gesendet.",
+    "ccSelf": "Mir eine Kopie per E-Mail senden",
+    "to": "An:",
+    "audienceMembers": "Alle Mitglieder",
+    "audienceOrganizers": "Organizer",
+    "sending": "Wird gesendet...",
+    "send": "Senden",
+    "loading": "Nachrichten werden geladen...",
+    "empty": "Noch keine Nachrichten",
+    "toOrganizers": "An Organizer",
+    "toMembers": "An Mitglieder",
+    "unknownAuthor": "Unbekannt"
+  }
+}

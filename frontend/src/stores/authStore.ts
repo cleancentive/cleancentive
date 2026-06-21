@@ -17,6 +17,7 @@ interface User {
   id: string
   nickname: string
   full_name?: string
+  locale?: string | null
   avatar_email_id?: string | null
   uploaded_avatar_key?: string | null
   uploaded_avatar_updated_at?: string | null
@@ -52,7 +53,7 @@ interface AuthState {
   verifyMagicLink: (token: string) => Promise<void>
   cancelPendingAuth: () => void
   logout: () => void
-  updateProfile: (data: { nickname?: string; full_name?: string | null }) => Promise<void>
+  updateProfile: (data: { nickname?: string; full_name?: string | null; locale?: string | null }) => Promise<void>
   addEmail: (email: string) => Promise<{ status: string; ownerNickname?: string }>
   confirmMerge: (email: string) => Promise<boolean>
   removeEmail: (emailId: string) => Promise<void>
@@ -294,7 +295,7 @@ export const useAuthStore = create<AuthState>()(
         useUiStore.getState().setPickCount(0)
       },
 
-      updateProfile: async (data: { nickname?: string; full_name?: string | null }) => {
+      updateProfile: async (data: { nickname?: string; full_name?: string | null; locale?: string | null }) => {
         const { sessionToken } = get()
         if (!sessionToken) return
 

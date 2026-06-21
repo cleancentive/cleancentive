@@ -1,0 +1,86 @@
+{
+  "pickNow": "Jetzt sammeln!",
+  "connectivity": {
+    "noNetwork": "Kein Netz",
+    "offline": "Offline",
+    "online": "Online",
+    "noNetworkTitle": "Keine Netzwerkverbindung",
+    "goOnlineTitle": "Klicken, um online zu gehen",
+    "goOfflineTitle": "Klicken, um offline zu gehen"
+  },
+  "userMenu": {
+    "signInLabel": "Anmelden",
+    "menuLabel": "Benutzermenü",
+    "profile": "Profil",
+    "myFeedback": "Mein Feedback",
+    "share": "Teilen",
+    "about": "Über",
+    "teamLabel": "Team:",
+    "cleanupLabel": "Cleanup:"
+  },
+  "shareQr": {
+    "title": "CleanCentive teilen",
+    "closeLabel": "QR-Code-Dialog schließen",
+    "tapToCopy": "URL antippen zum Kopieren"
+  },
+  "welcome": {
+    "title": "Willkommen bei CleanCentive",
+    "intro": "Protokolliere dein Müllsammeln – offline-first und per Foto.",
+    "bullets": {
+      "geolocation": "Müllsammeln mit Standort erfassen",
+      "offline": "Gesammeltes offline mit Miniaturbildern einreihen",
+      "autoSync": "Automatische Synchronisierung, sobald du wieder verbunden bist"
+    }
+  },
+  "about": {
+    "description": "Gemeinschaften befähigen, die Welt sichtbar sauberer zu machen.",
+    "version": "Version",
+    "source": "Quelle",
+    "license": "Lizenz"
+  },
+  "context": {
+    "controlsTitle": "Legt fest, zu welchem Team und Cleanup dein Gesammeltes zählt",
+    "narrowsTitle": "Schränkt ein, welche Daten du auf dieser Seite siehst",
+    "notApplicableTitle": "Auf dieser Seite nicht anwendbar",
+    "emptyAll": "Alle",
+    "emptyNone": "Keine",
+    "my": "Meine",
+    "clearTitle": "Alle Filter zurücksetzen",
+    "date": {
+      "d7": "7T",
+      "d30": "30T",
+      "y1": "1J"
+    },
+    "compoundSummary": "Gesammelt in {{teamName}}",
+    "pickedUp": {
+      "picked": "Gesammelt",
+      "spotted": "Gesehen",
+      "all": "Alle"
+    },
+    "subject": {
+      "litter": "Müll",
+      "plants": "Pflanzen",
+      "all": "Alle"
+    }
+  },
+  "backLink": {
+    "label": "Zurück zu {{noun}}",
+    "title": "Zurück ({{shortcut}})",
+    "nouns": {
+      "home": "Startseite",
+      "map": "Karte",
+      "cleanups": "Cleanups",
+      "teams": "Teams",
+      "insights": "Statistiken",
+      "feedback": "Feedback",
+      "users": "Benutzer",
+      "steward": "Steward"
+    }
+  },
+  "error": {
+    "title": "Etwas ist schiefgelaufen",
+    "body": "Ein unerwarteter Fehler ist aufgetreten. Du kannst Feedback senden, damit wir ihn beheben können.",
+    "sendFeedback": "Feedback senden",
+    "reload": "Neu laden"
+  }
+}

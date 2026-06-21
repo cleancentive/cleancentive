@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { UserDisplay } from './UserDisplay'
 
 interface Member {
@@ -16,8 +17,13 @@ interface MemberListProps {
 }
 
 export function MemberList({ members, canPromote, onPromote, entityLabel = 'Member' }: MemberListProps) {
+  const { t } = useTranslation(['cleanups', 'common'])
+  const entity = entityLabel === 'Participant'
+    ? t('cleanups:members.entityParticipant')
+    : t('cleanups:members.entityMember')
+
   if (members.length === 0) {
-    return <p className="end-of-list">No {entityLabel.toLowerCase()}s yet</p>
+    return <p className="end-of-list">{t('cleanups:members.empty', { entity })}</p>
   }
 
   return (
@@ -25,11 +31,11 @@ export function MemberList({ members, canPromote, onPromote, entityLabel = 'Memb
       {members.map((member) => (
         <div key={member.userId} className="member-item">
           <UserDisplay userId={member.userId} avatarEmailId={member.avatarEmailId} uploadedAvatarUpdatedAt={member.uploadedAvatarUpdatedAt} nickname={member.nickname} size={28} />
-          {member.role === 'organizer' && <span className="badge admin-badge">Organizer</span>}
-          {member.role === 'member' && <span className="badge">Member</span>}
+          {member.role === 'organizer' && <span className="badge admin-badge">{t('common:domain.organizer')}</span>}
+          {member.role === 'member' && <span className="badge">{t('cleanups:members.roleMember')}</span>}
           {canPromote && member.role !== 'organizer' && onPromote && (
             <button className="link-button" onClick={() => onPromote(member.userId)}>
-              Promote
+              {t('cleanups:members.promote')}
             </button>
           )}
         </div>

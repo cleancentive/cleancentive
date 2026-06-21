@@ -1,0 +1,62 @@
+{
+  "share": {
+    "copy": "Copier le lien partageable vers cette vue de carte",
+    "copied": "Lien copié"
+  },
+  "heat": {
+    "legend": "Métrique de la carte de chaleur",
+    "items": "Objets",
+    "mass": "Masse"
+  },
+  "overlay": {
+    "empty": "Aucun ramassage trouvé pour ces filtres"
+  },
+  "popup": {
+    "plantRemoved": "Plante retirée",
+    "plantSpot": "Spot de plante",
+    "invasive": "Invasive — {{list}}",
+    "invasiveBlackList": "liste noire",
+    "invasiveWatchList": "liste de surveillance",
+    "spot": "Spot",
+    "pick": "Ramassage",
+    "itemsDetected_one": "{{count}} objet détecté",
+    "itemsDetected_other": "{{count}} objets détectés",
+    "openSpot": "Ouvrir le spot →",
+    "cleanup": "Cleanup",
+    "picks_one": "{{count}} ramassage",
+    "picks_other": "{{count}} ramassages",
+    "openCleanup": "Ouvrir le cleanup →"
+  },
+  "basemap": {
+    "switch": "Changer de fond de carte",
+    "options": "Options de fond de carte",
+    "style": "Style de carte",
+    "themesLabel": "Thèmes",
+    "themes": {
+      "standard": "Standard",
+      "aerial": "Vue aérienne",
+      "topo": "Topographique",
+      "dark": "Sombre"
+    }
+  },
+  "import": {
+    "title_one": "Importer {{count}} photo",
+    "title_other": "Importer {{count}} photos",
+    "processing": "Traitement de {{processed}} sur {{total}} photos…",
+    "skipped_one": "{{count}} photo ignorée (pas de données GPS)",
+    "skipped_other": "{{count}} photos ignorées (pas de données GPS)",
+    "imported_one": "{{count}} photo importée.",
+    "imported_other": "{{count}} photos importées.",
+    "noneImported": "Aucune photo n'a pu être importée.",
+    "done": "Terminé",
+    "associate": "Associer à ce cleanup",
+    "unknownDate": "Date inconnue",
+    "unknownError": "Erreur inconnue",
+    "noCleanupMatch": "Aucune correspondance de cleanup",
+    "groupHeader": "{{label}} ({{count}})",
+    "discard": "Abandonner",
+    "import": "Importer",
+    "importing": "Importation...",
+    "importAll": "Tout importer"
+  }
+}

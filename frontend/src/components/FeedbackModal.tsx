@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation, Trans } from 'react-i18next'
 import { useFeedbackStore } from '../stores/feedbackStore'
 import { useAuthStore } from '../stores/authStore'
 import { useEscapeKey } from '../hooks/useEscapeKey'
 
 export function FeedbackModal() {
+  const { t } = useTranslation(['feedback', 'common'])
   const { isModalOpen, isSubmitting, isSubmitted, error, prefilled, closeFeedbackModal, submitFeedback } = useFeedbackStore()
   const { user } = useAuthStore()
 
@@ -51,36 +53,42 @@ export function FeedbackModal() {
   return (
     <div className="sign-in-overlay" onClick={closeFeedbackModal}>
       <div className="sign-in-dialog feedback-dialog" onClick={(e) => e.stopPropagation()}>
-        <button className="sign-in-close" onClick={closeFeedbackModal} aria-label="Close">
+        <button className="sign-in-close" onClick={closeFeedbackModal} aria-label={t('common:actions.close')}>
           ×
         </button>
 
         {isSubmitted ? (
           <div className="feedback-success">
-            <h2>Thank you!</h2>
-            <p>Your feedback has been sent. You can track it in your <Link to="/feedback" onClick={closeFeedbackModal}>feedback history</Link>.</p>
+            <h2>{t('modal.successTitle')}</h2>
+            <p>
+              <Trans
+                t={t}
+                i18nKey="modal.successBody"
+                components={{ link: <Link to="/feedback" onClick={closeFeedbackModal} /> }}
+              />
+            </p>
           </div>
         ) : (
           <>
-            <h2>Send Feedback</h2>
-            <p className="feedback-privacy">This is a private message to the CleanCentive stewards. Only you and the stewards can see it.</p>
+            <h2>{t('modal.title')}</h2>
+            <p className="feedback-privacy">{t('modal.privacy')}</p>
 
             <form onSubmit={handleSubmit}>
               <label>
-                Category
+                {t('modal.categoryLabel')}
                 <select value={category} onChange={(e) => setCategory(e.target.value)}>
-                  <option value="bug">Bug</option>
-                  <option value="suggestion">Suggestion</option>
-                  <option value="question">Question</option>
+                  <option value="bug">{t('category.bug')}</option>
+                  <option value="suggestion">{t('category.suggestion')}</option>
+                  <option value="question">{t('category.question')}</option>
                 </select>
               </label>
 
               <label>
-                Description
+                {t('modal.descriptionLabel')}
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Tell us what happened or what you'd like to see..."
+                  placeholder={t('modal.descriptionPlaceholder')}
                   rows={4}
                   required
                   minLength={10}
@@ -95,16 +103,16 @@ export function FeedbackModal() {
                     checked={includeContact}
                     onChange={(e) => setIncludeContact(e.target.checked)}
                   />
-                  You can contact me at {userEmail}
+                  {t('modal.contactToggle', { email: userEmail })}
                 </label>
               ) : (
                 <label>
-                  Email (optional, for follow-up)
+                  {t('modal.emailLabel')}
                   <input
                     type="email"
                     value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
-                    placeholder="your@email.com"
+                    placeholder={t('modal.emailPlaceholder')}
                   />
                 </label>
               )}
@@ -112,7 +120,7 @@ export function FeedbackModal() {
               {prefilled?.errorContext && (
                 <div className="feedback-error-context">
                   <button type="button" className="link-button" onClick={() => setShowDetails(!showDetails)}>
-                    {showDetails ? 'Hide' : 'Show'} technical details
+                    {showDetails ? t('modal.hideDetails') : t('modal.showDetails')}
                   </button>
                   {showDetails && (
                     <pre className="feedback-error-details">
@@ -126,10 +134,10 @@ export function FeedbackModal() {
 
               <div className="form-actions">
                 <button type="submit" className="primary-button" disabled={isSubmitting || description.trim().length < 10}>
-                  {isSubmitting ? 'Sending...' : 'Send Feedback'}
+                  {isSubmitting ? t('modal.sending') : t('modal.submit')}
                 </button>
                 <button type="button" className="secondary-button" onClick={closeFeedbackModal}>
-                  Cancel
+                  {t('common:actions.cancel')}
                 </button>
               </div>
             </form>

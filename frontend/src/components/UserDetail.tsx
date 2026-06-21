@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Navigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { BackLink } from './BackLink'
 import { useAdminStore } from '../stores/adminStore'
 import { useAuthStore } from '../stores/authStore'
@@ -29,6 +30,7 @@ interface UserData {
 }
 
 export function UserDetail() {
+  const { t } = useTranslation(['teams', 'common'])
   const { id } = useParams<{ id: string }>()
   const { sessionToken, user: currentUser } = useAuthStore()
   const { isAdmin, promoteUser, demoteUser } = useAdminStore()
@@ -49,7 +51,7 @@ export function UserDetail() {
         })
         setUser(response.data)
       } catch (err: any) {
-        setError(err.response?.data?.message || 'Failed to load user')
+        setError(err.response?.data?.message || t('user.loadFailed'))
       } finally {
         setIsLoading(false)
       }
@@ -63,13 +65,13 @@ export function UserDetail() {
   }
 
   if (isLoading) {
-    return <div className="user-detail"><p className="loading">Loading...</p></div>
+    return <div className="user-detail"><p className="loading">{t('common:actions.loading')}</p></div>
   }
 
   if (error || !user) {
     return (
       <div className="user-detail">
-        <p className="error-text">{error || 'User not found'}</p>
+        <p className="error-text">{error || t('user.notFound')}</p>
         <BackLink to="/steward/users" fallbackNoun="users" />
       </div>
     )
@@ -93,59 +95,59 @@ export function UserDetail() {
         )}
         <h2>
           {user.nickname}
-          {user.is_admin && <span className="badge admin-badge">Admin</span>}
+          {user.is_admin && <span className="badge admin-badge">{t('user.adminBadge')}</span>}
         </h2>
         {user.full_name && <p className="full-name">{user.full_name}</p>}
 
         <div className="info-grid">
           <div className="info-item">
-            <label>User ID</label>
+            <label>{t('user.userId')}</label>
             <span className="mono">{user.id}</span>
           </div>
           <div className="info-item">
-            <label>Created</label>
+            <label>{t('user.created')}</label>
             <span>{formatTimestamp(user.created_at)}</span>
           </div>
           <div className="info-item">
-            <label>Last Updated</label>
+            <label>{t('user.lastUpdated')}</label>
             <span>{formatTimestamp(user.updated_at)}</span>
           </div>
           <div className="info-item">
-            <label>Last Login</label>
-            <span>{user.last_login ? formatTimestamp(user.last_login) : 'Never'}</span>
+            <label>{t('user.lastLogin')}</label>
+            <span>{user.last_login ? formatTimestamp(user.last_login) : t('user.never')}</span>
           </div>
         </div>
 
         <div className="emails-section">
-          <h3>Email Addresses</h3>
+          <h3>{t('user.emailAddresses')}</h3>
           <ul className="email-list">
             {user.emails.map(email => (
               <li key={email.id}>
                 {email.email}
-                {email.is_selected_for_login && <span className="badge">Login Email</span>}
+                {email.is_selected_for_login && <span className="badge">{t('user.loginEmail')}</span>}
               </li>
             ))}
-            {user.emails.length === 0 && <li className="no-emails">No emails (guest account)</li>}
+            {user.emails.length === 0 && <li className="no-emails">{t('user.noEmails')}</li>}
           </ul>
         </div>
 
         {isAdmin && (
           <div className="admin-actions">
-            <h3>Admin Actions</h3>
+            <h3>{t('user.adminActions')}</h3>
             <div className="action-buttons">
               {!user.is_admin ? (
                 <button onClick={handlePromote} disabled={!isOnline} className="btn-promote">
-                  Promote to Admin
+                  {t('user.promoteToAdmin')}
                 </button>
               ) : (
                 <button onClick={handleDemote} disabled={!isOnline} className="btn-demote">
-                  Remove Admin Role
+                  {t('user.removeAdminRole')}
                 </button>
               )}
             </div>
             {user.is_admin && (
               <p className="admin-note">
-                Note: If this user's email is in ADMIN_EMAILS, they will be re-promoted on next login or server restart.
+                {t('user.adminNote')}
               </p>
             )}
           </div>

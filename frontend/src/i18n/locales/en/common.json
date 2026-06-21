@@ -1,0 +1,53 @@
+{
+  "appName": "CleanCentive",
+  "nav": {
+    "teams": "Teams",
+    "cleanups": "Cleanups",
+    "insights": "Insights",
+    "map": "Map",
+    "steward": "Steward"
+  },
+  "actions": {
+    "save": "Save",
+    "saveChanges": "Save changes",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "add": "Add",
+    "remove": "Remove",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "retry": "Retry",
+    "copy": "Copy",
+    "share": "Share",
+    "loading": "Loading...",
+    "signIn": "Sign in",
+    "signOut": "Sign Out"
+  },
+  "status": {
+    "offline": "You're offline — editing is paused.",
+    "notSet": "Not set",
+    "na": "n/a",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Copy failed"
+  },
+  "processing": {
+    "queued": "Waiting for detection",
+    "processing": "Detecting litter...",
+    "completed": "Complete",
+    "failed": "Detection failed"
+  },
+  "domain": {
+    "pick": "Pick",
+    "picks": "Picks",
+    "spot": "Spot",
+    "cleanup": "Cleanup",
+    "team": "Team",
+    "organizer": "Organizer",
+    "steward": "Steward",
+    "feedback": "Feedback",
+    "guest": "Guest"
+  }
+}

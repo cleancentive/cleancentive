@@ -1,0 +1,88 @@
+{
+  "list": {
+    "title": "Teams",
+    "searchPlaceholder": "Search teams...",
+    "empty": "No teams found",
+    "create": "Create Team",
+    "createForm": {
+      "nameLabel": "Name",
+      "namePlaceholder": "Team name",
+      "descriptionLabel": "Description",
+      "descriptionPlaceholder": "What is this team about?",
+      "partnerSettings": "Partner Settings",
+      "creating": "Creating...",
+      "submit": "Create"
+    },
+    "badges": {
+      "stewards": "Stewards",
+      "managed": "Managed",
+      "partner": "Partner",
+      "unlisted": "Unlisted",
+      "active": "Active"
+    }
+  },
+  "roles": {
+    "admin": "admin",
+    "organizer": "organizer",
+    "member": "member"
+  },
+  "detail": {
+    "notFound": "Team not found",
+    "editName": "Name",
+    "editDescription": "Description",
+    "signInToJoin": "Sign in to join this team",
+    "stewardsNotice": "Membership is managed by the steward role.",
+    "partnerNotice": "Membership is managed automatically based on your email domain.",
+    "joinTeam": "Join Team",
+    "deactivateTeam": "Deactivate Team",
+    "setActiveTeam": "Set as Active Team",
+    "leaveTeam": "Leave Team",
+    "organizerActions": "Organizer Actions",
+    "listTeam": "List Team",
+    "unlistTeam": "Unlist Team",
+    "unlistTitle": "Unlisted teams are hidden from the public team list. Only team members and stewards can see them.",
+    "archiveTeam": "Archive Team",
+    "archiveTitle": "Hides the team from search and prevents new activity. Existing data is preserved.",
+    "wiki": "Wiki ↗",
+    "partnerSettingsSteward": "Partner Settings (Steward)",
+    "savePartnerSettings": "Save Partner Settings",
+    "members": "Members ({{count}})",
+    "messages": "Messages",
+    "archiveConfirm": "Archive",
+    "archivePrompt": "Are you sure you want to archive <strong>{{name}}</strong>? This will deactivate the team for all members."
+  },
+  "partner": {
+    "importLabel": "Import from URL",
+    "importPlaceholder": "https://www.baloise.ch/",
+    "importing": "Importing...",
+    "import": "Import",
+    "importHint": "Enter a company website to auto-detect email domain, colors, and favicon.",
+    "patternsLabel": "Email Patterns (one per line)",
+    "patternsHint": "Plain domains (e.g. <code>helvetia.com</code>) or regex patterns. Leave empty for a regular team.",
+    "customCssLabel": "Custom CSS"
+  },
+  "user": {
+    "notFound": "User not found",
+    "loadFailed": "Failed to load user",
+    "adminBadge": "Admin",
+    "userId": "User ID",
+    "created": "Created",
+    "lastUpdated": "Last Updated",
+    "lastLogin": "Last Login",
+    "never": "Never",
+    "emailAddresses": "Email Addresses",
+    "loginEmail": "Login Email",
+    "noEmails": "No emails (guest account)",
+    "adminActions": "Admin Actions",
+    "promoteToAdmin": "Promote to Admin",
+    "removeAdminRole": "Remove Admin Role",
+    "adminNote": "Note: If this user's email is in ADMIN_EMAILS, they will be re-promoted on next login or server restart."
+  },
+  "display": {
+    "namePlaceholder": "Your name",
+    "nicknameLabel": "Nickname"
+  },
+  "avatar": {
+    "setPhoto": "Set a profile photo"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "loading": "Chargement des analyses...",
+  "scope": {
+    "team": "Analyses de {{team}}",
+    "community": "Vue d'ensemble de la communauté"
+  },
+  "summary": {
+    "cleanups": "Cleanups",
+    "users": "Utilisateurs",
+    "teams": "Teams",
+    "spots": "Spots",
+    "itemsDetected": "Objets détectés",
+    "weightEstimate": "Poids (estimation)"
+  },
+  "charts": {
+    "spotsOverTime": "Spots au fil du temps",
+    "itemsOverTime": "Objets détectés au fil du temps",
+    "weightOverTime": "Poids estimé au fil du temps",
+    "cleanupsOverTime": "Cleanups au fil du temps",
+    "noData": "Pas encore de données"
+  },
+  "ranks": {
+    "topObjects": "Principaux objets",
+    "topMaterials": "Principaux matériaux",
+    "topBrands": "Principales marques",
+    "noObjects": "Aucun objet détecté pour l'instant",
+    "noMaterials": "Aucun matériau détecté pour l'instant",
+    "noBrands": "Aucune marque détectée pour l'instant"
+  }
+}

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useTranslation, Trans } from 'react-i18next'
 import { useSearchParams } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useUiStore } from '../stores/uiStore'
@@ -7,6 +8,7 @@ import axios from 'axios'
 import { API_BASE } from '../lib/apiBase'
 
 export function DeviceAuthPage() {
+  const { t } = useTranslation(['auth', 'common'])
   const { sessionToken, user } = useAuthStore()
   const { openSignInModal } = useUiStore()
   const [searchParams] = useSearchParams()
@@ -32,7 +34,7 @@ export function DeviceAuthPage() {
       )
       setStatus('approved')
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to approve device code')
+      setError(err.response?.data?.message || t('device.approveFailed'))
       setStatus('error')
     }
   }
@@ -40,10 +42,10 @@ export function DeviceAuthPage() {
   if (!sessionToken) {
     return (
       <div style={{ maxWidth: 440, margin: '4rem auto', textAlign: 'center' }}>
-        <h2>Device Authentication</h2>
-        <p>Sign in to approve this device code.</p>
+        <h2>{t('device.title')}</h2>
+        <p>{t('device.signInPrompt')}</p>
         <button className="primary-button" style={{ marginTop: '1rem' }} onClick={openSignInModal}>
-          Sign in
+          {t('common:actions.signIn')}
         </button>
       </div>
     )
@@ -52,9 +54,9 @@ export function DeviceAuthPage() {
   if (status === 'approved') {
     return (
       <div style={{ maxWidth: 440, margin: '4rem auto', textAlign: 'center' }}>
-        <h2>Device Approved</h2>
+        <h2>{t('device.approvedTitle')}</h2>
         <p style={{ fontSize: '1.1rem', color: 'var(--color-success)' }}>
-          Authenticated as <strong>{user?.nickname}</strong>. You can close this tab.
+          <Trans t={t} i18nKey="device.approvedBody" values={{ nickname: user?.nickname }} components={{ strong: <strong /> }} />
         </p>
       </div>
     )
@@ -63,20 +65,20 @@ export function DeviceAuthPage() {
   if (status === 'rejected') {
     return (
       <div style={{ maxWidth: 440, margin: '4rem auto', textAlign: 'center' }}>
-        <h2>Device Rejected</h2>
-        <p>The device code was not approved. You can close this tab.</p>
+        <h2>{t('device.rejectedTitle')}</h2>
+        <p>{t('device.rejectedBody')}</p>
       </div>
     )
   }
 
   return (
     <div style={{ maxWidth: 440, margin: '4rem auto', textAlign: 'center' }}>
-      <h2>Device Authentication</h2>
-      <p>A CLI tool is requesting access to your <strong>{user?.nickname}</strong> account.</p>
+      <h2>{t('device.title')}</h2>
+      <p><Trans t={t} i18nKey="device.requestBody" values={{ nickname: user?.nickname }} components={{ strong: <strong /> }} /></p>
       <p style={{ fontSize: '2rem', fontFamily: 'monospace', letterSpacing: '0.3em', margin: '1.5rem 0' }}>
         {code || '------'}
       </p>
-      <p>Verify this code matches what your terminal shows.</p>
+      <p>{t('device.verifyCode')}</p>
       {error && <p style={{ color: 'var(--color-danger)' }}>{error}</p>}
       <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1.5rem' }}>
         <button
@@ -85,7 +87,7 @@ export function DeviceAuthPage() {
           onClick={handleApprove}
           disabled={!code || status === 'approving'}
         >
-          {status === 'approving' ? 'Approving...' : 'Approve'}
+          {status === 'approving' ? t('device.approving') : t('device.approve')}
         </button>
         <button
           className="secondary-button"
@@ -98,7 +100,7 @@ export function DeviceAuthPage() {
           }}
           disabled={status === 'approving'}
         >
-          Reject
+          {t('device.reject')}
         </button>
       </div>
     </div>

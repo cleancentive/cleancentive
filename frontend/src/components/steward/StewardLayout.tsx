@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, Navigate, NavLink, Outlet } from 'react-router-dom'
 import { useAdminStore } from '../../stores/adminStore'
 import { useAuthStore } from '../../stores/authStore'
@@ -52,15 +53,16 @@ function FeedbackIcon() {
   )
 }
 
-const TABS: Array<{ to: string; label: string; icon: ReactNode }> = [
-  { to: 'feedback?status=new,acknowledged,in_progress', label: 'Feedback', icon: <FeedbackIcon /> },
-  { to: 'users', label: 'Users', icon: <UsersIcon /> },
-  { to: 'operations', label: 'Operations', icon: <OperationsIcon /> },
-  { to: 'storage', label: 'Storage', icon: <StorageIcon /> },
-  { to: 'purge', label: 'Purge', icon: <PurgeIcon /> },
+const TABS: Array<{ to: string; labelKey: string; icon: ReactNode }> = [
+  { to: 'feedback?status=new,acknowledged,in_progress', labelKey: 'nav.feedback', icon: <FeedbackIcon /> },
+  { to: 'users', labelKey: 'nav.users', icon: <UsersIcon /> },
+  { to: 'operations', labelKey: 'nav.operations', icon: <OperationsIcon /> },
+  { to: 'storage', labelKey: 'nav.storage', icon: <StorageIcon /> },
+  { to: 'purge', labelKey: 'nav.purge', icon: <PurgeIcon /> },
 ]
 
 export function StewardLayout() {
+  const { t } = useTranslation(['steward', 'common'])
   const { user } = useAuthStore()
   const isAdmin = useAdminStore((s) => s.isAdmin)
   const checkAdminStatus = useAdminStore((s) => s.checkAdminStatus)
@@ -75,16 +77,16 @@ export function StewardLayout() {
   }
 
   if (!checked) {
-    return <div className="admin-panel"><p className="loading">Loading...</p></div>
+    return <div className="admin-panel"><p className="loading">{t('loading')}</p></div>
   }
 
   if (!isAdmin) {
     return (
       <div className="admin-panel">
         <div className="access-denied">
-          <h2>Access Denied</h2>
-          <p>You do not have steward privileges.</p>
-          <Link to="/">Go Home</Link>
+          <h2>{t('accessDenied.title')}</h2>
+          <p>{t('accessDenied.message')}</p>
+          <Link to="/">{t('accessDenied.goHome')}</Link>
         </div>
       </div>
     )
@@ -93,16 +95,16 @@ export function StewardLayout() {
   return (
     <div className="admin-panel">
       <div className="steward-shell">
-        <nav className="steward-dock" aria-label="Steward sections">
+        <nav className="steward-dock" aria-label={t('nav.sectionsLabel')}>
           {TABS.map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}
-              title={tab.label}
+              title={t(tab.labelKey)}
               className={({ isActive }) => `steward-dock-item${isActive ? ' steward-dock-item--active' : ''}`}
             >
               {tab.icon}
-              <span className="steward-dock-label">{tab.label}</span>
+              <span className="steward-dock-label">{t(tab.labelKey)}</span>
             </NavLink>
           ))}
         </nav>

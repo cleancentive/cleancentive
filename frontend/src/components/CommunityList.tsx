@@ -1,4 +1,5 @@
 import { useState, useRef, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface CommunityListProps {
   title: string
@@ -31,6 +32,7 @@ export function CommunityList({
   hideSearch,
   children,
 }: CommunityListProps) {
+  const { t } = useTranslation(['common'])
   const [searchInput, setSearchInput] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -71,7 +73,7 @@ export function CommunityList({
 
         <div className="community-list-items">
           {children}
-          {isLoading && <p className="loading">Loading...</p>}
+          {isLoading && <p className="loading">{t('common:actions.loading')}</p>}
           {!isLoading && isEmpty && <p className="end-of-list">{emptyMessage}</p>}
         </div>
       </fieldset>

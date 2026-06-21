@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 import { ConfirmDialog } from './ConfirmDialog'
 
@@ -44,6 +45,7 @@ export function LabelAutocomplete({
   subjectKind?: 'litter' | 'plant'
   onChange: (val: LabelRef | null) => void
 }) {
+  const { t } = useTranslation(['spot', 'common'])
   const { sessionToken } = useAuthStore()
   const [query, setQuery] = useState(value?.name ?? '')
   const [results, setResults] = useState<LabelSearchResult[]>([])
@@ -140,10 +142,10 @@ export function LabelAutocomplete({
           value={query}
           onChange={(e) => handleInput(e.target.value)}
           onFocus={() => { if (query) setIsOpen(true) }}
-          placeholder={`Search ${label.toLowerCase()}...`}
+          placeholder={t('item.search', { label: label.toLowerCase() })}
         />
         {value && (
-          <button className="label-autocomplete-clear" onClick={clearValue} title="Clear">&times;</button>
+          <button className="label-autocomplete-clear" onClick={clearValue} title={t('item.clear')}>&times;</button>
         )}
       </div>
       {isOpen && (results.length > 0 || showAddOption) && (
@@ -158,7 +160,7 @@ export function LabelAutocomplete({
               className="label-autocomplete-option label-autocomplete-add"
               onClick={() => createAndSelect(query)}
             >
-              Add: {query.trim()}
+              {t('item.add', { name: query.trim() })}
             </li>
           )}
         </ul>
@@ -180,6 +182,7 @@ export function ItemEditor({
   onUpdated: () => void
   onRemoved: () => void
 }) {
+  const { t } = useTranslation(['spot', 'common'])
   const { sessionToken } = useAuthStore()
   const [objectLabel, setObjectLabel] = useState<LabelRef | null>(item.objectLabel)
   const [materialLabel, setMaterialLabel] = useState<LabelRef | null>(item.materialLabel)
@@ -245,13 +248,13 @@ export function ItemEditor({
   }
 
   const invasiveListLabel = item.plantInvasive?.list === 'infoflora_black'
-    ? 'Black list'
-    : item.plantInvasive?.list === 'infoflora_watch' ? 'Watch list' : null
+    ? t('item.blackList')
+    : item.plantInvasive?.list === 'infoflora_watch' ? t('item.watchList') : null
 
   return (
     <div className="item-editor">
       <LabelAutocomplete
-        label={subjectKind === 'plant' ? 'Species' : 'Object'}
+        label={subjectKind === 'plant' ? t('item.species') : t('item.object')}
         type="object"
         value={objectLabel}
         subjectKind={subjectKind}
@@ -260,22 +263,22 @@ export function ItemEditor({
       {subjectKind !== 'plant' && (
         <>
           <LabelAutocomplete
-            label="Material"
+            label={t('item.material')}
             type="material"
             value={materialLabel}
             onChange={setMaterialLabel}
           />
-          <LabelAutocomplete label="Brand" type="brand" value={brandLabel} onChange={setBrandLabel} />
+          <LabelAutocomplete label={t('item.brand')} type="brand" value={brandLabel} onChange={setBrandLabel} />
         </>
       )}
       {item.plantInvasive && (
         <div className={`plant-id-badge plant-id-badge--${item.plantInvasive.list === 'infoflora_black' ? 'black' : 'watch'}`}>
-          Invasive plant — InfoFlora {invasiveListLabel}
+          {t('item.invasivePlant', { list: invasiveListLabel })}
           <p className="plant-id-action">{item.plantInvasive.recommendedAction}</p>
         </div>
       )}
       <div className="item-editor-weight">
-        <label className="label-autocomplete-label">Weight (g)</label>
+        <label className="label-autocomplete-label">{t('item.weight')}</label>
         <input
           className="label-autocomplete-input"
           type="number"
@@ -283,17 +286,17 @@ export function ItemEditor({
           step="1"
           value={weight}
           onChange={(e) => setWeight(e.target.value)}
-          placeholder="grams"
+          placeholder={t('item.weightPlaceholder')}
         />
       </div>
       {hasChanges && (
         <button className="secondary-button item-editor-save" onClick={saveItem} disabled={saving}>
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? t('common:actions.saving') : t('common:actions.save')}
         </button>
       )}
       <button
         className="item-editor-remove"
-        title="Remove item"
+        title={t('item.removeTitle')}
         onClick={() => setConfirmingDelete(true)}
         disabled={removing}
       >
@@ -301,19 +304,19 @@ export function ItemEditor({
       </button>
       {confirmingDelete && (
         <ConfirmDialog
-          title="Remove this item?"
+          title={t('item.removeConfirmTitle')}
           actions={
             <>
               <button className="secondary-button" onClick={() => setConfirmingDelete(false)} disabled={removing}>
-                Cancel
+                {t('common:actions.cancel')}
               </button>
               <button className="danger-button" onClick={removeItem} disabled={removing}>
-                {removing ? 'Removing...' : 'Remove'}
+                {removing ? t('item.removing') : t('common:actions.remove')}
               </button>
             </>
           }
         >
-          <p>The item will be removed from this spot. An entry is kept in the edit history so this action can be reviewed and, if needed, restored later.</p>
+          <p>{t('item.removeConfirmBody')}</p>
         </ConfirmDialog>
       )}
     </div>

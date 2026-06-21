@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
@@ -65,18 +66,18 @@ function ShieldIcon() {
 
 interface NavItem {
   to: string
-  label: string
+  labelKey: string
   icon: React.ReactNode
   adminOnly?: boolean
   end?: boolean
 }
 
 const navItems: NavItem[] = [
-  { to: '/teams', label: 'Teams', icon: <TeamIcon /> },
-  { to: '/cleanups', label: 'Cleanups', icon: <CleanupIcon /> },
-  { to: '/insights', label: 'Insights', icon: <ChartIcon /> },
-  { to: '/map', label: 'Map', icon: <MapIcon /> },
-  { to: '/steward', label: 'Steward', icon: <ShieldIcon />, adminOnly: true },
+  { to: '/teams', labelKey: 'common:nav.teams', icon: <TeamIcon /> },
+  { to: '/cleanups', labelKey: 'common:nav.cleanups', icon: <CleanupIcon /> },
+  { to: '/insights', labelKey: 'common:nav.insights', icon: <ChartIcon /> },
+  { to: '/map', labelKey: 'common:nav.map', icon: <MapIcon /> },
+  { to: '/steward', labelKey: 'common:nav.steward', icon: <ShieldIcon />, adminOnly: true },
 ]
 
 function WifiIcon() {
@@ -104,6 +105,7 @@ function FeedbackIcon() {
 }
 
 export function AppShell() {
+  const { t } = useTranslation(['shell', 'common'])
   const { user, guestId } = useAuthStore()
   const { isAdmin, checkAdminStatus } = useAdminStore()
   const { isOnline, browserOnline, isForceOffline, setForceOffline } = useConnectivityStore()
@@ -124,14 +126,14 @@ export function AppShell() {
       <header className="app-header">
         <h1>
           <Link to="/" className="app-title-link">
-            CleanCentive{partnerTeamName ? ` | ${partnerTeamName}` : ''}
+            {t('common:appName')}{partnerTeamName ? ` | ${partnerTeamName}` : ''}
           </Link>
         </h1>
         <nav className="nav-links">
-          <Link to="/" className="nav-cta">Pick now!</Link>
+          <Link to="/" className="nav-cta">{t('pickNow')}</Link>
           {visibleItems.map(item => (
             <NavLink key={item.to} to={item.to} end={item.end} className="nav-link">
-              {item.label}
+              {t(item.labelKey)}
             </NavLink>
           ))}
         </nav>
@@ -141,10 +143,10 @@ export function AppShell() {
               className={`connectivity-pill ${isOnline ? 'connectivity-pill--online' : 'connectivity-pill--offline'}`}
               onClick={() => browserOnline && setForceOffline(!isForceOffline)}
               disabled={!browserOnline}
-              title={!browserOnline ? 'No network connection' : isForceOffline ? 'Click to go online' : 'Click to go offline'}
+              title={!browserOnline ? t('connectivity.noNetworkTitle') : isForceOffline ? t('connectivity.goOnlineTitle') : t('connectivity.goOfflineTitle')}
             >
               {isOnline ? <WifiIcon /> : <WifiOffIcon />}
-              {!browserOnline ? 'No network' : isForceOffline ? 'Offline' : 'Online'}
+              {!browserOnline ? t('connectivity.noNetwork') : isForceOffline ? t('connectivity.offline') : t('connectivity.online')}
             </button>
             <UserMenuButton />
           </div>
@@ -168,18 +170,18 @@ export function AppShell() {
               <circle cx="10" cy="10" r="8" /><path d="M10 6v4l2.5 2.5" />
             </svg>
           </span>
-          <span className="tab-label">Pick now!</span>
+          <span className="tab-label">{t('pickNow')}</span>
         </NavLink>
         {visibleItems.map(item => (
           <NavLink key={item.to} to={item.to} end={item.end} className="tab-item">
             <span className="tab-icon">{item.icon}</span>
-            <span className="tab-label">{item.label}</span>
+            <span className="tab-label">{t(item.labelKey)}</span>
           </NavLink>
         ))}
       </nav>
 
       <button className="feedback-pill" onClick={() => openFeedbackModal()}>
-        <FeedbackIcon /> Feedback
+        <FeedbackIcon /> {t('common:domain.feedback')}
       </button>
 
       <SignInModal />

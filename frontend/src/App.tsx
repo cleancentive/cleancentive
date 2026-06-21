@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams, useNavigate } from 'react-router-dom'
+import i18n from './i18n'
 import { AppShell } from './components/AppShell'
 import { AppLayout } from './components/AppLayout'
 import { StewardLayout } from './components/steward/StewardLayout'
@@ -64,11 +65,29 @@ function AuthHandler() {
   return null
 }
 
+// Apply the signed-in user's stored language preference. An explicit ?locale=
+// override always wins (deep links, test scripts), so we skip the sync when one
+// is present; otherwise the profile preference beats the cached/browser guess.
+function LocaleSync() {
+  const locale = useAuthStore((s) => s.user?.locale)
+
+  useEffect(() => {
+    const hasOverride = new URLSearchParams(window.location.search).has('locale')
+    if (hasOverride || !locale) return
+    if (i18n.resolvedLanguage !== locale) {
+      void i18n.changeLanguage(locale)
+    }
+  }, [locale])
+
+  return null
+}
+
 function App() {
   return (
     <BrowserRouter>
       <NavHistoryProvider>
       <AuthHandler />
+      <LocaleSync />
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/" element={<AppLayout />} />

@@ -48,7 +48,24 @@ export class LabelSeedService implements OnApplicationBootstrap {
           [entry.type, enName],
         );
 
-        if (existing.length > 0) continue;
+        if (existing.length > 0) {
+          // Label already seeded — backfill any translations added to the seed
+          // file since (e.g. new `fr` entries) without touching existing rows.
+          const labelId = existing[0].id;
+          for (const [locale, name] of Object.entries(entry.translations)) {
+            const hasLocale = await queryRunner.query(
+              `SELECT 1 FROM label_translations WHERE label_id = $1 AND locale = $2`,
+              [labelId, locale],
+            );
+            if (hasLocale.length === 0) {
+              await queryRunner.query(
+                `INSERT INTO label_translations (id, label_id, locale, name) VALUES ($1, $2, $3, $4)`,
+                [uuidv7(), labelId, locale, name],
+              );
+            }
+          }
+          continue;
+        }
 
         const labelId = uuidv7();
         await queryRunner.query(

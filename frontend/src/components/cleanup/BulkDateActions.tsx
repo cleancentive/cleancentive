@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { formatShortDate } from '../../utils/datetime'
 
 interface BulkDateActionsProps {
@@ -21,20 +22,21 @@ export function BulkDateActions({
   onRequestBulkDelete,
   onClearSelection,
 }: BulkDateActionsProps) {
+  const { t } = useTranslation(['cleanups'])
   return (
     <div className="bulk-actions">
       {hasSelectedWithRecurrence && (
-        <button className="secondary-button" onClick={onSelectRelated}>Select related dates</button>
+        <button className="secondary-button" onClick={onSelectRelated}>{t('cleanups:bulk.selectRelated')}</button>
       )}
       {earliestSelectedStartAt && (
         <button className="secondary-button" onClick={onSelectAllAfter}>
-          Select all after {formatShortDate(earliestSelectedStartAt)}
+          {t('cleanups:bulk.selectAllAfter', { date: formatShortDate(earliestSelectedStartAt) })}
         </button>
       )}
       <button className="danger-button" onClick={onRequestBulkDelete} disabled={!isOnline}>
-        Delete {selectedCount} date{selectedCount > 1 ? 's' : ''}
+        {t('cleanups:bulk.delete', { count: selectedCount })}
       </button>
-      <button className="link-button" onClick={onClearSelection}>Clear selection</button>
+      <button className="link-button" onClick={onClearSelection}>{t('cleanups:bulk.clearSelection')}</button>
     </div>
   )
 }
