@@ -4,6 +4,7 @@ import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { parseLatLngInput } from '@cleancentive/shared'
 import { getStandardBasemapSource } from '../config/basemaps'
+import { useLocationStore } from '../stores/locationStore'
 
 interface LocationPickerProps {
   latitude: string
@@ -66,6 +67,9 @@ export function LocationPicker({
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const [locatingGps, setLocatingGps] = useState(false)
+  const [gpsError, setGpsError] = useState<string | null>(null)
+  const locationConsent = useLocationStore((s) => s.consent)
+  const requestLocation = useLocationStore((s) => s.requestLocation)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reverseDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -96,8 +100,17 @@ export function LocationPicker({
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
 
-    const initialCenter: [number, number] = hasCoords ? [lon, lat] : [0, 20]
-    const initialZoom = hasCoords ? 13 : 2
+    // Center on explicit coords if given; otherwise on the shared location store's
+    // last fix (present only when the user has already granted location). We never
+    // request location here — that would be an unprompted prompt. Falls back to a
+    // world view; the explicit 📍 button is the way to locate on demand.
+    const storeFix = useLocationStore.getState().latest
+    const initialCenter: [number, number] = hasCoords
+      ? [lon, lat]
+      : storeFix
+        ? [storeFix.longitude, storeFix.latitude]
+        : [0, 20]
+    const initialZoom = hasCoords || storeFix ? 13 : 2
 
     const standard = getStandardBasemapSource()
 
@@ -144,19 +157,6 @@ export function LocationPicker({
 
     mapRef.current = map
     markerRef.current = marker
-
-    // If no coords provided, center on user's GPS location
-    if (!hasCoords && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (mapRef.current) {
-            mapRef.current.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 13 })
-          }
-        },
-        () => { /* silent fail */ },
-        { enableHighAccuracy: false, timeout: 5000 },
-      )
-    }
 
     return () => { map.remove(); mapRef.current = null; markerRef.current = null }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -235,7 +235,18 @@ export function LocationPicker({
   }
 
   const useMyLocation = () => {
-    if (!navigator.geolocation) return
+    setGpsError(null)
+    if (!navigator.geolocation || locationConsent === 'unsupported') {
+      setGpsError(t('common:location.unsupported'))
+      return
+    }
+    if (locationConsent === 'denied') {
+      setGpsError(t('common:location.denied'))
+      return
+    }
+    // Explicit gesture: persist the opt-in and start the shared watch so the rest
+    // of the app benefits, then take a precise one-shot fix for this picker.
+    requestLocation()
     setLocatingGps(true)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -247,7 +258,10 @@ export function LocationPicker({
         maybeReverseGeocode(newLat, newLon)
         setLocatingGps(false)
       },
-      () => { setLocatingGps(false) },
+      () => {
+        setLocatingGps(false)
+        setGpsError(t('common:location.denied'))
+      },
       { enableHighAccuracy: true, timeout: 10000 },
     )
   }
@@ -285,6 +299,8 @@ export function LocationPicker({
           </ul>
         )}
       </div>
+
+      {gpsError && <p className="error-message">{gpsError}</p>}
 
       <div className="location-map" ref={mapContainerRef} />
 

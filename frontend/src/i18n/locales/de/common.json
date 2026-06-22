@@ -49,5 +49,13 @@
     "steward": "Steward",
     "feedback": "Feedback",
     "guest": "Gast"
+  },
+  "location": {
+    "consentTitle": "Standort freigeben?",
+    "consentBody": "CleanCentive markiert jeden Fund mit dem Ort, an dem du ihn gefunden hast – so erscheint er auf der Karte und zählt für die Cleanup-Statistik. Dein Standort wird nur während des Erfassens verwendet.",
+    "enable": "Standort aktivieren",
+    "manualFallback": "Standort manuell festlegen",
+    "denied": "Der Standortzugriff ist blockiert. Aktiviere ihn in den Website-Einstellungen deines Browsers oder lege den Standort manuell fest.",
+    "unsupported": "Standort ist in diesem Browser nicht verfügbar. Du kannst den Standort manuell festlegen."
   }
 }

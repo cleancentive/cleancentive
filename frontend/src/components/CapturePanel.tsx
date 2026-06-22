@@ -69,6 +69,8 @@ export function CapturePanel() {
   const latestLocation = useLocationStore((s) => s.latest)
   const bestRecentLocation = useLocationStore((s) => s.bestRecent)
   const locationError = useLocationStore((s) => s.errorMessage)
+  const locationConsent = useLocationStore((s) => s.consent)
+  const requestLocation = useLocationStore((s) => s.requestLocation)
   const openCaptureWindow = useLocationStore((s) => s.openCaptureWindow)
   const closeCaptureWindow = useLocationStore((s) => s.closeCaptureWindow)
 
@@ -379,6 +381,24 @@ export function CapturePanel() {
         </span>
       </div>
 
+      {locationConsent === 'needed' && (
+        <div className="location-consent">
+          <p className="capture-detail">
+            <strong>{t('common:location.consentTitle')}</strong>
+            <br />
+            {t('common:location.consentBody')}
+          </p>
+          <div className="camera-actions">
+            <button className="primary-button" onClick={requestLocation}>
+              {t('common:location.enable')}
+            </button>
+            <button className="secondary-button" onClick={() => setShowManualPicker(true)}>
+              {t('common:location.manualFallback')}
+            </button>
+          </div>
+        </div>
+      )}
+
       {showLocationDetail && (
         <p className="capture-detail">
           {locationTier === 'manual' && location && (
@@ -494,6 +514,9 @@ export function CapturePanel() {
             {t('capture.joinNow')}
           </button>
         </p>
+      )}
+      {(locationConsent === 'denied' || locationConsent === 'unsupported') && (
+        <p className="error-message">{t(`common:location.${locationConsent}`)}</p>
       )}
       {locationError && <p className="error-message">{t('capture.locationError', { message: locationError })}</p>}
       {captureError && <p className="error-message">{captureError}</p>}

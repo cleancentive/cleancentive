@@ -49,5 +49,13 @@
     "steward": "Steward",
     "feedback": "Feedback",
     "guest": "Invité·e"
+  },
+  "location": {
+    "consentTitle": "Partager votre position ?",
+    "consentBody": "CleanCentive associe chaque ramassage à l'endroit où vous l'avez trouvé, afin qu'il apparaisse sur la carte et compte dans les statistiques de nettoyage. Votre position n'est utilisée que pendant la saisie.",
+    "enable": "Activer la localisation",
+    "manualFallback": "Définir la position manuellement",
+    "denied": "L'accès à la position est bloqué. Activez-le dans les paramètres du site de votre navigateur, ou définissez la position manuellement.",
+    "unsupported": "La localisation n'est pas disponible dans ce navigateur. Vous pouvez définir la position manuellement."
   }
 }

@@ -49,5 +49,13 @@
     "steward": "Steward",
     "feedback": "Feedback",
     "guest": "Guest"
+  },
+  "location": {
+    "consentTitle": "Share your location?",
+    "consentBody": "CleanCentive tags each pick with where you found it, so it shows up on the map and counts toward cleanup stats. Your location is only used while you're logging.",
+    "enable": "Enable location",
+    "manualFallback": "Set location manually",
+    "denied": "Location access is blocked. Enable it in your browser's site settings, or set the location manually.",
+    "unsupported": "Location isn't available in this browser. You can set the location manually."
   }
 }
