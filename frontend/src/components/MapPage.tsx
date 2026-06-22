@@ -320,7 +320,11 @@ export function MapPage() {
     map.addControl(new maplibregl.NavigationControl(), 'top-right')
     map.addControl(
       new maplibregl.GeolocateControl({
-        positionOptions: { enableHighAccuracy: true },
+        // timeout + maximumAge mirror the shared locationStore watch: without a
+        // timeout the control spins forever when the platform can't produce a
+        // high-accuracy fix (e.g. desktop without GPS); maximumAge lets it reuse
+        // a recent fix for an instant result instead of always re-querying.
+        positionOptions: { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
         trackUserLocation: true,
         showUserLocation: true,
       }),
