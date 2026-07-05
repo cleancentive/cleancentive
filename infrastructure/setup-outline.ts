@@ -23,7 +23,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { S3Client, HeadBucketCommand, CreateBucketCommand } from '@aws-sdk/client-s3';
+import {
+  S3Client,
+  HeadBucketCommand,
+  CreateBucketCommand,
+  PutBucketCorsCommand,
+} from '@aws-sdk/client-s3';
 import { Client as PgClient } from 'pg';
 
 // Source backend/.env so we pick up ADMIN_EMAILS, DB creds, etc. without
@@ -80,6 +85,42 @@ async function ensureWikiBucket(): Promise<void> {
   } catch {
     await client.send(new CreateBucketCommand({ Bucket: OUTLINE_S3_BUCKET }));
     console.log(`Outline: created S3 bucket "${OUTLINE_S3_BUCKET}".`);
+  }
+
+  // CORS: Outline uses FILE_STORAGE=s3 with presigned direct-to-bucket uploads,
+  // so the browser POSTs the file straight to the bucket. Without a CORS rule
+  // allowing the wiki origin, the browser's preflight is rejected and every
+  // upload fails with "Upload failed". MinIO (dev) allows all origins by
+  // default, but Backblaze B2 (prod) denies by default — hence this rule.
+  // PutBucketCors replaces the full CORS config, so this is idempotent.
+  const wikiOrigin = new URL(OUTLINE_PUBLIC_URL).origin;
+  try {
+    await client.send(
+      new PutBucketCorsCommand({
+        Bucket: OUTLINE_S3_BUCKET,
+        CORSConfiguration: {
+          CORSRules: [
+            {
+              AllowedOrigins: [wikiOrigin],
+              AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD'],
+              AllowedHeaders: ['*'],
+              ExposeHeaders: ['ETag'],
+              MaxAgeSeconds: 3600,
+            },
+          ],
+        },
+      }),
+    );
+    console.log(`Outline: set bucket CORS to allow ${wikiOrigin}.`);
+  } catch (e) {
+    // Backblaze B2 keys scoped to object read/write (no writeBucketCors
+    // capability) return "not entitled" here. In that case set the CORS rule
+    // once from the B2 web console (Bucket → CORS Rules) or re-run with a key
+    // that has bucket-config capability — object uploads stay broken until then.
+    console.warn(
+      `Outline: could not set bucket CORS (${e instanceof Error ? e.message : e}). ` +
+        `Browser uploads will fail until ${wikiOrigin} is allowed on bucket "${OUTLINE_S3_BUCKET}".`,
+    );
   }
 }
 

@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not } from 'typeorm';
 import { Client as PgClient } from 'pg';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { HeadBucketCommand, CreateBucketCommand } from '@aws-sdk/client-s3';
+import { HeadBucketCommand, CreateBucketCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3';
 import { createS3Client } from '../common/s3-client';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
@@ -135,11 +135,53 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   private async ensureWikiBucket(): Promise<void> {
     const client = createS3Client();
 
+    // Bucket presence check is best-effort (B2 rejects HeadBucket/CreateBucket
+    // when the key is scoped to a single existing bucket). Keep it isolated so a
+    // "not entitled" failure here never prevents the CORS step below from running.
     try {
       await client.send(new HeadBucketCommand({ Bucket: this.outlineS3Bucket }));
     } catch {
-      await client.send(new CreateBucketCommand({ Bucket: this.outlineS3Bucket }));
-      this.logger.log(`Created Outline S3 bucket "${this.outlineS3Bucket}"`);
+      try {
+        await client.send(new CreateBucketCommand({ Bucket: this.outlineS3Bucket }));
+        this.logger.log(`Created Outline S3 bucket "${this.outlineS3Bucket}"`);
+      } catch (e) {
+        this.logger.warn(
+          `Wiki bucket presence check skipped (${e instanceof Error ? e.message : e})`,
+        );
+      }
+    }
+
+    // CORS: Outline uses FILE_STORAGE=s3 with presigned direct-to-bucket uploads,
+    // so the browser POSTs files straight to the bucket. Without a CORS rule
+    // allowing the wiki origin, the preflight is rejected and every upload fails
+    // with "Upload failed". MinIO (dev) allows all origins by default; Backblaze
+    // B2 (prod) denies by default and requires the key to hold the
+    // writeBucketCors capability. Idempotent — PutBucketCors replaces the config.
+    const wikiOrigin = new URL(this.outlinePublicUrl).origin;
+    try {
+      await client.send(
+        new PutBucketCorsCommand({
+          Bucket: this.outlineS3Bucket,
+          CORSConfiguration: {
+            CORSRules: [
+              {
+                AllowedOrigins: [wikiOrigin],
+                AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD'],
+                AllowedHeaders: ['*'],
+                ExposeHeaders: ['ETag'],
+                MaxAgeSeconds: 3600,
+              },
+            ],
+          },
+        }),
+      );
+      this.logger.log(`Set Outline bucket CORS to allow ${wikiOrigin}`);
+    } catch (e) {
+      this.logger.warn(
+        `Could not set Outline bucket CORS (${e instanceof Error ? e.message : e}). ` +
+          `Browser uploads will fail until ${wikiOrigin} is allowed on bucket ` +
+          `"${this.outlineS3Bucket}" (the B2 key needs the writeBucketCors capability).`,
+      );
     }
   }
 
