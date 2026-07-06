@@ -5,6 +5,7 @@ import { Client as PgClient } from 'pg';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { HeadBucketCommand, CreateBucketCommand, PutBucketCorsCommand, S3Client } from '@aws-sdk/client-s3';
 import { getOutlineS3ClientConfig } from '../common/outline-s3-client';
+import { updateBackblazeBucketCors } from '../common/backblaze-b2';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
 import { Team } from '../team/team.entity';
@@ -151,35 +152,20 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    // CORS: Outline uses FILE_STORAGE=s3 with presigned direct-to-bucket uploads,
-    // so the browser POSTs files straight to the bucket. Without a CORS rule
-    // allowing the wiki origin, the preflight is rejected and every upload fails
-    // with "Upload failed". MinIO (dev) allows all origins by default; Backblaze
-    // B2 (prod) denies by default and requires the key to hold the
-    // writeBucketCors capability. Idempotent — PutBucketCors replaces the config.
-    const wikiOrigin = new URL(this.outlinePublicUrl).origin;
     try {
-      await client.send(
-        new PutBucketCorsCommand({
-          Bucket: this.outlineS3Bucket,
-          CORSConfiguration: {
-            CORSRules: [
-              {
-                AllowedOrigins: [wikiOrigin],
-                AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD'],
-                AllowedHeaders: ['*'],
-                ExposeHeaders: ['ETag'],
-                MaxAgeSeconds: 3600,
-              },
-            ],
-          },
-        }),
+      await updateBackblazeBucketCors(
+        {
+          applicationKeyId: process.env.OUTLINE_S3_ACCESS_KEY ?? process.env.S3_ACCESS_KEY ?? '',
+          applicationKey: process.env.OUTLINE_S3_SECRET_KEY ?? process.env.S3_SECRET_KEY ?? '',
+        },
+        this.outlineS3Bucket,
+        new URL(this.outlinePublicUrl).origin,
       );
-      this.logger.log(`Set Outline bucket CORS to allow ${wikiOrigin}`);
+      this.logger.log(`Set Outline bucket CORS to allow ${new URL(this.outlinePublicUrl).origin}`);
     } catch (e) {
       this.logger.warn(
         `Could not set Outline bucket CORS (${e instanceof Error ? e.message : e}). ` +
-          `Browser uploads will fail until ${wikiOrigin} is allowed on bucket ` +
+          `Browser uploads will fail until ${new URL(this.outlinePublicUrl).origin} is allowed on bucket ` +
           `"${this.outlineS3Bucket}" (the B2 key needs the writeBucketCors capability).`,
       );
     }
