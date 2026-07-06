@@ -118,7 +118,7 @@ services:
         condition: service_healthy
 
   outline:
-    image: ghcr.io/cleancentive/outline:55d12410778387aa39cdbcef9229eb5b52793d8a
+    image: ghcr.io/cleancentive/outline:9faf89e3724f35670b22e75050184862bc037af4
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
@@ -141,6 +141,7 @@ services:
       AWS_S3_UPLOAD_BUCKET_URL: ${OUTLINE_S3_ENDPOINT}
       AWS_S3_UPLOAD_BUCKET_NAME: ${OUTLINE_S3_BUCKET}
       AWS_S3_FORCE_PATH_STYLE: "true"
+      AWS_S3_UPLOAD_METHOD: put
       OIDC_CLIENT_ID: outline
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET}
       OIDC_ISSUER_URL: https://${DOMAIN}/api/v1/oidc
