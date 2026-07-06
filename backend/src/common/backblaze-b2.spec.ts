@@ -49,7 +49,7 @@ describe('createBackblazeBucketCorsRules', () => {
       throw new Error(`Unexpected request: ${url}`);
     });
 
-    globalThis.fetch = fetchMock as typeof fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     await updateBackblazeBucketCors(
       { applicationKeyId: '004d2359c6e8ae90000000002', applicationKey: 'secret' },

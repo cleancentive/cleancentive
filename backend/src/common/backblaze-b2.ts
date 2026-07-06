@@ -1,6 +1,7 @@
 type B2Auth = {
   applicationKeyId: string;
   applicationKey: string;
+  apiUrl?: string;
 };
 
 type B2Bucket = {
@@ -52,7 +53,8 @@ export async function updateBackblazeBucketCors(auth: B2Auth, bucketName: string
 }
 
 async function authorizeB2(auth: B2Auth): Promise<{ accountId: string; apiUrl: string; authorizationToken: string }> {
-  const response = await fetch(`${auth.apiUrl}/b2api/v3/b2_authorize_account`, {
+  const apiUrl = auth.apiUrl ?? 'https://api.backblazeb2.com';
+  const response = await fetch(`${apiUrl}/b2api/v3/b2_authorize_account`, {
     method: 'GET',
     headers: {
       Authorization: `Basic ${Buffer.from(`${auth.applicationKeyId}:${auth.applicationKey}`).toString('base64')}`,
