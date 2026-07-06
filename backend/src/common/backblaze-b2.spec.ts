@@ -1,12 +1,18 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
 
-import { createBackblazeBucketCorsRules, updateBackblazeBucketCors } from './backblaze-b2';
+import { createBackblazeBucketCorsRules, getBackblazeApiUrl, updateBackblazeBucketCors } from './backblaze-b2';
 
 afterEach(() => {
   mock.restore();
 });
 
 describe('createBackblazeBucketCorsRules', () => {
+  test('uses the explicit B2 api host when provided', () => {
+    expect(getBackblazeApiUrl({ OUTLINE_B2_API_URL: 'https://api004.backblazeb2.com' } as NodeJS.ProcessEnv)).toBe(
+      'https://api004.backblazeb2.com',
+    );
+  });
+
   test('creates a wiki upload cors rule for Backblaze native buckets', () => {
     expect(createBackblazeBucketCorsRules('https://wiki.cleancentive.org')).toEqual([
       {

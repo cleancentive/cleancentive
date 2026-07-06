@@ -5,7 +5,7 @@ import { Client as PgClient } from 'pg';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { HeadBucketCommand, CreateBucketCommand, PutBucketCorsCommand, S3Client } from '@aws-sdk/client-s3';
 import { getOutlineS3ClientConfig } from '../common/outline-s3-client';
-import { updateBackblazeBucketCors } from '../common/backblaze-b2';
+import { getBackblazeApiUrl, updateBackblazeBucketCors } from '../common/backblaze-b2';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
 import { Team } from '../team/team.entity';
@@ -157,6 +157,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
         {
           applicationKeyId: process.env.OUTLINE_S3_ACCESS_KEY ?? process.env.S3_ACCESS_KEY ?? '',
           applicationKey: process.env.OUTLINE_S3_SECRET_KEY ?? process.env.S3_SECRET_KEY ?? '',
+          apiUrl: getBackblazeApiUrl(process.env),
         },
         this.outlineS3Bucket,
         new URL(this.outlinePublicUrl).origin,

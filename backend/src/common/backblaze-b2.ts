@@ -20,6 +20,10 @@ type B2Bucket = {
 
 const B2_NATIVE_CORS_OPERATIONS = ['s3_head', 's3_get', 's3_put', 's3_post'];
 
+export function getBackblazeApiUrl(env: NodeJS.ProcessEnv = process.env): string {
+  return env.OUTLINE_B2_API_URL ?? env.B2_API_URL ?? 'https://api004.backblazeb2.com';
+}
+
 export function createBackblazeBucketCorsRules(origin: string) {
   return [
     {
@@ -53,7 +57,7 @@ export async function updateBackblazeBucketCors(auth: B2Auth, bucketName: string
 }
 
 async function authorizeB2(auth: B2Auth): Promise<{ accountId: string; apiUrl: string; authorizationToken: string }> {
-  const apiUrl = auth.apiUrl ?? 'https://api.backblazeb2.com';
+  const apiUrl = auth.apiUrl ?? getBackblazeApiUrl();
   const response = await fetch(`${apiUrl}/b2api/v3/b2_authorize_account`, {
     method: 'GET',
     headers: {
