@@ -118,7 +118,7 @@ services:
         condition: service_healthy
 
   outline:
-    image: ghcr.io/cleancentive/outline:9faf89e3724f35670b22e75050184862bc037af4
+    image: ghcr.io/cleancentive/outline:efcef1613233cb7b1c94cfca88983ffc9cc71da7
     restart: unless-stopped
     env_file:
       - ${PRIVATE_ENV_FILE:-../private/.env}
