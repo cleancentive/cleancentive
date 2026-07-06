@@ -61,8 +61,17 @@ async function authorizeB2(auth: B2Auth): Promise<{ accountId: string; apiUrl: s
     },
   });
   await assertOk(response);
-  const data = (await response.json()) as { accountId: string; apiUrl: string; authorizationToken: string };
-  return data;
+  const data = (await response.json()) as {
+    accountId: string;
+    apiUrl?: string;
+    apiInfo?: { apiUrl?: string };
+    authorizationToken: string;
+  };
+  return {
+    accountId: data.accountId,
+    apiUrl: data.apiUrl ?? data.apiInfo?.apiUrl ?? apiUrl,
+    authorizationToken: data.authorizationToken,
+  };
 }
 
 async function getBucket(apiUrl: string, authorizationToken: string, accountId: string, bucketName: string): Promise<B2Bucket> {
