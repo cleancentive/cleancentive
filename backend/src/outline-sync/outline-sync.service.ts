@@ -3,8 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not } from 'typeorm';
 import { Client as PgClient } from 'pg';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { HeadBucketCommand, CreateBucketCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3';
-import { createS3Client } from '../common/s3-client';
+import { HeadBucketCommand, CreateBucketCommand, PutBucketCorsCommand, S3Client } from '@aws-sdk/client-s3';
+import { getOutlineS3ClientConfig } from '../common/outline-s3-client';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
 import { Team } from '../team/team.entity';
@@ -133,7 +133,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async ensureWikiBucket(): Promise<void> {
-    const client = createS3Client();
+    const client = new S3Client(getOutlineS3ClientConfig(process.env));
 
     // Bucket presence check is best-effort (B2 rejects HeadBucket/CreateBucket
     // when the key is scoped to a single existing bucket). Keep it isolated so a

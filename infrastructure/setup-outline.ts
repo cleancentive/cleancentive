@@ -60,6 +60,15 @@ const TEAM_NAME = process.env.OUTLINE_TEAM_NAME ?? 'CleanCentive Wiki';
 const TEAM_THEME_ACCENT = process.env.OUTLINE_TEAM_THEME_ACCENT ?? '#2563eb';
 const TEAM_THEME_ACCENT_TEXT = process.env.OUTLINE_TEAM_THEME_ACCENT_TEXT ?? '#ffffff';
 const OUTLINE_S3_BUCKET = process.env.OUTLINE_S3_BUCKET ?? 'cleancentive-wiki';
+const OUTLINE_S3_CONFIG = {
+  region: process.env.OUTLINE_S3_REGION ?? process.env.S3_REGION ?? 'us-east-1',
+  endpoint: process.env.OUTLINE_S3_ENDPOINT ?? process.env.S3_ENDPOINT ?? 'http://localhost:9002',
+  forcePathStyle: true,
+  credentials: {
+    accessKeyId: process.env.OUTLINE_S3_ACCESS_KEY ?? process.env.S3_ACCESS_KEY ?? 'minioadmin',
+    secretAccessKey: process.env.OUTLINE_S3_SECRET_KEY ?? process.env.S3_SECRET_KEY ?? 'minioadmin',
+  },
+};
 
 const PG_OUTLINE = {
   host: process.env.DB_HOST ?? 'localhost',
@@ -72,13 +81,7 @@ const PG_OUTLINE = {
 // --- MinIO bucket ----------------------------------------------------------
 async function ensureWikiBucket(): Promise<void> {
   const client = new S3Client({
-    region: process.env.S3_REGION ?? 'us-east-1',
-    endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9002',
-    forcePathStyle: true,
-    credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY ?? 'minioadmin',
-      secretAccessKey: process.env.S3_SECRET_KEY ?? 'minioadmin',
-    },
+    ...OUTLINE_S3_CONFIG,
   });
   try {
     await client.send(new HeadBucketCommand({ Bucket: OUTLINE_S3_BUCKET }));

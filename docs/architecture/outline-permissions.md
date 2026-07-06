@@ -2,6 +2,10 @@
 
 Cleancentive uses Outline as the team wiki. Cleancentive owns identity, team membership, steward status, and initial wiki bootstrapping. After a collection is created, Outline owns collection permissions, document permissions, and public shares.
 
+## Storage Boundary
+
+Outline wiki attachments use a dedicated Backblaze B2 bucket, separate from the main app image bucket. The wiki bucket is named `cleancentive-wiki` and is managed idempotently by Cleancentive bootstrap code and production reconciliation. The production Outline container receives its own `OUTLINE_S3_*` credentials so wiki uploads do not depend on the app bucket or its permissions.
+
 ## User Groups
 
 | Cleancentive audience | Outline representation | Access model |
