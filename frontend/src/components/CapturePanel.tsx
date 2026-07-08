@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useCleanupStore } from '../stores/cleanupStore'
-import { useLocationStore } from '../stores/locationStore'
+import { selectFreshCaptureLocation, useLocationStore } from '../stores/locationStore'
 import { cancelScheduledFlush, flushOutbox, queueCapture } from '../lib/pendingPicks'
 import { extractImageMetadata } from '../lib/imageMetadata'
 import { trackEvent } from '../lib/analytics'
@@ -71,11 +71,13 @@ export function CapturePanel() {
   const locationError = useLocationStore((s) => s.errorMessage)
   const locationConsent = useLocationStore((s) => s.consent)
   const requestLocation = useLocationStore((s) => s.requestLocation)
+  const requestFreshLocation = useLocationStore((s) => s.requestFreshLocation)
   const openCaptureWindow = useLocationStore((s) => s.openCaptureWindow)
   const closeCaptureWindow = useLocationStore((s) => s.closeCaptureWindow)
 
-  // Manual pick (if set) wins; otherwise prefer the filtered best fix; finally fall back to the raw latest fix.
-  const gpsLocation = bestRecentLocation ?? latestLocation
+  // Manual pick (if set) wins; otherwise only use a fresh GPS fix. Browsers can
+  // stop delivering watch updates while still leaving the last fix in memory.
+  const gpsLocation = selectFreshCaptureLocation(bestRecentLocation, latestLocation)
   const location = manualLocation
     ? { latitude: manualLocation.latitude, longitude: manualLocation.longitude, accuracy: null as number | null }
     : gpsLocation
@@ -224,14 +226,32 @@ export function CapturePanel() {
       return
     }
 
-    if (!location) {
+    let captureLocation = location
+    if (!captureLocation && !manualLocation) {
+      const freshFix = await requestFreshLocation()
+      if (freshFix) {
+        captureLocation = {
+          latitude: freshFix.latitude,
+          longitude: freshFix.longitude,
+          accuracy: freshFix.accuracy,
+        }
+      }
+    }
+
+    if (!captureLocation) {
       setCaptureError(t('capture.errors.waitingForFix'))
       return
     }
 
-    if (locationTier === 'low' && location.accuracy !== null && !AUTO_ACCEPT_LOW_CONFIDENCE) {
+    const captureLocationTier: LocationTier | 'manual' = manualLocation
+      ? 'manual'
+      : captureLocation.accuracy !== null
+        ? classifyAccuracy(captureLocation.accuracy)
+        : 'unknown'
+
+    if (captureLocationTier === 'low' && captureLocation.accuracy !== null && !AUTO_ACCEPT_LOW_CONFIDENCE) {
       const confirmed = window.confirm(
-        t('capture.errors.lowConfidenceConfirm', { meters: Math.round(location.accuracy) }),
+        t('capture.errors.lowConfidenceConfirm', { meters: Math.round(captureLocation.accuracy) }),
       )
       if (!confirmed) return
     }
@@ -259,9 +279,9 @@ export function CapturePanel() {
         ownerUserId: user?.id || null,
         ownerGuestId: guestId,
         capturedAt: new Date().toISOString(),
-        latitude: location.latitude,
-        longitude: location.longitude,
-        accuracyMeters: location.accuracy,
+        latitude: captureLocation.latitude,
+        longitude: captureLocation.longitude,
+        accuracyMeters: captureLocation.accuracy,
         mimeType: imageBlob.type || 'image/jpeg',
         imageBlob,
         thumbnailBlob,
@@ -360,6 +380,8 @@ export function CapturePanel() {
   }
 
   const lowConfidenceSuffix = locationTier === 'low' && !AUTO_ACCEPT_LOW_CONFIDENCE ? t('capture.lowConfidenceSuffix') : ''
+  const canRequestFreshLocation = locationConsent === 'granted'
+  const captureDisabled = isCapturing || (locationTier === 'unknown' && !canRequestFreshLocation)
 
   return (
     <fieldset className="page-card capture-panel">
@@ -463,7 +485,7 @@ export function CapturePanel() {
               <button
                 className="primary-button"
                 onClick={() => captureAndQueue('litter')}
-                disabled={isCapturing || locationTier === 'unknown'}
+                disabled={captureDisabled}
               >
                 {isCapturing
                   ? t('capture.capturing')
@@ -472,7 +494,7 @@ export function CapturePanel() {
               <button
                 className="primary-button"
                 onClick={() => captureAndQueue('plant')}
-                disabled={isCapturing || locationTier === 'unknown'}
+                disabled={captureDisabled}
                 title={t('capture.plantTitle')}
               >
                 {isCapturing

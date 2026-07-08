@@ -5,6 +5,7 @@ const PEDESTRIAN_MAX_M_PER_S = 3
 const GAP_BYPASS_SECONDS = 60
 const BUFFER_MAX = 10
 const BUFFER_MAX_AGE_MS = 60_000
+const CAPTURE_LOCATION_MAX_AGE_MS = 60_000
 const ACCURACY_OUTLIER_MULTIPLIER = 5
 const CONSENT_STORAGE_KEY = 'cc-geo-consent'
 
@@ -44,6 +45,7 @@ interface LocationState {
   // User-initiated opt-in: persists consent and starts the shared watch (this is
   // the call that may surface the browser's native permission prompt).
   requestLocation: () => void
+  requestFreshLocation: () => Promise<LocationFix | null>
 }
 
 function median(values: number[]): number {
@@ -75,6 +77,34 @@ function selectBest(buffer: LocationFix[], now: number): LocationFix | null {
   return fresh.reduce((best, f) => (f.accuracy < best.accuracy ? f : best))
 }
 
+function isFreshFix(fix: LocationFix | null, now: number): fix is LocationFix {
+  if (!fix) return false
+  return now - fix.timestamp <= CAPTURE_LOCATION_MAX_AGE_MS
+}
+
+export function selectFreshCaptureLocation(
+  bestRecent: LocationFix | null,
+  latest: LocationFix | null,
+  now = Date.now(),
+): LocationFix | null {
+  if (isFreshFix(bestRecent, now)) return bestRecent
+  if (isFreshFix(latest, now)) return latest
+  return null
+}
+
+export function getFreshPositionOptions(): PositionOptions {
+  return { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+}
+
+function positionToFix(position: GeolocationPosition): LocationFix {
+  return {
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+    accuracy: position.coords.accuracy,
+    timestamp: position.timestamp,
+  }
+}
+
 export const useLocationStore = create<LocationState>(() => ({
   consent: 'unknown',
   errorMessage: null,
@@ -94,6 +124,7 @@ export const useLocationStore = create<LocationState>(() => ({
     rememberConsent()
     startWatch()
   },
+  requestFreshLocation: () => requestFreshLocation(),
 }))
 
 function ingestFix(fix: LocationFix) {
@@ -136,6 +167,32 @@ function rememberConsent() {
   }
 }
 
+function requestFreshLocation(): Promise<LocationFix | null> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    useLocationStore.setState({ consent: 'unsupported' })
+    return Promise.resolve(null)
+  }
+
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const fix = positionToFix(position)
+        ingestFix(fix)
+        resolve(selectFreshCaptureLocation(fix, null))
+      },
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          useLocationStore.setState({ consent: 'denied', errorMessage: null })
+        } else {
+          useLocationStore.setState({ errorMessage: error.message })
+        }
+        resolve(null)
+      },
+      getFreshPositionOptions(),
+    )
+  })
+}
+
 let watchStarted = false
 
 // Starts the single shared geolocation watch. Idempotent; safe to call from any
@@ -147,12 +204,7 @@ function startWatch() {
   watchStarted = true
   navigator.geolocation.watchPosition(
     (position) => {
-      ingestFix({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracy: position.coords.accuracy,
-        timestamp: Date.now(),
-      })
+      ingestFix(positionToFix(position))
     },
     (error) => {
       if (error.code === error.PERMISSION_DENIED) {
