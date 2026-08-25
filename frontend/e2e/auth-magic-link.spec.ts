@@ -6,26 +6,34 @@ import {
   extractMagicLink,
 } from './helpers/mailpit';
 
-/** Helper: open login form from guest banner */
+/** Helper: open the sign-in modal from the header */
 async function openLoginForm(page: import('@playwright/test').Page) {
   await page.goto('/');
   await page.waitForLoadState('networkidle');
 
-  const loginFormVisible = await page
-    .locator('h2:has-text("Sign in to CleanCentive")')
-    .isVisible()
-    .catch(() => false);
+  // The header's sign-in control is icon-only — its name comes from aria-label,
+  // so it has to be matched by role, not by text content.
+  const heading = page.getByRole('heading', { name: 'Welcome to CleanCentive!' });
 
-  if (!loginFormVisible) {
-    const signInButton = page
-      .locator('button:has-text("Login"), button:has-text("Sign in"), a:has-text("Login"), a:has-text("Sign in")')
-      .first();
-    if (await signInButton.isVisible().catch(() => false)) {
-      await signInButton.click();
-    }
+  if (!(await heading.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Sign in' }).first().click();
   }
 
-  await expect(page.locator('h2:has-text("Sign in to CleanCentive")')).toBeVisible();
+  await expect(heading).toBeVisible();
+}
+
+/** Helper: assert the header reflects an authenticated session */
+async function expectSignedIn(page: import('@playwright/test').Page) {
+  // Sign Out lives inside the user-menu dropdown, so the menu has to be opened
+  // first. Both header controls are icon-only and named via aria-label.
+  await expect(page.getByRole('button', { name: 'Sign in' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'User menu' }).click();
+  await expect(page.getByRole('button', { name: 'Sign Out' })).toBeVisible();
+}
+
+/** Helper: sign out via the user menu (assumes the dropdown is already open) */
+async function signOut(page: import('@playwright/test').Page) {
+  await page.getByRole('button', { name: 'Sign Out' }).click();
 }
 
 /** Helper: submit email in login form and wait for success */
@@ -68,7 +76,7 @@ test.describe('Magic Link Authentication', () => {
     await expect(guestBanner).not.toBeVisible({ timeout: 5000 });
 
     // Should see Sign Out button
-    await expect(page.locator('button:has-text("Sign Out")')).toBeVisible();
+    await expectSignedIn(page);
 
     // Still on the app
     await expect(page).toHaveURL(/.*localhost:5173/);
@@ -86,10 +94,10 @@ test.describe('Magic Link Authentication', () => {
     const firstLink = extractMagicLink(firstEmail.HTML);
     await page.goto(firstLink!);
     await page.waitForLoadState('networkidle');
-    await expect(page.locator('button:has-text("Sign Out")')).toBeVisible();
+    await expectSignedIn(page);
 
     // Now sign out
-    await page.locator('button:has-text("Sign Out")').click();
+    await signOut(page);
     await page.waitForLoadState('networkidle');
 
     // Clear mailpit and request login again with same email
@@ -106,7 +114,7 @@ test.describe('Magic Link Authentication', () => {
 
     await page.goto(secondLink!);
     await page.waitForLoadState('networkidle');
-    await expect(page.locator('button:has-text("Sign Out")')).toBeVisible();
+    await expectSignedIn(page);
     console.log('Returning user authenticated successfully');
   });
 
