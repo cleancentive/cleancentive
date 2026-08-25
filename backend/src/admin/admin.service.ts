@@ -25,7 +25,7 @@ export class AdminService {
     return !!admin;
   }
 
-  async promoteToAdmin(userId: string, promotedBy: string | null): Promise<Admin> {
+  async promoteToAdmin(userId: string, _promotedBy: string | null): Promise<Admin> {
     const existing = await this.adminRepository.findOne({ where: { user_id: userId } });
     if (existing) return existing;
 

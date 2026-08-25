@@ -2,7 +2,7 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { createHash, randomBytes, createSign, createVerify } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
@@ -338,7 +338,7 @@ export class OidcService implements OnModuleInit {
     };
   }
 
-  async revokeToken(token: string, tokenTypeHint?: string): Promise<boolean> {
+  async revokeToken(token: string, _tokenTypeHint?: string): Promise<boolean> {
     // Try to find as refresh token
     const refreshTokenHash = createHash('sha256').update(token).digest('hex');
     const refreshToken = await this.refreshTokenRepo.findOne({

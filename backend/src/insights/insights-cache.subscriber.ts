@@ -19,7 +19,9 @@ import { clearInsightsCache } from './insights-cache';
 // Note: TypeORM lifecycle events only fire on save/remove/softRemove/recover.
 // Bulk repository.delete() / .update() bypass these hooks; those callsites
 // invalidate explicitly via InsightsCacheService.
-const WATCHED: ReadonlySet<Function> = new Set([
+type EntityClass = abstract new (...args: never[]) => unknown;
+
+const WATCHED: ReadonlySet<EntityClass> = new Set<EntityClass>([
   Cleanup,
   CleanupDate,
   CleanupParticipant,
@@ -32,7 +34,7 @@ export class InsightsCacheSubscriber implements EntitySubscriberInterface {
   private readonly redis = new Redis(redisConnection());
 
   private async invalidate(target: unknown): Promise<void> {
-    if (typeof target !== 'function' || !WATCHED.has(target as Function)) return;
+    if (typeof target !== 'function' || !WATCHED.has(target as EntityClass)) return;
     await clearInsightsCache(this.redis);
   }
 

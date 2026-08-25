@@ -8,8 +8,6 @@ import { UserEmail } from '../src/user/user-email.entity';
 
 describe('UserService', () => {
   let service: UserService;
-  let userRepository: Repository<User>;
-  let userEmailRepository: Repository<UserEmail>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -31,8 +29,6 @@ describe('UserService', () => {
     }).compile();
 
     service = module.get<UserService>(UserService);
-    userRepository = module.get<Repository<User>>(getRepositoryToken(User));
-    userEmailRepository = module.get<Repository<UserEmail>>(getRepositoryToken(UserEmail));
   });
 
   it('should be defined', () => {

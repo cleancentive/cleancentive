@@ -197,6 +197,9 @@ export function ItemEditor({
     setMaterialLabel(item.materialLabel)
     setBrandLabel(item.brandLabel)
     setWeight(item.weightGrams !== null ? String(item.weightGrams) : '')
+    // Keyed on label ids so the form resets only when the item's identity changes,
+    // not on every re-render that hands us a fresh label object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.objectLabel?.id, item.materialLabel?.id, item.brandLabel?.id, item.weightGrams])
 
   const hasChanges =

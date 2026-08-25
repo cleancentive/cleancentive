@@ -52,7 +52,7 @@ interface CreateTeamMessageInput {
   ccSender: boolean;
 }
 
-const REGEX_INDICATORS = /[*+\\()^$\[]/;
+const REGEX_INDICATORS = /[*+\\()^$[]/;
 
 function isRegexPattern(pattern: string): boolean {
   if (REGEX_INDICATORS.test(pattern)) return true;

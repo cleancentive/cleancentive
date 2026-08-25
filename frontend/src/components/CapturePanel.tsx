@@ -50,7 +50,7 @@ export function CapturePanel() {
       new Date(c.nearestDate.end_at).getTime() >= now,
     )
     return ongoing ? { name: ongoing.cleanup.name, dateId: ongoing.nearestDate!.id } : null
-  }, [cleanups, user, user?.active_cleanup_date_id])
+  }, [cleanups, user])
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const captureCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)

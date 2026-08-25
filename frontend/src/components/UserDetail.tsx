@@ -58,6 +58,9 @@ export function UserDetail() {
     }
 
     fetchUser()
+    // `t` is only used for an error label; adding it would refetch the user on every
+    // language change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, sessionToken])
 
   if (!currentUser) {

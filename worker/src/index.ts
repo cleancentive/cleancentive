@@ -5,7 +5,7 @@ import { Pool, PoolClient } from 'pg';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { hostname } from 'os';
 import sharp from 'sharp';
-import { PROCESSING_STATUS, clampWeightGrams } from '@cleancentive/shared';
+import { clampWeightGrams } from '@cleancentive/shared';
 import type { LitterDetectionJobData, DetectedObject, DetectionResult } from '@cleancentive/shared';
 import { persistDetection as persistDetectionToDb } from './detection';
 import { PlantNetIdentifier } from './identifiers/plantnet';

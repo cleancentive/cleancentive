@@ -142,6 +142,9 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
 
     process()
     return () => { cancelled = true }
+    // Re-running on a language change would restart the whole import; `t` is only
+    // used for labels inside, so it is deliberately not a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [files, user])
 
   // Cleanup thumbnail URLs on unmount

@@ -22,7 +22,6 @@ import { AdminService } from '../admin/admin.service';
 import { FeedbackService } from './feedback.service';
 import {
   FEEDBACK_CATEGORY_QUERY_VALUES,
-  FEEDBACK_STATUSES,
   normalizeFeedbackListQuery,
 } from './feedback-query';
 

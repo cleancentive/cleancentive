@@ -666,7 +666,7 @@ export function MapPage() {
         ;(map.getSource('spots-heat-source') as maplibregl.GeoJSONSource | undefined)?.setData(annotated)
       }
       if (current.cleanupGeoJson) {
-        ;(map.getSource('cleanups-source') as maplibregl.GeoJSONSource | undefined)?.setData(current.cleanupGeoJson)
+        (map.getSource('cleanups-source') as maplibregl.GeoJSONSource | undefined)?.setData(current.cleanupGeoJson)
       }
     }
 

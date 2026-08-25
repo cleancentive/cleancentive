@@ -567,7 +567,7 @@ export class SpotService {
     }
 
     const result = await this.dataSource.transaction(async (manager) => {
-      for (const { field, labelId, type } of labelFields) {
+      for (const { field, labelId } of labelFields) {
         if (labelId === undefined) continue;
 
         const oldValue = (item as any)[field];
@@ -806,7 +806,7 @@ export class SpotService {
     await this.detectionQueue.close();
   }
 
-  private async retryFailedSpot(spot: Spot, updatedBy: string): Promise<void> {
+  private async retryFailedSpot(spot: Spot, _updatedBy: string): Promise<void> {
     if (spot.processing_status !== PROCESSING_STATUS.FAILED) throw new BadRequestException('Only failed spots can be retried');
 
     spot.processing_status = PROCESSING_STATUS.QUEUED;

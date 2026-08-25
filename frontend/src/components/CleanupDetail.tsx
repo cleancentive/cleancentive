@@ -71,6 +71,9 @@ export function CleanupDetail() {
       if (!cancelled) setJoinedWebcal(urls?.joinedWebcal ?? null)
     })
     return () => { cancelled = true }
+    // Keyed on the user id, not the user object: a new object identity for the same
+    // signed-in user must not refetch the calendar URLs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, getCalendarUrls])
 
   useEffect(() => {

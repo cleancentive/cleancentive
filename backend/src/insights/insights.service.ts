@@ -345,7 +345,7 @@ export class InsightsService {
       topMaterials,
       topBrands,
     ] = await Promise.all([
-      this.cleanupRepository.count({ where: { archived_at: undefined } }).then((c) =>
+      this.cleanupRepository.count({ where: { archived_at: undefined } }).then(() =>
         this.cleanupRepository.query(`SELECT COUNT(*)::int AS count FROM cleanups WHERE archived_at IS NULL`),
       ),
       this.userRepository.query(`SELECT COUNT(*)::int AS count FROM users WHERE last_login IS NOT NULL`),
@@ -407,7 +407,6 @@ export class InsightsService {
 
   private async computeFilteredStats(filter: StatsFilter): Promise<PublicStats> {
     const { where, params } = this.buildSpotWhere(filter);
-    const { and, params: andParams } = this.buildSpotAnd(filter);
 
     let cleanupTotalSql: string;
     let cleanupTotalParams: any[];

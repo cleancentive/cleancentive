@@ -1,9 +1,8 @@
-import { Controller, Post, Body, Get, Query, Param, Res, UseGuards, Request, BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Param, Res, UseGuards, Request, BadRequestException, NotFoundException } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import { AdminGuard } from '../admin/admin.guard';
 import { buildRequestMetadata, type RequestMetadata } from './request-metadata';
 
 @Controller('auth')

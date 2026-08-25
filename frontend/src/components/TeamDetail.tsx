@@ -68,6 +68,9 @@ export function TeamDetail() {
       setEditPatterns(currentTeam.emailPatterns?.map(p => p.email_pattern).join('\n') || '')
       setEditCss(currentTeam.team.custom_css || '')
     }
+    // Keyed on the team id so switching teams reseeds the editor, while an in-place
+    // refresh of the same team does not discard what the user is typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentTeam?.team.id])
 
   if (isLoading) {

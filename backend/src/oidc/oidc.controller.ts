@@ -47,9 +47,9 @@ export class OidcController {
     @Query('redirect_uri') redirectUri: string,
     @Query('scope') scope: string,
     @Query('state') state: string,
-    @Query('code_challenge') codeChallenge?: string,
-    @Query('code_challenge_method') codeChallengeMethod?: string,
-    @Query('nonce') nonce?: string,
+    @Query('code_challenge') _codeChallenge?: string,
+    @Query('code_challenge_method') _codeChallengeMethod?: string,
+    @Query('nonce') _nonce?: string,
   ) {
     // Validate response_type
     if (responseType !== 'code') {
@@ -254,7 +254,7 @@ export class OidcController {
     // The token is the session token from the magic link flow
     // We redirect to the authorize endpoint with the session
     try {
-      const payload = await this.authService.validateSessionToken(token);
+      await this.authService.validateSessionToken(token);
       // Re-run the authorize flow with the session
       const authorizeUrl = `${this.issuerUrl}/authorize${token ? `?session_token=${token}` : ''}`;
       return res.redirect(authorizeUrl);

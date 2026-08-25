@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not } from 'typeorm';
 import { Client as PgClient } from 'pg';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { HeadBucketCommand, CreateBucketCommand, PutBucketCorsCommand, S3Client } from '@aws-sdk/client-s3';
+import { HeadBucketCommand, CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { getOutlineS3ClientConfig } from '../common/outline-s3-client';
 import { getBackblazeApiUrl, updateBackblazeBucketCors } from '../common/backblaze-b2';
 import { UserService } from '../user/user.service';

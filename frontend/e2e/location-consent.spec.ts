@@ -1,4 +1,11 @@
 import { test, expect } from './fixtures'
+import type { Page } from '@playwright/test'
+
+declare global {
+  interface Window {
+    __geoCalls: string[]
+  }
+}
 
 // Guards feedback 019ecb80: the app used to fire the native geolocation prompt on
 // page load, because locationStore started watchPosition() as a module-level side
@@ -6,17 +13,19 @@ import { test, expect } from './fixtures'
 // in-app gesture" — so they instrument the geolocation API and assert on *when*
 // the app reaches for it, which is the part that regressed.
 
-const instrument = async (page: any) => {
+const instrument = async (page: Page) => {
   await page.addInitScript(() => {
-    ;(window as any).__geoCalls = []
+    window.__geoCalls = []
     const g = navigator.geolocation
-    for (const name of ['getCurrentPosition', 'watchPosition'] as const) {
-      const orig = (g as any)[name].bind(g)
-      ;(g as any)[name] = (...a: any[]) => {
-        ;(window as any).__geoCalls.push(name)
-        return orig(...a)
-      }
+    const record = <T extends 'getCurrentPosition' | 'watchPosition'>(name: T) => {
+      const orig = g[name].bind(g)
+      g[name] = ((...args: Parameters<Geolocation[T]>) => {
+        window.__geoCalls.push(name)
+        return (orig as (...a: unknown[]) => unknown)(...args)
+      }) as Geolocation[T]
     }
+    record('getCurrentPosition')
+    record('watchPosition')
   })
 }
 
@@ -26,7 +35,7 @@ test('fresh visitor: no geolocation call on load, in-app card offered instead', 
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(1500)
 
-  const calls = await page.evaluate(() => (window as any).__geoCalls)
+  const calls = await page.evaluate(() => window.__geoCalls)
   expect(calls).toEqual([])
 
   await expect(page.locator('.location-consent')).toBeVisible()
@@ -41,14 +50,14 @@ test('the geolocation API is touched only after the explicit gesture', async ({ 
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(1500)
 
-  const before = await page.evaluate(() => (window as any).__geoCalls)
+  const before = await page.evaluate(() => window.__geoCalls)
   expect(before).toEqual([])
 
   await expect(page.locator('.location-consent')).toBeVisible()
   await page.locator('.location-consent .primary-button').click()
   await page.waitForTimeout(1500)
 
-  const after = await page.evaluate(() => (window as any).__geoCalls)
+  const after = await page.evaluate(() => window.__geoCalls)
   expect(after.length).toBeGreaterThan(0)
 })
 
@@ -60,7 +69,7 @@ test('returning visitor with permission granted: silent watch, no card', async (
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(1500)
 
-  const calls = await page.evaluate(() => (window as any).__geoCalls)
+  const calls = await page.evaluate(() => window.__geoCalls)
   expect(calls.length).toBeGreaterThan(0)
   await expect(page.locator('.location-consent')).toHaveCount(0)
 })
