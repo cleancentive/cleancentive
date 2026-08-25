@@ -92,7 +92,13 @@
       "quarterly": "Quarterly",
       "yearly": "Yearly"
     },
+    "endsLabel": "Ends",
+    "ends": {
+      "afterCount": "After occurrences",
+      "onDate": "On date"
+    },
     "occurrencesLabel": "Occurrences",
+    "untilLabel": "Until",
     "preview_one": "{{count}} date:",
     "preview_other": "{{count}} dates:"
   },

@@ -92,7 +92,13 @@
       "quarterly": "Vierteljährlich",
       "yearly": "Jährlich"
     },
+    "endsLabel": "Endet",
+    "ends": {
+      "afterCount": "Nach Vorkommen",
+      "onDate": "An Datum"
+    },
     "occurrencesLabel": "Vorkommen",
+    "untilLabel": "Bis",
     "preview_one": "{{count}} Termin:",
     "preview_other": "{{count}} Termine:"
   },

@@ -129,7 +129,7 @@ export function CleanupDetail() {
   const handleAddDate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!id) return
-    if (form.repeatEnabled && form.repeatCount > 1) {
+    if (form.repeatEnabled && form.repeatPreview.length > 1) {
       await addDatesBulk(id, uuidv7(), form.repeatPreview.map((g) => ({
         startAt: g.startAt,
         endAt: g.endAt,

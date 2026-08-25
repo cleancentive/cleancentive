@@ -5,6 +5,8 @@ import {
   defaultEndFrom,
   durationHours,
   generateRecurringDates,
+  generateRecurringDatesUntil,
+  MAX_OCCURRENCES,
 } from '../lib/cleanupDates'
 import { isoToDatetimeLocal } from '../utils/datetime'
 
@@ -16,6 +18,8 @@ export interface CleanupDateLike {
   location_name: string | null
 }
 
+export type RepeatMode = 'count' | 'until'
+
 export interface UseCleanupDateForm {
   startAt: string
   endAt: string
@@ -24,7 +28,9 @@ export interface UseCleanupDateForm {
   lon: string
   repeatEnabled: boolean
   repeatFrequency: Frequency
+  repeatMode: RepeatMode
   repeatCount: number
+  repeatUntil: string
 
   setStartAt: (v: string) => void
   setLocationName: (v: string) => void
@@ -32,7 +38,9 @@ export interface UseCleanupDateForm {
   setLon: (v: string) => void
   setRepeatEnabled: (v: boolean) => void
   setRepeatFrequency: (v: Frequency) => void
+  setRepeatMode: (v: RepeatMode) => void
   setRepeatCount: (v: number) => void
+  setRepeatUntil: (v: string) => void
 
   handleStartFocus: () => void
   handleEndFocus: () => void
@@ -55,10 +63,12 @@ export function useCleanupDateForm(): UseCleanupDateForm {
 
   const [repeatEnabled, setRepeatEnabled] = useState(false)
   const [repeatFrequency, setRepeatFrequencyState] = useState<Frequency>('weekly')
+  const [repeatMode, setRepeatMode] = useState<RepeatMode>('count')
   const [repeatCount, setRepeatCountState] = useState(4)
+  const [repeatUntil, setRepeatUntil] = useState('')
 
   const setRepeatFrequency = (v: Frequency) => setRepeatFrequencyState(v)
-  const setRepeatCount = (v: number) => setRepeatCountState(Math.min(52, Math.max(2, v)))
+  const setRepeatCount = (v: number) => setRepeatCountState(Math.min(MAX_OCCURRENCES, Math.max(2, v)))
 
   const handleStartFocus = () => {
     if (!startAt) setStartAt(defaultStartFor(endAt || undefined))
@@ -89,11 +99,15 @@ export function useCleanupDateForm(): UseCleanupDateForm {
     setLon('')
     setRepeatEnabled(false)
     setRepeatFrequencyState('weekly')
+    setRepeatMode('count')
     setRepeatCountState(4)
+    setRepeatUntil('')
   }
 
   const repeatPreview = repeatEnabled && startAt && endAt
-    ? generateRecurringDates(startAt, endAt, repeatFrequency, repeatCount)
+    ? repeatMode === 'until'
+      ? generateRecurringDatesUntil(startAt, endAt, repeatFrequency, repeatUntil)
+      : generateRecurringDates(startAt, endAt, repeatFrequency, repeatCount)
     : []
 
   const nowLocal = isoToDatetimeLocal(new Date().toISOString())
@@ -107,7 +121,9 @@ export function useCleanupDateForm(): UseCleanupDateForm {
     lon,
     repeatEnabled,
     repeatFrequency,
+    repeatMode,
     repeatCount,
+    repeatUntil,
 
     setStartAt,
     setLocationName,
@@ -115,7 +131,9 @@ export function useCleanupDateForm(): UseCleanupDateForm {
     setLon,
     setRepeatEnabled,
     setRepeatFrequency,
+    setRepeatMode,
     setRepeatCount,
+    setRepeatUntil,
 
     handleStartFocus,
     handleEndFocus,

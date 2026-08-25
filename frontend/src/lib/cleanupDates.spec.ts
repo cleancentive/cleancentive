@@ -5,6 +5,9 @@ import {
   isOngoing,
   addOffset,
   generateRecurringDates,
+  generateRecurringDatesUntil,
+  endOfLocalDay,
+  MAX_OCCURRENCES,
   recurrenceColor,
 } from './cleanupDates'
 
@@ -112,6 +115,65 @@ describe('generateRecurringDates', () => {
   test('count of 1 yields single entry', () => {
     const result = generateRecurringDates('2026-06-15T09:00:00.000Z', '2026-06-15T11:00:00.000Z', 'weekly', 1)
     expect(result).toHaveLength(1)
+  })
+})
+
+describe('endOfLocalDay', () => {
+  test('returns the last millisecond of the given local day', () => {
+    const d = endOfLocalDay('2026-08-31')!
+    expect(d.getFullYear()).toBe(2026)
+    expect(d.getMonth()).toBe(7) // August (0-indexed)
+    expect(d.getDate()).toBe(31)
+    expect(d.getHours()).toBe(23)
+    expect(d.getMinutes()).toBe(59)
+  })
+
+  test('returns null for anything that is not a bare YYYY-MM-DD', () => {
+    expect(endOfLocalDay('')).toBeNull()
+    expect(endOfLocalDay('2026-08-31T09:00')).toBeNull()
+    expect(endOfLocalDay('31/08/2026')).toBeNull()
+  })
+})
+
+describe('generateRecurringDatesUntil', () => {
+  // Build the start from local parts so the assertions hold in any timezone.
+  const localStart = (day: number) => {
+    const d = new Date(2026, 5, day, 9, 0, 0, 0) // June, 09:00 local
+    return d.toISOString()
+  }
+  const localEnd = (day: number) => {
+    const d = new Date(2026, 5, day, 11, 0, 0, 0)
+    return d.toISOString()
+  }
+
+  test('includes every occurrence up to and including the until day', () => {
+    // 15, 22, 29 June — 6 July falls outside
+    const result = generateRecurringDatesUntil(localStart(15), localEnd(15), 'weekly', '2026-06-30')
+    expect(result).toHaveLength(3)
+  })
+
+  test('includes an occurrence that starts on the until day itself', () => {
+    const result = generateRecurringDatesUntil(localStart(15), localEnd(15), 'weekly', '2026-06-22')
+    expect(result).toHaveLength(2)
+  })
+
+  test('first entry equals input start/end', () => {
+    const result = generateRecurringDatesUntil(localStart(15), localEnd(15), 'weekly', '2026-06-30')
+    expect(result[0].startAt).toBe(localStart(15))
+    expect(result[0].endAt).toBe(localEnd(15))
+  })
+
+  test('yields nothing when the until date precedes the start', () => {
+    expect(generateRecurringDatesUntil(localStart(15), localEnd(15), 'weekly', '2026-06-01')).toEqual([])
+  })
+
+  test('yields nothing for an unparseable until value', () => {
+    expect(generateRecurringDatesUntil(localStart(15), localEnd(15), 'weekly', '')).toEqual([])
+  })
+
+  test('caps an open-ended range at MAX_OCCURRENCES', () => {
+    const result = generateRecurringDatesUntil(localStart(15), localEnd(15), 'weekly', '2099-12-31')
+    expect(result).toHaveLength(MAX_OCCURRENCES)
   })
 })
 

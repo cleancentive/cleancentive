@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next'
-import { type Frequency } from '../../lib/cleanupDates'
+import { type Frequency, MAX_OCCURRENCES } from '../../lib/cleanupDates'
 import { formatDateRange } from '../../utils/datetime'
 import { LocationPicker } from '../LocationPicker'
-import { type UseCleanupDateForm } from '../../hooks/useCleanupDateForm'
+import { type UseCleanupDateForm, type RepeatMode } from '../../hooks/useCleanupDateForm'
 
 interface DateFormProps {
   form: UseCleanupDateForm
@@ -60,6 +60,7 @@ export function DateForm({ form, onSubmit, submitLabel, onCancel, showRepeat = f
               <label>
                 {t('cleanups:dateForm.frequencyLabel')}
                 <select
+                  className="repeat-frequency"
                   value={form.repeatFrequency}
                   onChange={(e) => form.setRepeatFrequency(e.target.value as Frequency)}
                 >
@@ -71,15 +72,40 @@ export function DateForm({ form, onSubmit, submitLabel, onCancel, showRepeat = f
                 </select>
               </label>
               <label>
-                {t('cleanups:dateForm.occurrencesLabel')}
-                <input
-                  type="number"
-                  min={2}
-                  max={52}
-                  value={form.repeatCount}
-                  onChange={(e) => form.setRepeatCount(Number(e.target.value))}
-                />
+                {t('cleanups:dateForm.endsLabel')}
+                <select
+                  className="repeat-ends"
+                  value={form.repeatMode}
+                  onChange={(e) => form.setRepeatMode(e.target.value as RepeatMode)}
+                >
+                  <option value="count">{t('cleanups:dateForm.ends.afterCount')}</option>
+                  <option value="until">{t('cleanups:dateForm.ends.onDate')}</option>
+                </select>
               </label>
+              {form.repeatMode === 'count' ? (
+                <label>
+                  {t('cleanups:dateForm.occurrencesLabel')}
+                  <input
+                    className="repeat-count"
+                    type="number"
+                    min={2}
+                    max={MAX_OCCURRENCES}
+                    value={form.repeatCount}
+                    onChange={(e) => form.setRepeatCount(Number(e.target.value))}
+                  />
+                </label>
+              ) : (
+                <label>
+                  {t('cleanups:dateForm.untilLabel')}
+                  <input
+                    className="repeat-until"
+                    type="date"
+                    min={form.startAt.split('T')[0] || undefined}
+                    value={form.repeatUntil}
+                    onChange={(e) => form.setRepeatUntil(e.target.value)}
+                  />
+                </label>
+              )}
             </div>
           )}
           {form.repeatPreview.length > 1 && (

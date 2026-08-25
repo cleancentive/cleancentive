@@ -92,7 +92,13 @@
       "quarterly": "Trimestriel",
       "yearly": "Annuel"
     },
+    "endsLabel": "Se termine",
+    "ends": {
+      "afterCount": "Après un nombre d’occurrences",
+      "onDate": "À une date"
+    },
     "occurrencesLabel": "Occurrences",
+    "untilLabel": "Jusqu'au",
     "preview_one": "{{count}} date :",
     "preview_other": "{{count}} dates :"
   },
