@@ -94,6 +94,7 @@ interface OpsOverview {
       completed: number
       failed: number
     }
+    stalled: number
     oldestQueuedAgeSeconds: number | null
     oldestProcessingAgeSeconds: number | null
   }

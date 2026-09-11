@@ -369,7 +369,7 @@ export class AdminOpsService implements OnModuleDestroy {
   }
 
   private async getSpotSummary() {
-    const [countRows, oldestQueuedRow, oldestProcessingRow] = await Promise.all([
+    const [countRows, oldestQueuedRow, oldestProcessingRow, stalledRow] = await Promise.all([
       this.spotRepository.query(
         `
           SELECT processing_status, COUNT(*)::int AS count
@@ -391,6 +391,19 @@ export class AdminOpsService implements OnModuleDestroy {
           WHERE processing_status = 'processing'
         `,
       ),
+      // Counted separately from `queued`/`processing` because these are the ones
+      // the retry sweep can actually rescue, and the UI gates its retry control on
+      // this. A plain queued count would light the button up for spots that are
+      // simply in flight.
+      this.spotRepository.query(
+        `
+          SELECT COUNT(*)::int AS stalled
+          FROM spots
+          WHERE processing_status IN ('queued', 'processing')
+            AND updated_at < NOW() - ($1 || ' minutes')::interval
+        `,
+        [String(this.stalledAfterMinutes)],
+      ),
     ]);
 
     const counts = {
@@ -408,6 +421,7 @@ export class AdminOpsService implements OnModuleDestroy {
 
     return {
       counts,
+      stalled: Number(stalledRow[0]?.stalled ?? 0),
       oldestQueuedAgeSeconds: this.toAgeSeconds(oldestQueuedRow[0]?.oldest_queued_at),
       oldestProcessingAgeSeconds: this.toAgeSeconds(oldestProcessingRow[0]?.oldest_processing_at),
     };

@@ -88,7 +88,7 @@ export function StewardOperations() {
         />
       </div>
 
-      {(opsOverview?.spots.counts.failed ?? 0) > 0 && (
+      {(opsOverview?.spots.counts.failed ?? 0) + (opsOverview?.spots.stalled ?? 0) > 0 && (
         <div className="ops-actions-row">
           <label className="ops-batch-label">
             {t('operations.retryBatchSize')}
