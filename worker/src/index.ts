@@ -1,6 +1,5 @@
 import { Worker, Job } from 'bullmq';
 import Redis from 'ioredis';
-import OpenAI from 'openai';
 import { Pool, PoolClient } from 'pg';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { hostname } from 'os';
@@ -8,6 +7,12 @@ import sharp from 'sharp';
 import { clampWeightGrams } from '@cleancentive/shared';
 import type { LitterDetectionJobData, DetectedObject, DetectionResult } from '@cleancentive/shared';
 import { persistDetection as persistDetectionToDb } from './detection';
+import {
+  buildDetectionProviders,
+  describeProviderError,
+  isEntitlementWall,
+  shouldTryNextProvider,
+} from './detection-providers';
 import { PlantNetIdentifier } from './identifiers/plantnet';
 import { MistralPlantIdentifier } from './identifiers/mistral-plant';
 import { ShadowPlantIdentifier } from './identifiers/shadow';
@@ -36,11 +41,9 @@ interface WorkerOpsState {
 const pkg = require('../package.json');
 
 const queueName = process.env.DETECTION_QUEUE_NAME || 'litter-detection';
-const detectionModel = process.env.DETECTION_MODEL || 'gpt-4o-mini';
-const detectionBaseUrl = process.env.DETECTION_BASE_URL;
 const bucketName = process.env.S3_BUCKET || 'cleancentive-images';
 const detectionMaxImageSize = parseInt(process.env.DETECTION_MAX_IMAGE_SIZE || '1024', 10);
-const workerConcurrency = 2;
+const workerConcurrency = parseInt(process.env.DETECTION_CONCURRENCY || '2', 10);
 const workerOpsKey = `ops:worker:${queueName}`;
 const workerHeartbeatIntervalMs = 10_000;
 const workerHeartbeatTtlSeconds = 30;
@@ -70,13 +73,11 @@ const s3Client = new S3Client({
   },
 });
 
-const detectionApiKey = process.env.DETECTION_API_KEY;
-const openai = detectionApiKey
-  ? new OpenAI({
-      apiKey: detectionApiKey,
-      ...(detectionBaseUrl ? { baseURL: detectionBaseUrl } : {}),
-    })
-  : null;
+// Primary first, then any configured fallbacks. A detection walks this chain on
+// provider-side failures so one provider losing its entitlement cannot take
+// detection down on its own.
+const detectionProviders = buildDetectionProviders();
+const primaryProvider = detectionProviders[0] ?? null;
 
 const plantNetApiKey = process.env.PLANTNET_API_KEY;
 const plantNetBaseUrl = process.env.PLANTNET_BASE_URL || 'https://my-api.plantnet.org/v2';
@@ -88,7 +89,7 @@ function buildPlantIdentifier(): PlantIdentifier | null {
   const plantnet = plantNetApiKey
     ? new PlantNetIdentifier(plantNetApiKey, plantNetBaseUrl, plantNetProject, plantNetMinConfidence)
     : null;
-  const mistral = openai ? new MistralPlantIdentifier(openai, detectionModel) : null;
+  const mistral = primaryProvider ? new MistralPlantIdentifier(primaryProvider.client, primaryProvider.model) : null;
 
   if (plantIdentifierMode === 'mistral') return mistral;
   if (plantIdentifierMode === 'shadow:plantnet+mistral') {
@@ -291,43 +292,75 @@ async function resizeForDetection(imageBytes: Uint8Array, maxDimension: number):
     .toBuffer();
 }
 
-async function detectLitter(imageBytes: Uint8Array, mimeType: string, systemPrompt: string): Promise<DetectionResult> {
-  if (!openai) {
-    throw new Error('DETECTION_API_KEY is not configured for the worker');
+async function detectLitter(
+  imageBytes: Uint8Array,
+  mimeType: string,
+  systemPrompt: string,
+): Promise<{ detection: DetectionResult; model: string }> {
+  if (detectionProviders.length === 0) {
+    throw new Error('No detection provider is configured for the worker (set DETECTION_API_KEY and DETECTION_MODEL)');
   }
 
   const dataUrl = `data:${mimeType};base64,${Buffer.from(imageBytes).toString('base64')}`;
+  const failures: string[] = [];
 
-  const completion = await openai.chat.completions.create({
-    model: detectionModel,
-    temperature: 0,
-    response_format: { type: 'json_object' },
-    messages: [
-      {
-        role: 'system',
-        content: systemPrompt,
-      },
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: 'Detect litter items in this photo and return the results.' },
-          { type: 'image_url', image_url: { url: dataUrl } },
+  for (const provider of detectionProviders) {
+    let content: string | null | undefined;
+
+    try {
+      const completion = await provider.client.chat.completions.create({
+        model: provider.model,
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Detect litter items in this photo and return the results.' },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          },
         ],
-      },
-    ],
-  });
+      });
 
-  const content = completion.choices[0]?.message?.content;
-  if (!content) {
-    throw new Error('OpenAI returned an empty response');
+      content = completion.choices[0]?.message?.content;
+    } catch (error) {
+      const description = describeProviderError(provider, error);
+
+      if (!shouldTryNextProvider(error)) {
+        // Our request was bad, not the provider — every provider would reject it
+        // the same way, so walking the rest of the chain only wastes calls.
+        throw new Error(description);
+      }
+
+      console.error(isEntitlementWall(error) ? `DETECTION ENTITLEMENT: ${description}` : description);
+      failures.push(description);
+      continue;
+    }
+
+    if (!content) {
+      const description = `${provider.label} (${provider.model}) returned an empty response`;
+      console.error(description);
+      failures.push(description);
+      continue;
+    }
+
+    const parsed = JSON.parse(content) as Record<string, unknown>;
+
+    return {
+      detection: {
+        objects: normalizeObjects(parsed.objects),
+        notes: asOptionalString(parsed.notes),
+      },
+      model: provider.model,
+    };
   }
 
-  const parsed = JSON.parse(content) as Record<string, unknown>;
-
-  return {
-    objects: normalizeObjects(parsed.objects),
-    notes: asOptionalString(parsed.notes),
-  };
+  throw new Error(`All ${detectionProviders.length} detection provider(s) failed: ${failures.join(' | ')}`);
 }
 
 async function withTransaction<T>(handler: (client: PoolClient) => Promise<T>): Promise<T> {
@@ -392,8 +425,10 @@ async function runLitterDetection(spotId: string, userId: string, imageKey: stri
 
   const imageBytes = await fetchImageBytes(imageKey);
   const resizedBytes = await resizeForDetection(imageBytes, detectionMaxImageSize);
-  const detection = await detectLitter(resizedBytes, 'image/jpeg', systemPrompt);
-  await persistDetection(spotId, userId, detection, detectionModel);
+  // Record the model that actually served this detection, not the one we asked
+  // first — otherwise a fallback silently files its results under the primary.
+  const { detection, model } = await detectLitter(resizedBytes, 'image/jpeg', systemPrompt);
+  await persistDetection(spotId, userId, detection, model);
   return { count: detection.objects.length };
 }
 

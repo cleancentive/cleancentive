@@ -29,7 +29,8 @@ export class PlantNetIdentifier implements PlantIdentifier {
     form.append('organs', 'auto');
 
     const url = `${this.baseUrl.replace(/\/$/, '')}/identify/${encodeURIComponent(this.project)}?api-key=${encodeURIComponent(this.apiKey)}&include-related-images=false&lang=en`;
-    const response = await fetch(url, { method: 'POST', body: form });
+    // Without a timeout a stalled Pl@ntNet response holds a worker slot indefinitely.
+    const response = await fetch(url, { method: 'POST', body: form, signal: AbortSignal.timeout(60_000) });
 
     // 4xx from Pl@ntNet is "we looked but found nothing" (e.g. 404 "Species not found"
     // for photos lacking recognizable plant features). Return a no-match result so

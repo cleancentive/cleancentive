@@ -23,6 +23,6 @@ bun run build
 bun run start
 ```
 
-**Note**: Requires `OPENAI_API_KEY` in `.env` file.
+**Note**: Requires `DETECTION_API_KEY` and `DETECTION_MODEL` in the `.env` file.
 
 See [DEVELOPMENT.md](../DEVELOPMENT.md) for full setup instructions.

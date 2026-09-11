@@ -125,7 +125,7 @@ describe('insertDetectedItems', () => {
         { category: 'Bottle', material: null, brand: null, weightGrams: 12, confidence: 0.8 },
       ],
       labelMap,
-      'gpt-4o-mini',
+      'mistral-medium-latest',
       'user-1',
     );
 
@@ -136,7 +136,7 @@ describe('insertDetectedItems', () => {
 
   test('no-ops when there are no objects', async () => {
     const { client, queries } = createMockClient([]);
-    await insertDetectedItems(client, 'spot-1', [], new Map(), 'gpt-4o-mini', 'user-1');
+    await insertDetectedItems(client, 'spot-1', [], new Map(), 'mistral-medium-latest', 'user-1');
     expect(queries).toHaveLength(0);
   });
 });
@@ -163,7 +163,7 @@ describe('persistDetection', () => {
         ],
         notes: 'one bottle',
       },
-      'gpt-4o-mini',
+      'mistral-medium-latest',
     );
 
     const ops = queries.map((q) => q.text.trim().split(/\s+/).slice(0, 3).join(' '));
@@ -183,7 +183,7 @@ describe('persistDetection', () => {
       'spot-1',
       'user-1',
       { objects: [], notes: null },
-      'gpt-4o-mini',
+      'mistral-medium-latest',
     );
 
     expect(queries.some((q) => q.text.includes('INSERT INTO detected_items'))).toBe(false);
