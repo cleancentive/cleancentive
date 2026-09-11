@@ -222,6 +222,29 @@ Bootstrap should install and configure only the host baseline:
 
 Bootstrap should not perform ongoing application deploys. Steady-state deployment is done by the reconcile script.
 
+## Monitoring detection
+
+`GET https://cleancentive.org/api/v1/health/detection` is public and unauthenticated so an
+external uptime monitor can poll it. It answers a question the infrastructure health check
+cannot: **are detections actually succeeding?**
+
+- `200` — `ok` (detections completing) or `degraded` (some failures, or spots waiting over
+  30 minutes).
+- `503` — `down`. Either every detection in the last 24h failed, or the last job the worker
+  attempted failed and none has succeeded since.
+
+Point an external monitor at it, not an on-box one — the check has to survive the whole host
+going down.
+
+This exists because detection was fully down from 2026-09-02 to 2026-09-11 without anyone
+noticing. Mistral's free tier had dropped the workspace to a rate-limit ceiling of zero, so
+every request returned 429 while the API key stayed valid. `admin/ops/health` reported "ok"
+the entire time: the worker heartbeat was fresh and Postgres, Redis and MinIO were all up.
+Nothing was checking whether the work itself succeeded.
+
+Tuning, if the defaults are noisy: `DETECTION_HEALTH_WINDOW_HOURS` (default 24) and
+`DETECTION_HEALTH_STUCK_MINUTES` (default 30).
+
 ## Rollback
 
 Rollback is a normal git change:
