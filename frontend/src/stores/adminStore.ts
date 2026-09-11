@@ -44,6 +44,34 @@ interface PurgeStatus {
   estimatedPurgeCount: number
 }
 
+export interface ReviewQueueItem {
+  id: string
+  objectLabel: { id: string; name: string } | null
+  materialLabel: { id: string; name: string } | null
+  brandLabel: { id: string; name: string } | null
+  weightGrams: number | null
+  confidence: number | null
+}
+
+export interface ReviewQueueSpot {
+  spotId: string
+  createdAt: string
+  items: ReviewQueueItem[]
+}
+
+export interface ReviewStats {
+  timestamp: string
+  backlog: number
+  reviewedByTeamThisWeek: number
+  reviewedByMeThisWeek: number
+  myActiveDays: number
+  modelAgreement: {
+    reviewedItems: number
+    untouchedItems: number
+    rate: number | null
+  }
+}
+
 interface OpsOverview {
   timestamp: string
   health: {
@@ -109,6 +137,10 @@ interface AdminState {
   search: string
   isLoading: boolean
   isLoadingOps: boolean
+  reviewQueue: ReviewQueueSpot[]
+  reviewIndex: number
+  reviewStats: ReviewStats | null
+  isLoadingReview: boolean
   isLoadingStorage: boolean
   isLoadingPurge: boolean
   isRetryingFailedSpots: boolean
@@ -128,6 +160,10 @@ interface AdminState {
 
   checkAdminStatus: () => Promise<void>
   fetchUsers: (loadMore?: boolean) => Promise<void>
+  fetchReviewQueue: (limit?: number) => Promise<void>
+  fetchReviewStats: () => Promise<void>
+  confirmSpotDetection: (spotId: string) => Promise<void>
+  advanceReviewQueue: () => void
   fetchOpsOverview: () => Promise<void>
   fetchStorageInsights: () => Promise<void>
   fetchPurgeStatus: () => Promise<void>
@@ -158,6 +194,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   search: '',
   isLoading: false,
   isLoadingOps: false,
+  reviewQueue: [],
+  reviewIndex: 0,
+  reviewStats: null,
+  isLoadingReview: false,
   isLoadingStorage: false,
   isLoadingPurge: false,
   isRetryingFailedSpots: false,
@@ -227,6 +267,59 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       })
     }
   },
+
+  fetchReviewQueue: async (limit = 10) => {
+    const headers = getAuthHeaders()
+    if (!headers.Authorization) return
+
+    set({ isLoadingReview: true })
+
+    try {
+      const response = await axios.get(`${API_BASE}/admin/ops/review/queue`, { headers, params: { limit } })
+      set({ reviewQueue: response.data.spots, reviewIndex: 0, isLoadingReview: false })
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to fetch the review queue',
+        isLoadingReview: false,
+      })
+    }
+  },
+
+  fetchReviewStats: async () => {
+    const headers = getAuthHeaders()
+    if (!headers.Authorization) return
+
+    try {
+      const response = await axios.get(`${API_BASE}/admin/ops/review/stats`, { headers })
+      set({ reviewStats: response.data })
+    } catch (error: any) {
+      set({ error: error.response?.data?.message || 'Failed to fetch review stats' })
+    }
+  },
+
+  confirmSpotDetection: async (spotId) => {
+    const headers = getAuthHeaders()
+    if (!headers.Authorization) return
+
+    try {
+      await axios.post(`${API_BASE}/spots/${spotId}/confirm-detection`, {}, { headers })
+      get().advanceReviewQueue()
+      set((state) => ({
+        reviewStats: state.reviewStats
+          ? {
+              ...state.reviewStats,
+              backlog: Math.max(0, state.reviewStats.backlog - 1),
+              reviewedByTeamThisWeek: state.reviewStats.reviewedByTeamThisWeek + 1,
+              reviewedByMeThisWeek: state.reviewStats.reviewedByMeThisWeek + 1,
+            }
+          : state.reviewStats,
+      }))
+    } catch (error: any) {
+      set({ error: error.response?.data?.message || 'Failed to confirm the detection' })
+    }
+  },
+
+  advanceReviewQueue: () => set((state) => ({ reviewIndex: state.reviewIndex + 1 })),
 
   fetchOpsOverview: async () => {
     const headers = getAuthHeaders()
@@ -427,6 +520,10 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     storageInsights: null,
     purgeStatus: null,
     isLoadingOps: false,
+    reviewQueue: [],
+    reviewIndex: 0,
+    reviewStats: null,
+    isLoadingReview: false,
     isLoadingStorage: false,
     isLoadingPurge: false,
     isRetryingFailedSpots: false,

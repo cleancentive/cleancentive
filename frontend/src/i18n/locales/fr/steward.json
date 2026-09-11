@@ -11,7 +11,8 @@
     "users": "Utilisateurs",
     "operations": "Opérations",
     "storage": "Stockage",
-    "purge": "Purge"
+    "purge": "Purge",
+    "review": "Vérifier"
   },
   "operations": {
     "legend": "Aperçu des opérations",
@@ -116,5 +117,21 @@
     "replyPlaceholder": "Répondre à ce feedback...",
     "sending": "Envoi…",
     "sendReply": "Envoyer la réponse"
+  },
+  "review": {
+    "legend": "Vérifier les détections",
+    "backlog": "{{count}} à vérifier",
+    "teamThisWeek": "{{count}} vérifiés par l’équipe cette semaine",
+    "activeDays": "{{count}} jours de vérification",
+    "agreement": "Le modèle était d’accord avec vous {{percent}}% du temps",
+    "progress": "Spot {{current}} sur {{total}}",
+    "looksRight": "✓ Cela semble correct",
+    "skip": "Passer",
+    "keyboardHint": "Entrée pour confirmer · → pour passer",
+    "spotImageAlt": "Photo en attente de vérification",
+    "modelFoundNothing": "Le modèle n’a trouvé aucun déchet sur cette photo. Confirmez si c’est exact.",
+    "nothingToReview": "Rien à vérifier. Parfait.",
+    "sessionComplete": "Session terminée — {{count}} vérifiés.",
+    "startNextSession": "Vérifier 10 de plus"
   }
 }

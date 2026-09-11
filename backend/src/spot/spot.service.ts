@@ -675,6 +675,46 @@ export class SpotService {
     });
   }
 
+  /**
+   * Records that a steward looked at this spot's detections and found them correct.
+   *
+   * This is the counterpart to updateDetectedItem, and the two are deliberately
+   * asymmetric: a fix writes rows to detected_item_edits, a confirmation writes
+   * none. Without this, human_verified could only ever be set by *changing*
+   * something, so the record held every case the model got wrong and no case it
+   * got right — which is unusable as an accuracy measure.
+   *
+   * The spot-level marker matters too: a spot where the model found nothing has
+   * no item to flag, and "correctly found nothing" is signal worth keeping.
+   */
+  async confirmDetection(spotId: string, userId: string): Promise<{ spotId: string; itemsConfirmed: number; reviewedAt: Date }> {
+    const spot = await this.spotRepository.findOne({ where: { id: spotId } });
+    if (!spot) throw new NotFoundException('Spot not found');
+
+    const reviewedAt = new Date();
+
+    const itemsConfirmed = await this.dataSource.transaction(async (manager) => {
+      const result = await manager.update(
+        DetectedItem,
+        { spot_id: spotId, human_verified: false },
+        { human_verified: true },
+      );
+
+      await manager.update(
+        Spot,
+        { id: spotId },
+        { detection_reviewed_at: reviewedAt, detection_reviewed_by: userId },
+      );
+
+      return result.affected ?? 0;
+    });
+
+    this.spotRepository.manager.clear(Spot);
+    this.detectedItemRepository.manager.clear(DetectedItem);
+
+    return { spotId, itemsConfirmed, reviewedAt };
+  }
+
   async deleteDetectedItem(itemId: string, spotId: string, userId: string): Promise<void> {
     const spot = await this.spotRepository.findOne({ where: { id: spotId } });
     if (!spot) throw new NotFoundException('Spot not found');

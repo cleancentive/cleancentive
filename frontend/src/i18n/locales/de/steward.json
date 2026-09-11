@@ -11,7 +11,8 @@
     "users": "Benutzer",
     "operations": "Betrieb",
     "storage": "Speicher",
-    "purge": "Bereinigung"
+    "purge": "Bereinigung",
+    "review": "Prüfen"
   },
   "operations": {
     "legend": "Betriebsübersicht",
@@ -116,5 +117,21 @@
     "replyPlaceholder": "Auf dieses Feedback antworten...",
     "sending": "Wird gesendet…",
     "sendReply": "Antwort senden"
+  },
+  "review": {
+    "legend": "Erkennungen prüfen",
+    "backlog": "{{count}} zu prüfen",
+    "teamThisWeek": "{{count}} diese Woche vom Team geprüft",
+    "activeDays": "An {{count}} Tagen geprüft",
+    "agreement": "Das Modell stimmte zu {{percent}}% mit dir überein",
+    "progress": "Spot {{current}} von {{total}}",
+    "looksRight": "✓ Sieht richtig aus",
+    "skip": "Überspringen",
+    "keyboardHint": "Enter zum Bestätigen · → zum Überspringen",
+    "spotImageAlt": "Foto zur Prüfung der Erkennung",
+    "modelFoundNothing": "Das Modell hat auf diesem Foto keinen Abfall gefunden. Bestätige, wenn das stimmt.",
+    "nothingToReview": "Nichts zu prüfen. Sehr gut.",
+    "sessionComplete": "Runde abgeschlossen — {{count}} geprüft.",
+    "startNextSession": "10 weitere prüfen"
   }
 }

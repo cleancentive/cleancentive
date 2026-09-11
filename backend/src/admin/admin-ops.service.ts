@@ -167,6 +167,118 @@ export class AdminOpsService implements OnModuleDestroy {
     };
   }
 
+  /**
+   * The next spots awaiting a steward's eye, oldest first.
+   *
+   * Only completed litter spots: a failed spot has nothing to review, and plant
+   * identification is scored by Pl@ntNet's own confidence rather than by label
+   * correction.
+   */
+  async getReviewQueue(limit: number) {
+    const spots = await this.spotRepository.query(
+      `
+        SELECT s.id,
+               s.created_at,
+               COALESCE(
+                 json_agg(
+                   json_build_object(
+                     'id', di.id,
+                     'objectLabel', CASE WHEN di.object_label_id IS NULL THEN NULL
+                                         ELSE json_build_object('id', di.object_label_id, 'name', ol.name) END,
+                     'materialLabel', CASE WHEN di.material_label_id IS NULL THEN NULL
+                                           ELSE json_build_object('id', di.material_label_id, 'name', ml.name) END,
+                     'brandLabel', CASE WHEN di.brand_label_id IS NULL THEN NULL
+                                        ELSE json_build_object('id', di.brand_label_id, 'name', bl.name) END,
+                     'weightGrams', di.weight_grams,
+                     'confidence', di.confidence
+                   ) ORDER BY di.created_at
+                 ) FILTER (WHERE di.id IS NOT NULL),
+                 '[]'
+               ) AS items
+        FROM spots s
+        LEFT JOIN detected_items di ON di.spot_id = s.id
+        LEFT JOIN label_translations ol ON ol.label_id = di.object_label_id AND ol.locale = 'en'
+        LEFT JOIN label_translations ml ON ml.label_id = di.material_label_id AND ml.locale = 'en'
+        LEFT JOIN label_translations bl ON bl.label_id = di.brand_label_id AND bl.locale = 'en'
+        WHERE s.detection_reviewed_at IS NULL
+          AND s.processing_status = 'completed'
+          AND s.subject_kind = 'litter'
+        GROUP BY s.id, s.created_at
+        ORDER BY s.created_at ASC
+        LIMIT $1
+      `,
+      [limit],
+    );
+
+    return {
+      timestamp: new Date().toISOString(),
+      spots: spots.map((spot: Record<string, unknown>) => ({
+        spotId: spot.id,
+        createdAt: spot.created_at,
+        items: spot.items,
+      })),
+    };
+  }
+
+  /**
+   * Numbers for the review page. Deliberately collective and effort-based rather
+   * than a per-steward score: rewarding volume or agreement would invite
+   * rubber-stamping, and rubber-stamped confirmations corrupt the very accuracy
+   * measure the review queue exists to produce.
+   */
+  async getReviewStats(userId: string) {
+    const [row] = await this.spotRepository.query(
+      `
+        SELECT
+          (SELECT COUNT(*) FROM spots
+             WHERE detection_reviewed_at IS NULL
+               AND processing_status = 'completed'
+               AND subject_kind = 'litter') AS backlog,
+          (SELECT COUNT(*) FROM spots
+             WHERE detection_reviewed_at > NOW() - INTERVAL '7 days') AS reviewed_by_team_this_week,
+          (SELECT COUNT(*) FROM spots
+             WHERE detection_reviewed_by = $1
+               AND detection_reviewed_at > NOW() - INTERVAL '7 days') AS reviewed_by_me_this_week,
+          (SELECT COUNT(DISTINCT detection_reviewed_at::date) FROM spots
+             WHERE detection_reviewed_by = $1) AS my_active_days
+      `,
+      [userId],
+    );
+
+    // Agreement is measured over reviewed spots, where a confirmation and a fix
+    // are both recorded — so the denominator finally exists.
+    const [agreement] = await this.spotRepository.query(
+      `
+        SELECT
+          COUNT(*) AS reviewed_items,
+          COUNT(*) FILTER (WHERE e.detected_item_id IS NULL) AS untouched_items
+        FROM detected_items di
+        JOIN spots s ON s.id = di.spot_id AND s.detection_reviewed_at IS NOT NULL
+        LEFT JOIN (SELECT DISTINCT detected_item_id FROM detected_item_edits) e
+          ON e.detected_item_id = di.id
+        WHERE di.source_model IS DISTINCT FROM 'manual'
+      `,
+    );
+
+    const reviewedItems = Number(agreement?.reviewed_items ?? 0);
+    const untouchedItems = Number(agreement?.untouched_items ?? 0);
+
+    return {
+      timestamp: new Date().toISOString(),
+      backlog: Number(row?.backlog ?? 0),
+      reviewedByTeamThisWeek: Number(row?.reviewed_by_team_this_week ?? 0),
+      reviewedByMeThisWeek: Number(row?.reviewed_by_me_this_week ?? 0),
+      myActiveDays: Number(row?.my_active_days ?? 0),
+      modelAgreement: {
+        reviewedItems,
+        untouchedItems,
+        // Null rather than 0 until anything has been reviewed — an empty
+        // denominator is "unknown", not "the model is always wrong".
+        rate: reviewedItems > 0 ? untouchedItems / reviewedItems : null,
+      },
+    };
+  }
+
   async retryFailedSpots(limit: number) {
     const failedSpots = await this.spotRepository.query(
       `

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from './admin.guard';
@@ -8,6 +8,10 @@ const defaultDetailLimit = 10;
 const maxDetailLimit = 50;
 const defaultRetryBatchSize = 10;
 const maxRetryBatchSize = 100;
+// A finite batch with a visible end, rather than an infinite scroll — that is
+// what keeps a review session from feeling like a chore.
+const defaultReviewBatchSize = 10;
+const maxReviewBatchSize = 50;
 
 @ApiTags('admin-ops')
 @ApiBearerAuth('Bearer')
@@ -15,6 +19,23 @@ const maxRetryBatchSize = 100;
 @Controller('admin/ops')
 export class AdminOpsController {
   constructor(private readonly adminOpsService: AdminOpsService) {}
+
+  @Get('review/queue')
+  @ApiOperation({ summary: 'Get the next batch of spots awaiting steward review' })
+  @ApiQuery({ name: 'limit', required: false, description: `Spots to return (default ${defaultReviewBatchSize}, max ${maxReviewBatchSize})` })
+  @ApiOkResponse({ description: 'Returns the oldest unreviewed completed litter spots with their detected items.' })
+  async getReviewQueue(@Query('limit') limit?: string) {
+    const parsed = parseInt(limit ?? '', 10);
+    const resolved = Number.isNaN(parsed) ? defaultReviewBatchSize : Math.min(Math.max(parsed, 1), maxReviewBatchSize);
+    return this.adminOpsService.getReviewQueue(resolved);
+  }
+
+  @Get('review/stats')
+  @ApiOperation({ summary: 'Get review backlog, team progress and model agreement for the review page' })
+  @ApiOkResponse({ description: 'Returns backlog size, weekly progress, active days, and model agreement rate.' })
+  async getReviewStats(@Req() req: any) {
+    return this.adminOpsService.getReviewStats(req.user.userId);
+  }
 
   @Get('overview')
   @ApiOperation({ summary: 'Get lightweight operations overview for dashboards and CLI checks' })

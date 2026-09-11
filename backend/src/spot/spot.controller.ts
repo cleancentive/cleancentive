@@ -438,6 +438,12 @@ export class SpotController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post(':spotId/confirm-detection')
+  async confirmDetection(@Param('spotId', ParseUUIDPipe) spotId: string, @Req() req: any) {
+    return this.spotService.confirmDetection(spotId, req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Delete(':spotId/items/:itemId')
   @HttpCode(204)
   async deleteDetectedItem(

@@ -146,3 +146,69 @@ describe('SpotService.listSpotsForUser cursor pagination', () => {
     });
   });
 });
+
+type UpdateCall = { entity: string; criteria: Record<string, unknown>; patch: Record<string, unknown> };
+
+function makeConfirmHarness(spot: Spot | null, affected = 0) {
+  const updates: UpdateCall[] = [];
+  const editsWritten: unknown[] = [];
+
+  const manager = {
+    async update(entity: { name: string }, criteria: Record<string, unknown>, patch: Record<string, unknown>) {
+      updates.push({ entity: entity.name, criteria, patch });
+      return { affected };
+    },
+    async save(row: unknown) {
+      editsWritten.push(row);
+      return row;
+    },
+  };
+
+  const service = Object.create(SpotService.prototype) as SpotService;
+  Object.assign(service as unknown as Record<string, unknown>, {
+    spotRepository: { findOne: async () => spot, manager: { clear: () => {} } },
+    detectedItemRepository: { manager: { clear: () => {} } },
+    dataSource: { transaction: async (cb: (m: unknown) => Promise<unknown>) => cb(manager) },
+  });
+
+  return { service, updates, editsWritten };
+}
+
+describe('SpotService.confirmDetection', () => {
+  test('verifies the spot items without writing a single edit row', async () => {
+    // The asymmetry is the point. A fix writes to detected_item_edits; a
+    // confirmation writes nothing. Before this existed, human_verified could only
+    // be set by *changing* something, so the record held every case the model got
+    // wrong and no case it got right — 603 of 603 verified items had been edited,
+    // which reads as 0% accuracy but is really an artifact of the write path.
+    const { service, updates, editsWritten } = makeConfirmHarness({ id: 'spot-1' } as Spot, 3);
+
+    const result = await service.confirmDetection('spot-1', 'steward-1');
+
+    expect(result).toMatchObject({ spotId: 'spot-1', itemsConfirmed: 3 });
+    expect(editsWritten).toHaveLength(0);
+
+    const itemUpdate = updates.find((u) => u.entity === 'DetectedItem');
+    expect(itemUpdate?.criteria).toEqual({ spot_id: 'spot-1', human_verified: false });
+    expect(itemUpdate?.patch).toEqual({ human_verified: true });
+  });
+
+  test('stamps the spot so a review with no detected items still counts', async () => {
+    // "The model correctly found nothing" is signal, and a spot with zero items
+    // has no row to flag — so the marker has to live on the spot.
+    const { service, updates } = makeConfirmHarness({ id: 'spot-2' } as Spot, 0);
+
+    const result = await service.confirmDetection('spot-2', 'steward-1');
+
+    const spotUpdate = updates.find((u) => u.entity === 'Spot');
+    expect(spotUpdate?.criteria).toEqual({ id: 'spot-2' });
+    expect(spotUpdate?.patch.detection_reviewed_by).toBe('steward-1');
+    expect(spotUpdate?.patch.detection_reviewed_at).toEqual(result.reviewedAt);
+    expect(result.itemsConfirmed).toBe(0);
+  });
+
+  test('rejects an unknown spot', async () => {
+    const { service } = makeConfirmHarness(null);
+    await expect(service.confirmDetection('missing', 'steward-1')).rejects.toThrow('Spot not found');
+  });
+});

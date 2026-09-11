@@ -11,7 +11,8 @@
     "users": "Users",
     "operations": "Operations",
     "storage": "Storage",
-    "purge": "Purge"
+    "purge": "Purge",
+    "review": "Review"
   },
   "operations": {
     "legend": "Operations Overview",
@@ -116,5 +117,21 @@
     "replyPlaceholder": "Reply to this feedback...",
     "sending": "Sending…",
     "sendReply": "Send Reply"
+  },
+  "review": {
+    "legend": "Review Detections",
+    "backlog": "{{count}} awaiting review",
+    "teamThisWeek": "{{count}} reviewed by the team this week",
+    "activeDays": "{{count}} days reviewed",
+    "agreement": "the model agreed with you {{percent}}% of the time",
+    "progress": "Spot {{current}} of {{total}}",
+    "looksRight": "✓ Looks right",
+    "skip": "Skip",
+    "keyboardHint": "Enter to confirm · → to skip",
+    "spotImageAlt": "Photo awaiting detection review",
+    "modelFoundNothing": "The model found no litter in this photo. Confirm if that is correct.",
+    "nothingToReview": "Nothing is waiting for review. Nice.",
+    "sessionComplete": "Session complete — {{count}} reviewed.",
+    "startNextSession": "Review 10 more"
   }
 }

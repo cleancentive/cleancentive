@@ -53,8 +53,18 @@ function FeedbackIcon() {
   )
 }
 
+function ReviewIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2.5 10s2.8-4.5 7.5-4.5S17.5 10 17.5 10s-2.8 4.5-7.5 4.5S2.5 10 2.5 10z" />
+      <circle cx="10" cy="10" r="2" />
+    </svg>
+  )
+}
+
 const TABS: Array<{ to: string; labelKey: string; icon: ReactNode }> = [
   { to: 'feedback?status=new,acknowledged,in_progress', labelKey: 'nav.feedback', icon: <FeedbackIcon /> },
+  { to: 'review', labelKey: 'nav.review', icon: <ReviewIcon /> },
   { to: 'users', labelKey: 'nav.users', icon: <UsersIcon /> },
   { to: 'operations', labelKey: 'nav.operations', icon: <OperationsIcon /> },
   { to: 'storage', labelKey: 'nav.storage', icon: <StorageIcon /> },

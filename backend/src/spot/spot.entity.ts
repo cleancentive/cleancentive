@@ -102,6 +102,12 @@ export class Spot extends BaseEntity {
   @Column('varchar', { length: 16, default: 'litter' })
   subject_kind: SubjectKind;
 
+  @Column('timestamp', { nullable: true })
+  detection_reviewed_at: Date | null;
+
+  @Column('uuid', { nullable: true })
+  detection_reviewed_by: string | null;
+
   @OneToMany('DetectedItem', (item: any) => item.spot)
   items: any[];
 }
