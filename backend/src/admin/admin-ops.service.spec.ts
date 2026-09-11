@@ -82,4 +82,19 @@ describe('AdminOpsService.retryFailedSpots', () => {
     expect(added).toHaveLength(0);
     expect(result.errors[0].message).toContain('failed or stalled');
   });
+
+  test('refuses a spot whose image was never stored', async () => {
+    // Six prod spots carry image_key='' from a 4-minute MinIO outage on
+    // 2026-05-14: the row was committed before the upload ran. Re-enqueueing them
+    // only produces 'Invalid job payload' on every sweep, forever.
+    const { service, added } = makeRetryHarness([
+      { id: 'no-image-1', processing_status: 'failed', subject_kind: 'litter', user_id: 'u', image_key: '', mime_type: 'image/jpeg', updated_at: minutesAgo(1) },
+    ]);
+
+    const result = await service.retryFailedSpots(10);
+
+    expect(result.retried).toBe(0);
+    expect(added).toHaveLength(0);
+    expect(result.errors[0].message).toContain('never be processed');
+  });
 });

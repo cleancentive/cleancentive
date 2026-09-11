@@ -115,6 +115,12 @@ export class SpotService {
     this.bucketReady = true;
   }
 
+  private async markSpotUnprocessable(spot: Spot, reason: string): Promise<void> {
+    spot.processing_status = PROCESSING_STATUS.FAILED;
+    spot.processing_error = reason;
+    await this.spotRepository.save(spot);
+  }
+
   async createSpot(input: CreateSpotInput): Promise<CreateSpotResult> {
     const existing = await this.spotRepository.findOne({
       where: {
@@ -240,6 +246,12 @@ export class SpotService {
         }),
       );
     } catch {
+      // The row is already committed at this point, so a bare throw strands it in
+      // 'queued' with an empty image_key forever — unprocessable, and invisible to
+      // every retry path. Six spots sat like that from a 4-minute MinIO outage on
+      // 2026-05-14. Mark it failed instead, matching how an enqueue failure below
+      // is handled.
+      await this.markSpotUnprocessable(savedSpot, 'Failed to store image in object storage');
       throw new ServiceUnavailableException(
         'Failed to store image in object storage. Check MinIO connectivity and configuration.',
       );
@@ -256,6 +268,7 @@ export class SpotService {
           }),
         );
       } catch {
+        await this.markSpotUnprocessable(savedSpot, 'Failed to store thumbnail in object storage');
         throw new ServiceUnavailableException(
           'Failed to store thumbnail in object storage. Check MinIO connectivity and configuration.',
         );

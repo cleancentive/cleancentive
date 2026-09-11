@@ -290,9 +290,10 @@ export class AdminOpsService implements OnModuleDestroy {
       `
         SELECT id
         FROM spots
-        WHERE processing_status = 'failed'
-           OR (processing_status IN ('queued', 'processing')
-               AND updated_at < NOW() - ($2 || ' minutes')::interval)
+        WHERE image_key <> ''
+          AND (processing_status = 'failed'
+               OR (processing_status IN ('queued', 'processing')
+                   AND updated_at < NOW() - ($2 || ' minutes')::interval))
         ORDER BY updated_at ASC
         LIMIT $1
       `,
@@ -639,6 +640,12 @@ export class AdminOpsService implements OnModuleDestroy {
 
     if (spot.processing_status !== PROCESSING_STATUS.FAILED && !this.isStalled(spot)) {
       throw new Error('Only failed or stalled spots can be retried');
+    }
+
+    // No image means no detection is possible, ever. Re-enqueueing would just
+    // produce 'Invalid job payload' on every sweep, forever.
+    if (!spot.image_key) {
+      throw new Error('Spot has no stored image and can never be processed');
     }
 
     spot.processing_status = PROCESSING_STATUS.QUEUED;
