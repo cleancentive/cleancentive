@@ -8,6 +8,7 @@ function signals(overrides: Partial<DetectionSignals> = {}): DetectionSignals {
     failed: 0,
     stuck: 0,
     workerLastAttemptFailed: false,
+    workerFailureIsRecent: false,
     windowHours: 24,
     stuckMinutes: 30,
     ...overrides,
@@ -29,10 +30,20 @@ describe('classifyDetectionHealth', () => {
     // The window alone has a blind spot: between isolated uploads there is no
     // failure inside 24h, yet detection is still broken. The worker's last
     // terminal job carries the signal across those gaps.
-    const result = classifyDetectionHealth(signals({ workerLastAttemptFailed: true }));
+    const result = classifyDetectionHealth(signals({ workerLastAttemptFailed: true, workerFailureIsRecent: true }));
 
     expect(result.status).toBe('down');
     expect(result.reason).toContain('none has succeeded since');
+  });
+
+  test('degrades rather than pages once that failure has aged out', () => {
+    // The signal is sticky until something succeeds, so after a fix it cannot tell
+    // "still broken" from "fixed, and nobody has uploaded yet". Reserve the 503 for
+    // evidence of a live problem.
+    const result = classifyDetectionHealth(signals({ workerLastAttemptFailed: true, workerFailureIsRecent: false }));
+
+    expect(result.status).toBe('degraded');
+    expect(result.reason).toContain('confirm recovery');
   });
 
   test('reports degraded when some detections still succeed', () => {

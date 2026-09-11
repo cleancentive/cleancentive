@@ -22,6 +22,8 @@ export interface DetectionSignals {
   failed: number;
   stuck: number;
   workerLastAttemptFailed: boolean;
+  /** Whether that last failure is recent enough to still be evidence of a live problem. */
+  workerFailureIsRecent: boolean;
   windowHours: number;
   stuckMinutes: number;
 }
@@ -46,10 +48,20 @@ export interface ArtifactVersion {
 export function classifyDetectionHealth(
   signals: DetectionSignals,
 ): { status: DetectionHealthStatus; reason: string } {
-  const { completed, failed, stuck, workerLastAttemptFailed, windowHours, stuckMinutes } = signals;
+  const { completed, failed, stuck, workerLastAttemptFailed, workerFailureIsRecent, windowHours, stuckMinutes } = signals;
 
   if (workerLastAttemptFailed) {
-    return { status: 'down', reason: 'the last detection the worker attempted failed and none has succeeded since' };
+    // Only page on evidence of a *live* problem. This signal is sticky by design —
+    // it stays set until a detection succeeds — which is what catches an outage
+    // during a quiet period. But once the failure ages out with no activity since,
+    // it can no longer tell "still broken" from "fixed, and nobody has uploaded
+    // yet", so it reports degraded rather than waking someone for a 503.
+    return workerFailureIsRecent
+      ? { status: 'down', reason: 'the last detection the worker attempted failed and none has succeeded since' }
+      : {
+          status: 'degraded',
+          reason: 'the last detection the worker attempted failed, and nothing has succeeded since to confirm recovery',
+        };
   }
   if (failed > 0 && completed === 0) {
     return { status: 'down', reason: `every detection in the last ${windowHours}h failed (${failed})` };
@@ -120,12 +132,15 @@ export class SystemService {
     const workerLastAttemptFailed =
       !!worker?.lastJobFailedAt &&
       (!worker.lastJobCompletedAt || Date.parse(worker.lastJobFailedAt) > Date.parse(worker.lastJobCompletedAt));
+    const workerFailureIsRecent =
+      workerLastAttemptFailed && Date.now() - Date.parse(worker!.lastJobFailedAt!) < this.windowHours * 3_600_000;
 
     const { status, reason } = classifyDetectionHealth({
       completed,
       failed,
       stuck,
       workerLastAttemptFailed,
+      workerFailureIsRecent,
       windowHours: this.windowHours,
       stuckMinutes: this.stuckMinutes,
     });
