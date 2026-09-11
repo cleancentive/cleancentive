@@ -35,6 +35,7 @@ export class AdminOpsService implements OnModuleDestroy {
   private readonly queueName = process.env.DETECTION_QUEUE_NAME || 'litter-detection';
   private readonly workerOpsKey = `ops:worker:${this.queueName}`;
   private readonly workerHeartbeatTtlSeconds = 30;
+  private readonly stalledAfterMinutes = parseInt(process.env.DETECTION_HEALTH_STUCK_MINUTES || '30', 10);
   private readonly bucketName = process.env.S3_BUCKET || 'cleancentive-images';
   private readonly detectionQueue: Queue;
   private readonly redisClient: Redis;
@@ -280,15 +281,22 @@ export class AdminOpsService implements OnModuleDestroy {
   }
 
   async retryFailedSpots(limit: number) {
+    // Also sweeps spots stalled in queued/processing, not just failed ones. Six
+    // spots sat in 'queued' for four months because nothing could reach them:
+    // their BullMQ jobs were gone, so no retry would ever fire, and the sweep
+    // only looked at 'failed'. The age bound is what keeps this from grabbing a
+    // spot that is legitimately being processed right now.
     const failedSpots = await this.spotRepository.query(
       `
         SELECT id
         FROM spots
         WHERE processing_status = 'failed'
+           OR (processing_status IN ('queued', 'processing')
+               AND updated_at < NOW() - ($2 || ' minutes')::interval)
         ORDER BY updated_at ASC
         LIMIT $1
       `,
-      [limit],
+      [limit, String(this.stalledAfterMinutes)],
     );
 
     const queuedSpotIds: string[] = [];
@@ -600,14 +608,23 @@ export class AdminOpsService implements OnModuleDestroy {
     await this.spotRepository.remove(spot);
   }
 
+  private isStalled(spot: Spot): boolean {
+    if (spot.processing_status !== PROCESSING_STATUS.QUEUED && spot.processing_status !== PROCESSING_STATUS.PROCESSING) {
+      return false;
+    }
+
+    const updatedAt = spot.updated_at instanceof Date ? spot.updated_at.getTime() : Date.parse(String(spot.updated_at));
+    return Number.isFinite(updatedAt) && Date.now() - updatedAt > this.stalledAfterMinutes * 60_000;
+  }
+
   private async retryFailedSpot(spotId: string): Promise<void> {
     const spot = await this.spotRepository.findOne({ where: { id: spotId } });
     if (!spot) {
       throw new Error('Spot not found');
     }
 
-    if (spot.processing_status !== PROCESSING_STATUS.FAILED) {
-      throw new Error('Only failed spots can be retried');
+    if (spot.processing_status !== PROCESSING_STATUS.FAILED && !this.isStalled(spot)) {
+      throw new Error('Only failed or stalled spots can be retried');
     }
 
     spot.processing_status = PROCESSING_STATUS.QUEUED;
@@ -621,13 +638,17 @@ export class AdminOpsService implements OnModuleDestroy {
       return;
     }
 
+    // Must mirror the original enqueue in SpotService.create: a plant spot needs
+    // the identify-plant job and its subjectKind, or the retry quietly runs litter
+    // detection over a photo of a plant.
     await this.detectionQueue.add(
-      'detect-litter',
+      spot.subject_kind === 'plant' ? 'identify-plant' : 'detect-litter',
       {
         spotId: spot.id,
         userId: spot.user_id,
         imageKey: spot.image_key,
         mimeType: spot.mime_type,
+        subjectKind: spot.subject_kind,
       },
       {
         jobId: spot.id,

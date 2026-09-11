@@ -20,7 +20,7 @@
     "liveStatus": "Live processing status for stewards",
     "analytics": "Analytics ↗",
     "retryBatchSize": "Retry batch size",
-    "retryFailedSpots": "Retry failed spots",
+    "retryFailedSpots": "Retry stalled spots",
     "retrying": "Retrying...",
     "systemHealth": "System Health",
     "statusLoading": "loading",
