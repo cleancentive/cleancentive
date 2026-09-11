@@ -107,13 +107,58 @@ interface LabelTaxonomy {
   brands: string[];
 }
 
+// The worker mints a label from any new string a model returns, so this list only
+// ever grows — brands worst of all. Keeping the top N by actual usage bounds the
+// prompt and is a stronger signal than a long tail of one-off inventions.
+const taxonomyLimits = {
+  object: parseInt(process.env.DETECTION_MAX_OBJECT_LABELS || '100', 10),
+  material: parseInt(process.env.DETECTION_MAX_MATERIAL_LABELS || '40', 10),
+  brand: parseInt(process.env.DETECTION_MAX_BRAND_LABELS || '150', 10),
+};
+
+// Rebuilding the prompt per job cost a DB round-trip per detection and, worse,
+// changed the cached prefix whenever a label was created — which happens most
+// often during a burst, exactly when caching would pay off. Learning still
+// happens; it just lands at the next refresh instead of the next job.
+const taxonomyTtlMs = parseInt(process.env.DETECTION_TAXONOMY_TTL_MS || '600000', 10);
+let cachedPrompt: { value: string; expiresAt: number } | null = null;
+
 async function fetchLabelTaxonomy(): Promise<LabelTaxonomy> {
   const rows = await dbPool.query<{ type: string; name: string }>(
-    `SELECT l.type, lt.name
-     FROM labels l
-     JOIN label_translations lt ON lt.label_id = l.id
-     WHERE lt.locale = 'en'
-     ORDER BY l.type, lt.name`,
+    `WITH usage AS (
+       SELECT object_label_id AS label_id FROM detected_items WHERE object_label_id IS NOT NULL
+       UNION ALL
+       SELECT material_label_id FROM detected_items WHERE material_label_id IS NOT NULL
+       UNION ALL
+       SELECT brand_label_id FROM detected_items WHERE brand_label_id IS NOT NULL
+     ),
+     counts AS (
+       SELECT label_id, COUNT(*) AS n FROM usage GROUP BY label_id
+     ),
+     ranked AS (
+       SELECT l.type,
+              lt.name,
+              ROW_NUMBER() OVER (
+                PARTITION BY l.type
+                ORDER BY COALESCE(c.n, 0) DESC, lt.name ASC
+              ) AS rn
+       FROM labels l
+       JOIN label_translations lt ON lt.label_id = l.id
+       LEFT JOIN counts c ON c.label_id = l.id
+       WHERE lt.locale = 'en'
+     )
+     SELECT type, name
+     FROM ranked
+     WHERE rn <= CASE type
+                   WHEN 'object' THEN $1::int
+                   WHEN 'material' THEN $2::int
+                   WHEN 'brand' THEN $3::int
+                   ELSE 0
+                 END
+     -- Alphabetical, not by rank: usage counts shift with every detection, and a
+     -- prefix that reshuffles on its own would never cache.
+     ORDER BY type, name`,
+    [taxonomyLimits.object, taxonomyLimits.material, taxonomyLimits.brand],
   );
 
   const taxonomy: LabelTaxonomy = { objects: [], materials: [], brands: [] };
@@ -123,6 +168,17 @@ async function fetchLabelTaxonomy(): Promise<LabelTaxonomy> {
     else if (row.type === 'brand') taxonomy.brands.push(row.name);
   }
   return taxonomy;
+}
+
+async function getSystemPrompt(): Promise<string> {
+  const now = Date.now();
+  if (cachedPrompt && cachedPrompt.expiresAt > now) {
+    return cachedPrompt.value;
+  }
+
+  const value = buildSystemPrompt(await fetchLabelTaxonomy());
+  cachedPrompt = { value, expiresAt: now + taxonomyTtlMs };
+  return value;
 }
 
 function buildSystemPrompt(taxonomy: LabelTaxonomy): string {
@@ -420,8 +476,7 @@ async function persistDetection(
 }
 
 async function runLitterDetection(spotId: string, userId: string, imageKey: string): Promise<{ count: number }> {
-  const taxonomy = await fetchLabelTaxonomy();
-  const systemPrompt = buildSystemPrompt(taxonomy);
+  const systemPrompt = await getSystemPrompt();
 
   const imageBytes = await fetchImageBytes(imageKey);
   const resizedBytes = await resizeForDetection(imageBytes, detectionMaxImageSize);
