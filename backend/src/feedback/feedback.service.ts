@@ -5,6 +5,8 @@ import { ConfigService } from '@nestjs/config';
 import { Feedback } from './feedback.entity';
 import { FeedbackResponse } from './feedback-response.entity';
 import { User } from '../user/user.entity';
+import { toLocale } from '../user/notification-recipients';
+import { DEFAULT_LOCALE } from '@cleancentive/shared';
 import { UserEmail } from '../user/user-email.entity';
 import { EmailService } from '../email/email.service';
 import { AdminService } from '../admin/admin.service';
@@ -230,13 +232,19 @@ export class FeedbackService {
     const body = `${followUpMessage || feedback.description}\n\nView feedback: ${link}`;
 
     try {
-      await this.emailService.sendCommunityMessage(recipients, null, {
+      // FEEDBACK_NOTIFY_EMAIL / ADMIN_EMAILS are bare env lists with no user
+      // records behind them, so there is no stored locale to honour here.
+      await this.emailService.sendCommunityMessage(
+        recipients.map((email) => ({ email, locale: DEFAULT_LOCALE })),
+        null,
+        () => ({
         subject,
         preheader: 'New feedback on CleanCentive',
         title: `Feedback: ${feedback.category}`,
         body,
         disclosure: 'This is an automated notification from CleanCentive.',
-      });
+        }),
+      );
     } catch (err) {
       this.logger.warn(`Failed to send feedback notification: ${err}`);
     }
@@ -251,14 +259,25 @@ export class FeedbackService {
     const link = this.feedbackUrl(feedback.id, responseId);
     const body = `${message}\n\nView conversation: ${link}`;
 
+    // contact_email is free-form and the submitter may be anonymous, so fall back
+    // to the default when there is no account to read a preference from.
+    const submitter = feedback.user_id
+      ? await this.userRepository.findOne({ where: { id: feedback.user_id }, select: ['id', 'locale'] })
+      : null;
+    const submitterLocale = toLocale(submitter?.locale);
+
     try {
-      await this.emailService.sendCommunityMessage([feedback.contact_email], null, {
+      await this.emailService.sendCommunityMessage(
+        [{ email: feedback.contact_email, locale: submitterLocale }],
+        null,
+        () => ({
         subject: `[CleanCentive] Update on your feedback`,
         preheader: 'A steward responded to your feedback',
         title: 'Feedback Update',
         body,
         disclosure: 'You received this because you provided your email when submitting feedback on CleanCentive.',
-      });
+        }),
+      );
     } catch (err) {
       this.logger.warn(`Failed to send user feedback notification: ${err}`);
     }

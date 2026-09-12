@@ -185,33 +185,78 @@ export class EmailService {
     }
   }
 
+  /**
+   * Fan-out message, rendered in each recipient's own locale.
+   *
+   * Recipients carry their locale (see UserService.getNotificationRecipients) and
+   * `buildPayload` is called once per distinct locale, so one send becomes one
+   * message per locale group. A single bcc'd email cannot serve mixed locales,
+   * which is why this takes a builder rather than a rendered payload.
+   *
+   * Callers whose copy is still English-only pass a constant builder; they lose
+   * nothing and the template chrome still renders per recipient.
+   */
   async sendCommunityMessage(
-    recipients: string[],
+    recipients: Array<{ email: string; locale: Locale }>,
     senderEmail: string | null,
-    payload: { subject: string; preheader: string; title: string; body: string; disclosure: string },
+    buildPayload: (locale: Locale) => {
+      subject: string;
+      preheader: string;
+      title: string;
+      body: string;
+      disclosure: string;
+    },
   ): Promise<void> {
     const fromAddress = this.configService.get<string>('SMTP_FROM', 'noreply@cleancentive.local');
-    const uniqueRecipients = [...new Set(recipients.map((e) => e.trim().toLowerCase()).filter(Boolean))];
 
-    if (uniqueRecipients.length === 0 && !senderEmail) {
+    const byLocale = new Map<Locale, string[]>();
+    const seen = new Set<string>();
+    for (const recipient of recipients) {
+      const email = recipient.email?.trim().toLowerCase();
+      if (!email || seen.has(email)) continue;
+      seen.add(email);
+      const group = byLocale.get(recipient.locale);
+      if (group) group.push(email);
+      else byLocale.set(recipient.locale, [email]);
+    }
+
+    if (byLocale.size === 0 && !senderEmail) {
       return;
     }
 
-    const { html, text } = render(communityMessageMd(payload, getCurrentLocale()), { theme: defaultTheme });
+    // The sender is CC'd exactly once, on the group matching their own locale —
+    // not once per group. With no recipients at all they still get their copy.
+    const senderLocale = getCurrentLocale();
+    if (senderEmail && byLocale.size === 0) {
+      byLocale.set(senderLocale, []);
+    }
+    let senderGroup: Locale | null = senderEmail
+      ? byLocale.has(senderLocale)
+        ? senderLocale
+        : [...byLocale.keys()][0]
+      : null;
 
-    // Send one email: CC the sender, BCC all other recipients to keep addresses private
-    try {
-      await this.transporter.sendMail({
-        from: fromAddress,
-        to: fromAddress,
-        cc: senderEmail || undefined,
-        bcc: uniqueRecipients.length > 0 ? uniqueRecipients.join(', ') : undefined,
-        subject: payload.subject,
-        text,
-        html,
-      });
-    } catch (error) {
-      this.logger.error(`Failed to send community message`, error.stack);
+    for (const [locale, groupRecipients] of byLocale) {
+      const payload = buildPayload(locale);
+      const { html, text } = render(communityMessageMd(payload, locale), { theme: defaultTheme });
+      const cc = senderGroup === locale ? senderEmail || undefined : undefined;
+      if (cc) senderGroup = null;
+
+      // BCC within the group keeps addresses private; separate groups never see
+      // each other at all.
+      try {
+        await this.transporter.sendMail({
+          from: fromAddress,
+          to: fromAddress,
+          cc,
+          bcc: groupRecipients.length > 0 ? groupRecipients.join(', ') : undefined,
+          subject: payload.subject,
+          text,
+          html,
+        });
+      } catch (error) {
+        this.logger.error(`Failed to send community message (${locale})`, error.stack);
+      }
     }
   }
 }

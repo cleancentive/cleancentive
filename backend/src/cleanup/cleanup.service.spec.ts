@@ -16,6 +16,7 @@ interface StubDate {
 function makeService(opts: {
   futureDates: StubDate[];
   recipientEmails: Array<{ email: string }>;
+  participantLocale?: string | null;
 }) {
   const sentEmails: any[] = [];
   const participantUpdates: any[] = [];
@@ -33,6 +34,10 @@ function makeService(opts: {
     find: async () => opts.recipientEmails,
   };
 
+  const userRepository = {
+    findOne: async () => ({ id: 'u1', locale: opts.participantLocale ?? null }),
+  };
+
   const cleanupParticipantRepository = {
     update: async (where: any, patch: any) => {
       participantUpdates.push({ where, patch });
@@ -40,8 +45,8 @@ function makeService(opts: {
   };
 
   const emailService = {
-    sendCleanupInvite: async (email: string, payload: any) => {
-      sentEmails.push({ email, payload });
+    sendCleanupInvite: async (email: string, payload: any, locale?: string) => {
+      sentEmails.push({ email, payload, locale });
     },
   };
 
@@ -60,6 +65,7 @@ function makeService(opts: {
   const service: any = Object.create(CleanupService.prototype);
   service.cleanupDateRepository = cleanupDateRepository;
   service.userEmailRepository = userEmailRepository;
+  service.userRepository = userRepository;
   service.cleanupParticipantRepository = cleanupParticipantRepository;
   service.emailService = emailService;
   service.calendarService = calendarService;
@@ -215,5 +221,41 @@ describe('CleanupService.formatWhen event-local timezone', () => {
       NaN,
     );
     expect(when).toBe('Jan 15, 2026, 9:00 AM – 11:00 AM UTC');
+  });
+});
+
+describe('CleanupService calendar invite locale', () => {
+  test("renders in the participant's stored locale, not the request locale", async () => {
+    // Regression: invites were rendered with getCurrentLocale(), so a participant
+    // who had chosen German got whatever locale the *acting* request carried —
+    // and nothing at all when fired from a background job.
+    const { service, sentEmails } = makeService({
+      futureDates: [{
+        id: 'cd1', cleanup_id: 'c1', start_at: inHours(7), end_at: inHours(9),
+        latitude: 0, longitude: 0, location_name: null,
+      }],
+      recipientEmails: [{ email: 'user@example.com' }],
+      participantLocale: 'de',
+    });
+
+    await service.fireCalendarEmailsForFutureDates('c1', 'u1', { id: 'p1', email_sequence: 0 }, 'REQUEST', 'River Walk');
+
+    expect(sentEmails).toHaveLength(1);
+    expect(sentEmails[0].locale).toBe('de');
+  });
+
+  test('falls back to the default when the participant has no stored locale', async () => {
+    const { service, sentEmails } = makeService({
+      futureDates: [{
+        id: 'cd1', cleanup_id: 'c1', start_at: inHours(7), end_at: inHours(9),
+        latitude: 0, longitude: 0, location_name: null,
+      }],
+      recipientEmails: [{ email: 'user@example.com' }],
+      participantLocale: null,
+    });
+
+    await service.fireCalendarEmailsForFutureDates('c1', 'u1', { id: 'p1', email_sequence: 0 }, 'REQUEST', 'River Walk');
+
+    expect(sentEmails[0].locale).toBe('en');
   });
 });

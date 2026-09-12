@@ -6,6 +6,7 @@ import { Spot } from '../spot/spot.entity';
 import { EmailService } from '../email/email.service';
 import { AdminService } from '../admin/admin.service';
 import { redisConnection } from '../common/redis-connection';
+import { DEFAULT_LOCALE } from '@cleancentive/shared';
 
 interface StorageSummary {
   totalBytes: number;
@@ -91,15 +92,17 @@ export class StorageService {
     const totalGb = (summary.totalBytes / (1024 * 1024 * 1024)).toFixed(2);
 
     await this.emailService.sendCommunityMessage(
-      adminEmails,
+      // ADMIN_EMAILS is a bare env list with no user records behind it, so there
+      // is no stored locale to honour here.
+      adminEmails.map((email) => ({ email, locale: DEFAULT_LOCALE })),
       null,
-      {
+      () => ({
         subject: `Storage Warning: Cleancentive has exceeded ${thresholdGb}GB`,
         preheader: `Total storage is now ${totalGb}GB`,
         title: 'Storage Threshold Exceeded',
         body: `Total storage volume has reached ${totalGb}GB, exceeding the configured threshold of ${thresholdGb}GB.\n\nOriginals: ${this.formatBytes(summary.totalOriginalBytes)}\nThumbnails: ${this.formatBytes(summary.totalThumbnailBytes)}\nTotal spots: ${summary.spotCount}`,
         disclosure: 'This is an automated system notification sent to Cleancentive administrators.',
-      },
+      }),
     );
 
     await this.redis.set(this.warningKey, '1', 'EX', this.warningTtlSeconds);

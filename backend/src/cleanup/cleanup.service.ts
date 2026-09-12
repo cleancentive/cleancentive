@@ -12,6 +12,7 @@ import { CleanupParticipant } from './cleanup-participant.entity';
 import { CleanupMessage } from './cleanup-message.entity';
 import { User } from '../user/user.entity';
 import { UserEmail } from '../user/user-email.entity';
+import { resolveNotificationRecipients, toLocale } from '../user/notification-recipients';
 import { AdminService } from '../admin/admin.service';
 import { EmailService } from '../email/email.service';
 import { CalendarService } from '../calendar/calendar.service';
@@ -543,6 +544,9 @@ export class CleanupService {
       });
       if (futureDates.length === 0) return;
 
+      const participantUser = await this.userRepository.findOne({ where: { id: userId }, select: ['id', 'locale'] });
+      const participantLocale = toLocale(participantUser?.locale);
+
       const urls = this.calendarService.feedUrls(userId);
       const appBaseUrl = this.calendarService.getAppBaseUrl();
       const profileLink = `${appBaseUrl}/profile`;
@@ -567,7 +571,7 @@ export class CleanupService {
             feedUrl: urls.joinedWebcal,
             profileLink,
             icsContent: ics,
-          });
+          }, participantLocale);
         }
       }
 
@@ -927,9 +931,7 @@ export class CleanupService {
 
     const recipientIds = recipients.map((r) => r.user_id).filter((id) => id !== authorUserId);
 
-    const recipientEmails = recipientIds.length > 0
-      ? await this.userEmailRepository.find({ where: { user_id: In(recipientIds), is_selected_for_login: true } })
-      : [];
+    const recipientEmails = await resolveNotificationRecipients(this.userEmailRepository, recipientIds);
 
     // CC the sender only if they opted in to receive a copy of their own message
     let senderEmail: string | null = null;
@@ -938,14 +940,13 @@ export class CleanupService {
       senderEmail = senderEmails[0]?.email || null;
     }
 
-    const uniqueRecipientEmails = [...new Set(recipientEmails.map((e) => e.email))];
-    await this.emailService.sendCommunityMessage(uniqueRecipientEmails, senderEmail, {
+    await this.emailService.sendCommunityMessage(recipientEmails, senderEmail, () => ({
       subject: `[Cleanup: ${cleanupName}] ${message.subject}`,
       preheader: 'New cleanup message in Cleancentive',
       title: cleanupName,
       body: message.body.replace(/\n/g, '  \n'),
       disclosure: 'Stewards can read team and cleanup messages for moderation purposes.',
-    });
+    }));
   }
 
   async resolveActiveCleanupDateForSpot(

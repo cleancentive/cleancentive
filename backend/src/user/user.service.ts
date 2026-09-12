@@ -10,6 +10,7 @@ import sharp from 'sharp';
 import { isSupportedLocale } from '@cleancentive/shared';
 import { User } from './user.entity';
 import { UserEmail } from './user-email.entity';
+import { resolveNotificationRecipients, type NotificationRecipient } from './notification-recipients';
 import { createS3Client } from '../common/s3-client';
 
 const AVATAR_CACHE_DIR = join(process.env.AVATAR_CACHE_DIR || '/tmp', 'avatar-cache');
@@ -369,6 +370,10 @@ export class UserService {
         is_selected_for_login: true 
       },
     });
+  }
+
+  async getNotificationRecipients(userIds: string[]): Promise<NotificationRecipient[]> {
+    return resolveNotificationRecipients(this.userEmailRepository, userIds);
   }
 
   async mergeGuestAccount(guestUserId: string, existingUserId: string): Promise<User> {

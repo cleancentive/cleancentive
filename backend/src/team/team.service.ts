@@ -16,6 +16,7 @@ import { TeamOutlineCollection } from './team-outline-collection.entity';
 import { User } from '../user/user.entity';
 import { AdminService } from '../admin/admin.service';
 import { UserEmail } from '../user/user-email.entity';
+import { resolveNotificationRecipients } from '../user/notification-recipients';
 import { EmailService } from '../email/email.service';
 
 const STEWARDS_SYSTEM_KEY = 'stewards';
@@ -1152,19 +1153,16 @@ export class TeamService {
     const adminIds = await this.adminService.getAdminUserIds();
     if (adminIds.length === 0) return;
 
-    const adminEmails = await this.userEmailRepository.find({
-      where: { user_id: In(adminIds), is_selected_for_login: true },
-    });
-    const uniqueAdminEmails = [...new Set(adminEmails.map((e) => e.email))];
+    const uniqueAdminEmails = await resolveNotificationRecipients(this.userEmailRepository, adminIds);
     if (uniqueAdminEmails.length === 0) return;
 
-    await this.emailService.sendCommunityMessage(uniqueAdminEmails, null, {
+    await this.emailService.sendCommunityMessage(uniqueAdminEmails, null, () => ({
       subject: '[CleanCentive Admin] Partner team multi-match conflict',
       preheader: 'Email(s) match multiple partner teams',
       title: 'Partner Team Conflict',
       body: `The following email(s) match multiple partner teams:\n\n${emails}\n\nAffected teams: ${teamNames.join(', ')}\n\nPlease review the email patterns to resolve the overlap.`,
       disclosure: 'This is an automated admin notification from CleanCentive.',
-    });
+    }));
   }
 
   private async sendTeamMessageEmailFanout(teamName: string, message: TeamMessage, authorUserId: string, ccSender: boolean): Promise<void> {
@@ -1175,9 +1173,7 @@ export class TeamService {
 
     const recipientIds = recipients.map((r) => r.user_id).filter((id) => id !== authorUserId);
 
-    const recipientEmails = recipientIds.length > 0
-      ? await this.userEmailRepository.find({ where: { user_id: In(recipientIds), is_selected_for_login: true } })
-      : [];
+    const recipientEmails = await resolveNotificationRecipients(this.userEmailRepository, recipientIds);
 
     // CC the sender only if they opted in to receive a copy of their own message
     let senderEmail: string | null = null;
@@ -1186,13 +1182,12 @@ export class TeamService {
       senderEmail = senderEmails[0]?.email || null;
     }
 
-    const uniqueRecipientEmails = [...new Set(recipientEmails.map((e) => e.email))];
-    await this.emailService.sendCommunityMessage(uniqueRecipientEmails, senderEmail, {
+    await this.emailService.sendCommunityMessage(recipientEmails, senderEmail, () => ({
       subject: `[Team: ${teamName}] ${message.subject}`,
       preheader: 'New team message in Cleancentive',
       title: teamName,
       body: message.body.replace(/\n/g, '  \n'),
       disclosure: 'Stewards can read team and cleanup messages for moderation purposes.',
-    });
+    }));
   }
 }

@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { EmailService } from '../email/email.service';
 import { UserService } from '../user/user.service';
+import { toLocale } from '../user/notification-recipients';
 import { AdminService } from '../admin/admin.service';
 import { PendingAuthRequest, PendingAuthStatus } from './pending-auth-request.entity';
 import { DeviceCode, DeviceCodeStatus } from './device-code.entity';
@@ -189,7 +190,7 @@ export class AuthService {
       links.push(`${frontendUrl}/auth/verify?token=${token}`);
     }
 
-    await this.emailService.sendRecoveryLinks(emails, links);
+    await this.emailService.sendRecoveryLinks(emails, links, toLocale(user.locale));
   }
 
   async sendMergeRequest(requesterId: string, email: string): Promise<{ sent: boolean }> {
@@ -211,7 +212,8 @@ export class AuthService {
     const apiBase = `${process.env.API_URL || 'http://localhost:3000'}${process.env.API_PREFIX || '/api/v1'}`;
     const link = `${apiBase}/auth/merge-confirm?token=${token}`;
 
-    await this.emailService.sendMergeWarning(email, link, requester.nickname);
+    // Rendered for the account being merged *into*, not the requester who triggered it.
+    await this.emailService.sendMergeWarning(email, link, requester.nickname, toLocale(targetUser.locale));
     return { sent: true };
   }
 

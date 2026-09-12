@@ -10,8 +10,13 @@ export class RequestContextInterceptor implements NestInterceptor {
     const userId = request.user?.userId as string | undefined;
 
     // Per-request locale precedence: explicit `?locale=` override (deep links,
-    // test scripts) → browser Accept-Language → default. The authenticated
-    // user's stored preference is applied per-recipient at email-send time.
+    // test scripts) → browser Accept-Language → default.
+    //
+    // This is the locale of whoever is making the request. Email sent *to*
+    // someone else uses their stored users.locale instead — see
+    // resolveNotificationRecipients and EmailService.sendCommunityMessage.
+    // Request locale is only correct when the recipient is the one at the
+    // browser, as with a magic link.
     const queryLocale = request.query?.locale as string | undefined;
     const locale = queryLocale
       ? normalizeLocale(queryLocale)
