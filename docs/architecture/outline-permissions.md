@@ -28,6 +28,11 @@ Cleancentive creates these collections during manual initialization:
 | `Stewards` | `read` | `Stewards` group `admin` | yes | Public-readable steward documentation. |
 | `Stewards Confidential` | private (`null`) | `Stewards` group `admin` | no | Steward-only notes. |
 
+The steward area links straight into `Stewards Confidential`. The collection id
+is read from `team_outline_collections.outline_confidential_collection_id` and
+returned by `GET /admin/check`, so the link follows the collection if Outline
+ever recreates it. It is not configured anywhere.
+
 ## Ownership Boundary
 
 Cleancentive continuously syncs:

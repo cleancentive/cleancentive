@@ -80,32 +80,34 @@ export function StewardProject() {
       <legend>{t('project.legend')}</legend>
 
       <h3>{t('project.deployedVersions')}</h3>
-      <table className="ops-version-table">
-        <thead>
-          <tr>
-            <th>{t('project.artifact')}</th>
-            <th>{t('project.version')}</th>
-            <th>{t('project.built')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>{t('project.backend')}</td>
-            <td className="ops-version-hash">{renderCommit(versionInfo?.backend?.commit, versionInfo?.backend?.commitShort)}</td>
-            <td>{formatBuildTime(versionInfo?.backend?.buildTime)}</td>
-          </tr>
-          <tr>
-            <td>{t('project.frontend')}</td>
-            <td className="ops-version-hash">{renderCommit(__APP_COMMIT__, __APP_COMMIT_SHORT__)}</td>
-            <td>{formatBuildTime(__APP_BUILD_TIME__)}</td>
-          </tr>
-          <tr>
-            <td>{t('project.worker')}</td>
-            <td className="ops-version-hash">{renderCommit(versionInfo?.worker?.commit, versionInfo?.worker?.commitShort)}</td>
-            <td>{formatBuildTime(versionInfo?.worker?.buildTime)}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div className="ops-version-table-wrap">
+        <table className="ops-version-table">
+          <thead>
+            <tr>
+              <th>{t('project.artifact')}</th>
+              <th>{t('project.version')}</th>
+              <th>{t('project.built')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{t('project.backend')}</td>
+              <td className="ops-version-hash">{renderCommit(versionInfo?.backend?.commit, versionInfo?.backend?.commitShort)}</td>
+              <td>{formatBuildTime(versionInfo?.backend?.buildTime)}</td>
+            </tr>
+            <tr>
+              <td>{t('project.frontend')}</td>
+              <td className="ops-version-hash">{renderCommit(__APP_COMMIT__, __APP_COMMIT_SHORT__)}</td>
+              <td>{formatBuildTime(__APP_BUILD_TIME__)}</td>
+            </tr>
+            <tr>
+              <td>{t('project.worker')}</td>
+              <td className="ops-version-hash">{renderCommit(versionInfo?.worker?.commit, versionInfo?.worker?.commitShort)}</td>
+              <td>{formatBuildTime(versionInfo?.worker?.buildTime)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <p className="project-external-link">
         <a href={REPO_URL} target="_blank" rel="noopener noreferrer">{t('project.repository')}</a>
       </p>

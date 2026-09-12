@@ -305,6 +305,11 @@
   border-radius: 1rem;
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  /* Every .page-card is a fieldset, and the UA stylesheet floors a fieldset at
+     min-inline-size: min-content — so a wide child (a table, a bar strip)
+     stretches the card past the viewport instead of being scrolled or wrapped
+     inside it. Cards are always laid out by their container, never by content. */
+  min-width: 0;
 }
 
 .page-card legend {
@@ -2001,6 +2006,10 @@
   font-size: 1.15rem;
 }
 
+.ops-version-table-wrap {
+  overflow-x: auto;
+}
+
 .ops-version-table {
   width: 100%;
   border-collapse: collapse;
@@ -3179,6 +3188,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+}
+
+/* Twelve week labels do not fit a phone-width column each, so hide every
+   other one and let the survivors spill into the space that frees up.
+   Clipping them to an ellipsis instead would crop the date to "0…". */
+@media (max-width: 640px) {
+  .weekly-chart-col:nth-child(even) .weekly-chart-label {
+    visibility: hidden;
+  }
+  .weekly-chart-label {
+    overflow: visible;
+    max-width: none;
+  }
 }
 
 .weekly-chart-legend {
@@ -4368,6 +4390,18 @@ textarea.mono {
   letter-spacing: 0.01em;
 }
 
+/* External tools sit after the app's own sections, behind a divider so the
+   dock reads as "sections, then links that leave the app". */
+.steward-dock-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 0.25rem 0.5rem;
+}
+
+.steward-dock-item--external {
+  color: var(--color-text-muted);
+}
+
 .steward-content {
   flex: 1;
   min-width: 0;
@@ -4382,6 +4416,7 @@ textarea.mono {
   }
   .steward-dock {
     flex-direction: row;
+    flex-wrap: wrap;
     width: 100%;
     flex: 0 0 auto;
     top: 0;
@@ -4393,11 +4428,23 @@ textarea.mono {
     justify-content: space-around;
     margin-left: 0;
   }
+  /* Nine items do not fit one phone-width row, so they wrap. A ~28% basis
+     puts three on each row, which divides evenly and leaves no orphan. */
   .steward-dock-item {
     width: auto;
-    flex: 1;
+    flex: 1 0 28%;
     min-width: 0;
     height: 52px;
+  }
+  .steward-dock-divider {
+    display: none;
+  }
+  /* The shell is a column here and aligns children to flex-start, so the
+     content box would otherwise size to its widest child and push past the
+     viewport. Its `margin: 0 auto` rules out align-self: stretch, so pin the
+     width instead and let inner elements fit the screen. */
+  .steward-content {
+    width: 100%;
   }
   .steward-dock-label {
     font-size: 0.6rem;

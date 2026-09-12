@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { Link, Navigate, NavLink, Outlet } from 'react-router-dom'
 import { useAdminStore } from '../../stores/adminStore'
 import { useAuthStore } from '../../stores/authStore'
+import { UMAMI_SHARE_URL } from '../../lib/analytics'
+import { WIKI_URL } from '../../lib/wikiUrl'
 
 function OperationsIcon() {
   return (
@@ -62,11 +64,42 @@ function ReviewIcon() {
   )
 }
 
+function ProjectIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2.5 16.5V3" />
+      <path d="M2.5 16.5H17" />
+      <path d="M6 13.5v-4M10 13.5v-7M14 13.5v-2.5" />
+    </svg>
+  )
+}
+
+function AnalyticsIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2.5 12.5l4-4.5 3.5 3 5-6" />
+      <path d="M12 5h3.5v3.5" />
+      <path d="M2.5 16.5H17" />
+    </svg>
+  )
+}
+
+function WikiIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 4.5A1.5 1.5 0 014.5 3H16v11H4.5A1.5 1.5 0 003 15.5z" />
+      <path d="M3 15.5A1.5 1.5 0 004.5 17H16" />
+      <path d="M7 6.5h5.5M7 9.5h5.5" />
+    </svg>
+  )
+}
+
 const TABS: Array<{ to: string; labelKey: string; icon: ReactNode }> = [
   { to: 'feedback?status=new,acknowledged,in_progress', labelKey: 'nav.feedback', icon: <FeedbackIcon /> },
   { to: 'review', labelKey: 'nav.review', icon: <ReviewIcon /> },
   { to: 'users', labelKey: 'nav.users', icon: <UsersIcon /> },
   { to: 'operations', labelKey: 'nav.operations', icon: <OperationsIcon /> },
+  { to: 'project', labelKey: 'nav.project', icon: <ProjectIcon /> },
   { to: 'storage', labelKey: 'nav.storage', icon: <StorageIcon /> },
   { to: 'purge', labelKey: 'nav.purge', icon: <PurgeIcon /> },
 ]
@@ -75,6 +108,7 @@ export function StewardLayout() {
   const { t } = useTranslation(['steward', 'common'])
   const { user } = useAuthStore()
   const isAdmin = useAdminStore((s) => s.isAdmin)
+  const stewardWikiCollectionId = useAdminStore((s) => s.stewardWikiCollectionId)
   const checkAdminStatus = useAdminStore((s) => s.checkAdminStatus)
   const [checked, setChecked] = useState(false)
 
@@ -102,6 +136,21 @@ export function StewardLayout() {
     )
   }
 
+  // Tools that live outside the app. The wiki deep-links into the stewards'
+  // private collection when the backend knows its id, and falls back to the
+  // wiki root before Outline has been bootstrapped.
+  const externalLinks: Array<{ href: string; labelKey: string; icon: ReactNode }> = []
+  if (UMAMI_SHARE_URL) {
+    externalLinks.push({ href: UMAMI_SHARE_URL, labelKey: 'nav.analytics', icon: <AnalyticsIcon /> })
+  }
+  if (WIKI_URL) {
+    externalLinks.push({
+      href: stewardWikiCollectionId ? `${WIKI_URL}/collection/${stewardWikiCollectionId}` : WIKI_URL,
+      labelKey: 'nav.wiki',
+      icon: <WikiIcon />,
+    })
+  }
+
   return (
     <div className="admin-panel">
       <div className="steward-shell">
@@ -116,6 +165,21 @@ export function StewardLayout() {
               {tab.icon}
               <span className="steward-dock-label">{t(tab.labelKey)}</span>
             </NavLink>
+          ))}
+
+          {externalLinks.length > 0 && <span className="steward-dock-divider" aria-hidden="true" />}
+          {externalLinks.map((link) => (
+            <a
+              key={link.labelKey}
+              href={link.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={t(link.labelKey)}
+              className="steward-dock-item steward-dock-item--external"
+            >
+              {link.icon}
+              <span className="steward-dock-label">{t(link.labelKey)}</span>
+            </a>
           ))}
         </nav>
         <div className="steward-content">
