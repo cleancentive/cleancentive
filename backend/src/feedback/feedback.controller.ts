@@ -19,6 +19,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { AdminGuard } from '../admin/admin.guard';
 import { AdminService } from '../admin/admin.service';
+import { parseWeeksParam } from '../common/weekly-series';
 import { FeedbackService } from './feedback.service';
 import {
   FEEDBACK_CATEGORY_QUERY_VALUES,
@@ -110,6 +111,14 @@ export class FeedbackController {
   @ApiOperation({ summary: 'Count feedback items grouped by status' })
   async counts(): Promise<Record<string, number>> {
     return this.feedbackService.countByStatus();
+  }
+
+  // Must stay above the ':id' route below, or the UUID param swallows the path.
+  @Get('intake-by-week')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiOperation({ summary: 'Count feedback by intake week, split by current status' })
+  async intakeByWeek(@Query('weeks') weeks?: string) {
+    return this.feedbackService.countByIntakeWeekAndStatus(parseWeeksParam(weeks));
   }
 
   @Get(':id')

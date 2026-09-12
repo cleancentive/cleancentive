@@ -5,6 +5,9 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Admin } from './admin.entity';
 import { User } from '../user/user.entity';
 import { UserEmail } from '../user/user-email.entity';
+import { Team } from '../team/team.entity';
+import { TeamOutlineCollection } from '../team/team-outline-collection.entity';
+import { listWeekStarts } from '../common/weekly-series';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -16,6 +19,10 @@ export class AdminService {
     private userRepository: Repository<User>,
     @InjectRepository(UserEmail)
     private userEmailRepository: Repository<UserEmail>,
+    @InjectRepository(Team)
+    private teamRepository: Repository<Team>,
+    @InjectRepository(TeamOutlineCollection)
+    private teamOutlineCollectionRepository: Repository<TeamOutlineCollection>,
     private configService: ConfigService,
     private eventEmitter: EventEmitter2,
   ) {}
@@ -132,5 +139,41 @@ export class AdminService {
   async getAdminUserIds(): Promise<string[]> {
     const admins = await this.adminRepository.find({ select: ['user_id'] });
     return admins.map((admin) => admin.user_id);
+  }
+
+  /**
+   * The Outline collection id for "Stewards Confidential", so the steward area
+   * can deep-link into it. Provisioned and kept current by OutlineSyncService,
+   * which is why this is looked up rather than configured — if the collection
+   * is ever recreated, the link follows it without a config change.
+   */
+  async getStewardWikiCollectionId(): Promise<string | null> {
+    const stewardsTeam = await this.teamRepository.findOne({ where: { system_key: 'stewards' } });
+    if (!stewardsTeam) return null;
+
+    const mapping = await this.teamOutlineCollectionRepository.findOne({
+      where: { team_id: stewardsTeam.id },
+    });
+    return mapping?.outline_confidential_collection_id ?? null;
+  }
+
+  async countSignupsByWeek(weeks: number): Promise<Array<{ week: string; count: number }>> {
+    const rows: { week: string; count: number }[] = await this.userRepository.query(
+      `SELECT TO_CHAR(date_trunc('week', created_at), 'YYYY-MM-DD') AS week, COUNT(*)::int AS count
+       FROM users
+       WHERE created_at >= date_trunc('week', NOW()) - ($1::int - 1) * interval '1 week'
+       GROUP BY 1
+       ORDER BY 1`,
+      [weeks],
+    );
+
+    const byWeek = new Map(listWeekStarts(weeks).map((week) => [week, 0]));
+    for (const row of rows) {
+      if (byWeek.has(row.week)) {
+        byWeek.set(row.week, Number(row.count));
+      }
+    }
+
+    return [...byWeek].map(([week, count]) => ({ week, count }));
   }
 }

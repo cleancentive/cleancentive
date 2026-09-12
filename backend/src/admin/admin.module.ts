@@ -8,6 +8,8 @@ import { AdminController } from './admin.controller';
 import { AdminGuard } from './admin.guard';
 import { Spot } from '../spot/spot.entity';
 import { DetectedItem } from '../spot/detected-item.entity';
+import { Team } from '../team/team.entity';
+import { TeamOutlineCollection } from '../team/team-outline-collection.entity';
 import { AdminOpsController } from './admin-ops.controller';
 import { AdminOpsService } from './admin-ops.service';
 import { DetectionAlertService } from './detection-alert.service';
@@ -17,7 +19,7 @@ import { PurgeModule } from '../purge/purge.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Admin, User, UserEmail, Spot, DetectedItem]),
+    TypeOrmModule.forFeature([Admin, User, UserEmail, Spot, DetectedItem, Team, TeamOutlineCollection]),
     forwardRef(() => StorageModule),
     PurgeModule,
     EmailModule,

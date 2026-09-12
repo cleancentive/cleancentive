@@ -10,6 +10,13 @@ import { DEFAULT_LOCALE } from '@cleancentive/shared';
 import { UserEmail } from '../user/user-email.entity';
 import { EmailService } from '../email/email.service';
 import { AdminService } from '../admin/admin.service';
+import { FEEDBACK_STATUSES } from './feedback-query';
+import { listWeekStarts } from '../common/weekly-series';
+
+export interface FeedbackIntakeWeek {
+  week: string;
+  counts: Record<string, number>;
+}
 
 @Injectable()
 export class FeedbackService {
@@ -127,11 +134,45 @@ export class FeedbackService {
       .groupBy('f.status')
       .getRawMany();
 
-    const counts: Record<string, number> = { new: 0, acknowledged: 0, in_progress: 0, resolved: 0 };
+    const counts = this.zeroedStatusCounts();
     for (const row of rows) {
       counts[row.status] = Number(row.count);
     }
     return counts;
+  }
+
+  /**
+   * Feedback bucketed by the week it arrived, split by the status each item
+   * holds *now*.
+   *
+   * The table keeps no status history, so this deliberately does not claim to
+   * show when an item changed state. It answers the question a steward
+   * actually has — how much of a given week's intake is still open — which a
+   * lifetime total per status cannot.
+   */
+  async countByIntakeWeekAndStatus(weeks: number): Promise<FeedbackIntakeWeek[]> {
+    const rows: { week: string; status: string; count: number }[] = await this.feedbackRepository.query(
+      `SELECT TO_CHAR(date_trunc('week', created_at), 'YYYY-MM-DD') AS week, status, COUNT(*)::int AS count
+       FROM feedback
+       WHERE created_at >= date_trunc('week', NOW()) - ($1::int - 1) * interval '1 week'
+       GROUP BY 1, status
+       ORDER BY 1`,
+      [weeks],
+    );
+
+    const byWeek = new Map(listWeekStarts(weeks).map((week) => [week, this.zeroedStatusCounts()]));
+    for (const row of rows) {
+      const counts = byWeek.get(row.week);
+      if (counts) {
+        counts[row.status] = Number(row.count);
+      }
+    }
+
+    return [...byWeek].map(([week, counts]) => ({ week, counts }));
+  }
+
+  private zeroedStatusCounts(): Record<string, number> {
+    return Object.fromEntries(FEEDBACK_STATUSES.map((status) => [status, 0]));
   }
 
   async findByUser(userId: string): Promise<Feedback[]> {

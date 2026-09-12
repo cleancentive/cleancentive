@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
+import { parseWeeksParam } from '../common/weekly-series';
 
 @Controller('admin')
 @ApiBearerAuth('Bearer')
@@ -12,9 +13,18 @@ export class AdminController {
 
   @Get('check')
   @UseGuards(JwtAuthGuard)
-  async checkAdmin(@Request() req: any): Promise<{ isAdmin: boolean }> {
+  async checkAdmin(
+    @Request() req: any,
+  ): Promise<{ isAdmin: boolean; stewardWikiCollectionId: string | null }> {
     const isAdmin = await this.adminService.isAdmin(req.user.userId);
-    return { isAdmin };
+    if (!isAdmin) {
+      // Every signed-in user hits this on app load, so only stewards pay for
+      // the collection lookup.
+      return { isAdmin, stewardWikiCollectionId: null };
+    }
+
+    const stewardWikiCollectionId = await this.adminService.getStewardWikiCollectionId();
+    return { isAdmin, stewardWikiCollectionId };
   }
 
   @Get('users')
@@ -36,6 +46,13 @@ export class AdminController {
       order: validOrders.includes(order?.toUpperCase()) ? order.toUpperCase() as 'ASC' | 'DESC' : 'DESC',
       search,
     });
+  }
+
+  // Must stay above the 'users/:id' route below, or ParseUUIDPipe rejects the path.
+  @Get('users/signups')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  async getSignupsByWeek(@Query('weeks') weeks?: string) {
+    return this.adminService.countSignupsByWeek(parseWeeksParam(weeks));
   }
 
   @Get('users/:id')
