@@ -47,6 +47,16 @@
       "queueFailed": "Failed to queue capture",
       "importFailed": "Failed to import file",
       "plantSinglePhoto": "Plant captures are single-photo. Pick one file at a time."
+    },
+    "import": {
+      "noGps": "This photo arrived without location data.",
+      "iosHint": "On iPhone, pick photos with \"Browse\"/Files rather than the Photo Library — Safari removes the location when it converts Photo Library picks.",
+      "invalidGps": "The location stored in this photo is out of range, so it can't be used.",
+      "unreadable": "The location data in this photo couldn't be read.",
+      "unsupportedFormat": "This file type doesn't carry location data.",
+      "keepPrompt": "The photo is kept — place it to log it.",
+      "pickOnMap": "Place on map",
+      "discard": "Discard photo"
     }
   },
   "item": {

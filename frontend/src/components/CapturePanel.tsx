@@ -5,7 +5,8 @@ import { useConnectivityStore } from '../stores/connectivityStore'
 import { useCleanupStore } from '../stores/cleanupStore'
 import { selectFreshCaptureLocation, useLocationStore } from '../stores/locationStore'
 import { cancelScheduledFlush, flushOutbox, queueCapture } from '../lib/pendingPicks'
-import { extractImageMetadata } from '../lib/imageMetadata'
+import { extractImageMetadata, extractTimestampFromFilename } from '../lib/imageMetadata'
+import type { LocationMissingReason } from '../lib/imageMetadata'
 import { trackEvent } from '../lib/analytics'
 import { createBlobFromCanvas, createThumbnailFromCanvas, createThumbnailFromBlob } from '../lib/thumbnail'
 import { BatchImportDialog } from './BatchImportDialog'
@@ -28,6 +29,21 @@ function classifyAccuracy(accuracy: number): LocationTier {
   if (accuracy <= LOCATION_GOOD_THRESHOLD_METERS) return 'good'
   if (accuracy <= LOCATION_WARN_THRESHOLD_METERS) return 'warning'
   return 'low'
+}
+
+interface PendingImport {
+  file: File
+  subjectKind: 'litter' | 'plant'
+  capturedAt: string
+  reason: LocationMissingReason
+  previewUrl: string
+}
+
+const IMPORT_REASON_KEYS: Record<LocationMissingReason, string> = {
+  'no-gps': 'noGps',
+  'invalid-gps': 'invalidGps',
+  unreadable: 'unreadable',
+  'unsupported-format': 'unsupportedFormat',
 }
 
 function notifyPicksChanged() {
@@ -65,6 +81,12 @@ export function CapturePanel() {
   const [batchFiles, setBatchFiles] = useState<File[] | null>(null)
   const [manualLocation, setManualLocation] = useState<{ latitude: number; longitude: number } | null>(null)
   const [showManualPicker, setShowManualPicker] = useState(false)
+  // A photo we could not place is held here rather than discarded, until the
+  // user pins it or drops it. Deliberately separate from manualLocation, which
+  // is the session-wide capture position the camera path reads — pinning one
+  // imported photo must not silently re-pin every later capture.
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
+  const [showImportPicker, setShowImportPicker] = useState(false)
 
   const latestLocation = useLocationStore((s) => s.latest)
   const bestRecentLocation = useLocationStore((s) => s.bestRecent)
@@ -94,6 +116,11 @@ export function CapturePanel() {
     openCaptureWindow()
     return () => closeCaptureWindow()
   }, [openCaptureWindow, closeCaptureWindow])
+
+  useEffect(() => {
+    if (!pendingImport) return
+    return () => URL.revokeObjectURL(pendingImport.previewUrl)
+  }, [pendingImport])
 
   const runSync = useCallback(async () => {
     if (!useConnectivityStore.getState().isOnline) {
@@ -304,45 +331,96 @@ export function CapturePanel() {
     }
   }
 
-  const queueImportedFile = async (file: File, subjectKind: 'litter' | 'plant' = 'litter') => {
+  const importPhoto = async (
+    photo: { file: File; subjectKind: 'litter' | 'plant'; capturedAt: string },
+    placement: { latitude: number; longitude: number; accuracyMeters: number | null },
+    origin: 'exif' | 'manual-pin',
+  ) => {
     setIsImportingFile(true)
     setCaptureError(null)
 
     try {
-      const metadata = await extractImageMetadata(file)
-
-      const latitude = metadata.latitude
-      const longitude = metadata.longitude
-      const capturedAt = metadata.capturedAt || new Date(file.lastModified || Date.now()).toISOString()
-      const accuracyMeters =
-        metadata.accuracyMeters && Number.isFinite(metadata.accuracyMeters) && metadata.accuracyMeters > 0
-          ? metadata.accuracyMeters
-          : null
-
-      const imageBlob = file
-      const thumbnailBlob = await createThumbnailFromBlob(file)
+      // A thumbnail we cannot build is not worth losing the photo over: browsers
+      // without a HEIC decoder throw here on a file whose GPS read back fine.
+      let thumbnailBlob: Blob | null = null
+      try {
+        thumbnailBlob = await createThumbnailFromBlob(photo.file)
+      } catch {
+        trackEvent('spot-import-failed', { reason: 'thumbnail-failed', source: 'import' })
+      }
 
       await queueCapture({
         ownerUserId: user?.id || null,
         ownerGuestId: guestId,
-        capturedAt,
-        latitude,
-        longitude,
-        accuracyMeters,
-        mimeType: file.type || 'image/jpeg',
-        imageBlob,
+        capturedAt: photo.capturedAt,
+        latitude: placement.latitude,
+        longitude: placement.longitude,
+        accuracyMeters: placement.accuracyMeters,
+        mimeType: photo.file.type || 'image/jpeg',
+        imageBlob: photo.file,
         thumbnailBlob,
         pickedUp,
-        subjectKind,
+        subjectKind: photo.subjectKind,
       })
 
-      trackEvent('spot-logged', { source: 'import', pickedUp: pickedUp ? 'true' : 'false', subjectKind })
+      trackEvent('spot-logged', {
+        source: 'import',
+        pickedUp: pickedUp ? 'true' : 'false',
+        subjectKind: photo.subjectKind,
+      })
+      if (origin !== 'exif') {
+        trackEvent('spot-import-recovered', { method: origin, source: 'import' })
+      }
+      setPendingImport(null)
       setPickedUp(true)
       notifyPicksChanged()
 
       if (isOnline) {
         await runSync()
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('capture.errors.importFailed')
+      setCaptureError(message)
+      trackEvent('spot-import-failed', { reason: 'queue-failed', source: 'import' })
+    } finally {
+      setIsImportingFile(false)
+    }
+  }
+
+  const queueImportedFile = async (file: File, subjectKind: 'litter' | 'plant' = 'litter') => {
+    setIsImportingFile(true)
+    setCaptureError(null)
+
+    try {
+      const metadata = await extractImageMetadata(file)
+      // Safari's transcode can take DateTimeOriginal along with the GPS block,
+      // and lastModified is then the transcode time rather than the pickup.
+      const capturedAt =
+        metadata.capturedAt ||
+        extractTimestampFromFilename(file.name) ||
+        new Date(file.lastModified || Date.now()).toISOString()
+
+      if (metadata.status === 'located') {
+        await importPhoto(
+          { file, subjectKind, capturedAt },
+          {
+            latitude: metadata.latitude,
+            longitude: metadata.longitude,
+            accuracyMeters: metadata.accuracyMeters,
+          },
+          'exif',
+        )
+        return
+      }
+
+      trackEvent('spot-import-failed', { reason: metadata.reason, source: 'import' })
+      setPendingImport({
+        file,
+        subjectKind,
+        capturedAt,
+        reason: metadata.reason,
+        previewUrl: URL.createObjectURL(file),
+      })
     } catch (error) {
       const message = error instanceof Error ? error.message : t('capture.errors.importFailed')
       setCaptureError(message)
@@ -509,6 +587,43 @@ export function CapturePanel() {
         )}
         <canvas ref={captureCanvasRef} className="capture-canvas" />
       </div>
+
+      {pendingImport && (
+        <div className="location-consent">
+          <img className="batch-import-thumbnail" src={pendingImport.previewUrl} alt="" />
+          <p className="capture-detail">
+            <strong>{t(`capture.import.${IMPORT_REASON_KEYS[pendingImport.reason]}`)}</strong>
+            {pendingImport.reason === 'no-gps' && (
+              <>
+                <br />
+                {t('capture.import.iosHint')}
+              </>
+            )}
+            <br />
+            {t('capture.import.keepPrompt')}
+          </p>
+          <div className="camera-actions">
+            <button className="primary-button" onClick={() => setShowImportPicker(true)}>
+              {t('capture.import.pickOnMap')}
+            </button>
+            <button className="secondary-button" onClick={() => setPendingImport(null)}>
+              {t('capture.import.discard')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showImportPicker && pendingImport && (
+        <ManualLocationDialog
+          initialLatitude={location?.latitude ?? null}
+          initialLongitude={location?.longitude ?? null}
+          onConfirm={(latitude, longitude) => {
+            setShowImportPicker(false)
+            void importPhoto(pendingImport, { latitude, longitude, accuracyMeters: null }, 'manual-pin')
+          }}
+          onCancel={() => setShowImportPicker(false)}
+        />
+      )}
 
       {showManualPicker && (
         <ManualLocationDialog

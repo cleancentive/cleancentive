@@ -5,6 +5,7 @@ import { fetchParticipatedDates } from '../stores/cleanupStore'
 import { extractImageMetadata, extractTimestampFromFilename } from '../lib/imageMetadata'
 import { queueCapture } from '../lib/pendingPicks'
 import { createThumbnailFromBlob } from '../lib/thumbnail'
+import { ManualLocationDialog } from './ManualLocationDialog'
 import { trackEvent } from '../lib/analytics'
 import {
   matchPhotosToCleanups,
@@ -43,6 +44,12 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
   const [importing, setImporting] = useState(false)
   const [importedGroupKeys, setImportedGroupKeys] = useState<Set<string>>(new Set())
   const [importedCount, setImportedCount] = useState(0)
+  // One pin for the whole batch: a set of photos imported together is almost
+  // always one outing, so asking once beats asking per photo.
+  const [batchPin, setBatchPin] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [showBatchPicker, setShowBatchPicker] = useState(false)
+  const [unplacedCount, setUnplacedCount] = useState(0)
+  const [importError, setImportError] = useState<string | null>(null)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -76,12 +83,18 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
               : null
 
           const thumbnailUrl = URL.createObjectURL(file)
+          const located = metadata.status === 'located'
+          if (!located) {
+            trackEvent('spot-import-failed', { reason: metadata.reason, source: 'batch-import' })
+          }
 
+          // A photo without coordinates is kept and offered a pin later, rather
+          // than dropped here. Matching already degrades to time-only for these.
           processed.push({
             file,
             capturedAt,
-            latitude: metadata.latitude,
-            longitude: metadata.longitude,
+            latitude: located ? metadata.latitude : null,
+            longitude: located ? metadata.longitude : null,
             accuracyMeters,
             thumbnailUrl,
             error: null,
@@ -166,39 +179,77 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
     return item.bestMatch
   }
 
-  async function importGroup(group: ImportGroup) {
-    setImporting(true)
-    try {
-      const associate = associateCleanup[group.key] ?? false
-      let count = 0
+  function resolvePlacement(
+    photo: ProcessedPhoto,
+  ): { latitude: number; longitude: number; accuracyMeters: number | null } | null {
+    if (photo.latitude != null && photo.longitude != null) {
+      return { latitude: photo.latitude, longitude: photo.longitude, accuracyMeters: photo.accuracyMeters }
+    }
+    if (batchPin) {
+      return { latitude: batchPin.latitude, longitude: batchPin.longitude, accuracyMeters: null }
+    }
+    return null
+  }
 
-      for (const item of group.items) {
-        const photo = item.photo as ProcessedPhoto
-        if (photo.latitude == null || photo.longitude == null) continue
+  async function queueGroupItems(group: ImportGroup): Promise<{ queued: number; unplaced: number }> {
+    const associate = associateCleanup[group.key] ?? false
+    let queued = 0
+    let unplaced = 0
 
-        const cleanupDate = associate ? getSelectedCleanupDate(item) : null
-
-        await queueCapture({
-          ownerUserId: user?.id || null,
-          ownerGuestId: guestId,
-          capturedAt: photo.capturedAt || new Date().toISOString(),
-          latitude: photo.latitude,
-          longitude: photo.longitude,
-          accuracyMeters: photo.accuracyMeters,
-          mimeType: photo.file.type || 'image/jpeg',
-          imageBlob: photo.file,
-          thumbnailBlob: await createThumbnailFromBlob(photo.file),
-          pickedUp,
-          cleanupId: cleanupDate?.cleanupId ?? null,
-          cleanupDateId: cleanupDate?.cleanupDateId ?? null,
-        })
-
-        trackEvent('spot-logged', { source: 'batch-import', pickedUp: pickedUp ? 'true' : 'false' })
-        count++
+    for (const item of group.items) {
+      const photo = item.photo as ProcessedPhoto
+      const placement = resolvePlacement(photo)
+      if (!placement) {
+        unplaced++
+        continue
       }
 
-      setImportedCount((prev) => prev + count)
+      const cleanupDate = associate ? getSelectedCleanupDate(item) : null
+
+      // A thumbnail we cannot build must not cost us the photo.
+      let thumbnailBlob: Blob | null = null
+      try {
+        thumbnailBlob = await createThumbnailFromBlob(photo.file)
+      } catch {
+        trackEvent('spot-import-failed', { reason: 'thumbnail-failed', source: 'batch-import' })
+      }
+
+      await queueCapture({
+        ownerUserId: user?.id || null,
+        ownerGuestId: guestId,
+        capturedAt: photo.capturedAt || new Date().toISOString(),
+        latitude: placement.latitude,
+        longitude: placement.longitude,
+        accuracyMeters: placement.accuracyMeters,
+        mimeType: photo.file.type || 'image/jpeg',
+        imageBlob: photo.file,
+        thumbnailBlob,
+        pickedUp,
+        cleanupId: cleanupDate?.cleanupId ?? null,
+        cleanupDateId: cleanupDate?.cleanupDateId ?? null,
+      })
+
+      trackEvent('spot-logged', { source: 'batch-import', pickedUp: pickedUp ? 'true' : 'false' })
+      if (photo.latitude == null || photo.longitude == null) {
+        trackEvent('spot-import-recovered', { method: 'batch-pin', source: 'batch-import' })
+      }
+      queued++
+    }
+
+    return { queued, unplaced }
+  }
+
+  async function importGroup(group: ImportGroup) {
+    setImporting(true)
+    setImportError(null)
+    try {
+      const { queued, unplaced } = await queueGroupItems(group)
+      setImportedCount((prev) => prev + queued)
+      setUnplacedCount((prev) => prev + unplaced)
       setImportedGroupKeys((prev) => new Set([...prev, group.key]))
+    } catch (err) {
+      setImportError(t('import.importFailed', { message: err instanceof Error ? err.message : t('import.unknownError') }))
+      trackEvent('spot-import-failed', { reason: 'queue-failed', source: 'batch-import' })
     } finally {
       setImporting(false)
     }
@@ -206,39 +257,22 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
 
   async function importAll() {
     setImporting(true)
+    setImportError(null)
     try {
-      let count = 0
+      let queued = 0
+      let unplaced = 0
       for (const group of groups) {
         if (importedGroupKeys.has(group.key)) continue
-        const associate = associateCleanup[group.key] ?? false
-
-        for (const item of group.items) {
-          const photo = item.photo as ProcessedPhoto
-          if (photo.latitude == null || photo.longitude == null) continue
-
-          const cleanupDate = associate ? getSelectedCleanupDate(item) : null
-
-          await queueCapture({
-            ownerUserId: user?.id || null,
-            ownerGuestId: guestId,
-            capturedAt: photo.capturedAt || new Date().toISOString(),
-            latitude: photo.latitude,
-            longitude: photo.longitude,
-            accuracyMeters: photo.accuracyMeters,
-            mimeType: photo.file.type || 'image/jpeg',
-            imageBlob: photo.file,
-            thumbnailBlob: null,
-            pickedUp,
-            cleanupId: cleanupDate?.cleanupId ?? null,
-            cleanupDateId: cleanupDate?.cleanupDateId ?? null,
-          })
-
-          trackEvent('spot-logged', { source: 'batch-import', pickedUp: pickedUp ? 'true' : 'false' })
-          count++
-        }
+        const result = await queueGroupItems(group)
+        queued += result.queued
+        unplaced += result.unplaced
       }
-      setImportedCount((prev) => prev + count)
+      setImportedCount((prev) => prev + queued)
+      setUnplacedCount((prev) => prev + unplaced)
       onDone()
+    } catch (err) {
+      setImportError(t('import.importFailed', { message: err instanceof Error ? err.message : t('import.unknownError') }))
+      trackEvent('spot-import-failed', { reason: 'queue-failed', source: 'batch-import' })
     } finally {
       setImporting(false)
     }
@@ -250,6 +284,8 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
 
   const remainingGroups = groups.filter((g) => !importedGroupKeys.has(g.key))
   const allDone = remainingGroups.length === 0 && phase === 'review'
+
+  const needsLocationCount = photos.filter((p) => p.latitude == null || p.longitude == null).length
 
   function formatDate(iso: string | null): string {
     if (!iso) return t('import.unknownDate')
@@ -285,6 +321,36 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
               <p className="batch-import-skipped">
                 {t('import.skipped', { count: skipped.length })}
               </p>
+            )}
+
+            {needsLocationCount > 0 && (
+              <div className="batch-import-needs-location">
+                {batchPin ? (
+                  <p className="batch-import-skipped">
+                    {t('import.placedAll', { count: needsLocationCount })}{' '}
+                    <button className="link-button" onClick={() => setShowBatchPicker(true)} disabled={importing}>
+                      {t('import.repin')}
+                    </button>
+                  </p>
+                ) : (
+                  <>
+                    <p className="batch-import-skipped">
+                      {t('import.needsLocation', { count: needsLocationCount })}
+                      <br />
+                      {t('import.needsLocationHint')}
+                    </p>
+                    <button className="secondary-button" onClick={() => setShowBatchPicker(true)} disabled={importing}>
+                      {t('import.placeAll')}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {importError && <p className="error-message">{importError}</p>}
+
+            {unplacedCount > 0 && (
+              <p className="batch-import-skipped">{t('import.stillUnplaced', { count: unplacedCount })}</p>
             )}
 
             {allDone && (importedCount > 0 || photos.length > 0) && (
@@ -399,6 +465,22 @@ export function BatchImportDialog({ files, pickedUp, onDone, onCancel }: BatchIm
           </>
         )}
       </div>
+
+      {/* The picker brings its own backdrop; keep its clicks from reaching the
+          batch overlay behind it, which would cancel the whole import. */}
+      {showBatchPicker && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ManualLocationDialog
+            initialLatitude={batchPin?.latitude ?? null}
+            initialLongitude={batchPin?.longitude ?? null}
+            onConfirm={(latitude, longitude) => {
+              setBatchPin({ latitude, longitude })
+              setShowBatchPicker(false)
+            }}
+            onCancel={() => setShowBatchPicker(false)}
+          />
+        </div>
+      )}
     </div>
   )
 }

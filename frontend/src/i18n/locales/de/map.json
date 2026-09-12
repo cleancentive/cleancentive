@@ -43,8 +43,8 @@
     "title_one": "{{count}} Foto importieren",
     "title_other": "{{count}} Fotos importieren",
     "processing": "Verarbeite {{processed}} von {{total}} Fotos…",
-    "skipped_one": "{{count}} Foto übersprungen (keine GPS-Daten)",
-    "skipped_other": "{{count}} Fotos übersprungen (keine GPS-Daten)",
+    "skipped_one": "{{count}} Foto konnte nicht hinzugefügt werden.",
+    "skipped_other": "{{count}} Fotos konnten nicht hinzugefügt werden.",
     "imported_one": "{{count}} Foto importiert.",
     "imported_other": "{{count}} Fotos importiert.",
     "noneImported": "Es konnten keine Fotos importiert werden.",
@@ -57,6 +57,15 @@
     "discard": "Verwerfen",
     "import": "Importieren",
     "importing": "Wird importiert...",
-    "importAll": "Alle importieren"
+    "importAll": "Alle importieren",
+    "needsLocation_one": "{{count}} Foto hat keine Standortdaten.",
+    "needsLocation_other": "{{count}} Fotos haben keine Standortdaten.",
+    "needsLocationHint": "Wähle Fotos auf dem iPhone über „Durchsuchen“/Dateien statt über die Fotomediathek — Safari entfernt den Standort, wenn es Bilder aus der Mediathek konvertiert.",
+    "placeAll": "Auf der Karte platzieren",
+    "placedAll": "Alle {{count}} werden an der gesetzten Markierung erfasst.",
+    "repin": "Markierung verschieben",
+    "stillUnplaced_one": "{{count}} Foto wurde ausgelassen — es hat weiterhin keinen Standort.",
+    "stillUnplaced_other": "{{count}} Fotos wurden ausgelassen — sie haben weiterhin keinen Standort.",
+    "importFailed": "Import fehlgeschlagen: {{message}}"
   }
 }

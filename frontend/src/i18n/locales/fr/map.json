@@ -43,8 +43,8 @@
     "title_one": "Importer {{count}} photo",
     "title_other": "Importer {{count}} photos",
     "processing": "Traitement de {{processed}} sur {{total}} photos…",
-    "skipped_one": "{{count}} photo ignorée (pas de données GPS)",
-    "skipped_other": "{{count}} photos ignorées (pas de données GPS)",
+    "skipped_one": "{{count}} photo n'a pas pu être ajoutée.",
+    "skipped_other": "{{count}} photos n'ont pas pu être ajoutées.",
     "imported_one": "{{count}} photo importée.",
     "imported_other": "{{count}} photos importées.",
     "noneImported": "Aucune photo n'a pu être importée.",
@@ -57,6 +57,15 @@
     "discard": "Abandonner",
     "import": "Importer",
     "importing": "Importation...",
-    "importAll": "Tout importer"
+    "importAll": "Tout importer",
+    "needsLocation_one": "{{count}} photo n'a pas de données de localisation.",
+    "needsLocation_other": "{{count}} photos n'ont pas de données de localisation.",
+    "needsLocationHint": "Sur iPhone, choisissez les photos via « Parcourir »/Fichiers plutôt que la photothèque — Safari supprime la localisation lorsqu'il convertit les photos de la photothèque.",
+    "placeAll": "Les placer sur la carte",
+    "placedAll": "Les {{count}} photos seront enregistrées à l'endroit indiqué.",
+    "repin": "Déplacer le repère",
+    "stillUnplaced_one": "{{count}} photo a été laissée de côté — elle n'a toujours pas de position.",
+    "stillUnplaced_other": "{{count}} photos ont été laissées de côté — elles n'ont toujours pas de position.",
+    "importFailed": "Échec de l'import : {{message}}"
   }
 }

@@ -47,6 +47,16 @@
       "queueFailed": "Aufnahme konnte nicht in die Warteschlange gestellt werden",
       "importFailed": "Datei konnte nicht importiert werden",
       "plantSinglePhoto": "Pflanzenaufnahmen sind Einzelfotos. Wähle jeweils eine Datei aus."
+    },
+    "import": {
+      "noGps": "Dieses Foto kam ohne Standortdaten an.",
+      "iosHint": "Wähle Fotos auf dem iPhone über „Durchsuchen“/Dateien statt über die Fotomediathek — Safari entfernt den Standort, wenn es Bilder aus der Mediathek konvertiert.",
+      "invalidGps": "Der im Foto gespeicherte Standort liegt außerhalb des gültigen Bereichs und kann nicht verwendet werden.",
+      "unreadable": "Die Standortdaten in diesem Foto konnten nicht gelesen werden.",
+      "unsupportedFormat": "Dieser Dateityp enthält keine Standortdaten.",
+      "keepPrompt": "Das Foto bleibt erhalten — setze es auf die Karte, um es zu erfassen.",
+      "pickOnMap": "Auf Karte setzen",
+      "discard": "Foto verwerfen"
     }
   },
   "item": {

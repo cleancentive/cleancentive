@@ -1,14 +1,29 @@
 import exifr from 'exifr'
 
-export interface ImageMetadata {
-  latitude: number
-  longitude: number
+export type LocationMissingReason =
+  | 'unsupported-format'
+  | 'unreadable'
+  | 'no-gps'
+  | 'invalid-gps'
+
+interface ImageTimestamps {
   capturedAt: string | null
   accuracyMeters: number | null
 }
 
-const SUPPORTED_EXTENSIONS = /\.(jpe?g|heic|heif|avif|tiff?|webp|dng)$/i
-const SUPPORTED_MIME_TYPES = new Set([
+export type ImageMetadata =
+  | (ImageTimestamps & { status: 'located'; latitude: number; longitude: number })
+  | (ImageTimestamps & { status: 'unlocated'; reason: LocationMissingReason })
+
+export type CoordinateClassification =
+  | { status: 'located'; latitude: number; longitude: number }
+  | { status: 'unlocated'; reason: 'no-gps' | 'invalid-gps' }
+
+// Formats that are known to carry EXIF. This is only a hint for choosing the
+// failure reason — it is not a gate. Anything may be handed to exifr; a file it
+// cannot parse is reported, never rejected outright.
+const EXIF_BEARING_EXTENSIONS = /\.(jpe?g|heic|heif|avif|tiff?|webp|dng)$/i
+const EXIF_BEARING_MIME_TYPES = new Set([
   'image/jpeg',
   'image/jpg',
   'image/heic',
@@ -22,31 +37,14 @@ const SUPPORTED_MIME_TYPES = new Set([
   'image/x-adobe-dng',
 ])
 
-function isSupportedFile(file: File): boolean {
-  if (file.type && SUPPORTED_MIME_TYPES.has(file.type.toLowerCase())) return true
-  return SUPPORTED_EXTENSIONS.test(file.name)
+function mayCarryExif(file: File): boolean {
+  if (file.type && EXIF_BEARING_MIME_TYPES.has(file.type.toLowerCase())) return true
+  return EXIF_BEARING_EXTENSIONS.test(file.name)
 }
 
-export async function extractImageMetadata(file: File): Promise<ImageMetadata> {
-  if (!isSupportedFile(file)) {
-    throw new Error('This file format is not supported. Try JPEG or HEIC.')
-  }
-
-  let parsed: Record<string, unknown> | undefined
-  try {
-    parsed = (await exifr.parse(file, {
-      gps: true,
-      exif: { pick: ['DateTimeOriginal'] },
-    })) as Record<string, unknown> | undefined
-  } catch {
-    throw new Error('Could not read photo metadata. The file may be corrupted.')
-  }
-
-  const latitude = parsed?.latitude
-  const longitude = parsed?.longitude
-
+export function classifyCoordinates(latitude: unknown, longitude: unknown): CoordinateClassification {
   if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-    throw new Error('This photo has no GPS metadata. Enable Location in your camera app and try again.')
+    return { status: 'unlocated', reason: 'no-gps' }
   }
 
   if (
@@ -56,22 +54,63 @@ export async function extractImageMetadata(file: File): Promise<ImageMetadata> {
     Math.abs(latitude) > 90 ||
     Math.abs(longitude) > 180
   ) {
-    throw new Error('GPS coordinates in this photo are invalid.')
+    return { status: 'unlocated', reason: 'invalid-gps' }
   }
 
-  let capturedAt: string | null = null
+  return { status: 'located', latitude, longitude }
+}
+
+function readCapturedAt(parsed: Record<string, unknown> | undefined): string | null {
   const dateTimeOriginal = parsed?.DateTimeOriginal
   if (dateTimeOriginal instanceof Date && !Number.isNaN(dateTimeOriginal.getTime())) {
-    capturedAt = dateTimeOriginal.toISOString()
+    return dateTimeOriginal.toISOString()
   }
+  return null
+}
 
-  let accuracyMeters: number | null = null
+function readAccuracyMeters(parsed: Record<string, unknown> | undefined): number | null {
   const reportedAccuracy = parsed?.GPSHPositioningError
   if (typeof reportedAccuracy === 'number' && Number.isFinite(reportedAccuracy) && reportedAccuracy > 0) {
-    accuracyMeters = reportedAccuracy
+    return reportedAccuracy
+  }
+  return null
+}
+
+/**
+ * Describes what we could learn about a photo. Never rejects: a file we cannot
+ * place still comes back with its reason and whatever timestamp it carries, so
+ * the caller can keep the photo and ask the user to place it by hand.
+ *
+ * The 'no-gps' case is routine, not exotic — iOS Safari transcodes Photo Library
+ * picks to JPEG and drops the GPS block on the way, so a photo that plainly has
+ * coordinates on the phone arrives here with none.
+ */
+export async function extractImageMetadata(file: File): Promise<ImageMetadata> {
+  let parsed: Record<string, unknown> | undefined
+  try {
+    // Hand exifr the bytes rather than the File: its File path goes through
+    // FileReader, which pulls in a browser-only global and makes this
+    // impossible to test outside a DOM.
+    const bytes = await file.arrayBuffer()
+    parsed = (await exifr.parse(bytes, {
+      gps: true,
+      exif: { pick: ['DateTimeOriginal'] },
+    })) as Record<string, unknown> | undefined
+  } catch {
+    return {
+      status: 'unlocated',
+      reason: mayCarryExif(file) ? 'unreadable' : 'unsupported-format',
+      capturedAt: null,
+      accuracyMeters: null,
+    }
   }
 
-  return { latitude, longitude, capturedAt, accuracyMeters }
+  // Read the timestamp before the coordinates: a photo that lost its GPS may
+  // still know when it was taken, and that is worth keeping.
+  const capturedAt = readCapturedAt(parsed)
+  const accuracyMeters = readAccuracyMeters(parsed)
+
+  return { ...classifyCoordinates(parsed?.latitude, parsed?.longitude), capturedAt, accuracyMeters }
 }
 
 const FILENAME_DATE_PATTERNS: Array<{ regex: RegExp; parse: (m: RegExpMatchArray) => Date | null }> = [

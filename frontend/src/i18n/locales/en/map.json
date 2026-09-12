@@ -43,8 +43,8 @@
     "title_one": "Import {{count}} Photo",
     "title_other": "Import {{count}} Photos",
     "processing": "Processing {{processed}} of {{total}} photos…",
-    "skipped_one": "{{count}} photo skipped (no GPS data)",
-    "skipped_other": "{{count}} photos skipped (no GPS data)",
+    "skipped_one": "{{count}} photo couldn't be added.",
+    "skipped_other": "{{count}} photos couldn't be added.",
     "imported_one": "{{count}} photo imported.",
     "imported_other": "{{count}} photos imported.",
     "noneImported": "No photos could be imported.",
@@ -57,6 +57,15 @@
     "discard": "Discard",
     "import": "Import",
     "importing": "Importing...",
-    "importAll": "Import All"
+    "importAll": "Import All",
+    "needsLocation_one": "{{count}} photo has no location data.",
+    "needsLocation_other": "{{count}} photos have no location data.",
+    "needsLocationHint": "On iPhone, pick photos with \"Browse\"/Files rather than the Photo Library — Safari removes the location when it converts Photo Library picks.",
+    "placeAll": "Place them on the map",
+    "placedAll": "All {{count}} will be logged at the pin you dropped.",
+    "repin": "Move the pin",
+    "stillUnplaced_one": "{{count}} photo was left out — it still has no location.",
+    "stillUnplaced_other": "{{count}} photos were left out — they still have no location.",
+    "importFailed": "Import failed: {{message}}"
   }
 }

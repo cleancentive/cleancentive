@@ -47,6 +47,16 @@
       "queueFailed": "Échec de la mise en file d’attente de la capture",
       "importFailed": "Échec de l’importation du fichier",
       "plantSinglePhoto": "Les captures de plantes sont des photos uniques. Choisissez un fichier à la fois."
+    },
+    "import": {
+      "noGps": "Cette photo est arrivée sans données de localisation.",
+      "iosHint": "Sur iPhone, choisissez les photos via « Parcourir »/Fichiers plutôt que la photothèque — Safari supprime la localisation lorsqu'il convertit les photos de la photothèque.",
+      "invalidGps": "La position enregistrée dans cette photo est hors limites et ne peut pas être utilisée.",
+      "unreadable": "Impossible de lire les données de localisation de cette photo.",
+      "unsupportedFormat": "Ce type de fichier ne contient pas de données de localisation.",
+      "keepPrompt": "La photo est conservée — placez-la pour l'enregistrer.",
+      "pickOnMap": "Placer sur la carte",
+      "discard": "Supprimer la photo"
     }
   },
   "item": {
