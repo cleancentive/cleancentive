@@ -10,15 +10,17 @@
     "feedback": "Feedback",
     "users": "Users",
     "operations": "Operations",
+    "project": "Project",
     "storage": "Storage",
     "purge": "Purge",
-    "review": "Review"
+    "review": "Review",
+    "analytics": "Analytics ↗",
+    "wiki": "Wiki ↗"
   },
   "operations": {
     "legend": "Operations Overview",
     "updated": "Updated {{time}}",
     "liveStatus": "Live processing status for stewards",
-    "analytics": "Analytics ↗",
     "retryBatchSize": "Retry batch size",
     "retryFailedSpots": "Retry stalled spots",
     "retrying": "Retrying...",
@@ -43,6 +45,12 @@
     "failed": "Failed",
     "oldestQueuedSpot": "Oldest queued spot",
     "oldestProcessingSpot": "Oldest processing spot",
+    "spotsUnrecoverable": "Unrecoverable",
+    "cleanOrphanedJobs": "Clear orphaned jobs",
+    "cleaningOrphanedJobs": "Clearing..."
+  },
+  "project": {
+    "legend": "Project",
     "deployedVersions": "Deployed Versions",
     "artifact": "Artifact",
     "version": "Version",
@@ -50,9 +58,14 @@
     "backend": "Backend",
     "frontend": "Frontend",
     "worker": "Worker",
-    "spotsUnrecoverable": "Unrecoverable",
-    "cleanOrphanedJobs": "Clear orphaned jobs",
-    "cleaningOrphanedJobs": "Clearing..."
+    "repository": "Repository ↗",
+    "feedbackIntake": "Feedback by week received",
+    "feedbackIntakeHint": "Coloured by the status each item holds now",
+    "signups": "New users per week",
+    "commits": "Commits per week",
+    "commitsOnGitHub": "Commit activity on GitHub ↗",
+    "commitsUnavailable": "GitHub stats are not available right now.",
+    "noData": "No data yet."
   },
   "storage": {
     "legend": "Storage Insights",

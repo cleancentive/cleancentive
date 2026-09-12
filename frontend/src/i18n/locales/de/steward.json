@@ -10,15 +10,17 @@
     "feedback": "Feedback",
     "users": "Benutzer",
     "operations": "Betrieb",
+    "project": "Projekt",
     "storage": "Speicher",
     "purge": "Bereinigung",
-    "review": "Prüfen"
+    "review": "Prüfen",
+    "analytics": "Analysen ↗",
+    "wiki": "Wiki ↗"
   },
   "operations": {
     "legend": "Betriebsübersicht",
     "updated": "Aktualisiert {{time}}",
     "liveStatus": "Live-Verarbeitungsstatus für Stewards",
-    "analytics": "Analysen ↗",
     "retryBatchSize": "Stapelgröße",
     "retryFailedSpots": "Hängengebliebene Spots erneut versuchen",
     "retrying": "Wird wiederholt...",
@@ -43,6 +45,12 @@
     "failed": "Fehlgeschlagen",
     "oldestQueuedSpot": "Ältester wartender Spot",
     "oldestProcessingSpot": "Ältester in Verarbeitung befindlicher Spot",
+    "spotsUnrecoverable": "Nicht behebbar",
+    "cleanOrphanedJobs": "Verwaiste Jobs entfernen",
+    "cleaningOrphanedJobs": "Wird entfernt..."
+  },
+  "project": {
+    "legend": "Projekt",
     "deployedVersions": "Bereitgestellte Versionen",
     "artifact": "Artefakt",
     "version": "Version",
@@ -50,9 +58,14 @@
     "backend": "Backend",
     "frontend": "Frontend",
     "worker": "Worker",
-    "spotsUnrecoverable": "Nicht behebbar",
-    "cleanOrphanedJobs": "Verwaiste Jobs entfernen",
-    "cleaningOrphanedJobs": "Wird entfernt..."
+    "repository": "Repository ↗",
+    "feedbackIntake": "Feedback nach Eingangswoche",
+    "feedbackIntakeHint": "Eingefärbt nach dem aktuellen Status",
+    "signups": "Neue Benutzer pro Woche",
+    "commits": "Commits pro Woche",
+    "commitsOnGitHub": "Commit-Aktivität auf GitHub ↗",
+    "commitsUnavailable": "GitHub-Statistiken sind derzeit nicht verfügbar.",
+    "noData": "Noch keine Daten."
   },
   "storage": {
     "legend": "Speicher-Statistiken",

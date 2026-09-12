@@ -110,6 +110,16 @@ interface OpsOverview {
   }
 }
 
+export interface FeedbackIntakeWeek {
+  week: string
+  counts: Record<string, number>
+}
+
+export interface WeeklySignupCount {
+  week: string
+  count: number
+}
+
 interface FeedbackItem {
   id: string
   category: 'bug' | 'suggestion' | 'question'
@@ -159,6 +169,9 @@ interface AdminState {
   feedbackTotal: number
   feedbackStatusFilter: Set<string>
   feedbackCounts: Record<string, number> | null
+  feedbackIntakeByWeek: FeedbackIntakeWeek[] | null
+  signupsByWeek: WeeklySignupCount[] | null
+  stewardWikiCollectionId: string | null
   isLoadingFeedback: boolean
   isSubmittingResponse: boolean
   activeFeedbackItem: FeedbackItem | null
@@ -181,6 +194,8 @@ interface AdminState {
   demoteUser: (userId: string) => Promise<void>
   fetchFeedback: (statusFilter?: Set<string>) => Promise<void>
   fetchFeedbackCounts: () => Promise<void>
+  fetchFeedbackIntakeByWeek: () => Promise<void>
+  fetchSignupsByWeek: () => Promise<void>
   fetchFeedbackDetail: (id: string) => Promise<void>
   updateFeedbackStatus: (id: string, status: string) => Promise<void>
   addAdminResponse: (id: string, message: string) => Promise<void>
@@ -218,6 +233,9 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   feedbackTotal: 0,
   feedbackStatusFilter: new Set(DEFAULT_FEEDBACK_STATUS_FILTER),
   feedbackCounts: null,
+  feedbackIntakeByWeek: null,
+  signupsByWeek: null,
+  stewardWikiCollectionId: null,
   isLoadingFeedback: false,
   isSubmittingResponse: false,
   activeFeedbackItem: null,
@@ -225,7 +243,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   checkAdminStatus: async () => {
     const sessionToken = useAuthStore.getState().sessionToken
     if (!sessionToken) {
-      set({ isAdmin: false })
+      set({ isAdmin: false, stewardWikiCollectionId: null })
       return
     }
 
@@ -233,9 +251,12 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       const response = await axios.get(`${API_BASE}/admin/check`, {
         headers: { Authorization: `Bearer ${sessionToken}` }
       })
-      set({ isAdmin: response.data.isAdmin })
+      set({
+        isAdmin: response.data.isAdmin,
+        stewardWikiCollectionId: response.data.stewardWikiCollectionId ?? null,
+      })
     } catch {
-      set({ isAdmin: false })
+      set({ isAdmin: false, stewardWikiCollectionId: null })
     }
   },
 
@@ -498,6 +519,30 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }
   },
 
+  fetchFeedbackIntakeByWeek: async () => {
+    const headers = getAuthHeaders()
+    if (!headers.Authorization) return
+
+    try {
+      const response = await axios.get(`${API_BASE}/feedback/intake-by-week`, { headers })
+      set({ feedbackIntakeByWeek: response.data })
+    } catch {
+      // non-critical
+    }
+  },
+
+  fetchSignupsByWeek: async () => {
+    const headers = getAuthHeaders()
+    if (!headers.Authorization) return
+
+    try {
+      const response = await axios.get(`${API_BASE}/admin/users/signups`, { headers })
+      set({ signupsByWeek: response.data })
+    } catch {
+      // non-critical
+    }
+  },
+
   fetchFeedbackDetail: async (id) => {
     const headers = getAuthHeaders()
     if (!headers.Authorization) return
@@ -558,8 +603,11 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     isLoadingStorage: false,
     isLoadingPurge: false,
     isRetryingFailedSpots: false,
-  isCleaningOrphanedJobs: false,
+    isCleaningOrphanedJobs: false,
     retryFailedSpotsResult: null,
+    feedbackIntakeByWeek: null,
+    signupsByWeek: null,
+    stewardWikiCollectionId: null,
     error: null,
   }),
 }))

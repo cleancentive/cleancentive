@@ -1,24 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAdminStore } from '../../stores/adminStore'
-import { useVersionStore } from '../../stores/versionStore'
 import { useConnectivityStore } from '../../stores/connectivityStore'
 import { formatTimestamp } from '../../utils/formatTimestamp'
 import { CountdownButton } from '../CountdownButton'
-import { UMAMI_SHARE_URL } from '../../lib/analytics'
-
-const REPO_URL = 'https://github.com/cleancentive/cleancentive'
-
-function renderCommit(commit: string | undefined, commitShort: string | undefined) {
-  if (!commit || !commitShort || commit === 'dev') {
-    return commitShort ?? '-'
-  }
-  return (
-    <a href={`${REPO_URL}/commit/${commit}`} target="_blank" rel="noopener noreferrer" title={commit}>
-      {commitShort}
-    </a>
-  )
-}
 
 function formatAge(seconds: number | null) {
   if (seconds === null) {
@@ -51,14 +36,12 @@ export function StewardOperations() {
   const retryFailedSpots = useAdminStore((s) => s.retryFailedSpots)
   const cleanOrphanedFailedJobs = useAdminStore((s) => s.cleanOrphanedFailedJobs)
   const isCleaningOrphanedJobs = useAdminStore((s) => s.isCleaningOrphanedJobs)
-  const { versionInfo, fetchVersionInfo } = useVersionStore()
 
   const [retryBatchSize, setRetryBatchSize] = useState('10')
 
   useEffect(() => {
     fetchOpsOverview()
-    fetchVersionInfo()
-  }, [fetchOpsOverview, fetchVersionInfo])
+  }, [fetchOpsOverview])
 
   const parsedRetryBatchSize = Number.parseInt(retryBatchSize, 10)
   const retryLimit = Number.isFinite(parsedRetryBatchSize) && parsedRetryBatchSize > 0 ? parsedRetryBatchSize : 10
@@ -72,14 +55,6 @@ export function StewardOperations() {
             {opsOverview
               ? t('operations.updated', { time: new Date(opsOverview.timestamp).toLocaleTimeString() })
               : t('operations.liveStatus')}
-            {UMAMI_SHARE_URL && (
-              <>
-                {' · '}
-                <a href={UMAMI_SHARE_URL} target="_blank" rel="noopener noreferrer" className="ops-analytics-link">
-                  {t('operations.analytics')}
-                </a>
-              </>
-            )}
           </p>
         </div>
         <CountdownButton
@@ -183,34 +158,6 @@ export function StewardOperations() {
           <strong>{formatAge(opsOverview?.spots.oldestProcessingAgeSeconds ?? null)}</strong>
         </div>
       </div>
-
-      <h3>{t('operations.deployedVersions')}</h3>
-      <table className="ops-version-table">
-        <thead>
-          <tr>
-            <th>{t('operations.artifact')}</th>
-            <th>{t('operations.version')}</th>
-            <th>{t('operations.built')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>{t('operations.backend')}</td>
-            <td className="ops-version-hash">{renderCommit(versionInfo?.backend?.commit, versionInfo?.backend?.commitShort)}</td>
-            <td>{versionInfo?.backend.buildTime ? formatTimestamp(new Date(versionInfo.backend.buildTime * 1000).toISOString()) : '-'}</td>
-          </tr>
-          <tr>
-            <td>{t('operations.frontend')}</td>
-            <td className="ops-version-hash">{renderCommit(__APP_COMMIT__, __APP_COMMIT_SHORT__)}</td>
-            <td>{__APP_BUILD_TIME__ ? formatTimestamp(new Date(__APP_BUILD_TIME__ * 1000).toISOString()) : '-'}</td>
-          </tr>
-          <tr>
-            <td>{t('operations.worker')}</td>
-            <td className="ops-version-hash">{renderCommit(versionInfo?.worker?.commit, versionInfo?.worker?.commitShort)}</td>
-            <td>{versionInfo?.worker?.buildTime ? formatTimestamp(new Date(versionInfo.worker.buildTime * 1000).toISOString()) : '-'}</td>
-          </tr>
-        </tbody>
-      </table>
     </fieldset>
   )
 }

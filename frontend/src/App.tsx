@@ -5,6 +5,7 @@ import { AppShell } from './components/AppShell'
 import { AppLayout } from './components/AppLayout'
 import { StewardLayout } from './components/steward/StewardLayout'
 import { StewardOperations } from './components/steward/StewardOperations'
+import { StewardProject } from './components/steward/StewardProject'
 import { StewardReview } from './components/steward/StewardReview'
 import { StewardStorage } from './components/steward/StewardStorage'
 import { StewardPurge } from './components/steward/StewardPurge'
@@ -107,6 +108,7 @@ function App() {
             <Route index element={<Navigate to="feedback?status=new,acknowledged,in_progress" replace />} />
             <Route path="review" element={<StewardReview />} />
             <Route path="operations" element={<StewardOperations />} />
+            <Route path="project" element={<StewardProject />} />
             <Route path="storage" element={<StewardStorage />} />
             <Route path="purge" element={<StewardPurge />} />
             <Route path="users" element={<StewardUsers />} />
