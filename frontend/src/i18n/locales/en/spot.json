@@ -116,7 +116,8 @@
     "fieldChanged": "{{prefix}}{{field}} changed",
     "loadFailed": "Failed to load history: {{message}}",
     "loading": "Loading edit history...",
-    "empty": "No edits yet."
+    "empty": "No edits yet.",
+    "thumbAlt": "Spot photo"
   },
   "panel": {
     "legend": "My Picks",
@@ -168,5 +169,8 @@
     "refresh": "Refresh",
     "refreshing": "Refreshing...",
     "offline": "Offline"
+  },
+  "image": {
+    "originalRemoved": "The original image has been removed. Showing the thumbnail."
   }
 }

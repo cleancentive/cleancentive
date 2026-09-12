@@ -116,7 +116,8 @@
     "fieldChanged": "{{prefix}}{{field}} modifié",
     "loadFailed": "Échec du chargement de l’historique : {{message}}",
     "loading": "Chargement de l’historique des modifications...",
-    "empty": "Aucune modification pour le moment."
+    "empty": "Aucune modification pour le moment.",
+    "thumbAlt": "Photo du déchet"
   },
   "panel": {
     "legend": "Mes ramassages",
@@ -168,5 +169,8 @@
     "refresh": "Actualiser",
     "refreshing": "Actualisation...",
     "offline": "Hors ligne"
+  },
+  "image": {
+    "originalRemoved": "L'image d'origine a été supprimée. La miniature est affichée."
   }
 }

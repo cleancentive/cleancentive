@@ -214,6 +214,7 @@ export class AdminOpsService implements OnModuleDestroy {
       `
         SELECT s.id,
                s.created_at,
+               (s.original_purged_at IS NULL AND s.image_key <> '') AS has_original,
                COALESCE(
                  json_agg(
                    json_build_object(
@@ -238,7 +239,7 @@ export class AdminOpsService implements OnModuleDestroy {
         WHERE s.detection_reviewed_at IS NULL
           AND s.processing_status = 'completed'
           AND s.subject_kind = 'litter'
-        GROUP BY s.id, s.created_at
+        GROUP BY s.id, s.created_at, s.original_purged_at, s.image_key
         ORDER BY s.created_at ASC
         LIMIT $1
       `,
@@ -250,6 +251,7 @@ export class AdminOpsService implements OnModuleDestroy {
       spots: spots.map((spot: Record<string, unknown>) => ({
         spotId: spot.id,
         createdAt: spot.created_at,
+        hasOriginal: spot.has_original,
         items: spot.items,
       })),
     };

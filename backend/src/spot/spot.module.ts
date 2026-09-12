@@ -11,9 +11,10 @@ import { UserModule } from '../user/user.module';
 import { TeamModule } from '../team/team.module';
 import { CleanupModule } from '../cleanup/cleanup.module';
 import { LabelModule } from '../label/label.module';
+import { AdminModule } from '../admin/admin.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Spot, DetectedItem, DetectedItemEdit, SpotEdit]), AuthModule, UserModule, TeamModule, CleanupModule, LabelModule],
+  imports: [TypeOrmModule.forFeature([Spot, DetectedItem, DetectedItemEdit, SpotEdit]), AuthModule, UserModule, TeamModule, CleanupModule, LabelModule, AdminModule],
   controllers: [SpotController],
   providers: [SpotService],
   exports: [SpotService, TypeOrmModule],

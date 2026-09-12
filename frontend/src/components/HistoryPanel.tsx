@@ -10,8 +10,9 @@ import { formatCoord } from '@cleancentive/shared'
 import { formatTimestamp } from '../utils/formatTimestamp'
 import { CountdownButton } from './CountdownButton'
 import { SpotEditor } from './SpotEditor'
+import { SpotImage } from './SpotImage'
 
-import { API_BASE } from '../lib/apiBase'
+import { API_BASE, spotOriginalUrl, spotThumbnailUrl } from '../lib/apiBase'
 
 interface HistoryItem {
   id: string
@@ -24,6 +25,7 @@ interface HistoryItem {
   subjectKind?: 'litter' | 'plant'
   processingError: string | null
   detectionCompletedAt: string | null
+  hasOriginal: boolean
   items: {
     id: string
     objectLabel: { id: string; name: string; scientificName?: string | null } | null
@@ -198,9 +200,9 @@ export function HistoryPanel() {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([])
   const [localThumbnails, setLocalThumbnails] = useState<Map<string, string>>(new Map())
+  const [localOriginals, setLocalOriginals] = useState<Map<string, string>>(new Map())
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [editingSpotId, setEditingSpotId] = useState<string | null>(null)
@@ -345,14 +347,22 @@ export function HistoryPanel() {
   }, [])
 
   useEffect(() => {
-    const urls = new Map<string, string>()
+    const thumbUrls = new Map<string, string>()
+    const fullUrls = new Map<string, string>()
     for (const item of outboxItems) {
       if (item.thumbnailBlob) {
-        urls.set(item.id, URL.createObjectURL(item.thumbnailBlob))
+        thumbUrls.set(item.id, URL.createObjectURL(item.thumbnailBlob))
+        // The full-resolution capture is already in the outbox, so a pick can be
+        // inspected at full size before it has ever reached the server.
+        fullUrls.set(item.id, URL.createObjectURL(item.imageBlob))
       }
     }
-    setLocalThumbnails(urls)
-    return () => { for (const url of urls.values()) URL.revokeObjectURL(url) }
+    setLocalThumbnails(thumbUrls)
+    setLocalOriginals(fullUrls)
+    return () => {
+      for (const url of thumbUrls.values()) URL.revokeObjectURL(url)
+      for (const url of fullUrls.values()) URL.revokeObjectURL(url)
+    }
   }, [outboxItems])
 
   const refresh = useCallback(() => {
@@ -438,15 +448,18 @@ export function HistoryPanel() {
 
             const thumbSrc = row.kind === 'local'
               ? localThumbnails.get(row.item.id) ?? null
-              : `${API_BASE}/spots/${row.item.id}/thumbnail`
+              : spotThumbnailUrl(row.item.id)
+
+            const fullSrc = row.kind === 'local'
+              ? localOriginals.get(row.item.id) ?? null
+              : row.item.hasOriginal ? spotOriginalUrl(row.item.id) : null
 
             const thumbnail = thumbSrc
-              ? <img
+              ? <SpotImage
                   className="history-thumb"
-                  src={thumbSrc}
-                  alt=""
-                  onClick={() => setLightboxSrc(thumbSrc)}
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                  thumbnailSrc={thumbSrc}
+                  fullSrc={fullSrc}
+                  alt={t('history.thumbAlt')}
                 />
               : null
 
@@ -594,12 +607,6 @@ export function HistoryPanel() {
         <div className="undo-toast">
           <span>{t('panel.pickDeleted')}</span>
           <button className="undo-toast-btn" onClick={undoDelete}>{t('panel.undo')}</button>
-        </div>
-      )}
-
-      {lightboxSrc && (
-        <div className="lightbox-overlay" onClick={() => setLightboxSrc(null)}>
-          <img className="lightbox-image" src={lightboxSrc} alt="" />
         </div>
       )}
     </fieldset>

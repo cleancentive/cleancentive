@@ -116,7 +116,8 @@
     "fieldChanged": "{{prefix}}{{field}} geändert",
     "loadFailed": "Verlauf konnte nicht geladen werden: {{message}}",
     "loading": "Bearbeitungsverlauf wird geladen...",
-    "empty": "Noch keine Bearbeitungen."
+    "empty": "Noch keine Bearbeitungen.",
+    "thumbAlt": "Fundfoto"
   },
   "panel": {
     "legend": "Meine gesammelten Funde",
@@ -168,5 +169,8 @@
     "refresh": "Aktualisieren",
     "refreshing": "Wird aktualisiert...",
     "offline": "Offline"
+  },
+  "image": {
+    "originalRemoved": "Das Originalbild wurde entfernt. Es wird die Miniatur angezeigt."
   }
 }

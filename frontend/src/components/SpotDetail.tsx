@@ -8,8 +8,9 @@ import { ItemEditor, type DetectedItemData } from './ItemEditor'
 import { SpotEditHistory } from './SpotEditHistory'
 import { SpotLocationDialog } from './SpotLocationDialog'
 import { useCopyToClipboard } from '../lib/useCopyToClipboard'
+import { SpotImage } from './SpotImage'
 
-import { API_BASE } from '../lib/apiBase'
+import { API_BASE, spotOriginalUrl, spotThumbnailUrl } from '../lib/apiBase'
 
 interface SpotData {
   id: string
@@ -21,6 +22,7 @@ interface SpotData {
   accuracyMeters: number | null
   pickedUp: boolean
   subjectKind: 'litter' | 'plant'
+  hasOriginal: boolean
   items: DetectedItemData[]
 }
 
@@ -105,9 +107,10 @@ export function SpotDetail() {
       <BackLink to="/map" fallbackNoun="map" />
 
       <div className="spot-detail-header">
-        <img
+        <SpotImage
           className="spot-detail-image"
-          src={`${API_BASE}/spots/${spot.id}/thumbnail`}
+          thumbnailSrc={spotThumbnailUrl(spot.id)}
+          fullSrc={spot.hasOriginal ? spotOriginalUrl(spot.id) : null}
           alt={t('detail.alt')}
         />
         <div className="spot-detail-meta">

@@ -56,6 +56,7 @@ export interface ReviewQueueItem {
 export interface ReviewQueueSpot {
   spotId: string
   createdAt: string
+  hasOriginal: boolean
   items: ReviewQueueItem[]
 }
 

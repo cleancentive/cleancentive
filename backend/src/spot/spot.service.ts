@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
+import sharp from 'sharp';
 import { S3Client, PutObjectCommand, HeadBucketCommand, CreateBucketCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Spot, type SubjectKind } from './spot.entity';
 import { DetectedItem } from './detected-item.entity';
@@ -11,6 +12,7 @@ import { SpotEdit } from './spot-edit.entity';
 import { TeamService } from '../team/team.service';
 import { CleanupService } from '../cleanup/cleanup.service';
 import { LabelService } from '../label/label.service';
+import { AdminService } from '../admin/admin.service';
 import { redisConnection } from '../common/redis-connection';
 import { createS3Client } from '../common/s3-client';
 import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters, clampWeightGrams } from '@cleancentive/shared';
@@ -81,6 +83,7 @@ export class SpotService {
     private readonly teamService: TeamService,
     private readonly cleanupService: CleanupService,
     private readonly labelService: LabelService,
+    private readonly adminService: AdminService,
   ) {
     this.detectionQueue = new Queue(this.queueName, {
       connection: redisConnection(),
@@ -423,6 +426,66 @@ export class SpotService {
       : null;
 
     return { items, nextCursor };
+  }
+
+  // Originals may carry EXIF: batch-imported files keep whatever the camera wrote
+  // (GPS, device, serial), while captures taken in-app are canvas-encoded and have
+  // none. Owners and stewards get the stored bytes untouched; everyone else gets
+  // the same pixels with all metadata dropped.
+  async getOriginalStream(
+    spotId: string,
+    viewerUserId: string | null,
+  ): Promise<{ body: NodeJS.ReadableStream | Buffer; contentType: string } | null> {
+    const spot = await this.spotRepository.findOne({ where: { id: spotId } });
+    // image_key survives a purge, so original_purged_at is the only reliable
+    // signal. It is also empty for spots stranded by a storage outage.
+    if (!spot || spot.original_purged_at !== null || !spot.image_key) return null;
+
+    const isPrivileged =
+      viewerUserId !== null &&
+      (spot.user_id === viewerUserId || (await this.adminService.isAdmin(viewerUserId)));
+
+    let result;
+    try {
+      result = await this.s3Client.send(
+        new GetObjectCommand({ Bucket: this.bucketName, Key: spot.image_key }),
+      );
+    } catch {
+      return null;
+    }
+    if (!result.Body) return null;
+
+    if (isPrivileged) {
+      return { body: result.Body as NodeJS.ReadableStream, contentType: spot.mime_type };
+    }
+
+    const stored = Buffer.from(await result.Body.transformToByteArray());
+    const sanitized = await this.stripImageMetadata(stored, spot.mime_type);
+    if (sanitized) return sanitized;
+
+    // Sanitizing failed (an unreadable format, say). Fall back to the thumbnail
+    // rather than serve bytes whose metadata we could not verify.
+    return this.getThumbnailStream(spotId);
+  }
+
+  private async stripImageMetadata(
+    stored: Buffer,
+    mimeType: string,
+  ): Promise<{ body: Buffer; contentType: string } | null> {
+    try {
+      const metadata = await sharp(stored).metadata();
+      if (!metadata.exif && !metadata.xmp && !metadata.iptc) {
+        // Nothing to strip, so don't re-encode: that would cost fidelity on the
+        // common case for no gain.
+        return { body: stored, contentType: mimeType };
+      }
+      // rotate() bakes EXIF orientation into the pixels, and sharp writes no
+      // metadata unless asked — so the result is upright and clean.
+      const cleaned = await sharp(stored).rotate().jpeg({ quality: 92 }).toBuffer();
+      return { body: cleaned, contentType: 'image/jpeg' };
+    } catch {
+      return null;
+    }
   }
 
   async getThumbnailStream(spotId: string): Promise<{ body: NodeJS.ReadableStream; contentType: string } | null> {

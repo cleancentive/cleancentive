@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test';
+import sharp from 'sharp';
+import { Readable } from 'node:stream';
 
 import { SpotService } from './spot.service';
 import type { Spot } from './spot.entity';
@@ -210,5 +212,131 @@ describe('SpotService.confirmDetection', () => {
   test('rejects an unknown spot', async () => {
     const { service } = makeConfirmHarness(null);
     await expect(service.confirmDetection('missing', 'steward-1')).rejects.toThrow('Spot not found');
+  });
+});
+
+function cleanJpeg(): Promise<Buffer> {
+  return sharp({ create: { width: 8, height: 8, channels: 3, background: '#0a0' } }).jpeg().toBuffer();
+}
+
+async function jpegWithExif(): Promise<Buffer> {
+  return sharp(await cleanJpeg())
+    .withExif({ IFD0: { Copyright: 'test', Make: 'TestCam' } })
+    .jpeg()
+    .toBuffer();
+}
+
+async function toBuffer(body: NodeJS.ReadableStream | Buffer): Promise<Buffer> {
+  if (Buffer.isBuffer(body)) return body;
+  const chunks: Buffer[] = [];
+  for await (const chunk of body as unknown as AsyncIterable<Buffer>) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks);
+}
+
+function makeOriginalService(spot: Partial<Spot> | null, stored: Buffer, isAdmin = false) {
+  const service = Object.create(SpotService.prototype) as SpotService;
+  const inject = service as unknown as Record<string, unknown>;
+
+  inject.spotRepository = { findOne: async () => spot };
+  inject.bucketName = 'test-bucket';
+  inject.adminService = { isAdmin: async () => isAdmin };
+  inject.s3Client = {
+    send: async () => {
+      const body = Readable.from([stored]) as Readable & {
+        transformToByteArray: () => Promise<Uint8Array>;
+      };
+      body.transformToByteArray = async () => new Uint8Array(stored);
+      return { Body: body };
+    },
+  };
+
+  return service;
+}
+
+const ownedSpot = {
+  id: 'spot-1',
+  user_id: 'owner-1',
+  mime_type: 'image/jpeg',
+  image_key: 'spots/spot-1/original-u1.jpg',
+  thumbnail_key: 'spots/spot-1/thumbnail-u1.jpg',
+  original_purged_at: null,
+} as unknown as Spot;
+
+describe('SpotService.getOriginalStream', () => {
+  test('returns null once the original has been purged', async () => {
+    const service = makeOriginalService(
+      { ...ownedSpot, original_purged_at: new Date() } as Spot,
+      Buffer.from('irrelevant'),
+    );
+
+    expect(await service.getOriginalStream('spot-1', 'owner-1')).toBeNull();
+  });
+
+  test('returns null for a spot stranded without an image key', async () => {
+    const service = makeOriginalService({ ...ownedSpot, image_key: '' } as Spot, Buffer.from('x'));
+
+    expect(await service.getOriginalStream('spot-1', 'owner-1')).toBeNull();
+  });
+
+  test('returns null when the spot does not exist', async () => {
+    const service = makeOriginalService(null, Buffer.from('x'));
+
+    expect(await service.getOriginalStream('missing', 'owner-1')).toBeNull();
+  });
+
+  test('gives the owner the stored bytes with their EXIF intact', async () => {
+    const stored = await jpegWithExif();
+    const service = makeOriginalService(ownedSpot, stored);
+
+    const result = await service.getOriginalStream('spot-1', 'owner-1');
+
+    expect(result).not.toBeNull();
+    expect(result!.contentType).toBe('image/jpeg');
+    const served = await toBuffer(result!.body);
+    expect(served.equals(stored)).toBe(true);
+    expect((await sharp(served).metadata()).exif).toBeTruthy();
+  });
+
+  test('gives a steward the stored bytes even though they do not own the spot', async () => {
+    const stored = await jpegWithExif();
+    const service = makeOriginalService(ownedSpot, stored, true);
+
+    const result = await service.getOriginalStream('spot-1', 'steward-9');
+
+    const served = await toBuffer(result!.body);
+    expect(served.equals(stored)).toBe(true);
+  });
+
+  test('strips EXIF for an anonymous viewer', async () => {
+    const stored = await jpegWithExif();
+    const service = makeOriginalService(ownedSpot, stored);
+
+    const result = await service.getOriginalStream('spot-1', null);
+
+    const served = await toBuffer(result!.body);
+    const metadata = await sharp(served).metadata();
+    expect(metadata.exif).toBeFalsy();
+    expect(metadata.xmp).toBeFalsy();
+    // Still a real image, not an empty buffer.
+    expect(metadata.width).toBe(8);
+  });
+
+  test('strips EXIF for a signed-in viewer who is neither owner nor steward', async () => {
+    const stored = await jpegWithExif();
+    const service = makeOriginalService(ownedSpot, stored);
+
+    const result = await service.getOriginalStream('spot-1', 'someone-else');
+
+    expect((await sharp(await toBuffer(result!.body)).metadata()).exif).toBeFalsy();
+  });
+
+  test('passes a metadata-free original through byte-for-byte rather than re-encoding', async () => {
+    const stored = await cleanJpeg();
+    const service = makeOriginalService(ownedSpot, stored);
+
+    const result = await service.getOriginalStream('spot-1', null);
+
+    const served = await toBuffer(result!.body);
+    expect(served.equals(stored)).toBe(true);
   });
 });

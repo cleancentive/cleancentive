@@ -28,6 +28,7 @@ import { SpotService } from './spot.service';
 import { AuthService } from '../auth/auth.service';
 import { UserService } from '../user/user.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { ApiTags } from '@nestjs/swagger';
 import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters, lookupInvasive } from '@cleancentive/shared';
 
@@ -74,6 +75,7 @@ interface SpotDto {
   subjectKind: 'litter' | 'plant';
   processingError: string | null;
   detectionCompletedAt: Date | null;
+  hasOriginal: boolean;
   items: DetectedItemDto[];
 }
 
@@ -115,6 +117,7 @@ export class SpotController {
       subjectKind: spot.subject_kind ?? 'litter',
       processingError: spot.processing_error,
       detectionCompletedAt: spot.detection_completed_at,
+      hasOriginal: spot.original_purged_at === null && !!spot.image_key,
       items: (spot.items ?? []).map((item: any) => {
         const invasive = item.object_label?.scientific_name
           ? lookupInvasive(item.object_label.scientific_name)
@@ -471,6 +474,26 @@ export class SpotController {
       weightGrams: item.weight_grams,
       humanVerified: item.human_verified,
     };
+  }
+
+  @Get(':id/image')
+  @UseGuards(OptionalJwtAuthGuard)
+  async getOriginalImage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: any,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const result = await this.spotService.getOriginalStream(id, req.user?.userId ?? null);
+    if (!result) throw new NotFoundException('Original image not available');
+    res.set({
+      'Content-Type': result.contentType,
+      // Unlike the thumbnail, this body depends on who is asking and stops
+      // existing once the original is purged — so it is neither shared-cacheable
+      // nor immutable.
+      'Cache-Control': 'private, max-age=3600',
+      Vary: 'Authorization',
+    });
+    return new StreamableFile(result.body as any);
   }
 
   @Get(':id/thumbnail')

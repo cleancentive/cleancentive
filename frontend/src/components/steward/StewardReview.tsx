@@ -2,7 +2,8 @@ import { useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAdminStore } from '../../stores/adminStore'
 import { ItemEditor, type DetectedItemData } from '../ItemEditor'
-import { API_BASE } from '../../lib/apiBase'
+import { SpotImage } from '../SpotImage'
+import { spotOriginalUrl, spotThumbnailUrl } from '../../lib/apiBase'
 
 const SESSION_SIZE = 10
 
@@ -95,9 +96,10 @@ export function StewardReview() {
             {t('review.progress', { current: reviewIndex + 1, total: reviewQueue.length })}
           </p>
 
-          <img
+          <SpotImage
             className="steward-review-image"
-            src={`${API_BASE}/spots/${current.spotId}/thumbnail`}
+            thumbnailSrc={spotThumbnailUrl(current.spotId)}
+            fullSrc={current.hasOriginal ? spotOriginalUrl(current.spotId) : null}
             alt={t('review.spotImageAlt')}
           />
 
