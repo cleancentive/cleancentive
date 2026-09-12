@@ -839,7 +839,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async clearCleancentiveMappingsAfterOutlineCommit(): Promise<void> {
-    await this.teamCollectionRepository.clear();
+    await this.teamCollectionRepository.delete({});
   }
 
   private async findOutlineGroupIdsByExternalIds(externalIds: string[]): Promise<string[]> {

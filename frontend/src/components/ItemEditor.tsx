@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore'
 import { ConfirmDialog } from './ConfirmDialog'
 
 import { API_BASE } from '../lib/apiBase'
+import { requestErrorMessage, throwIfNotOk } from '../lib/apiFetch'
 
 export interface LabelRef {
   id: string
@@ -191,6 +192,7 @@ export function ItemEditor({
   const [saving, setSaving] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     setObjectLabel(item.objectLabel)
@@ -210,6 +212,7 @@ export function ItemEditor({
 
   const saveItem = async () => {
     setSaving(true)
+    setActionError(null)
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
 
@@ -222,12 +225,15 @@ export function ItemEditor({
     if (newWeight !== item.weightGrams) body.weightGrams = newWeight
 
     try {
-      await fetch(`${API_BASE}/spots/${spotId}/items/${item.id}`, {
+      const res = await fetch(`${API_BASE}/spots/${spotId}/items/${item.id}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify(body),
       })
+      await throwIfNotOk(res)
       onUpdated()
+    } catch (err) {
+      setActionError(t('common:status.saveFailed', { reason: requestErrorMessage(err) }))
     } finally {
       setSaving(false)
     }
@@ -235,16 +241,21 @@ export function ItemEditor({
 
   const removeItem = async () => {
     setRemoving(true)
+    setActionError(null)
     const headers: Record<string, string> = {}
     if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
 
     try {
-      await fetch(`${API_BASE}/spots/${spotId}/items/${item.id}`, {
+      const res = await fetch(`${API_BASE}/spots/${spotId}/items/${item.id}`, {
         method: 'DELETE',
         headers,
       })
+      await throwIfNotOk(res)
       setConfirmingDelete(false)
       onRemoved()
+    } catch (err) {
+      setConfirmingDelete(false)
+      setActionError(t('common:status.removeFailed', { reason: requestErrorMessage(err) }))
     } finally {
       setRemoving(false)
     }
@@ -297,6 +308,7 @@ export function ItemEditor({
           {saving ? t('common:actions.saving') : t('common:actions.save')}
         </button>
       )}
+      {actionError && <p className="spot-location-error" role="alert">{actionError}</p>}
       <button
         className="item-editor-remove"
         title={t('item.removeTitle')}

@@ -151,11 +151,24 @@ describe('SpotService.listSpotsForUser cursor pagination', () => {
 
 type UpdateCall = { entity: string; criteria: Record<string, unknown>; patch: Record<string, unknown> };
 
+// Repository.clear() / EntityManager.clear(Entity) is TRUNCATE TABLE in TypeORM. Two such
+// calls, meant as a cache flush, sat after the item-edit and confirm-detection transactions
+// and tried to truncate `spots` and `detected_items` on every edit in production; only the
+// foreign keys stopped them, and the unhandled rejection took the API down each time. The
+// old harness stubbed `clear` as a no-op, which is exactly how the tests stayed green. Now
+// any call reaches a manager that refuses.
+const truncateGuard = {
+  clear() {
+    throw new Error('manager.clear() is TRUNCATE TABLE — the service must never call it');
+  },
+};
+
 function makeConfirmHarness(spot: Spot | null, affected = 0) {
   const updates: UpdateCall[] = [];
   const editsWritten: unknown[] = [];
 
   const manager = {
+    ...truncateGuard,
     async update(entity: { name: string }, criteria: Record<string, unknown>, patch: Record<string, unknown>) {
       updates.push({ entity: entity.name, criteria, patch });
       return { affected };
@@ -168,13 +181,120 @@ function makeConfirmHarness(spot: Spot | null, affected = 0) {
 
   const service = Object.create(SpotService.prototype) as SpotService;
   Object.assign(service as unknown as Record<string, unknown>, {
-    spotRepository: { findOne: async () => spot, manager: { clear: () => {} } },
-    detectedItemRepository: { manager: { clear: () => {} } },
+    spotRepository: { findOne: async () => spot, manager: truncateGuard },
+    detectedItemRepository: { manager: truncateGuard },
     dataSource: { transaction: async (cb: (m: unknown) => Promise<unknown>) => cb(manager) },
   });
 
   return { service, updates, editsWritten };
 }
+
+type DetectedItemRow = {
+  id: string;
+  spot_id: string;
+  object_label_id: string | null;
+  material_label_id: string | null;
+  brand_label_id: string | null;
+  weight_grams: number | null;
+  human_verified: boolean;
+  object_label?: unknown;
+};
+
+function makeUpdateItemHarness(item: DetectedItemRow | null, knownLabelIds: string[] = []) {
+  const editsWritten: Array<Record<string, unknown>> = [];
+  const saved: unknown[] = [];
+
+  const manager = {
+    ...truncateGuard,
+    async save(row: unknown) {
+      saved.push(row);
+      return row;
+    },
+  };
+
+  const service = Object.create(SpotService.prototype) as SpotService;
+  Object.assign(service as unknown as Record<string, unknown>, {
+    spotRepository: { manager: truncateGuard },
+    detectedItemRepository: { findOne: async () => item, manager: truncateGuard },
+    detectedItemEditRepository: {
+      create: (row: Record<string, unknown>) => {
+        editsWritten.push(row);
+        return { kind: 'edit', ...row };
+      },
+    },
+    labelService: {
+      findByIdAndType: async (id: string, type: string) => (knownLabelIds.includes(id) ? { id, type } : null),
+    },
+    dataSource: { transaction: async (cb: (m: unknown) => Promise<unknown>) => cb(manager) },
+  });
+
+  return { service, editsWritten, saved };
+}
+
+describe('SpotService.updateDetectedItem', () => {
+  const baseItem = (): DetectedItemRow => ({
+    id: 'item-1',
+    spot_id: 'spot-1',
+    object_label_id: 'obj-old',
+    material_label_id: null,
+    brand_label_id: null,
+    weight_grams: null,
+    human_verified: false,
+    object_label: { id: 'obj-old', name: 'stale eager relation' },
+  });
+
+  test('records one edit row per changed field, marks the item verified and never truncates', async () => {
+    const { service, editsWritten, saved } = makeUpdateItemHarness(baseItem(), ['obj-new', 'mat-new']);
+
+    const result = await service.updateDetectedItem('item-1', 'spot-1', 'user-1', {
+      objectLabelId: 'obj-new',
+      materialLabelId: 'mat-new',
+      weightGrams: 120,
+    });
+
+    expect(editsWritten.map((e) => [e.field_changed, e.old_value, e.new_value])).toEqual([
+      ['object_label_id', 'obj-old', 'obj-new'],
+      ['material_label_id', null, 'mat-new'],
+      ['weight_grams', null, '120'],
+    ]);
+    expect(editsWritten.every((e) => e.detected_item_id === 'item-1' && e.created_by === 'user-1')).toBe(true);
+
+    expect(result.object_label_id).toBe('obj-new');
+    expect(result.material_label_id).toBe('mat-new');
+    expect(result.weight_grams).toBe(120);
+    expect(result.human_verified).toBe(true);
+    // The eager relation is dropped so TypeORM writes the new FK instead of the stale object.
+    expect((result as unknown as DetectedItemRow).object_label).toBeUndefined();
+    // Three edits plus the item itself; nothing else touched the manager.
+    expect(saved).toHaveLength(4);
+  });
+
+  test('a save that changes nothing still verifies the item without writing edits', async () => {
+    const { service, editsWritten } = makeUpdateItemHarness(baseItem(), ['obj-old']);
+
+    const result = await service.updateDetectedItem('item-1', 'spot-1', 'user-1', { objectLabelId: 'obj-old' });
+
+    expect(editsWritten).toHaveLength(0);
+    expect(result.human_verified).toBe(true);
+  });
+
+  test('rejects an unknown label before opening the transaction', async () => {
+    const { service, saved } = makeUpdateItemHarness(baseItem(), []);
+
+    await expect(
+      service.updateDetectedItem('item-1', 'spot-1', 'user-1', { objectLabelId: 'nope' }),
+    ).rejects.toThrow('Invalid object label ID');
+    expect(saved).toHaveLength(0);
+  });
+
+  test('rejects an item that does not belong to the spot', async () => {
+    const { service } = makeUpdateItemHarness(null);
+
+    await expect(
+      service.updateDetectedItem('item-1', 'other-spot', 'user-1', { weightGrams: 5 }),
+    ).rejects.toThrow('Detected item not found');
+  });
+});
 
 describe('SpotService.confirmDetection', () => {
   test('verifies the spot items without writing a single edit row', async () => {

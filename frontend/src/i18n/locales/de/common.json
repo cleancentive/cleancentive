@@ -31,7 +31,9 @@
     "notSet": "Nicht festgelegt",
     "na": "—",
     "copied": "In die Zwischenablage kopiert",
-    "copyFailed": "Kopieren fehlgeschlagen"
+    "copyFailed": "Kopieren fehlgeschlagen",
+    "saveFailed": "Speichern fehlgeschlagen ({{reason}}). Die Änderung wurde nicht übernommen — bitte erneut versuchen.",
+    "removeFailed": "Entfernen fehlgeschlagen ({{reason}}). Bitte erneut versuchen."
   },
   "processing": {
     "queued": "Warten auf Erkennung",

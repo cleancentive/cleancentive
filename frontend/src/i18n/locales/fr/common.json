@@ -31,7 +31,9 @@
     "notSet": "Non défini",
     "na": "—",
     "copied": "Copié dans le presse-papiers",
-    "copyFailed": "Échec de la copie"
+    "copyFailed": "Échec de la copie",
+    "saveFailed": "Échec de l’enregistrement ({{reason}}). La modification n’a pas été appliquée — veuillez réessayer.",
+    "removeFailed": "Échec de la suppression ({{reason}}). Veuillez réessayer."
   },
   "processing": {
     "queued": "En attente de détection",

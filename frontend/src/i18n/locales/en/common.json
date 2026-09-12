@@ -31,7 +31,9 @@
     "notSet": "Not set",
     "na": "n/a",
     "copied": "Copied to clipboard",
-    "copyFailed": "Copy failed"
+    "copyFailed": "Copy failed",
+    "saveFailed": "Could not save ({{reason}}). Your change was not applied — please try again.",
+    "removeFailed": "Could not remove ({{reason}}). Please try again."
   },
   "processing": {
     "queued": "Waiting for detection",

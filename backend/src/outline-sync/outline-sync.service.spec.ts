@@ -71,7 +71,7 @@ describe('OutlineSyncService maintenance', () => {
     expect(pgQueries.some((query) => query.sql.includes('DELETE FROM groups') && query.sql.includes('"teamId" = $2'))).toBe(true);
     expect(pgQueries.some((query) => query.sql.includes('DELETE FROM group_memberships') && query.sql.includes('groupId'))).toBe(true);
     expect(pgQueries.some((query) => query.sql.includes('DELETE FROM team_outline_collections'))).toBe(true);
-    expect(teamCollectionRepository.clearCalls).toBe(1);
+    expect(teamCollectionRepository.deleteCalls).toBe(1);
     expect(summary).toMatchObject({
       confirmation: 'WIPE_OUTLINE_CONTENT',
       outline: {
@@ -593,7 +593,7 @@ function createOutlineSyncHarness(options: {
 
 function createTeamCollectionRepository(records: any[]) {
   const repository = {
-    clearCalls: 0,
+    deleteCalls: 0,
     saveCalls: 0,
     updateCalls: 0,
     create: (record: any) => ({ id: record.id ?? `${records.length + 1}`, ...record }),
@@ -608,8 +608,8 @@ function createTeamCollectionRepository(records: any[]) {
       }
       return record;
     },
-    clear: async function () {
-      this.clearCalls++;
+    delete: async function (_criteria: Record<string, unknown>) {
+      this.deleteCalls++;
       const count = records.length;
       records.splice(0, records.length);
       return { affected: count };

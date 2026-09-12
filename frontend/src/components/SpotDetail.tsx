@@ -11,6 +11,7 @@ import { useCopyToClipboard } from '../lib/useCopyToClipboard'
 import { SpotImage } from './SpotImage'
 
 import { API_BASE, spotOriginalUrl, spotThumbnailUrl } from '../lib/apiBase'
+import { requestErrorMessage, throwIfNotOk } from '../lib/apiFetch'
 
 interface SpotData {
   id: string
@@ -39,6 +40,7 @@ export function SpotDetail() {
   const [showHistory, setShowHistory] = useState(false)
   const [historyTick, setHistoryTick] = useState(0)
   const [addingItem, setAddingItem] = useState(false)
+  const [addItemError, setAddItemError] = useState<string | null>(null)
   const [editingLocation, setEditingLocation] = useState(false)
   const { copied: locationCopied, copy: copyLocation } = useCopyToClipboard()
 
@@ -68,15 +70,19 @@ export function SpotDetail() {
   const addItem = async () => {
     if (!id) return
     setAddingItem(true)
+    setAddItemError(null)
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
     try {
-      await fetch(`${API_BASE}/spots/${id}/items`, {
+      const res = await fetch(`${API_BASE}/spots/${id}/items`, {
         method: 'POST',
         headers,
         body: JSON.stringify({}),
       })
+      await throwIfNotOk(res)
       onItemChanged()
+    } catch (err) {
+      setAddItemError(t('common:status.saveFailed', { reason: requestErrorMessage(err) }))
     } finally {
       setAddingItem(false)
     }
@@ -200,6 +206,7 @@ export function SpotDetail() {
             >
               {addingItem ? t('detail.adding') : t('detail.addItem')}
             </button>
+            {addItemError && <p className="spot-location-error" role="alert">{addItemError}</p>}
           </>
         ) : (
           <ul className="history-items">

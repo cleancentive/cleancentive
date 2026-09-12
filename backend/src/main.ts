@@ -9,6 +9,28 @@ const pkg = require(require('path').join(process.cwd(), 'package.json'));
 
 const logger = new Logger('Bootstrap');
 
+// A rejection nobody awaited (or a throw outside any request) ends the process; Bun and Node
+// both exit with code 1 by default. Keep that fail-fast behaviour, but say what happened first:
+// the raw runtime dump has no logger prefix and was only findable by grepping for the SQL text.
+function describeFailure(reason: unknown): string {
+  if (reason instanceof Error) return reason.stack || reason.message;
+  try {
+    return JSON.stringify(reason);
+  } catch {
+    return String(reason);
+  }
+}
+
+process.on('unhandledRejection', (reason) => {
+  logger.error(`Unhandled promise rejection, exiting: ${describeFailure(reason)}`);
+  process.exit(1);
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error(`Uncaught exception, exiting: ${describeFailure(error)}`);
+  process.exit(1);
+});
+
 async function bootstrap() {
   try {
     const app = await NestFactory.create(AppModule, {

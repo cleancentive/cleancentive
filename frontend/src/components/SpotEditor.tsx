@@ -4,6 +4,7 @@ import { useAuthStore } from '../stores/authStore'
 import { ItemEditor, type DetectedItemData } from './ItemEditor'
 
 import { API_BASE } from '../lib/apiBase'
+import { requestErrorMessage, throwIfNotOk } from '../lib/apiFetch'
 
 interface SpotEditorProps {
   spotId: string
@@ -20,6 +21,7 @@ export function SpotEditor({ spotId, pickedUp, items, subjectKind = 'litter', on
   const [currentPickedUp, setCurrentPickedUp] = useState(pickedUp)
   const [savingMeta, setSavingMeta] = useState(false)
   const [addingItem, setAddingItem] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     setCurrentPickedUp(pickedUp)
@@ -29,16 +31,20 @@ export function SpotEditor({ spotId, pickedUp, items, subjectKind = 'litter', on
 
   const addItem = async () => {
     setAddingItem(true)
+    setActionError(null)
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
 
     try {
-      await fetch(`${API_BASE}/spots/${spotId}/items`, {
+      const res = await fetch(`${API_BASE}/spots/${spotId}/items`, {
         method: 'POST',
         headers,
         body: JSON.stringify({}),
       })
+      await throwIfNotOk(res)
       onSave()
+    } catch (err) {
+      setActionError(t('common:status.saveFailed', { reason: requestErrorMessage(err) }))
     } finally {
       setAddingItem(false)
     }
@@ -46,6 +52,7 @@ export function SpotEditor({ spotId, pickedUp, items, subjectKind = 'litter', on
 
   const saveMetadata = async () => {
     setSavingMeta(true)
+    setActionError(null)
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
 
@@ -53,12 +60,15 @@ export function SpotEditor({ spotId, pickedUp, items, subjectKind = 'litter', on
     if (!sessionToken && guestId) params.set('guestId', guestId)
 
     try {
-      await fetch(`${API_BASE}/spots/${spotId}?${params}`, {
+      const res = await fetch(`${API_BASE}/spots/${spotId}?${params}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify({ pickedUp: currentPickedUp }),
       })
+      await throwIfNotOk(res)
       onSave()
+    } catch (err) {
+      setActionError(t('common:status.saveFailed', { reason: requestErrorMessage(err) }))
     } finally {
       setSavingMeta(false)
     }
@@ -100,6 +110,7 @@ export function SpotEditor({ spotId, pickedUp, items, subjectKind = 'litter', on
           {addingItem ? t('editor.adding') : t('editor.addItem')}
         </button>
       </div>
+      {actionError && <p className="spot-location-error" role="alert">{actionError}</p>}
 
       <button className="secondary-button spot-editor-close" onClick={onCancel}>
         {t('common:actions.close')}

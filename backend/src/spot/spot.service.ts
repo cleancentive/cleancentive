@@ -692,10 +692,6 @@ export class SpotService {
       return manager.save(item);
     });
 
-    // Clear identity map so subsequent queries fetch fresh data with updated relations
-    this.spotRepository.manager.clear(Spot);
-    this.detectedItemRepository.manager.clear(DetectedItem);
-
     return result;
   }
 
@@ -793,9 +789,6 @@ export class SpotService {
 
       return result.affected ?? 0;
     });
-
-    this.spotRepository.manager.clear(Spot);
-    this.detectedItemRepository.manager.clear(DetectedItem);
 
     return { spotId, itemsConfirmed, reviewedAt };
   }
