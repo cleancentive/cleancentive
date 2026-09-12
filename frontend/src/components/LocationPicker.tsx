@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { parseLatLngInput } from '@cleancentive/shared'
-import { getStandardBasemapSource } from '../config/basemaps'
+import { buildBasemapStyle, resolveBasemapTheme } from '../config/basemaps'
 import { useLocationStore } from '../stores/locationStore'
 
 interface LocationPickerProps {
@@ -112,23 +112,9 @@ export function LocationPicker({
         : [0, 20]
     const initialZoom = hasCoords || storeFix ? 13 : 2
 
-    const standard = getStandardBasemapSource()
-
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: {
-        version: 8,
-        sources: {
-          standard: {
-            type: 'raster',
-            tiles: standard.tiles,
-            tileSize: standard.tileSize ?? 256,
-            attribution: standard.attribution,
-            ...(standard.maxZoom ? { maxzoom: standard.maxZoom } : {}),
-          },
-        },
-        layers: [{ id: 'standard', type: 'raster', source: 'standard' }],
-      },
+      style: buildBasemapStyle(resolveBasemapTheme('standard')),
       center: initialCenter,
       zoom: initialZoom,
     })

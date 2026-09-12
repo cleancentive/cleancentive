@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test } from 'vitest'
 
 import {
   mapLegacyBasemapIdToTheme,
@@ -27,15 +27,49 @@ function expectTheme(
   expect(resolved.layers.map((layer) => layer.source.id)).toEqual(sourceIds)
 }
 
+// The Stadia key reaches the app through window.__CLEANCENTIVE_CONFIG__, injected
+// at container start. Unset here, the resolver must fall back to keyless tiles.
+function setStadiaKey(key: string | undefined) {
+  const win = globalThis as { window?: Window }
+  if (!win.window) win.window = {} as Window
+  win.window.__CLEANCENTIVE_CONFIG__ = key ? { stadiaApiKey: key } : {}
+}
+
+afterEach(() => {
+  setStadiaKey(undefined)
+})
+
 describe('resolveBasemapTheme', () => {
-  test('resolves standard to one global layer', () => {
-    expectTheme('standard', 8.54, 47.37, ['carto-voyager'])
-    expectTheme('standard', -74.0, 40.71, ['carto-voyager'])
+  test('resolves standard to one keyed global layer', () => {
+    setStadiaKey('test-key')
+    expectTheme('standard', 8.54, 47.37, ['stadia-alidade-bright'])
+    expectTheme('standard', -74.0, 40.71, ['stadia-alidade-bright'])
   })
 
-  test('resolves dark to one global layer', () => {
-    expectTheme('dark', 8.54, 47.37, ['carto-dark'])
-    expectTheme('dark', 139.69, 35.68, ['carto-dark'])
+  test('resolves dark to one keyed global layer', () => {
+    setStadiaKey('test-key')
+    expectTheme('dark', 8.54, 47.37, ['stadia-alidade-smooth-dark'])
+    expectTheme('dark', 139.69, 35.68, ['stadia-alidade-smooth-dark'])
+  })
+
+  test('passes the configured key to the tile URLs', () => {
+    setStadiaKey('test-key')
+    const resolved = resolveBasemapTheme('standard', { center: { lon: 8.54, lat: 47.37 } })
+    expect(resolved.layers[0].source.tiles[0]).toContain('api_key=test-key')
+  })
+
+  // Regression: without a key the CARTO basemaps these replaced served tiles
+  // watermarked "API KEY REQUIRED". The fallback must be keyless.
+  test('falls back to keyless layers when no key is configured', () => {
+    expectTheme('standard', 8.54, 47.37, ['esri-world-street'])
+    expectTheme('dark', 8.54, 47.37, ['esri-dark-gray-base', 'esri-dark-gray-labels'])
+  })
+
+  test('keyless fallback tiles carry no api_key', () => {
+    const resolved = resolveBasemapTheme('dark', { center: { lon: 8.54, lat: 47.37 } })
+    for (const layer of resolved.layers) {
+      expect(layer.source.tiles[0]).not.toContain('api_key')
+    }
   })
 
   test('keeps fallback active when zoomed out in Switzerland', () => {

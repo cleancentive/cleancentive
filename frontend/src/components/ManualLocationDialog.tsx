@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import { getStandardBasemapSource } from '../config/basemaps'
+import { buildBasemapStyle, resolveBasemapTheme } from '../config/basemaps'
 
 interface ManualLocationDialogProps {
   initialLatitude: number | null
@@ -31,22 +31,9 @@ export function ManualLocationDialog({
     if (!mapContainerRef.current || mapRef.current) return
 
     const hasInitial = initialLatitude !== null && initialLongitude !== null
-    const standard = getStandardBasemapSource()
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: {
-        version: 8,
-        sources: {
-          standard: {
-            type: 'raster',
-            tiles: standard.tiles,
-            tileSize: standard.tileSize ?? 256,
-            attribution: standard.attribution,
-            ...(standard.maxZoom ? { maxzoom: standard.maxZoom } : {}),
-          },
-        },
-        layers: [{ id: 'standard', type: 'raster', source: 'standard' }],
-      },
+      style: buildBasemapStyle(resolveBasemapTheme('standard')),
       center: hasInitial ? [initialLongitude!, initialLatitude!] : [0, 20],
       zoom: hasInitial ? 14 : 2,
     })

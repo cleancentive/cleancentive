@@ -9,7 +9,7 @@ import { useMapStore } from '../stores/mapStore'
 import { useAuthStore } from '../stores/authStore'
 import { useInsightsFilterStore, presetToSince, pickedUpFilterToParam, subjectFilterToParam } from '../stores/insightsFilterStore'
 import { useBasemapStore } from '../stores/basemapStore'
-import { resolveBasemapTheme, type ResolvedBasemap } from '../config/basemaps'
+import { buildBasemapStyle, resolveBasemapTheme, type ResolvedBasemap } from '../config/basemaps'
 import { BasemapSwitcher } from './BasemapSwitcher'
 import { API_BASE } from '../lib/apiBase'
 import { parseMapState, serializeMapState, type MapViewState } from '../lib/mapUrlState'
@@ -143,36 +143,6 @@ function annotateStacks(fc: GeoJSON.FeatureCollection): GeoJSON.FeatureCollectio
     })
   }
   return { ...fc, features: result }
-}
-
-function toSourceSpec(source: ResolvedBasemap['layers'][number]['source']): maplibregl.RasterSourceSpecification {
-  return {
-    type: 'raster',
-    tiles: source.tiles,
-    tileSize: source.tileSize ?? 256,
-    attribution: source.attribution,
-    ...(source.maxZoom ? { maxzoom: source.maxZoom } : {}),
-  }
-}
-
-function buildStyle(resolved: ResolvedBasemap): maplibregl.StyleSpecification {
-  const sources: maplibregl.StyleSpecification['sources'] = {}
-  const layers: maplibregl.LayerSpecification[] = []
-
-  resolved.layers.forEach(({ source }, index) => {
-    const sourceId = `basemap-${index}`
-    sources[sourceId] = toSourceSpec(source)
-    layers.push({ id: sourceId, type: 'raster', source: sourceId })
-  })
-
-  return {
-    version: 8,
-    // Glyph endpoint required for any text-symbol layer (cluster counts, pick check,
-    // cleanup star). Without this, text-field renders nothing — silently.
-    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
-    sources,
-    layers,
-  }
 }
 
 function getMapView(map: maplibregl.Map) {
@@ -312,7 +282,7 @@ export function MapPage() {
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: buildStyle(initialResolved),
+      style: buildBasemapStyle(initialResolved),
       center: initialCenter,
       zoom: initialZoom,
     })
@@ -812,7 +782,7 @@ export function MapPage() {
     const signature = getResolvedSignature(resolved)
     if (activeResolvedSignatureRef.current === signature) return
     activeResolvedSignatureRef.current = signature
-    map.setStyle(buildStyle(resolved))
+    map.setStyle(buildBasemapStyle(resolved))
     map.once('idle', () => { setupOverlaysRef.current?.() })
   }, [selectedTheme, mapReady])
 
@@ -860,7 +830,7 @@ export function MapPage() {
       const signature = getResolvedSignature(resolved)
       if (activeResolvedSignatureRef.current === signature) return
       activeResolvedSignatureRef.current = signature
-      map.setStyle(buildStyle(resolved))
+      map.setStyle(buildBasemapStyle(resolved))
       map.once('idle', () => { setupOverlaysRef.current?.() })
     }
 
