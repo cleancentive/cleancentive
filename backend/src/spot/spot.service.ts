@@ -3,7 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Queue } from 'bullmq';
 import { createHash, randomUUID } from 'node:crypto';
-import sharp from 'sharp';
+// sharp is CJS and callable. A default import compiles to sharp_1.default
+// (undefined) because the tsconfig has no esModuleInterop, and a namespace
+// import is a non-callable Module under Bun — import-equals works in both.
+import sharp = require('sharp');
 import { S3Client, PutObjectCommand, HeadBucketCommand, CreateBucketCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Spot, type SubjectKind } from './spot.entity';
 import { DetectedItem } from './detected-item.entity';
@@ -483,7 +486,13 @@ export class SpotService {
       // metadata unless asked — so the result is upright and clean.
       const cleaned = await sharp(stored).rotate().jpeg({ quality: 92 }).toBuffer();
       return { body: cleaned, contentType: 'image/jpeg' };
-    } catch {
+    } catch (error) {
+      // Downgrading to the thumbnail is the safe outcome, but it is invisible
+      // from the outside: the endpoint keeps returning 200 with a smaller
+      // picture. Say so, or a systemic failure here looks like working software.
+      this.logger.error(
+        `Could not strip metadata from original (${mimeType}), serving thumbnail instead: ${error.message}`,
+      );
       return null;
     }
   }

@@ -6,7 +6,10 @@ import { createHash } from 'node:crypto';
 import { readFile, writeFile, mkdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import sharp from 'sharp';
+// sharp is CJS and callable. A default import compiles to sharp_1.default
+// (undefined) because the tsconfig has no esModuleInterop, and a namespace
+// import is a non-callable Module under Bun — import-equals works in both.
+import sharp = require('sharp');
 import { isSupportedLocale } from '@cleancentive/shared';
 import { User } from './user.entity';
 import { UserEmail } from './user-email.entity';

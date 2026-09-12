@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import sharp from 'sharp';
+import sharp = require('sharp');
 import { Readable } from 'node:stream';
 
 import { SpotService } from './spot.service';
