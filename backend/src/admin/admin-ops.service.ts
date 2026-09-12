@@ -14,6 +14,36 @@ import { PROCESSING_STATUS } from '@cleancentive/shared';
 
 type HealthStatus = 'ok' | 'degraded' | 'down';
 
+export interface OverallHealthSignals {
+  workerHealthy: boolean;
+  retryableFailedSpots: number;
+  stalledSpots: number;
+}
+
+/**
+ * `degraded` means "a steward should do something", so only signals that imply an
+ * action count.
+ *
+ * Deliberately excluded:
+ *  - the BullMQ queue's failed count, which is a cumulative log kept forever by
+ *    `removeOnFail: false`. It never decreases, so once any job had ever failed
+ *    the badge read degraded permanently and could not return to ok on its own —
+ *    and every one of those entries referenced a spot that had since succeeded or
+ *    been deleted.
+ *  - failed spots whose upload never landed (`image_key = ''`). They can never be
+ *    processed and the retry sweep correctly refuses them, so counting them here
+ *    would pin the badge to degraded with nothing anyone could do about it.
+ */
+export function getOverallHealthStatus(signals: OverallHealthSignals): HealthStatus {
+  const { workerHealthy, retryableFailedSpots, stalledSpots } = signals;
+
+  if (!workerHealthy || retryableFailedSpots > 0 || stalledSpots > 0) {
+    return 'degraded';
+  }
+
+  return 'ok';
+}
+
 interface WorkerOpsState {
   name: string;
   lastHeartbeatAt?: string;
@@ -73,7 +103,11 @@ export class AdminOpsService implements OnModuleDestroy {
     return {
       timestamp: new Date().toISOString(),
       health: {
-        status: this.getOverallHealthStatus(queue.counts.failed, worker.healthy),
+        status: getOverallHealthStatus({
+          workerHealthy: worker.healthy,
+          retryableFailedSpots: spots.retryableFailed,
+          stalledSpots: spots.stalled,
+        }),
       },
       queue,
       spots,
@@ -280,6 +314,43 @@ export class AdminOpsService implements OnModuleDestroy {
     };
   }
 
+  /**
+   * Removes failed-queue entries whose job data no longer exists.
+   *
+   * Genuine failures are kept — the failed set is the only record of what went
+   * wrong, and `removeOnFail: false` keeps it deliberately. This clears only ids
+   * left stranded in the sorted set with no backing hash, which is what happens if
+   * a job hash is deleted through raw Redis instead of BullMQ. Those entries can
+   * never be inspected and render as broken rows in the queue detail view.
+   *
+   * Removal goes through the queue's own API so the hash and every set membership
+   * stay consistent — bypassing it is what created the orphans in the first place.
+   */
+  async cleanOrphanedFailedJobs(): Promise<{ scanned: number; removed: string[]; kept: number }> {
+    const client = await this.detectionQueue.client;
+    const ids = await client.zrange(this.detectionQueue.toKey('failed'), 0, -1);
+
+    const removed: string[] = [];
+    for (const id of ids) {
+      // An orphan is an id in the failed set whose job hash is gone.
+      const exists = await client.exists(this.detectionQueue.toKey(id));
+      if (exists) continue;
+
+      try {
+        await this.detectionQueue.remove(id);
+        removed.push(id);
+      } catch (error) {
+        this.logger.warn(`Failed to remove orphaned job ${id}: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+
+    if (removed.length > 0) {
+      this.logger.log(`Removed ${removed.length} orphaned failed job(s) from ${this.queueName}`);
+    }
+
+    return { scanned: ids.length, removed, kept: ids.length - removed.length };
+  }
+
   async retryFailedSpots(limit: number) {
     // Also sweeps spots stalled in queued/processing, not just failed ones. Six
     // spots sat in 'queued' for four months because nothing could reach them:
@@ -396,12 +467,20 @@ export class AdminOpsService implements OnModuleDestroy {
       // the retry sweep can actually rescue, and the UI gates its retry control on
       // this. A plain queued count would light the button up for spots that are
       // simply in flight.
+      //
+      // `unrecoverable` uses the same image_key predicate as the retry sweep, so
+      // "can this be retried" has exactly one definition. A spot whose upload never
+      // landed can never be processed, and must not imply an action nobody can take.
       this.spotRepository.query(
         `
-          SELECT COUNT(*)::int AS stalled
+          SELECT
+            COUNT(*) FILTER (
+              WHERE processing_status IN ('queued', 'processing')
+                AND image_key <> ''
+                AND updated_at < NOW() - ($1 || ' minutes')::interval
+            )::int AS stalled,
+            COUNT(*) FILTER (WHERE processing_status = 'failed' AND image_key = '')::int AS unrecoverable
           FROM spots
-          WHERE processing_status IN ('queued', 'processing')
-            AND updated_at < NOW() - ($1 || ' minutes')::interval
         `,
         [String(this.stalledAfterMinutes)],
       ),
@@ -420,9 +499,15 @@ export class AdminOpsService implements OnModuleDestroy {
       }
     }
 
+    const unrecoverable = Number(stalledRow[0]?.unrecoverable ?? 0);
+
     return {
       counts,
       stalled: Number(stalledRow[0]?.stalled ?? 0),
+      unrecoverable,
+      // What a steward can actually act on: everything else in `failed` is a dead
+      // record, not a task.
+      retryableFailed: Math.max(0, counts.failed - unrecoverable),
       oldestQueuedAgeSeconds: this.toAgeSeconds(oldestQueuedRow[0]?.oldest_queued_at),
       oldestProcessingAgeSeconds: this.toAgeSeconds(oldestProcessingRow[0]?.oldest_processing_at),
     };
@@ -528,13 +613,7 @@ export class AdminOpsService implements OnModuleDestroy {
     return Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
   }
 
-  private getOverallHealthStatus(failedJobs: number, workerHealthy: boolean): HealthStatus {
-    if (!workerHealthy || failedJobs > 0) {
-      return 'degraded';
-    }
 
-    return 'ok';
-  }
 
   async getStorageInsights() {
     const [summary, growthRate] = await Promise.all([

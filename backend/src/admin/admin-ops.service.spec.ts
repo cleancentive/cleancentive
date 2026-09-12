@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { AdminOpsService } from './admin-ops.service';
+import { AdminOpsService, getOverallHealthStatus, type OverallHealthSignals } from './admin-ops.service';
 
 type AddedJob = { name: string; data: Record<string, unknown> }
 
@@ -96,5 +96,91 @@ describe('AdminOpsService.retryFailedSpots', () => {
     expect(result.retried).toBe(0);
     expect(added).toHaveLength(0);
     expect(result.errors[0].message).toContain('never be processed');
+  });
+});
+
+function health(overrides: Partial<OverallHealthSignals> = {}): OverallHealthSignals {
+  return { workerHealthy: true, retryableFailedSpots: 0, stalledSpots: 0, ...overrides };
+}
+
+describe('getOverallHealthStatus', () => {
+  test('is ok when nothing needs doing', () => {
+    expect(getOverallHealthStatus(health())).toBe('ok');
+  });
+
+  test('ignores the cumulative queue failed count entirely', () => {
+    // Regression: the badge read `failedJobs > 0` from BullMQ's failed set, which
+    // removeOnFail: false keeps forever. Prod carried 9 such entries — every one
+    // referencing a spot that had since succeeded or been deleted — so the page
+    // said "degraded" permanently and could never return to ok on its own.
+    // The signal is not even an input now, so there is nothing to pass.
+    expect(getOverallHealthStatus(health())).toBe('ok');
+  });
+
+  test('is ok when the only failures are unrecoverable', () => {
+    // A spot whose upload never landed can never be processed and the retry sweep
+    // refuses it, so it must not imply an action nobody can take. Unrecoverable
+    // spots are excluded upstream, so they never reach retryableFailedSpots.
+    expect(getOverallHealthStatus(health({ retryableFailedSpots: 0 }))).toBe('ok');
+  });
+
+  test('is degraded when a failed spot can actually be retried', () => {
+    expect(getOverallHealthStatus(health({ retryableFailedSpots: 1 }))).toBe('degraded');
+  });
+
+  test('is degraded when spots are stalled', () => {
+    expect(getOverallHealthStatus(health({ stalledSpots: 4 }))).toBe('degraded');
+  });
+
+  test('is degraded when the worker is unhealthy', () => {
+    expect(getOverallHealthStatus(health({ workerHealthy: false }))).toBe('degraded');
+  });
+});
+
+describe('AdminOpsService.cleanOrphanedFailedJobs', () => {
+  function makeCleanupHarness(failedIds: string[], liveIds: string[]) {
+    const removed: string[] = [];
+    const service = Object.create(AdminOpsService.prototype) as AdminOpsService;
+    Object.assign(service as unknown as Record<string, unknown>, {
+      queueName: 'litter-detection',
+      logger: { log: () => {}, warn: () => {} },
+      detectionQueue: {
+        toKey: (type: string) => `bull:litter-detection:${type}`,
+        client: Promise.resolve({
+          zrange: async () => failedIds,
+          // A live job still has its hash; an orphaned id does not.
+          exists: async (key: string) => (liveIds.includes(key.replace('bull:litter-detection:', '')) ? 1 : 0),
+        }),
+        async remove(id: string) {
+          removed.push(id);
+          return 1;
+        },
+      },
+    });
+    return { service, removed };
+  }
+
+  test('removes entries with no job data and keeps genuine failures', async () => {
+    // Regression: deleting job hashes through raw Redis left their ids stranded in
+    // the failed sorted set — unreadable, and rendered as broken rows in the queue
+    // detail view.
+    const { service, removed } = makeCleanupHarness(
+      ['orphan-1', 'real-1', 'orphan-2'],
+      ['real-1'],
+    );
+
+    const result = await service.cleanOrphanedFailedJobs();
+
+    expect(removed).toEqual(['orphan-1', 'orphan-2']);
+    expect(result).toMatchObject({ scanned: 3, kept: 1 });
+  });
+
+  test('removes nothing when every entry still has its data', async () => {
+    const { service, removed } = makeCleanupHarness(['real-1', 'real-2'], ['real-1', 'real-2']);
+
+    const result = await service.cleanOrphanedFailedJobs();
+
+    expect(removed).toEqual([]);
+    expect(result).toMatchObject({ scanned: 2, kept: 2 });
   });
 });

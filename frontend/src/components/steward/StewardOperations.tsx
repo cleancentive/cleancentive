@@ -49,6 +49,8 @@ export function StewardOperations() {
   const retryFailedSpotsResult = useAdminStore((s) => s.retryFailedSpotsResult)
   const fetchOpsOverview = useAdminStore((s) => s.fetchOpsOverview)
   const retryFailedSpots = useAdminStore((s) => s.retryFailedSpots)
+  const cleanOrphanedFailedJobs = useAdminStore((s) => s.cleanOrphanedFailedJobs)
+  const isCleaningOrphanedJobs = useAdminStore((s) => s.isCleaningOrphanedJobs)
   const { versionInfo, fetchVersionInfo } = useVersionStore()
 
   const [retryBatchSize, setRetryBatchSize] = useState('10')
@@ -113,6 +115,19 @@ export function StewardOperations() {
         </div>
       )}
 
+      {(opsOverview?.queue.counts.failed ?? 0) > 0 && (
+        <div className="ops-actions-row">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => cleanOrphanedFailedJobs()}
+            disabled={!isOnline || isCleaningOrphanedJobs || isLoadingOps}
+          >
+            {isCleaningOrphanedJobs ? t('operations.cleaningOrphanedJobs') : t('operations.cleanOrphanedJobs')}
+          </button>
+        </div>
+      )}
+
       <div className="ops-metrics-grid">
         <article className="ops-card ops-card-status">
           <span className={`ops-status-pill ops-status-${opsOverview?.health.status || 'degraded'}`}>
@@ -141,6 +156,9 @@ export function StewardOperations() {
             <div><dt>{t('operations.spotsProcessing')}</dt><dd>{opsOverview?.spots.counts.processing ?? '-'}</dd></div>
             <div><dt>{t('operations.spotsCompleted')}</dt><dd>{opsOverview?.spots.counts.completed ?? '-'}</dd></div>
             <div><dt>{t('operations.spotsFailed')}</dt><dd>{opsOverview?.spots.counts.failed ?? '-'}</dd></div>
+            {(opsOverview?.spots.unrecoverable ?? 0) > 0 && (
+              <div><dt>{t('operations.spotsUnrecoverable')}</dt><dd>{opsOverview?.spots.unrecoverable}</dd></div>
+            )}
           </dl>
         </article>
 

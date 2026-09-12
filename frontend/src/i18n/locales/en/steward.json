@@ -30,7 +30,7 @@
     "queueWaiting": "Waiting",
     "queueActive": "Active",
     "queueDelayed": "Delayed",
-    "queueFailed": "Failed",
+    "queueFailed": "Failed (all time)",
     "spots": "Spots",
     "spotsQueued": "Queued",
     "spotsProcessing": "Processing",
@@ -49,7 +49,10 @@
     "built": "Built",
     "backend": "Backend",
     "frontend": "Frontend",
-    "worker": "Worker"
+    "worker": "Worker",
+    "spotsUnrecoverable": "Unrecoverable",
+    "cleanOrphanedJobs": "Clear orphaned jobs",
+    "cleaningOrphanedJobs": "Clearing..."
   },
   "storage": {
     "legend": "Storage Insights",

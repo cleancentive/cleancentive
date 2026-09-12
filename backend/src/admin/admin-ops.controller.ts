@@ -37,6 +37,13 @@ export class AdminOpsController {
     return this.adminOpsService.getReviewStats(req.user.userId);
   }
 
+  @Post('queue/clean-orphaned-failed')
+  @ApiOperation({ summary: 'Remove failed-queue entries whose job data no longer exists (keeps genuine failures)' })
+  @ApiOkResponse({ description: 'Returns how many entries were scanned, removed and kept.' })
+  async cleanOrphanedFailedJobs() {
+    return this.adminOpsService.cleanOrphanedFailedJobs();
+  }
+
   @Get('overview')
   @ApiOperation({ summary: 'Get lightweight operations overview for dashboards and CLI checks' })
   @ApiOkResponse({ description: 'Returns lightweight queue, spot, worker, and health summary data.' })

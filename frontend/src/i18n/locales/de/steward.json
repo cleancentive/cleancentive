@@ -30,7 +30,7 @@
     "queueWaiting": "Wartend",
     "queueActive": "Aktiv",
     "queueDelayed": "Verzögert",
-    "queueFailed": "Fehlgeschlagen",
+    "queueFailed": "Fehlgeschlagen (gesamt)",
     "spots": "Spots",
     "spotsQueued": "In Warteschlange",
     "spotsProcessing": "In Verarbeitung",
@@ -49,7 +49,10 @@
     "built": "Erstellt",
     "backend": "Backend",
     "frontend": "Frontend",
-    "worker": "Worker"
+    "worker": "Worker",
+    "spotsUnrecoverable": "Nicht behebbar",
+    "cleanOrphanedJobs": "Verwaiste Jobs entfernen",
+    "cleaningOrphanedJobs": "Wird entfernt..."
   },
   "storage": {
     "legend": "Speicher-Statistiken",

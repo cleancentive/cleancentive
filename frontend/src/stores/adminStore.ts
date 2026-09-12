@@ -95,6 +95,8 @@ interface OpsOverview {
       failed: number
     }
     stalled: number
+    unrecoverable: number
+    retryableFailed: number
     oldestQueuedAgeSeconds: number | null
     oldestProcessingAgeSeconds: number | null
   }
@@ -145,6 +147,7 @@ interface AdminState {
   isLoadingStorage: boolean
   isLoadingPurge: boolean
   isRetryingFailedSpots: boolean
+  isCleaningOrphanedJobs: boolean
   hasMore: boolean
   error: string | null
   opsOverview: OpsOverview | null
@@ -169,6 +172,7 @@ interface AdminState {
   fetchStorageInsights: () => Promise<void>
   fetchPurgeStatus: () => Promise<void>
   retryFailedSpots: (limit: number) => Promise<void>
+  cleanOrphanedFailedJobs: () => Promise<void>
   setSort: (sort: 'created_at' | 'last_login') => void
   setOrder: (order: 'ASC' | 'DESC') => void
   setSearch: (search: string) => void
@@ -202,6 +206,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   isLoadingStorage: false,
   isLoadingPurge: false,
   isRetryingFailedSpots: false,
+  isCleaningOrphanedJobs: false,
   hasMore: false,
   error: null,
   opsOverview: null,
@@ -265,6 +270,28 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       set({
         error: error.response?.data?.message || 'Failed to fetch users',
         isLoading: false,
+      })
+    }
+  },
+
+  cleanOrphanedFailedJobs: async () => {
+    const headers = getAuthHeaders()
+    if (!headers.Authorization) return
+
+    set({ isCleaningOrphanedJobs: true, error: null })
+
+    try {
+      const response = await axios.post(`${API_BASE}/admin/ops/queue/clean-orphaned-failed`, {}, { headers })
+      const data = response.data
+      set({
+        isCleaningOrphanedJobs: false,
+        retryFailedSpotsResult: `Removed ${data.removed.length} orphaned job(s), kept ${data.kept}.`,
+      })
+      await get().fetchOpsOverview()
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to clean orphaned jobs',
+        isCleaningOrphanedJobs: false,
       })
     }
   },
@@ -384,6 +411,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       const data = response.data
       set({
         isRetryingFailedSpots: false,
+  isCleaningOrphanedJobs: false,
         retryFailedSpotsResult: `Queued ${data.retried} failed spots, skipped ${data.skipped}.`,
       })
       await get().fetchOpsOverview()
@@ -391,6 +419,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       set({
         error: error.response?.data?.message || 'Failed to retry failed spots',
         isRetryingFailedSpots: false,
+  isCleaningOrphanedJobs: false,
       })
     }
   },
@@ -528,6 +557,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     isLoadingStorage: false,
     isLoadingPurge: false,
     isRetryingFailedSpots: false,
+  isCleaningOrphanedJobs: false,
     retryFailedSpotsResult: null,
     error: null,
   }),
