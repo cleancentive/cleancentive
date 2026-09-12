@@ -10,6 +10,8 @@ import { Spot } from '../spot/spot.entity';
 import { DetectedItem } from '../spot/detected-item.entity';
 import { AdminOpsController } from './admin-ops.controller';
 import { AdminOpsService } from './admin-ops.service';
+import { DetectionAlertService } from './detection-alert.service';
+import { EmailModule } from '../email/email.module';
 import { StorageModule } from '../storage/storage.module';
 import { PurgeModule } from '../purge/purge.module';
 
@@ -18,8 +20,9 @@ import { PurgeModule } from '../purge/purge.module';
     TypeOrmModule.forFeature([Admin, User, UserEmail, Spot, DetectedItem]),
     forwardRef(() => StorageModule),
     PurgeModule,
+    EmailModule,
   ],
-  providers: [AdminService, AdminGuard, AdminOpsService],
+  providers: [AdminService, AdminGuard, AdminOpsService, DetectionAlertService],
   controllers: [AdminController, AdminOpsController],
   exports: [AdminService],
 })
