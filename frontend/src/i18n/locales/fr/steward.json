@@ -15,7 +15,8 @@
     "purge": "Purge",
     "review": "Vérifier",
     "analytics": "Analyses ↗",
-    "wiki": "Wiki ↗"
+    "wiki": "Wiki ↗",
+    "cost": "Coûts"
   },
   "operations": {
     "legend": "Aperçu des opérations",
@@ -149,5 +150,59 @@
     "nothingToReview": "Rien à vérifier. Parfait.",
     "sessionComplete": "Session terminée — {{count}} vérifiés.",
     "startNextSession": "Vérifier 10 de plus"
+  },
+  "cost": {
+    "legend": "Coûts d'exploitation",
+    "loading": "Chargement des coûts...",
+    "projectedMonth": "Prévu ce mois-ci",
+    "monthToDate": "Depuis le début du mois",
+    "runRateHint": "Le mois en cours est calculé à partir de l'inventaire en direct et de l'usage mesuré, pas d'une facture. Hetzner TVA comprise ; les lignes en USD sont des prix catalogue.",
+    "fxStale": "Les taux de change sont périmés — la conversion en CHF peut être légèrement inexacte.",
+    "invoicedLegend": "Dépenses facturées",
+    "invoicedHint": "Montants réels, lus dans les PDF de factures du wiki.",
+    "noInvoices": "Aucune facture lue pour le moment.",
+    "detectionLegend": "Coûts de détection ce mois-ci",
+    "detectionHint": "Mesurés d'après l'usage de tokens, en USD, par jour.",
+    "noDetectionSpend": "Aucun coût de détection enregistré ce mois-ci.",
+    "unpricedCalls_one": "{{count}} appel a utilisé un modèle sans tarif publié et n'est pas compté.",
+    "unpricedCalls_other": "{{count}} appels ont utilisé un modèle sans tarif publié et ne sont pas comptés.",
+    "invoicesLegend": "Factures",
+    "invoicesHint": "Joignez les factures au document de facturation du wiki et elles apparaîtront ici.",
+    "openWiki": "Ouvrir le wiki",
+    "rescan": "Relire les factures",
+    "scanning": "Lecture en cours...",
+    "needAttention_one": "{{count}} facture à vérifier.",
+    "needAttention_other": "{{count}} factures à vérifier.",
+    "correct": "Corriger",
+    "recalculated": "Le CHF est recalculé à l’enregistrement.",
+    "vendor": {
+      "hetzner": "Hetzner",
+      "mistral": "Mistral",
+      "backblaze": "Backblaze B2",
+      "resend": "Resend",
+      "other": "Autre"
+    },
+    "status": {
+      "parsed": "Lue automatiquement",
+      "failed": "Illisible",
+      "corrected": "Corrigée"
+    },
+    "table": {
+      "vendor": "Fournisseur",
+      "thisMonth": "Ce mois-ci",
+      "inChf": "En CHF",
+      "lastInvoice": "Dernière facture",
+      "date": "Date",
+      "amount": "Montant",
+      "status": "Statut"
+    },
+    "note": {
+      "hetzner": "Calculé à partir de l'inventaire en direct × les prix publiés, TVA comprise. Hetzner n'a pas d'API de facturation.",
+      "mistral": "Mesuré d'après l'usage de tokens — Mistral n'a pas d'API de facturation sur ce forfait.",
+      "mistralUnpriced_one": "{{count}} appel a utilisé un modèle sans tarif publié et n'est pas compté.",
+      "mistralUnpriced_other": "{{count}} appels ont utilisé un modèle sans tarif publié et ne sont pas comptés.",
+      "backblaze": "Bucket applicatif uniquement — B2 n'expose pas la taille d'un bucket, celui du wiki n'est pas compté.",
+      "resend": "{{sent}} envoyés à ce jour, {{included}} inclus."
+    }
   }
 }

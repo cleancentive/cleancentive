@@ -15,7 +15,8 @@
     "purge": "Purge",
     "review": "Review",
     "analytics": "Analytics ↗",
-    "wiki": "Wiki ↗"
+    "wiki": "Wiki ↗",
+    "cost": "Cost"
   },
   "operations": {
     "legend": "Operations Overview",
@@ -149,5 +150,59 @@
     "nothingToReview": "Nothing is waiting for review. Nice.",
     "sessionComplete": "Session complete — {{count}} reviewed.",
     "startNextSession": "Review 10 more"
+  },
+  "cost": {
+    "legend": "Running costs",
+    "loading": "Loading costs...",
+    "projectedMonth": "Projected this month",
+    "monthToDate": "Month to date",
+    "runRateHint": "The current month is computed from live inventory and metered usage, not from an invoice. Hetzner includes VAT; the USD lines are list prices.",
+    "fxStale": "Exchange rates are stale — the conversion to CHF may be a little off.",
+    "invoicedLegend": "Invoiced spend",
+    "invoicedHint": "Real amounts, read from the invoice PDFs in the wiki.",
+    "noInvoices": "No invoices read yet.",
+    "detectionLegend": "Detection spend this month",
+    "detectionHint": "Metered from token usage, in USD, by day.",
+    "noDetectionSpend": "No detection spend recorded this month.",
+    "unpricedCalls_one": "{{count}} call used a model with no published price and is not counted.",
+    "unpricedCalls_other": "{{count}} calls used a model with no published price and are not counted.",
+    "invoicesLegend": "Invoices",
+    "invoicesHint": "Attach bills to the wiki billing document and they appear here.",
+    "openWiki": "Open the wiki",
+    "rescan": "Re-scan invoices",
+    "scanning": "Scanning...",
+    "needAttention_one": "{{count}} invoice needs checking.",
+    "needAttention_other": "{{count}} invoices need checking.",
+    "correct": "Correct",
+    "recalculated": "CHF is recalculated on save.",
+    "vendor": {
+      "hetzner": "Hetzner",
+      "mistral": "Mistral",
+      "backblaze": "Backblaze B2",
+      "resend": "Resend",
+      "other": "Other"
+    },
+    "status": {
+      "parsed": "Read automatically",
+      "failed": "Could not read",
+      "corrected": "Corrected"
+    },
+    "table": {
+      "vendor": "Vendor",
+      "thisMonth": "This month",
+      "inChf": "In CHF",
+      "lastInvoice": "Last invoice",
+      "date": "Date",
+      "amount": "Amount",
+      "status": "Status"
+    },
+    "note": {
+      "hetzner": "Computed from live inventory × published prices, VAT included. Hetzner has no billing API.",
+      "mistral": "Metered from token usage — Mistral has no billing API on this plan.",
+      "mistralUnpriced_one": "{{count}} call used a model with no published price and is not counted.",
+      "mistralUnpriced_other": "{{count}} calls used a model with no published price and are not counted.",
+      "backblaze": "App bucket only — B2 exposes no bucket-size API, so the wiki bucket is not counted.",
+      "resend": "{{sent}} sent so far, {{included}} included."
+    }
   }
 }

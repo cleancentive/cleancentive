@@ -7,6 +7,7 @@ import { StewardLayout } from './components/steward/StewardLayout'
 import { StewardOperations } from './components/steward/StewardOperations'
 import { StewardProject } from './components/steward/StewardProject'
 import { StewardReview } from './components/steward/StewardReview'
+import { StewardCost } from './components/steward/StewardCost'
 import { StewardStorage } from './components/steward/StewardStorage'
 import { StewardPurge } from './components/steward/StewardPurge'
 import { StewardUsers } from './components/steward/StewardUsers'
@@ -110,6 +111,7 @@ function App() {
             <Route path="operations" element={<StewardOperations />} />
             <Route path="project" element={<StewardProject />} />
             <Route path="storage" element={<StewardStorage />} />
+          <Route path="cost" element={<StewardCost />} />
             <Route path="purge" element={<StewardPurge />} />
             <Route path="users" element={<StewardUsers />} />
             <Route path="feedback" element={<StewardFeedback />} />

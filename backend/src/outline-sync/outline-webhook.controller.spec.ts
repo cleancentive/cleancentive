@@ -10,7 +10,7 @@ import { OutlineWebhookController } from './outline-webhook.controller';
 // scheme and rejects anything else.
 describe('OutlineWebhookController signature verification', () => {
   const secret = 'a'.repeat(64);
-  const controller = new OutlineWebhookController({} as any, {} as any) as any;
+  const controller = new OutlineWebhookController({} as any, {} as any, {} as any) as any;
 
   function sign(payload: string, t = '1700000000000', key = secret): string {
     const s = createHmac('sha256', key).update(`${t}.${payload}`).digest('hex');

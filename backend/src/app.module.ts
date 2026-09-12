@@ -44,6 +44,8 @@ import { LabelModule } from './label/label.module';
 import { OidcModule } from './oidc/oidc.module';
 import { OidcAuthorizationCode, OidcRefreshToken, OidcClient } from './oidc/oidc.entity';
 import { OutlineSyncModule } from './outline-sync/outline-sync.module';
+import { CostModule } from './cost/cost.module';
+import { VendorInvoice } from './cost/vendor-invoice.entity';
 import { OutlineWebhookConfig } from './outline-sync/outline-webhook-config.entity';
 import { OutlineEvent } from './outline-sync/outline-event.entity';
 import { OutlineMaintenanceState } from './outline-sync/outline-maintenance-state.entity';
@@ -93,6 +95,7 @@ import { SystemModule } from './system/system.module';
         OutlineWebhookConfig,
         OutlineEvent,
         OutlineMaintenanceState,
+        VendorInvoice,
       ],
       subscribers: [AuditSubscriber, InsightsCacheSubscriber],
       synchronize: false,
@@ -114,6 +117,7 @@ import { SystemModule } from './system/system.module';
     LabelModule,
     OidcModule,
     OutlineSyncModule,
+    CostModule,
     IntegrationsModule,
     ClientEventsModule,
     SystemModule,

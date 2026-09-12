@@ -10,23 +10,16 @@ import { emailStrings, type DetectionAlertReason } from '../email/email.i18n';
 import { redisConnection } from '../common/redis-connection';
 import { AdminService } from './admin.service';
 import { AdminOpsService } from './admin-ops.service';
+import {
+  decideAlert as decideAlertGeneric,
+  type ActionableState as GenericActionableState,
+  type AlertDecision as GenericAlertDecision,
+  type AlertState,
+} from './alert-decision';
 
-export interface AlertState {
-  needsAction: boolean;
-  /** Stable identity of the condition, so a *changed* problem counts as new. */
-  reasonKey: string;
-  /** ISO timestamp of the last mail we sent about the current condition. */
-  notifiedAt: string;
-}
-
-export interface ActionableState {
-  needsAction: boolean;
-  reason: DetectionAlertReason | null;
-}
-
-export type AlertDecision =
-  | { send: false }
-  | { send: true; kind: 'problem' | 'recovered'; reason: DetectionAlertReason | null };
+export type { AlertState };
+export type ActionableState = GenericActionableState<DetectionAlertReason>;
+export type AlertDecision = GenericAlertDecision<DetectionAlertReason>;
 
 /** Identity of a condition for change detection — not shown to anyone. */
 export function reasonKey(reason: DetectionAlertReason | null): string {
@@ -34,46 +27,13 @@ export function reasonKey(reason: DetectionAlertReason | null): string {
   return reason.kind === 'worker-down' ? reason.kind : `${reason.kind}:${reason.count}`;
 }
 
-/**
- * Decides whether this check should mail anyone.
- *
- * Edge-triggered: a mail goes out when the condition *changes*, not on every
- * check, so a persistent problem does not turn into an inbox full of identical
- * warnings.
- *
- * The one exception is the re-alert interval. Detection was down for nine days in
- * September without anyone noticing; a single mail that gets missed or filtered
- * reproduces exactly that silence, so a standing problem repeats at most once per
- * interval. Set the interval to 0 to disable repeats entirely.
- */
 export function decideAlert(
   previous: AlertState | null,
   current: ActionableState,
   now: number,
   reAlertMs: number,
 ): AlertDecision {
-  if (current.needsAction) {
-    if (!previous?.needsAction) {
-      return { send: true, kind: 'problem', reason: current.reason };
-    }
-
-    // Same condition still standing. Repeat only once the interval has elapsed,
-    // and treat a changed reason as a new occurrence worth reporting.
-    if (previous.reasonKey !== reasonKey(current.reason)) {
-      return { send: true, kind: 'problem', reason: current.reason };
-    }
-    if (reAlertMs > 0 && now - Date.parse(previous.notifiedAt) >= reAlertMs) {
-      return { send: true, kind: 'problem', reason: current.reason };
-    }
-    return { send: false };
-  }
-
-  // Recovered — but only worth saying if we actually reported the problem.
-  if (previous?.needsAction) {
-    return { send: true, kind: 'recovered', reason: null };
-  }
-
-  return { send: false };
+  return decideAlertGeneric(previous, current, now, reAlertMs, reasonKey);
 }
 
 @Injectable()

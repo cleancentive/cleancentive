@@ -10,6 +10,7 @@ import {
 import { ApiTags } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -34,6 +35,7 @@ export class OutlineWebhookController {
     private readonly configRepo: Repository<OutlineWebhookConfig>,
     @InjectRepository(OutlineEvent)
     private readonly eventRepo: Repository<OutlineEvent>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @Post('incoming')
@@ -65,15 +67,28 @@ export class OutlineWebhookController {
       throw new HttpException('Invalid JSON', HttpStatus.BAD_REQUEST);
     }
 
+    const documentId =
+      (body.payload?.documentId as string) ??
+      (body.event?.startsWith('documents.') ? (body.payload?.id as string) : null) ??
+      null;
+
     await this.eventRepo.save(
       this.eventRepo.create({
         event_type: body.event ?? 'unknown',
         actor_id: body.actorId ?? null,
-        document_id: (body.payload?.documentId as string) ?? (body.event?.startsWith('documents.') ? (body.payload?.id as string) : null) ?? null,
+        document_id: documentId,
         collection_id: (body.payload?.collectionId as string) ?? (body.event?.startsWith('collections.') ? (body.payload?.id as string) : null) ?? null,
         payload: body as Record<string, unknown>,
       }),
     );
+
+    // Attaching a PDF updates the document it hangs off, which is how an invoice
+    // upload reaches the cost page within seconds instead of by tomorrow's cron.
+    // Emitted rather than called so the cost module stays free of Outline, and
+    // Outline stays free of billing.
+    if (documentId && body.event?.startsWith('documents.')) {
+      this.eventEmitter.emit('outline.document-changed', { documentId });
+    }
 
     return { ok: true };
   }

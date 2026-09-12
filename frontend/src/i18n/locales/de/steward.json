@@ -15,7 +15,8 @@
     "purge": "Bereinigung",
     "review": "Prüfen",
     "analytics": "Analysen ↗",
-    "wiki": "Wiki ↗"
+    "wiki": "Wiki ↗",
+    "cost": "Kosten"
   },
   "operations": {
     "legend": "Betriebsübersicht",
@@ -149,5 +150,59 @@
     "nothingToReview": "Nichts zu prüfen. Sehr gut.",
     "sessionComplete": "Runde abgeschlossen — {{count}} geprüft.",
     "startNextSession": "10 weitere prüfen"
+  },
+  "cost": {
+    "legend": "Betriebskosten",
+    "loading": "Kosten werden geladen...",
+    "projectedMonth": "Prognose diesen Monat",
+    "monthToDate": "Bisher diesen Monat",
+    "runRateHint": "Der laufende Monat wird aus dem aktuellen Bestand und der gemessenen Nutzung berechnet, nicht aus einer Rechnung. Hetzner inklusive MwSt.; die USD-Positionen sind Listenpreise.",
+    "fxStale": "Die Wechselkurse sind veraltet — die Umrechnung in CHF kann leicht abweichen.",
+    "invoicedLegend": "Verrechnete Kosten",
+    "invoicedHint": "Tatsächliche Beträge, aus den Rechnungs-PDFs im Wiki gelesen.",
+    "noInvoices": "Noch keine Rechnungen gelesen.",
+    "detectionLegend": "Erkennungskosten diesen Monat",
+    "detectionHint": "Aus der Token-Nutzung gemessen, in USD, pro Tag.",
+    "noDetectionSpend": "Diesen Monat wurden keine Erkennungskosten erfasst.",
+    "unpricedCalls_one": "{{count}} Aufruf nutzte ein Modell ohne veröffentlichten Preis und ist nicht enthalten.",
+    "unpricedCalls_other": "{{count}} Aufrufe nutzten ein Modell ohne veröffentlichten Preis und sind nicht enthalten.",
+    "invoicesLegend": "Rechnungen",
+    "invoicesHint": "Hänge Rechnungen an das Rechnungsdokument im Wiki, dann erscheinen sie hier.",
+    "openWiki": "Wiki öffnen",
+    "rescan": "Rechnungen neu einlesen",
+    "scanning": "Wird eingelesen...",
+    "needAttention_one": "{{count}} Rechnung muss geprüft werden.",
+    "needAttention_other": "{{count}} Rechnungen müssen geprüft werden.",
+    "correct": "Korrigieren",
+    "recalculated": "CHF wird beim Speichern neu berechnet.",
+    "vendor": {
+      "hetzner": "Hetzner",
+      "mistral": "Mistral",
+      "backblaze": "Backblaze B2",
+      "resend": "Resend",
+      "other": "Andere"
+    },
+    "status": {
+      "parsed": "Automatisch gelesen",
+      "failed": "Nicht lesbar",
+      "corrected": "Korrigiert"
+    },
+    "table": {
+      "vendor": "Anbieter",
+      "thisMonth": "Diesen Monat",
+      "inChf": "In CHF",
+      "lastInvoice": "Letzte Rechnung",
+      "date": "Datum",
+      "amount": "Betrag",
+      "status": "Status"
+    },
+    "note": {
+      "hetzner": "Aus aktuellem Bestand × veröffentlichten Preisen berechnet, inkl. MwSt. Hetzner hat keine Abrechnungs-API.",
+      "mistral": "Aus der Token-Nutzung gemessen — Mistral hat in diesem Tarif keine Abrechnungs-API.",
+      "mistralUnpriced_one": "{{count}} Aufruf nutzte ein Modell ohne veröffentlichten Preis und ist nicht enthalten.",
+      "mistralUnpriced_other": "{{count}} Aufrufe nutzten ein Modell ohne veröffentlichten Preis und sind nicht enthalten.",
+      "backblaze": "Nur der App-Bucket — B2 bietet keine API für die Bucket-Grösse, der Wiki-Bucket ist nicht enthalten.",
+      "resend": "{{sent}} bisher versendet, {{included}} enthalten."
+    }
   }
 }

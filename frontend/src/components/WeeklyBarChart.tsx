@@ -14,9 +14,11 @@ function barTotal(bar: WeeklyBar): number {
   return bar.segments.reduce((sum, segment) => sum + segment.value, 0)
 }
 
-function describeBar(bar: WeeklyBar, total: number): string {
-  const parts = bar.segments.filter((s) => s.value > 0).map((s) => `${s.label} ${s.value}`)
-  return parts.length > 1 ? `${bar.week}: ${total} (${parts.join(' · ')})` : `${bar.week}: ${total}`
+function describeBar(bar: WeeklyBar, total: number, format: (value: number) => string): string {
+  const parts = bar.segments.filter((s) => s.value > 0).map((s) => `${s.label} ${format(s.value)}`)
+  return parts.length > 1
+    ? `${bar.week}: ${format(total)} (${parts.join(' · ')})`
+    : `${bar.week}: ${format(total)}`
 }
 
 /**
@@ -31,10 +33,14 @@ export function WeeklyBarChart({
   bars,
   maxBars = 12,
   emptyText,
+  // Counts render as-is; money needs rounding and a currency, and a float total
+  // would otherwise print as 38.900000000000006.
+  formatValue = (value: number) => String(value),
 }: {
   bars: WeeklyBar[]
   maxBars?: number
   emptyText: string
+  formatValue?: (value: number) => string
 }) {
   const visible = bars.slice(-maxBars)
   if (visible.length === 0) {
@@ -49,8 +55,8 @@ export function WeeklyBarChart({
       {visible.map((bar, index) => {
         const total = totals[index]
         return (
-          <div key={bar.week} className="weekly-chart-col" title={describeBar(bar, total)}>
-            <span className="weekly-chart-value">{total > 0 ? total : ''}</span>
+          <div key={bar.week} className="weekly-chart-col" title={describeBar(bar, total, formatValue)}>
+            <span className="weekly-chart-value">{total > 0 ? formatValue(total) : ''}</span>
             <div className="weekly-chart-plot">
               <div className="weekly-chart-stack" style={{ height: `${(total / maxTotal) * 100}%` }}>
                 {bar.segments

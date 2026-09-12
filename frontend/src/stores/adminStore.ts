@@ -31,6 +31,59 @@ interface StorageInsights {
   growthRate: Array<{ week: string; bytes: number }>
 }
 
+export interface CostLine {
+  label: string
+  amount: number
+}
+
+export interface VendorCost {
+  vendor: string
+  status: 'ok' | 'unavailable'
+  currency: string | null
+  projectedMonth: number | null
+  monthToDate: number | null
+  projectedMonthChf: number | null
+  monthToDateChf: number | null
+  lines: CostLine[]
+  note: { key: string; params?: Record<string, string | number> } | null
+  error: string | null
+}
+
+export interface CostSnapshot {
+  generatedAt: string
+  currency: string
+  fx: { rates: Record<string, number>; date: string; stale: boolean }
+  projectedMonthChf: number
+  monthToDateChf: number
+  vendors: VendorCost[]
+  detectionDaily: Array<{ day: string; costUsd: number }>
+  unpricedCalls: number
+  invoiceMonths: Array<{ month: string; byVendor: Record<string, number>; totalChf: number }>
+  lastInvoices: Array<{
+    vendor: string
+    invoiceDate: string | null
+    currency: string | null
+    amountGross: number | null
+    amountChf: number | null
+  }>
+  invoicesNeedingAttention: number
+}
+
+export interface VendorInvoiceRow {
+  id: string
+  fileName: string
+  vendor: string
+  invoiceDate: string | null
+  periodStart: string | null
+  periodEnd: string | null
+  currency: string | null
+  amountGross: number | null
+  amountChf: number | null
+  parseStatus: 'parsed' | 'failed' | 'corrected'
+  confirmedAt: string | null
+  parseError: string | null
+}
+
 interface PurgeStatus {
   timestamp: string
   enabled: boolean
@@ -163,6 +216,9 @@ interface AdminState {
   error: string | null
   opsOverview: OpsOverview | null
   storageInsights: StorageInsights | null
+  costSnapshot: CostSnapshot | null
+  costInvoices: VendorInvoiceRow[]
+  isLoadingCost: boolean
   purgeStatus: PurgeStatus | null
   retryFailedSpotsResult: string | null
   feedbackItems: FeedbackItem[]
@@ -184,6 +240,10 @@ interface AdminState {
   advanceReviewQueue: () => void
   fetchOpsOverview: () => Promise<void>
   fetchStorageInsights: () => Promise<void>
+  fetchCost: () => Promise<void>
+  fetchCostInvoices: () => Promise<void>
+  correctInvoice: (id: string, correction: Record<string, unknown>) => Promise<void>
+  scanInvoices: () => Promise<void>
   fetchPurgeStatus: () => Promise<void>
   retryFailedSpots: (limit: number) => Promise<void>
   cleanOrphanedFailedJobs: () => Promise<void>
@@ -227,6 +287,9 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   error: null,
   opsOverview: null,
   storageInsights: null,
+  costSnapshot: null,
+  costInvoices: [],
+  isLoadingCost: false,
   purgeStatus: null,
   retryFailedSpotsResult: null,
   feedbackItems: [],
@@ -384,6 +447,61 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       set({
         error: error.response?.data?.message || 'Failed to fetch operations overview',
         isLoadingOps: false,
+      })
+    }
+  },
+
+  fetchCost: async () => {
+    const headers = getAuthHeaders()
+    if (!headers.Authorization) return
+
+    set({ isLoadingCost: true })
+
+    try {
+      const response = await axios.get(`${API_BASE}/admin/cost`, { headers })
+      set({ costSnapshot: response.data, isLoadingCost: false })
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to fetch running costs',
+        isLoadingCost: false,
+      })
+    }
+  },
+
+  fetchCostInvoices: async () => {
+    const headers = getAuthHeaders()
+    if (!headers.Authorization) return
+
+    try {
+      const response = await axios.get(`${API_BASE}/admin/cost/invoices`, { headers })
+      set({ costInvoices: response.data })
+    } catch {
+      // The run-rate is still worth showing without the invoice history.
+    }
+  },
+
+  correctInvoice: async (id, correction) => {
+    const headers = getAuthHeaders()
+    if (!headers.Authorization) return
+
+    await axios.patch(`${API_BASE}/admin/cost/invoices/${id}`, correction, { headers })
+    await get().fetchCostInvoices()
+    await get().fetchCost()
+  },
+
+  scanInvoices: async () => {
+    const headers = getAuthHeaders()
+    if (!headers.Authorization) return
+
+    set({ isLoadingCost: true })
+    try {
+      await axios.post(`${API_BASE}/admin/cost/invoices/scan`, {}, { headers })
+      await get().fetchCostInvoices()
+      await get().fetchCost()
+    } catch (error: any) {
+      set({
+        error: error.response?.data?.message || 'Failed to re-scan invoices',
+        isLoadingCost: false,
       })
     }
   },
@@ -594,6 +712,9 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     hasMore: false,
     opsOverview: null,
     storageInsights: null,
+    costSnapshot: null,
+    costInvoices: [],
+    isLoadingCost: false,
     purgeStatus: null,
     isLoadingOps: false,
     reviewQueue: [],

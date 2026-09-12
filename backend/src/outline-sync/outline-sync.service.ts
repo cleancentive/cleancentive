@@ -1253,4 +1253,67 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
       `Reconciliation finished: ${provisioned} provisioned, ${missing} missing-collection warnings, ${archivedMapped} archived mapped teams left unchanged, ${orphans} orphan mappings`,
     );
   }
+
+  // --- Attachments --------------------------------------------------------
+
+  /**
+   * A document and every document filed under it, by Outline id.
+   *
+   * Takes the urlId from a wiki link (the `rechnungen-fQnLX94fpZ` half of the
+   * path), because that is what a human has to hand. Children are followed one
+   * level, so the billing document can be split per year without a code change.
+   */
+  async listDocumentTree(urlIdOrId: string): Promise<string[]> {
+    if (!(await this.ensureReady())) return [];
+
+    const info = await this.callOutlineApi('/documents.info', { id: urlIdOrId });
+    const rootId: string | undefined = info?.data?.id;
+    if (!rootId) return [];
+
+    const children = await this.callOutlineApi('/documents.list', {
+      parentDocumentId: rootId,
+      limit: 100,
+    });
+
+    const childIds: string[] = (children?.data ?? [])
+      .map((doc: { id?: string }) => doc.id)
+      .filter((id: string | undefined): id is string => !!id);
+
+    return [rootId, ...childIds];
+  }
+
+  /**
+   * The PDFs attached to a set of documents.
+   *
+   * Read straight from Outline's own tables rather than the API: attachments are
+   * only discoverable through the API by scraping document markdown for links,
+   * whereas the table already records exactly what we need, including the S3
+   * key the bytes live under.
+   */
+  async listPdfAttachments(
+    documentIds: string[],
+  ): Promise<Array<{ id: string; documentId: string; key: string; fileName: string; size: number }>> {
+    if (documentIds.length === 0 || !this.isPgConnected) return [];
+
+    const result = await this.pg.query<{
+      id: string;
+      documentId: string;
+      key: string;
+      size: string;
+    }>(
+      `SELECT id, "documentId", key, size
+       FROM attachments
+       WHERE "documentId" = ANY($1::uuid[]) AND "contentType" = 'application/pdf'
+       ORDER BY "createdAt"`,
+      [documentIds],
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      documentId: row.documentId,
+      key: row.key,
+      fileName: row.key.split('/').pop() ?? row.key,
+      size: Number(row.size),
+    }));
+  }
 }

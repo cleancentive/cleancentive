@@ -38,6 +38,19 @@ interface EmailStrings {
     action: (link: string) => string;
     disclosure: string;
   };
+  costAlert: {
+    subject: string;
+    recoveredSubject: string;
+    preheader: string;
+    recoveredPreheader: string;
+    title: string;
+    recoveredTitle: string;
+    intro: (projected: string, ceiling: string) => string;
+    recoveredIntro: (projected: string, ceiling: string) => string;
+    breakdownLabel: string;
+    action: (link: string) => string;
+    disclosure: string;
+  };
   cleanup: {
     goingTitle: (name: string) => string;
     cancelTitle: (name: string) => string;
@@ -75,6 +88,21 @@ const STRINGS: Record<Locale, EmailStrings> = {
       },
       action: (link) => `[Open the operations page](${link}){button}`,
       disclosure: 'You receive this because you are a CleanCentive steward. It is sent once when the problem starts and once when it clears.',
+    },
+    costAlert: {
+      subject: '[CleanCentive] Running costs are above the ceiling',
+      recoveredSubject: '[CleanCentive] Running costs are back under the ceiling',
+      preheader: 'Projected monthly spend crossed the limit',
+      recoveredPreheader: 'Projected monthly spend is back under the limit',
+      title: 'Running costs are above the ceiling',
+      recoveredTitle: 'Running costs are back under the ceiling',
+      intro: (projected, ceiling) =>
+        `This month is projected to cost **${projected}**, against a ceiling of ${ceiling}.`,
+      recoveredIntro: (projected, ceiling) =>
+        `This month is now projected to cost **${projected}**, back under the ${ceiling} ceiling.`,
+      breakdownLabel: 'By vendor',
+      action: (link) => `See the breakdown: ${link}`,
+      disclosure: 'You are receiving this because you are a CleanCentive steward.',
     },
     cleanup: {
       goingTitle: (name) => `You're going: ${name}`,
@@ -114,6 +142,21 @@ const STRINGS: Record<Locale, EmailStrings> = {
       action: (link) => `[Betriebsseite öffnen](${link}){button}`,
       disclosure: 'Du erhältst diese Nachricht als CleanCentive-Steward. Sie wird einmal beim Auftreten und einmal bei der Behebung verschickt.',
     },
+    costAlert: {
+      subject: '[CleanCentive] Betriebskosten über der Obergrenze',
+      recoveredSubject: '[CleanCentive] Betriebskosten wieder unter der Obergrenze',
+      preheader: 'Die prognostizierten Monatskosten haben das Limit überschritten',
+      recoveredPreheader: 'Die prognostizierten Monatskosten liegen wieder unter dem Limit',
+      title: 'Betriebskosten über der Obergrenze',
+      recoveredTitle: 'Betriebskosten wieder unter der Obergrenze',
+      intro: (projected, ceiling) =>
+        `Für diesen Monat werden **${projected}** erwartet, bei einer Obergrenze von ${ceiling}.`,
+      recoveredIntro: (projected, ceiling) =>
+        `Für diesen Monat werden jetzt **${projected}** erwartet, wieder unter der Obergrenze von ${ceiling}.`,
+      breakdownLabel: 'Nach Anbieter',
+      action: (link) => `Aufschlüsselung ansehen: ${link}`,
+      disclosure: 'Du erhältst diese Nachricht, weil du CleanCentive-Steward bist.',
+    },
     cleanup: {
       goingTitle: (name) => `Du bist dabei: ${name}`,
       cancelTitle: (name) => `Abgesagt: ${name}`,
@@ -151,6 +194,21 @@ const STRINGS: Record<Locale, EmailStrings> = {
       },
       action: (link) => `[Ouvrir la page d’exploitation](${link}){button}`,
       disclosure: 'Vous recevez ce message en tant que steward CleanCentive. Il est envoyé une fois à l’apparition du problème et une fois à sa résolution.',
+    },
+    costAlert: {
+      subject: "[CleanCentive] Les coûts d'exploitation dépassent le plafond",
+      recoveredSubject: "[CleanCentive] Les coûts d'exploitation sont repassés sous le plafond",
+      preheader: 'Les dépenses mensuelles prévues ont dépassé la limite',
+      recoveredPreheader: 'Les dépenses mensuelles prévues sont repassées sous la limite',
+      title: "Les coûts d'exploitation dépassent le plafond",
+      recoveredTitle: "Les coûts d'exploitation sont repassés sous le plafond",
+      intro: (projected, ceiling) =>
+        `Ce mois-ci devrait coûter **${projected}**, pour un plafond de ${ceiling}.`,
+      recoveredIntro: (projected, ceiling) =>
+        `Ce mois-ci devrait maintenant coûter **${projected}**, de nouveau sous le plafond de ${ceiling}.`,
+      breakdownLabel: 'Par fournisseur',
+      action: (link) => `Voir le détail : ${link}`,
+      disclosure: 'Vous recevez ce message parce que vous êtes steward CleanCentive.',
     },
     cleanup: {
       goingTitle: (name) => `Vous participez : ${name}`,
