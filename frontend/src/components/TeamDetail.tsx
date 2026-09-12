@@ -11,10 +11,7 @@ import { MessageBoard } from './MessageBoard'
 import { useUiStore } from '../stores/uiStore'
 import { ConfirmDialog } from './ConfirmDialog'
 import { PartnerSettingsFields } from './PartnerSettingsFields'
-
-const WIKI_URL = window.__CLEANCENTIVE_CONFIG__?.wikiUrl
-  || import.meta.env.VITE_WIKI_URL
-  || 'https://wiki.cleancentive.local'
+import { WIKI_URL } from '../lib/wikiUrl'
 
 export function TeamDetail() {
   const { t } = useTranslation(['teams', 'common'])
