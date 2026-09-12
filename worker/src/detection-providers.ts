@@ -5,6 +5,8 @@ import OpenAI from 'openai';
 export interface DetectionProvider {
   label: string;
   model: string;
+  /** Host of the base URL, so cost from a fallback is attributed to its vendor. */
+  host: string;
   client: OpenAI;
 }
 
@@ -12,10 +14,20 @@ export interface DetectionProvider {
 // ten minutes on a single hung request. 60s is well past a normal vision call.
 const REQUEST_TIMEOUT_MS = 60_000;
 
+export function providerHost(baseUrl: string | undefined): string {
+  if (!baseUrl) return 'api.openai.com';
+  try {
+    return new URL(baseUrl).host;
+  } catch {
+    return baseUrl;
+  }
+}
+
 function buildProvider(label: string, apiKey: string, baseUrl: string | undefined, model: string): DetectionProvider {
   return {
     label,
     model,
+    host: providerHost(baseUrl),
     client: new OpenAI({
       apiKey,
       ...(baseUrl ? { baseURL: baseUrl } : {}),

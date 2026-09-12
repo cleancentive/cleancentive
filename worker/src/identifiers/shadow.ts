@@ -21,9 +21,13 @@ export class ShadowPlantIdentifier implements PlantIdentifier {
       ? shadowResult.value
       : { error: String(shadowResult.reason?.message ?? shadowResult.reason) };
 
+    const shadowUsage = shadowResult.status === 'fulfilled' ? shadowResult.value.usage : undefined;
+
     return {
       ...primary,
       raw: { primary: primary.raw, shadow },
+      // Whichever side went to a paid model, we still owe for it.
+      usage: primary.usage ?? shadowUsage,
     };
   }
 }

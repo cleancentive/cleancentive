@@ -7,12 +7,15 @@ import sharp from 'sharp';
 import { clampWeightGrams } from '@cleancentive/shared';
 import type { LitterDetectionJobData, DetectedObject, DetectionResult } from '@cleancentive/shared';
 import { persistDetection as persistDetectionToDb } from './detection';
+import { buildUsageRow, recordLlmUsage } from './llm-usage';
+import type { CompletionUsage } from './llm-usage';
 import {
   buildDetectionProviders,
   describeProviderError,
   isEntitlementWall,
   shouldTryNextProvider,
 } from './detection-providers';
+import type { DetectionProvider } from './detection-providers';
 import { PlantNetIdentifier } from './identifiers/plantnet';
 import { MistralPlantIdentifier } from './identifiers/mistral-plant';
 import { ShadowPlantIdentifier } from './identifiers/shadow';
@@ -352,7 +355,7 @@ async function detectLitter(
   imageBytes: Uint8Array,
   mimeType: string,
   systemPrompt: string,
-): Promise<{ detection: DetectionResult; model: string }> {
+): Promise<{ detection: DetectionResult; model: string; provider: DetectionProvider; usage: CompletionUsage | undefined }> {
   if (detectionProviders.length === 0) {
     throw new Error('No detection provider is configured for the worker (set DETECTION_API_KEY and DETECTION_MODEL)');
   }
@@ -362,6 +365,7 @@ async function detectLitter(
 
   for (const provider of detectionProviders) {
     let content: string | null | undefined;
+    let usage: CompletionUsage | undefined;
 
     try {
       const completion = await provider.client.chat.completions.create({
@@ -384,6 +388,7 @@ async function detectLitter(
       });
 
       content = completion.choices[0]?.message?.content;
+      usage = completion.usage;
     } catch (error) {
       const description = describeProviderError(provider, error);
 
@@ -413,6 +418,8 @@ async function detectLitter(
         notes: asOptionalString(parsed.notes),
       },
       model: provider.model,
+      provider,
+      usage,
     };
   }
 
@@ -482,8 +489,19 @@ async function runLitterDetection(spotId: string, userId: string, imageKey: stri
   const resizedBytes = await resizeForDetection(imageBytes, detectionMaxImageSize);
   // Record the model that actually served this detection, not the one we asked
   // first — otherwise a fallback silently files its results under the primary.
-  const { detection, model } = await detectLitter(resizedBytes, 'image/jpeg', systemPrompt);
+  const { detection, model, provider, usage } = await detectLitter(resizedBytes, 'image/jpeg', systemPrompt);
   await persistDetection(spotId, userId, detection, model);
+  await recordLlmUsage(
+    dbPool,
+    buildUsageRow({
+      spotId,
+      purpose: 'litter-detection',
+      providerLabel: provider.label,
+      providerHost: provider.host,
+      model,
+      usage,
+    }),
+  );
   return { count: detection.objects.length };
 }
 
@@ -496,6 +514,23 @@ async function runPlantIdentification(spotId: string, userId: string, imageKey: 
   const resizedBytes = await resizeForDetection(imageBytes, detectionMaxImageSize);
   const result = await plantIdentifier.identify(resizedBytes, 'image/jpeg');
   await withTransaction((client) => persistPlantIdentification(client, spotId, userId, result));
+  if (result.usage && primaryProvider) {
+    await recordLlmUsage(
+      dbPool,
+      buildUsageRow({
+        spotId,
+        purpose: 'plant-identification',
+        providerLabel: primaryProvider.label,
+        providerHost: primaryProvider.host,
+        model: result.usage.model,
+        usage: {
+          prompt_tokens: result.usage.promptTokens,
+          completion_tokens: result.usage.completionTokens,
+          total_tokens: result.usage.totalTokens,
+        },
+      }),
+    );
+  }
   return { scientificName: result.scientificName };
 }
 

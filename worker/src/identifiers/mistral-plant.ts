@@ -52,6 +52,18 @@ export class MistralPlantIdentifier implements PlantIdentifier {
       ? Math.max(0, Math.min(1, parsed.confidence))
       : null;
 
-    return { scientificName, commonName, confidence, source: 'mistral', raw: parsed };
+    return {
+      scientificName,
+      commonName,
+      confidence,
+      source: 'mistral',
+      raw: parsed,
+      usage: {
+        model: this.model,
+        promptTokens: completion.usage?.prompt_tokens ?? 0,
+        completionTokens: completion.usage?.completion_tokens ?? 0,
+        totalTokens: completion.usage?.total_tokens ?? 0,
+      },
+    };
   }
 }
