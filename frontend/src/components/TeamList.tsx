@@ -65,6 +65,8 @@ export function TeamList() {
     }
   }
 
+  const visibleTeams = teams.filter(t => !myFilter || t.userRole !== null)
+
   return (
     <CommunityList
       title={t('list.title')}
@@ -75,11 +77,7 @@ export function TeamList() {
       hideSearch={showCreate}
       onClearError={clearError}
       emptyMessage={t('list.empty')}
-      isEmpty={teams.filter(t => {
-        if (myFilter && t.userRole === null) return false
-        if (user?.active_team_id && t.team.id !== user.active_team_id) return false
-        return true
-      }).length === 0}
+      isEmpty={visibleTeams.length === 0}
       actions={
         user && (
           <button className="primary-button" onClick={handleToggleCreate}>
@@ -135,11 +133,7 @@ export function TeamList() {
         </form>
       )}
 
-      {teams.filter(t => {
-        if (myFilter && t.userRole === null) return false
-        if (user?.active_team_id && t.team.id !== user.active_team_id) return false
-        return true
-      }).map(({ team, userRole, isPartner, systemKey, membershipManagedBy }) => {
+      {visibleTeams.map(({ team, userRole, isPartner, systemKey, membershipManagedBy }) => {
         const activeTeamId = user?.active_team_id
         const isStewardsTeam = systemKey === 'stewards' || membershipManagedBy === 'steward-role'
         return (
