@@ -106,7 +106,7 @@ function FeedbackIcon() {
 
 export function AppShell() {
   const { t } = useTranslation(['shell', 'common'])
-  const { user, guestId } = useAuthStore()
+  const { user, guestId, refreshProfile } = useAuthStore()
   const { isAdmin, checkAdminStatus } = useAdminStore()
   const { isOnline, browserOnline, isForceOffline, setForceOffline } = useConnectivityStore()
   const openFeedbackModal = useFeedbackStore((s) => s.openFeedbackModal)
@@ -116,6 +116,13 @@ export function AppShell() {
       checkAdminStatus()
     }
   }, [user, checkAdminStatus])
+
+  // The profile is persisted in localStorage, so a reload alone never revisits
+  // it — an active cleanup date that has since ended would stay "active" here
+  // forever. Refetch once on mount; the backend expires a finished date on read.
+  useEffect(() => {
+    refreshProfile()
+  }, [refreshProfile])
 
   const visibleItems = navItems.filter(item => !item.adminOnly || isAdmin)
 

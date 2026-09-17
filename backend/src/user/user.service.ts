@@ -527,7 +527,10 @@ export class UserService {
       }
     }
 
-    // Resolve active cleanup context
+    // Resolve active cleanup context. A date that is over is stale — nothing else
+    // clears it until the user deactivates it by hand or uploads their next spot,
+    // so expire it here. Only on end_at: creating a cleanup activates its date even
+    // when it starts later (CleanupService.createCleanup), and that must survive.
     if (user.active_cleanup_date_id) {
       const [cleanupRow] = await this.userRepository.query(
         `SELECT c.name AS cleanup_name, cd.start_at, cd.end_at, cd.location_name
@@ -536,7 +539,10 @@ export class UserService {
          WHERE cd.id = $1`,
         [user.active_cleanup_date_id],
       );
-      if (cleanupRow) {
+      if (!cleanupRow || new Date() > new Date(cleanupRow.end_at)) {
+        await this.userRepository.update({ id: userId }, { active_cleanup_date_id: null, updated_by: userId });
+        result.active_cleanup_date_id = null;
+      } else {
         result.active_cleanup_name = cleanupRow.cleanup_name;
         result.active_cleanup_location = cleanupRow.location_name;
         result.active_cleanup_start_at = cleanupRow.start_at;
