@@ -4,6 +4,7 @@ import { useAuthStore } from './authStore'
 import { trackEvent } from '../lib/analytics'
 import { datetimeLocalToIso } from '../utils/datetime'
 import { API_BASE, getAuthHeaders } from '../lib/apiBase'
+import { shouldFallBackToPast, type CleanupCounts, type CleanupStatus } from '../lib/cleanupStatus'
 
 interface CleanupSummary {
   id: string
@@ -54,16 +55,15 @@ interface CleanupMessage {
   author?: { nickname: string; avatarEmailId: string | null; uploadedAvatarUpdatedAt: string | null }
 }
 
-export type CleanupStatus = 'past' | 'ongoing' | 'future'
-
 interface CleanupState {
   cleanups: CleanupSearchResult[]
   cleanupTotal: number
-  cleanupCounts: { past: number; ongoing: number; future: number } | null
+  cleanupCounts: CleanupCounts | null
   myCleanups: CleanupSearchResult[]
   currentCleanup: CleanupDetail | null
   messages: CleanupMessage[]
   statusFilter: Set<CleanupStatus>
+  statusFallbackChecked: boolean
   isLoading: boolean
   isLoadingMessages: boolean
   error: string | null
@@ -118,6 +118,7 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   currentCleanup: null,
   messages: [],
   statusFilter: new Set<CleanupStatus>(['ongoing', 'future']),
+  statusFallbackChecked: false,
   isLoading: false,
   isLoadingMessages: false,
   error: null,
@@ -133,6 +134,14 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
       const response = await axios.get(`${API_BASE}/cleanups/search?${params}`, { headers: getAuthHeaders() })
       const { items, total, counts } = response.data
       set({ cleanups: items, cleanupTotal: total, cleanupCounts: counts, isLoading: false })
+      // Once per session, and only on the first response — a user who later
+      // unchecks past themselves must not have it forced back on.
+      if (!get().statusFallbackChecked) {
+        set({ statusFallbackChecked: true })
+        if (shouldFallBackToPast(get().statusFilter, counts, items.length)) {
+          set({ statusFilter: new Set<CleanupStatus>([...get().statusFilter, 'past']) })
+        }
+      }
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to load cleanups', isLoading: false })
     }
