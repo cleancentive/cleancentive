@@ -110,11 +110,7 @@ export function CleanupList() {
     }
   }
 
-  const visibleCleanups = cleanups.filter(c => {
-    if (myFilter && c.userRole === null) return false
-    if (activeCleanupDateId && c.nearestDate?.id !== activeCleanupDateId) return false
-    return true
-  })
+  const visibleCleanups = cleanups.filter(c => !myFilter || c.userRole !== null)
 
   return (
     <CommunityList
@@ -209,11 +205,7 @@ export function CleanupList() {
         </form>
       )}
 
-      {cleanups.filter(c => {
-        if (myFilter && c.userRole === null) return false
-        if (activeCleanupDateId && c.nearestDate?.id !== activeCleanupDateId) return false
-        return true
-      }).map(({ cleanup, nearestDate, userRole }) => {
+      {visibleCleanups.map(({ cleanup, nearestDate, userRole }) => {
         const isActive = nearestDate && activeCleanupDateId === nearestDate.id
         return (
           <CommunityCard
