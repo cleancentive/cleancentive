@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import axios from 'axios'
-import { useAuthStore } from './authStore'
 import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 
 interface FeedbackSummary {
@@ -81,10 +80,8 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
   submitFeedback: async (data) => {
     set({ isSubmitting: true, error: null })
     try {
-      const guestId = useAuthStore.getState().guestId
       await axios.post(`${API_BASE}/feedback`, {
         ...data,
-        guestId,
       }, { headers: getAuthHeaders() })
       set({ isSubmitting: false, isSubmitted: true })
     } catch (err: any) {
@@ -95,10 +92,7 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
   fetchMyFeedback: async () => {
     set({ isLoadingMine: true })
     try {
-      const guestId = useAuthStore.getState().guestId
-      const params = new URLSearchParams()
-      if (guestId) params.set('guestId', guestId)
-      const response = await axios.get(`${API_BASE}/feedback/mine?${params}`, { headers: getAuthHeaders() })
+      const response = await axios.get(`${API_BASE}/feedback/mine`, { headers: getAuthHeaders() })
       set({ myFeedback: response.data, isLoadingMine: false })
     } catch {
       set({ isLoadingMine: false })
@@ -108,10 +102,7 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
   fetchFeedbackDetail: async (id) => {
     set({ isLoadingDetail: true, activeFeedback: null })
     try {
-      const guestId = useAuthStore.getState().guestId
-      const params = new URLSearchParams()
-      if (guestId) params.set('guestId', guestId)
-      const response = await axios.get(`${API_BASE}/feedback/${id}?${params}`, { headers: getAuthHeaders() })
+      const response = await axios.get(`${API_BASE}/feedback/${id}`, { headers: getAuthHeaders() })
       set({ activeFeedback: response.data, isLoadingDetail: false })
     } catch {
       set({ isLoadingDetail: false })
@@ -120,8 +111,7 @@ export const useFeedbackStore = create<FeedbackState>((set, get) => ({
 
   addResponse: async (id, message) => {
     try {
-      const guestId = useAuthStore.getState().guestId
-      await axios.post(`${API_BASE}/feedback/${id}/responses`, { message, guestId }, { headers: getAuthHeaders() })
+      await axios.post(`${API_BASE}/feedback/${id}/responses`, { message }, { headers: getAuthHeaders() })
       await get().fetchFeedbackDetail(id)
     } catch (err: any) {
       set({ error: err.response?.data?.message || 'Failed to send response' })

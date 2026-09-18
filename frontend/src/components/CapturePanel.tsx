@@ -52,7 +52,7 @@ function notifyPicksChanged() {
 
 export function CapturePanel() {
   const { t } = useTranslation(['spot', 'common'])
-  const { user, sessionToken, guestId } = useAuthStore()
+  const { user, sessionToken, guestToken, guestId } = useAuthStore()
   const { isOnline } = useConnectivityStore()
   const { cleanups, activateDate: activateCleanupDate } = useCleanupStore()
 
@@ -131,11 +131,12 @@ export function CapturePanel() {
     await flushOutbox({
       apiBase: API_BASE,
       sessionToken,
+      guestToken,
       currentUserId: user?.id || null,
       currentGuestId: guestId,
       isOnline: () => useConnectivityStore.getState().isOnline,
     })
-  }, [guestId, sessionToken, user?.id])
+  }, [guestId, guestToken, sessionToken, user?.id])
 
   useEffect(() => {
     if (isOnline) {

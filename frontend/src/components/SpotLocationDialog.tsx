@@ -1,10 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { formatCoord } from '@cleancentive/shared'
-import { useAuthStore } from '../stores/authStore'
 import { useCopyToClipboard } from '../lib/useCopyToClipboard'
 import { LocationPicker } from './LocationPicker'
-import { API_BASE } from '../lib/apiBase'
+import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 
 interface SpotLocationDialogProps {
   spotId: string
@@ -24,7 +23,6 @@ export function SpotLocationDialog({
   onCancel,
 }: SpotLocationDialogProps) {
   const { t } = useTranslation(['spot', 'common'])
-  const { sessionToken, guestId } = useAuthStore()
   const [latitude, setLatitude] = useState(String(initialLatitude))
   const [longitude, setLongitude] = useState(String(initialLongitude))
   const [pastedAccuracy, setPastedAccuracy] = useState<number | null>(null)
@@ -46,12 +44,9 @@ export function SpotLocationDialog({
     if (!coordsValid) return
     setSaving(true)
     setSaveError(null)
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
-    const params = new URLSearchParams()
-    if (!sessionToken && guestId) params.set('guestId', guestId)
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...getAuthHeaders() }
     try {
-      const res = await fetch(`${API_BASE}/spots/${spotId}?${params}`, {
+      const res = await fetch(`${API_BASE}/spots/${spotId}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify({

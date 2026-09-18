@@ -1,6 +1,4 @@
-import { useAuthStore } from '../stores/authStore'
-
-import { API_BASE } from './apiBase'
+import { API_BASE, getAuthHeaders } from './apiBase'
 
 export type ClientEventType =
   | 'pick.upload.failed'
@@ -31,8 +29,6 @@ const MAX_MESSAGE_LENGTH = 256
 
 export function reportClientEvent(input: ClientEventInput): void {
   const occurredAt = new Date().toISOString()
-  const sessionToken = useAuthStore.getState().sessionToken
-  const guestId = useAuthStore.getState().guestId
 
   const body: Record<string, unknown> = {
     eventType: input.eventType,
@@ -49,14 +45,9 @@ export function reportClientEvent(input: ClientEventInput): void {
     body.identityHint = input.identityHint
   }
 
-  if (!sessionToken && guestId) {
-    body.guestId = guestId
-  }
-
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (sessionToken) {
-    headers.Authorization = `Bearer ${sessionToken}`
-  }
+  // Identity rides in the token — a guest carries one too. It used to be a
+  // `guestId` field in the body, which anyone could set to somebody else.
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...getAuthHeaders() }
 
   // Best-effort, never throw, never retry, never queue.
   void fetch(`${API_BASE}/client-events`, {

@@ -1,6 +1,7 @@
-import { Controller, Get, Put, Delete, Body, UseGuards, Request, Param, Query, BadRequestException, PayloadTooLargeException, ParseUUIDPipe, HttpCode, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Put, Delete, Body, UseGuards, Request, Param, Query, BadRequestException, PayloadTooLargeException, ParseUUIDPipe, UploadedFile, UseFilters, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { GuestOrUserAuthGuard } from '../auth/guest-or-user-auth.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MulterExceptionFilter } from '../common/multer-exception.filter';
 import { UserService } from './user.service';
@@ -95,7 +96,11 @@ export class UserProfileController {
     return this.userService.removeUploadedAvatar(req.user.userId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  // Guests may delete their own data too, which is why this one guard is the
+  // permissive kind. It used to be reachable as DELETE /user/guest/:guestId
+  // with no credential at all, so passing any user id — they are public —
+  // deleted that person's account.
+  @UseGuards(GuestOrUserAuthGuard)
   @Delete('profile')
   async deleteOrAnonymizeAccount(
     @Request() req: any,
@@ -105,22 +110,6 @@ export class UserProfileController {
       await this.userService.deleteAccount(req.user.userId);
     } else if (mode === 'anonymize') {
       await this.userService.anonymizeAccount(req.user.userId);
-    } else {
-      throw new BadRequestException('mode must be "delete" or "anonymize"');
-    }
-    return { success: true };
-  }
-
-  @Delete('guest/:guestId')
-  @HttpCode(200)
-  async deleteGuestData(
-    @Param('guestId', ParseUUIDPipe) guestId: string,
-    @Query('mode') mode: string,
-  ): Promise<{ success: boolean }> {
-    if (mode === 'delete') {
-      await this.userService.deleteAccount(guestId);
-    } else if (mode === 'anonymize') {
-      await this.userService.anonymizeAccount(guestId);
     } else {
       throw new BadRequestException('mode must be "delete" or "anonymize"');
     }

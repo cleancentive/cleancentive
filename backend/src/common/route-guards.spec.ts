@@ -20,6 +20,7 @@ const PUBLIC_ROUTES = new Set([
   // Sign-in and account recovery: the credential is the emailed link itself.
   'POST /auth/magic-link',
   'GET /auth/verify',
+  'POST /auth/guest',
   'GET /auth/pending/:requestId',
   'GET /auth/verify-email',
   'GET /auth/merge-confirm',
@@ -52,18 +53,10 @@ const PUBLIC_ROUTES = new Set([
 ]);
 
 /**
- * Routes that trust a client-supplied `guestId` instead of a credential, plus
- * the two that still take an unvalidated `user_id`. Each is fixed by a later
+ * The last routes with no credential of their own. Each is fixed by a later
  * commit in the same series; this list must only ever shrink.
  */
 const PENDING_HARDENING = new Set([
-  'POST /spots',
-  'GET /spots',
-  'GET /spots/:id',
-  'PATCH /spots/:id',
-  'DELETE /spots/:id',
-  'POST /spots/:id/retry',
-  'DELETE /user/guest/:guestId',
   'GET /insights/map',
   'GET /insights/stats',
   'GET /oidc/callback',

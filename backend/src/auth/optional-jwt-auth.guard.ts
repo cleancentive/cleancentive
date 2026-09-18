@@ -8,7 +8,9 @@ export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
   }
 
   handleRequest(err: any, user: any) {
-    // Don't throw on missing/invalid token — just return null
+    // Don't throw on missing/invalid token — just return null. A guest token
+    // resolves like any other, so `req.user.isGuest` tells the handler which
+    // kind of caller it has.
     return user || null;
   }
 }

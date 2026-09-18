@@ -76,6 +76,37 @@ export class UserService {
     return user.nickname === 'guest' && (user.emails?.length ?? 0) === 0;
   }
 
+  /**
+   * Claim a guest id for a server-issued session token, once.
+   *
+   * Ids created by the old client-side flow are already in people's
+   * localStorage and hold their picks, so they are honoured — but only the
+   * first time, or a leaked id would be exchangeable by anyone who saw it. The
+   * short grace window is for a browser opening two tabs at once on the first
+   * load after the change; without it the second tab would be handed a fresh
+   * empty identity and overwrite the first.
+   */
+  async claimGuestId(id: string): Promise<boolean> {
+    if (!(await this.isUnclaimedGuest(id))) return false;
+
+    const user = await this.userRepository.findOne({
+      where: { id },
+      select: ['id', 'guest_token_issued_at'],
+    });
+
+    // No row yet: nothing has been claimed, and the row appears on first write.
+    if (!user) return true;
+
+    if (user.guest_token_issued_at) {
+      const graceMs = 60 * 1000;
+      if (Date.now() - user.guest_token_issued_at.getTime() > graceMs) return false;
+      return true;
+    }
+
+    await this.userRepository.update({ id }, { guest_token_issued_at: new Date() });
+    return true;
+  }
+
   async findByNickname(nickname: string): Promise<User | null> {
     return this.userRepository.findOne({
       where: { nickname },

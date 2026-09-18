@@ -61,7 +61,7 @@ graph TD
 
 | Module | Responsibility |
 |--------|---------------|
-| Auth | Passwordless magic link authentication, JWT session management, guest account creation |
+| Auth | Passwordless magic link authentication, JWT session management, guest session issuance |
 | User | User entity management (profiles, nicknames), email associations, account lifecycle |
 | Spot | Geolocated litter spot persistence, detection queue management, detection status tracking |
 | Cleanup | Community cleanup coordination: cleanup lifecycle, date scheduling with geolocation, participant roles (admin/member), messaging |

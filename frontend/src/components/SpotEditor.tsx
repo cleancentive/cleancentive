@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '../stores/authStore'
 import { ItemEditor, type DetectedItemData } from './ItemEditor'
 
-import { API_BASE } from '../lib/apiBase'
+import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 import { requestErrorMessage, throwIfNotOk } from '../lib/apiFetch'
 
 interface SpotEditorProps {
@@ -17,7 +16,6 @@ interface SpotEditorProps {
 
 export function SpotEditor({ spotId, pickedUp, items, subjectKind = 'litter', onSave, onCancel }: SpotEditorProps) {
   const { t } = useTranslation(['spot', 'common'])
-  const { sessionToken, guestId } = useAuthStore()
   const [currentPickedUp, setCurrentPickedUp] = useState(pickedUp)
   const [savingMeta, setSavingMeta] = useState(false)
   const [addingItem, setAddingItem] = useState(false)
@@ -32,8 +30,7 @@ export function SpotEditor({ spotId, pickedUp, items, subjectKind = 'litter', on
   const addItem = async () => {
     setAddingItem(true)
     setActionError(null)
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...getAuthHeaders() }
 
     try {
       const res = await fetch(`${API_BASE}/spots/${spotId}/items`, {
@@ -53,14 +50,11 @@ export function SpotEditor({ spotId, pickedUp, items, subjectKind = 'litter', on
   const saveMetadata = async () => {
     setSavingMeta(true)
     setActionError(null)
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-    if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...getAuthHeaders() }
 
-    const params = new URLSearchParams()
-    if (!sessionToken && guestId) params.set('guestId', guestId)
 
     try {
-      const res = await fetch(`${API_BASE}/spots/${spotId}?${params}`, {
+      const res = await fetch(`${API_BASE}/spots/${spotId}`, {
         method: 'PATCH',
         headers,
         body: JSON.stringify({ pickedUp: currentPickedUp }),

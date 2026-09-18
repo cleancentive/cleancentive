@@ -42,7 +42,6 @@ const ALLOWED_TOP_LEVEL_KEYS = new Set([
   'status',
   'message',
   'identityHint',
-  'guestId',
 ]);
 
 const MAX_BODY_BYTES = 1024;
@@ -58,7 +57,6 @@ interface RawBody {
   status?: unknown;
   message?: unknown;
   identityHint?: unknown;
-  guestId?: unknown;
 }
 
 function checkRateLimit(key: string): void {
@@ -178,17 +176,13 @@ export class ClientEventsController {
 
     const payload = validatePayload(body);
 
-    const userId: string | undefined = req.user?.userId;
-    const guestId =
-      typeof body.guestId === 'string' && body.guestId.length > 0 ? body.guestId : undefined;
+    // Identity comes from the token. It used to be readable off the body,
+    // where anyone could label their events as somebody else.
+    const identity = req.user?.userId
+      ? `${req.user.isGuest ? 'guest' : 'user'}:${req.user.userId}`
+      : 'anonymous';
 
-    const identity = userId
-      ? `user:${userId}`
-      : guestId
-        ? `guest:${guestId}`
-        : 'anonymous';
-
-    const rateLimitKey = userId || guestId || req.ip || 'anonymous';
+    const rateLimitKey = req.user?.userId || req.ip || 'anonymous';
     checkRateLimit(rateLimitKey);
 
     this.service.record({ ...payload, identity });

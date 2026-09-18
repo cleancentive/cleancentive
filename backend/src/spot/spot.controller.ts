@@ -15,7 +15,6 @@ import {
   Req,
   Res,
   StreamableFile,
-  UnauthorizedException,
   UploadedFiles,
   UseFilters,
   UseGuards,
@@ -25,12 +24,14 @@ import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
 import { MulterExceptionFilter } from '../common/multer-exception.filter';
 import { SpotService } from './spot.service';
-import { AuthService } from '../auth/auth.service';
 import { UserService } from '../user/user.service';
+import { GuestOrUserAuthGuard } from '../auth/guest-or-user-auth.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
+import { AdminGuard } from '../admin/admin.guard';
 import { ApiTags } from '@nestjs/swagger';
 import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters, lookupInvasive } from '@cleancentive/shared';
+import type { AuthenticatedUser } from '../auth/jwt.strategy';
 
 type UploadFiles = {
   image?: Array<{ buffer: Buffer; mimetype: string; size: number }>;
@@ -87,7 +88,6 @@ export class SpotController {
 
   constructor(
     private readonly spotService: SpotService,
-    private readonly authService: AuthService,
     private readonly userService: UserService,
   ) {}
 
@@ -139,40 +139,24 @@ export class SpotController {
     };
   }
 
-  private async resolveAuthUserId(authHeader: string | undefined): Promise<string> {
-    if (!authHeader?.startsWith('Bearer ')) {
-      throw new UnauthorizedException('Authorization header is required');
+  /**
+   * The owner of whatever this request creates or touches.
+   *
+   * Guests reach these routes with a guest token rather than a `guestId`
+   * parameter, so the caller no longer chooses whose data this is. The row for
+   * a guest is still created lazily, on their first write.
+   */
+  private async resolveOwner(user: AuthenticatedUser): Promise<string> {
+    if (user.isGuest) {
+      const guest = await this.userService.findOrCreateGuest(user.userId);
+      return guest.id;
     }
-    const token = authHeader.slice('Bearer '.length).trim();
-    if (!token) {
-      throw new UnauthorizedException('Invalid Authorization header');
-    }
-    try {
-      const payload = await this.authService.validateSessionToken(token);
-      return payload.sub;
-    } catch {
-      throw new UnauthorizedException('Invalid session token');
-    }
-  }
-
-  private requireGuestId(guestId: string | undefined): string {
-    if (!guestId) {
-      throw new BadRequestException('guestId is required when not authenticated');
-    }
-    return guestId;
-  }
-
-  private async resolveUserIdWithCreate(authHeader: string | undefined, guestId: string | undefined): Promise<string> {
-    if (authHeader?.startsWith('Bearer ')) {
-      return this.resolveAuthUserId(authHeader);
-    }
-    const id = this.requireGuestId(guestId);
-    const guest = await this.userService.findOrCreateGuest(id);
-    return guest.id;
+    return user.userId;
   }
 
   @Post()
   @HttpCode(202)
+  @UseGuards(GuestOrUserAuthGuard)
   @UseFilters(MulterExceptionFilter)
   @UseInterceptors(
     FileFieldsInterceptor(
@@ -213,7 +197,6 @@ export class SpotController {
         ? parseFloat(rawAccuracy)
         : null;
     const capturedAt = new Date(body.capturedAt || '');
-    const guestId = body.guestId?.trim();
     const pickedUp = body.pickedUp === undefined ? true : body.pickedUp !== 'false';
     const cleanupId = body.cleanupId?.trim() || null;
     const cleanupDateId = body.cleanupDateId?.trim() || null;
@@ -238,7 +221,7 @@ export class SpotController {
       throw new BadRequestException('capturedAt must be a valid ISO date');
     }
 
-    const userId = await this.resolveUserIdWithCreate(req.headers.authorization, guestId);
+    const userId = await this.resolveOwner((req as any).user);
 
     const result = await this.spotService.createSpot({
       userId,
@@ -264,23 +247,12 @@ export class SpotController {
   }
 
   @Get(':id')
+  @UseGuards(GuestOrUserAuthGuard)
   async getSpotStatus(
     @Param('id', ParseUUIDPipe) spotId: string,
-    @Req() req: Request,
-    @Query('guestId') guestId?: string,
+    @Req() req: any,
   ): Promise<SpotDto> {
-    let spot;
-
-    if (req.headers.authorization?.startsWith('Bearer ')) {
-      const userId = await this.resolveAuthUserId(req.headers.authorization);
-      spot = await this.spotService.getSpotStatus(spotId, userId);
-    } else {
-      if (!guestId) {
-        throw new BadRequestException('guestId is required when not authenticated');
-      }
-      spot = await this.spotService.getSpotStatusForGuest(spotId, guestId);
-    }
-
+    const spot = await this.spotService.getSpotStatus(spotId, req.user.userId);
     return this.toSpotDto(spot);
   }
 
@@ -311,9 +283,9 @@ export class SpotController {
   }
 
   @Get()
+  @UseGuards(GuestOrUserAuthGuard)
   async listSpots(
-    @Req() req: Request,
-    @Query('guestId') guestId?: string,
+    @Req() req: any,
     @Query('limit') limitQuery?: string,
     @Query('picked_up') pickedUpQuery?: string,
     @Query('since') sinceQuery?: string,
@@ -328,17 +300,11 @@ export class SpotController {
     const since = sinceQuery && !Number.isNaN(new Date(sinceQuery).getTime()) ? sinceQuery : undefined;
     const before = beforeQuery && beforeQuery.includes('|') ? beforeQuery : undefined;
 
-    const page = req.headers.authorization?.startsWith('Bearer ')
-      ? await this.spotService.listSpotsForUser(
-        await this.resolveAuthUserId(req.headers.authorization),
-        limit,
-        { pickedUp, since, before },
-      )
-      : await this.spotService.listSpotsForGuest(
-        this.requireGuestId(guestId),
-        limit,
-        { pickedUp, since, before },
-      );
+    const page = await this.spotService.listSpotsForUser(
+      req.user.userId,
+      limit,
+      { pickedUp, since, before },
+    );
 
     return {
       spots: page.items.map((spot) => this.toSpotDto(spot)),
@@ -354,35 +320,27 @@ export class SpotController {
 
   @Post(':id/retry')
   @HttpCode(202)
+  @UseGuards(GuestOrUserAuthGuard)
   async retryDetection(
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: Request,
-    @Query('guestId') guestId?: string,
+    @Req() req: any,
   ): Promise<{ status: string }> {
-    const userId = req.headers.authorization?.startsWith('Bearer ')
-      ? await this.resolveAuthUserId(req.headers.authorization)
-      : this.requireGuestId(guestId);
-    await this.spotService.retryDetection(id, userId);
+    await this.spotService.retryDetection(id, req.user.userId);
     return { status: PROCESSING_STATUS.QUEUED };
   }
 
   @Delete(':id')
   @HttpCode(204)
+  @UseGuards(GuestOrUserAuthGuard)
   async deleteSpot(
     @Param('id', ParseUUIDPipe) id: string,
-    @Req() req: Request,
-    @Query('guestId') guestId?: string,
+    @Req() req: any,
   ): Promise<void> {
-    if (req.headers.authorization?.startsWith('Bearer ')) {
-      const userId = await this.resolveAuthUserId(req.headers.authorization);
-      await this.spotService.deleteSpot(id, userId);
-    } else {
-      const guest = this.requireGuestId(guestId);
-      await this.spotService.deleteSpot(id, guest);
-    }
+    await this.spotService.deleteSpot(id, req.user.userId);
   }
 
   @Patch(':id')
+  @UseGuards(GuestOrUserAuthGuard)
   async updateSpot(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: {
@@ -393,15 +351,9 @@ export class SpotController {
       longitude?: number;
       accuracyMeters?: number | null;
     },
-    @Req() req: Request,
-    @Query('guestId') guestId?: string,
+    @Req() req: any,
   ): Promise<SpotDto> {
-    let userId: string;
-    if (req.headers.authorization?.startsWith('Bearer ')) {
-      userId = await this.resolveAuthUserId(req.headers.authorization);
-    } else {
-      userId = this.requireGuestId(guestId);
-    }
+    const userId = req.user.userId;
 
     const latProvided = body.latitude !== undefined;
     const lngProvided = body.longitude !== undefined;
@@ -440,7 +392,10 @@ export class SpotController {
     };
   }
 
-  @UseGuards(JwtAuthGuard)
+  // Marks detections as reviewed by a steward, which is what the model
+  // agreement rate on the review page is computed from. Any signed-in user
+  // could do it, so anyone could quietly corrupt that measurement.
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post(':spotId/confirm-detection')
   async confirmDetection(@Param('spotId', ParseUUIDPipe) spotId: string, @Req() req: any) {
     return this.spotService.confirmDetection(spotId, req.user.userId);

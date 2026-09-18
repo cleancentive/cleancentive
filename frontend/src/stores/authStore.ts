@@ -42,6 +42,14 @@ interface CrossDeviceSignIn {
 interface AuthState {
   user: User | null
   sessionToken: string | null
+  /**
+   * Signed session for an anonymous visitor. Guests used to be identified by a
+   * uuid this browser made up and sent as a `guestId` parameter — and since
+   * user ids are public, anyone could send somebody else's. A guest now
+   * authenticates like everyone else; `guestId` below is only the id inside
+   * this token, kept for display and for deciding what the UI shows.
+   */
+  guestToken: string | null
   guestId: string | null
   isLoading: boolean
   error: string | null
@@ -222,6 +230,7 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       sessionToken: null,
+      guestToken: null,
       guestId: null,
       isLoading: false,
       error: null,
@@ -238,18 +247,29 @@ export const useAuthStore = create<AuthState>()(
           return
         }
 
-        const existingGuestId = get().guestId || localStorage.getItem('guestId')
-        if (existingGuestId) {
-          localStorage.setItem('guestId', existingGuestId)
-          set({ guestId: existingGuestId, guestReady: true })
+        if (get().guestToken && get().guestId) {
+          set({ guestReady: true })
           return
         }
 
-        // Generate a client-side UUIDv7 — no server call needed.
-        // The DB row is created lazily on the first write (e.g., claiming via magic link).
-        const newGuestId = uuidv7()
-        localStorage.setItem('guestId', newGuestId)
-        set({ guestId: newGuestId, guestReady: true })
+        // Pick the id here and show the app straight away, as before — the app
+        // is usable offline and must not wait on a round trip. The server is
+        // asked to confirm it and hand back a signed token; it returns this
+        // same id unless the id is already somebody's account, so picks queued
+        // in the meantime keep the owner they were queued under.
+        const knownGuestId = get().guestId || localStorage.getItem('guestId') || uuidv7()
+        localStorage.setItem('guestId', knownGuestId)
+        set({ guestId: knownGuestId, guestReady: true })
+
+        try {
+          const response = await axios.post(`${API_BASE}/auth/guest`, { guestId: knownGuestId })
+          const { token, userId } = response.data as { token: string; userId: string }
+          localStorage.setItem('guestId', userId)
+          set({ guestToken: token, guestId: userId })
+        } catch {
+          // Offline, or the API is down. Picks keep queueing locally against
+          // the id above and sync once a token can be fetched.
+        }
       },
 
       login: async (email: string) => {
@@ -257,12 +277,10 @@ export const useAuthStore = create<AuthState>()(
         clearPolling()
 
         try {
-          let { guestId } = get()
-          if (!guestId) {
-            guestId = uuidv7()
-            localStorage.setItem('guestId', guestId)
-            set({ guestId, guestReady: true })
+          if (!get().guestToken) {
+            await get().initializeGuest()
           }
+          const { guestId } = get()
           const response = await axios.post(`${API_BASE}/auth/magic-link`, { email, guestId })
           set({ isLoading: false })
 
@@ -301,6 +319,7 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: profileResponse.data,
             sessionToken,
+            guestToken: null,
             guestId: null,
             isLoading: false
           })
@@ -380,6 +399,7 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           sessionToken: null,
+          guestToken: null,
           guestId: null,
           guestReady: false,
           error: null,
@@ -590,6 +610,7 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: null,
             sessionToken: null,
+            guestToken: null,
             guestId: null,
             guestReady: false,
             isLoading: false,
@@ -618,6 +639,7 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: null,
             sessionToken: null,
+            guestToken: null,
             guestId: null,
             guestReady: false,
             isLoading: false,
@@ -633,25 +655,30 @@ export const useAuthStore = create<AuthState>()(
       },
 
       deleteGuestData: async (mode: 'delete' | 'anonymize') => {
-        const { guestId } = get()
-        if (!guestId) return
+        const { guestToken } = get()
+        if (!guestToken) return
 
         set({ isLoading: true, error: null })
 
         try {
-          await axios.delete(`${API_BASE}/user/guest/${guestId}?mode=${mode}`)
+          // The guest's own token, not an id in the path: DELETE
+          // /user/guest/:guestId took whatever id it was handed and would
+          // happily delete a registered account.
+          await axios.delete(`${API_BASE}/user/profile?mode=${mode}`, {
+            headers: { Authorization: `Bearer ${guestToken}` },
+          })
           clearPolling()
           localStorage.removeItem('guestId')
-          const newGuestId = uuidv7()
-          localStorage.setItem('guestId', newGuestId)
           set({
             user: null,
             sessionToken: null,
-            guestId: newGuestId,
-            guestReady: true,
+            guestToken: null,
+            guestId: null,
+            guestReady: false,
             isLoading: false,
             error: null
           })
+          await get().initializeGuest()
           useUiStore.getState().setPickCount(0)
         } catch (error: any) {
           set({
@@ -718,6 +745,7 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         sessionToken: state.sessionToken,
+        guestToken: state.guestToken,
         guestId: state.guestId
       })
     }
@@ -744,6 +772,7 @@ export function installAuthBroadcastListener(): void {
     useAuthStore.setState({
       user: data.user,
       sessionToken: data.sessionToken,
+      guestToken: null,
       guestId: null,
       isLoading: false,
       error: null,

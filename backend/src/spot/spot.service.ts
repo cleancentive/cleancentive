@@ -349,10 +349,6 @@ export class SpotService {
     return this.fetchSpotByOwner(spotId, userId);
   }
 
-  async getSpotStatusForGuest(spotId: string, guestId: string): Promise<Spot> {
-    return this.fetchSpotByOwner(spotId, guestId);
-  }
-
   async getSpotPublic(spotId: string): Promise<Spot> {
     const spot = await this.spotRepository.findOne({
       where: { id: spotId },
@@ -372,14 +368,6 @@ export class SpotService {
     filters?: SpotListFilters,
   ): Promise<SpotListPage> {
     return this.listSpotsWithFilters(userId, limit, filters);
-  }
-
-  async listSpotsForGuest(
-    guestId: string,
-    limit: number,
-    filters?: SpotListFilters,
-  ): Promise<SpotListPage> {
-    return this.listSpotsWithFilters(guestId, limit, filters);
   }
 
   private async listSpotsWithFilters(

@@ -163,6 +163,10 @@ A user-submitted bug report, suggestion, or question. Creates a private conversa
 
 An anonymous user browsing without an account. Can capture photos but progress is not saved across devices.
 
+Technically a guest holds a server-issued guest session, like any other signed-in
+identity — not a browser-generated id passed as a parameter. Guests are refused
+anywhere an account is required.
+
 ### Magic Link
 
 Passwordless email authentication. A secure link sent to the user's email to sign in.

@@ -11,9 +11,11 @@ import { AdminService } from '../admin/admin.service';
 import { PendingAuthRequest, PendingAuthStatus } from './pending-auth-request.entity';
 import { DeviceCode, DeviceCodeStatus } from './device-code.entity';
 import { resolveFrontendUrl } from '../common/allowed-origins';
-import { MAGIC_LINK_TTL } from './jwt-config';
+import { GUEST_SESSION_TTL, MAGIC_LINK_TTL } from './jwt-config';
 import { isMagicLinkPayload, isSessionPayload, type TokenPayload } from './token-claims';
 import type { RequestMetadata } from './request-metadata';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface PendingSignInSummary {
   requestId: string;
@@ -138,6 +140,10 @@ export class AuthService {
         // is not on it. Nothing here is safe to attach.
         throw new UnauthorizedException('Invalid or expired magic link');
       }
+      // Guest rows are created on first write, and this is it: the request step
+      // no longer writes anything, so a guest claiming an account for the first
+      // time has no row yet.
+      await this.userService.findOrCreateGuest(userId);
       await this.userService.validateAndAssociateEmail(userId, email);
     }
 
@@ -347,6 +353,28 @@ export class AuthService {
       if (error.message === 'Invalid token purpose') throw error;
       throw new Error('Invalid or expired merge confirmation link');
     }
+  }
+
+  /**
+   * Hand an anonymous visitor a session of their own.
+   *
+   * Guests used to be identified by a uuid the browser made up and sent as a
+   * plain `guestId` parameter on every request. Since user ids are public —
+   * they appear on spot pages and member lists — anyone could pass someone
+   * else's id and read, edit or delete their picks. A guest now carries a
+   * signed token like everybody else.
+   *
+   * An id already in localStorage is honoured once so existing guests keep
+   * their picks; see UserService.claimGuestId.
+   */
+  async issueGuestToken(guestId?: string): Promise<{ token: string; userId: string }> {
+    const isUuid = typeof guestId === 'string' && UUID_PATTERN.test(guestId);
+    const userId = isUuid && (await this.userService.claimGuestId(guestId)) ? guestId : uuidv4();
+
+    // No row is created here. It appears on the first write, as it always has,
+    // so a visitor who only looks around leaves nothing behind.
+    const token = this.jwtService.sign({ sub: userId, typ: 'guest' }, { expiresIn: GUEST_SESSION_TTL });
+    return { token, userId };
   }
 
   async generateSessionToken(userId: string): Promise<string> {

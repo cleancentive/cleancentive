@@ -54,6 +54,8 @@ interface QueueCaptureInput {
 interface FlushContext {
   apiBase: string
   sessionToken: string | null
+  /** Guest session, for a visitor who has not claimed an account yet. */
+  guestToken?: string | null
   currentUserId: string | null
   currentGuestId: string | null
   isOnline?: () => boolean
@@ -366,13 +368,12 @@ async function uploadItem(item: OutboxItem, context: FlushContext): Promise<void
     formData.append('cleanupDateId', item.cleanupDateId)
   }
 
-  if (!context.sessionToken && item.ownerGuestId) {
-    formData.append('guestId', item.ownerGuestId)
-  }
-
+  // A guest uploads with their own signed token. This used to be a `guestId`
+  // form field naming whichever account the caller chose.
   const headers: Record<string, string> = {}
-  if (context.sessionToken) {
-    headers.Authorization = `Bearer ${context.sessionToken}`
+  const bearer = context.sessionToken ?? context.guestToken
+  if (bearer) {
+    headers.Authorization = `Bearer ${bearer}`
   }
 
   const response = await fetch(`${context.apiBase}/spots`, {

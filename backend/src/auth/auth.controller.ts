@@ -32,6 +32,14 @@ export class AuthController {
     return { success: true, requestId: result?.requestId };
   }
 
+  @Post('guest')
+  @ApiOperation({ summary: 'Issue a guest session for an anonymous visitor' })
+  async createGuestSession(
+    @Body('guestId') guestId?: string,
+  ): Promise<{ token: string; userId: string }> {
+    return this.authService.issueGuestToken(guestId);
+  }
+
   @Get('verify')
   async verifyMagicLink(@Query('token') token: string, @Res() res: Response): Promise<void> {
     const { userId, email, requestId, pendingSignIn } = await this.authService.verifyMagicLink(token);

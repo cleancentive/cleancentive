@@ -28,9 +28,19 @@ function makeService(opts: {
     saved: [] as Array<Record<string, any>>,
     updated: [] as Array<{ id: string; patch: Record<string, any> }>,
     deleted: [] as string[],
+    created: [] as string[],
   };
 
   const userService = {
+    findOrCreateGuest: async (id: string) => {
+      let user = users.find((u) => u.id === id);
+      if (!user) {
+        user = { id, nickname: 'guest', emails: [] };
+        users.push(user);
+        calls.created.push(id);
+      }
+      return user;
+    },
     findUserByEmail: async (email: string) =>
       users.find((u) => u.emails.some((e) => e.email === email)) ?? null,
     isUnclaimedGuest: async (id: string) => {
@@ -168,6 +178,21 @@ describe('verifyMagicLink', () => {
 
     expect(result.userId).toBe('guest-1');
     expect(calls.associated).toEqual([{ userId: 'guest-1', email: 'newcomer@example.com' }]);
+  });
+
+  test('creates the guest row first, since nothing was written at request time', async () => {
+    // Guest rows appear on first write. Issuing the link is no longer a write,
+    // so a brand-new visitor claiming an account has no row yet and the email
+    // insert fails on its foreign key.
+    const { service, calls } = makeService({ users: [] });
+
+    const result = await service.verifyMagicLink(
+      tokenFor({ sub: 'brand-new-guest', email: 'first@example.com', purpose: 'magic-link' }),
+    );
+
+    expect(result.userId).toBe('brand-new-guest');
+    expect(calls.created).toEqual(['brand-new-guest']);
+    expect(calls.associated).toEqual([{ userId: 'brand-new-guest', email: 'first@example.com' }]);
   });
 
   test('signs in to the account that owns the address when it was taken meanwhile', async () => {

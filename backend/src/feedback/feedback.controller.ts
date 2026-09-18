@@ -67,7 +67,6 @@ export class FeedbackController {
       category?: string;
       description?: string;
       contactEmail?: string;
-      guestId?: string;
       errorContext?: { url?: string; message?: string; userAgent?: string; stack?: string };
     },
   ) {
@@ -81,29 +80,26 @@ export class FeedbackController {
     const rateLimitKey = req.user?.userId || req.ip || 'anonymous';
     checkRateLimit(rateLimitKey);
 
+    // Identity comes from the token, not the body: a `guestId` the sender
+    // chose could name anyone, and guest feedback is readable by its guest id.
     return this.feedbackService.create({
       category: body.category as Category,
       description: body.description.trim(),
       contactEmail: body.contactEmail?.trim(),
-      userId: req.user?.userId,
-      guestId: body.guestId,
+      userId: req.user?.isGuest ? undefined : req.user?.userId,
+      guestId: req.user?.isGuest ? req.user.userId : undefined,
       errorContext: body.errorContext,
     });
   }
 
   @Get('mine')
   @UseGuards(OptionalJwtAuthGuard)
-  async getMyFeedback(
-    @Request() req: any,
-    @Query('guestId') guestId?: string,
-  ) {
-    if (req.user?.userId) {
-      return this.feedbackService.findByUser(req.user.userId);
+  async getMyFeedback(@Request() req: any) {
+    if (!req.user?.userId) return [];
+    if (req.user.isGuest) {
+      return this.feedbackService.findByGuest(req.user.userId);
     }
-    if (guestId) {
-      return this.feedbackService.findByGuest(guestId);
-    }
-    return [];
+    return this.feedbackService.findByUser(req.user.userId);
   }
 
   @Get('counts')
@@ -126,14 +122,16 @@ export class FeedbackController {
   async getOne(
     @Request() req: any,
     @Param('id', ParseUUIDPipe) id: string,
-    @Query('guestId') guestId?: string,
   ) {
     const feedback = await this.feedbackService.findOne(id);
 
-    // Check ownership unless admin
-    const isAdmin = req.user?.userId ? await this.adminService.isAdmin(req.user.userId) : false;
+    // Check ownership unless admin. The guest id is taken from the token, so
+    // quoting somebody else's no longer opens their conversation.
+    const isAdmin = req.user?.userId && !req.user.isGuest
+      ? await this.adminService.isAdmin(req.user.userId)
+      : false;
     if (!isAdmin) {
-      this.feedbackService.assertOwnership(feedback, req.user?.userId, guestId);
+      this.feedbackService.assertOwnership(feedback, req.user?.userId, req.user?.userId);
     }
 
     return feedback;
@@ -144,17 +142,19 @@ export class FeedbackController {
   async addResponse(
     @Request() req: any,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() body: { message?: string; guestId?: string },
+    @Body() body: { message?: string },
   ) {
     if (!body.message?.trim() || body.message.trim().length < 2) {
       throw new BadRequestException('message is required');
     }
 
-    const isAdmin = req.user?.userId ? await this.adminService.isAdmin(req.user.userId) : false;
+    const isAdmin = req.user?.userId && !req.user.isGuest
+      ? await this.adminService.isAdmin(req.user.userId)
+      : false;
 
     if (!isAdmin) {
       const feedback = await this.feedbackService.findOne(id);
-      this.feedbackService.assertOwnership(feedback, req.user?.userId, body.guestId);
+      this.feedbackService.assertOwnership(feedback, req.user?.userId, req.user?.userId);
     }
 
     return this.feedbackService.addResponse(id, body.message.trim(), isAdmin, req.user?.userId);

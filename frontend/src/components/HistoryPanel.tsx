@@ -12,7 +12,7 @@ import { CountdownButton } from './CountdownButton'
 import { SpotEditor } from './SpotEditor'
 import { SpotImage } from './SpotImage'
 
-import { API_BASE, spotOriginalUrl, spotThumbnailUrl } from '../lib/apiBase'
+import { API_BASE, getAuthHeaders, spotOriginalUrl, spotThumbnailUrl } from '../lib/apiBase'
 
 interface HistoryItem {
   id: string
@@ -194,7 +194,7 @@ function itemLabel(item: HistoryItem['items'][number], t: TFunction): string {
 
 export function HistoryPanel() {
   const { t } = useTranslation(['spot', 'common'])
-  const { sessionToken, guestId, user } = useAuthStore()
+  const { sessionToken, guestToken, guestId, user } = useAuthStore()
   const { isOnline } = useConnectivityStore()
   const [reports, setReports] = useState<HistoryItem[]>([])
   const [nextCursor, setNextCursor] = useState<string | null>(null)
@@ -225,9 +225,6 @@ export function HistoryPanel() {
 
   const buildRequestUrl = useCallback((cursor?: string) => {
     const params = new URLSearchParams({ limit: '50' })
-    if (!sessionToken && guestId) {
-      params.set('guestId', guestId)
-    }
     const pu = pickedUpFilterToParam(pickedUpFilter)
     if (pu) params.set('picked_up', pu)
     const since = presetToSince(datePreset)
@@ -235,10 +232,10 @@ export function HistoryPanel() {
     if (cursor) params.set('before', cursor)
 
     return `${API_BASE}/spots?${params.toString()}`
-  }, [sessionToken, guestId, pickedUpFilter, datePreset])
+  }, [pickedUpFilter, datePreset])
 
   const loadHistory = useCallback(async (cursor?: string) => {
-    if (!sessionToken && !guestId) {
+    if (!sessionToken && !guestToken) {
       setReports([])
       setNextCursor(null)
       return
@@ -248,12 +245,7 @@ export function HistoryPanel() {
     setError(null)
 
     try {
-      const headers: Record<string, string> = {}
-      if (sessionToken) {
-        headers.Authorization = `Bearer ${sessionToken}`
-      }
-
-      const response = await fetch(buildRequestUrl(cursor), { headers })
+      const response = await fetch(buildRequestUrl(cursor), { headers: getAuthHeaders() })
       if (!response.ok) {
         const body = await response.text()
         throw new Error(body || `${response.status} ${response.statusText}`)
@@ -273,7 +265,7 @@ export function HistoryPanel() {
     } finally {
       setIsLoading(false)
     }
-  }, [guestId, buildRequestUrl, sessionToken, t])
+  }, [buildRequestUrl, sessionToken, guestToken, t])
 
   const loadMore = useCallback(() => {
     if (!nextCursor || isLoading) return
@@ -286,25 +278,20 @@ export function HistoryPanel() {
   }, [])
 
   const retryDetection = useCallback(async (id: string) => {
-    const headers: Record<string, string> = {}
-    if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
-
-    const params = new URLSearchParams()
-    if (!sessionToken && guestId) params.set('guestId', guestId)
-
-    await fetch(`${API_BASE}/spots/${id}/retry?${params.toString()}`, { method: 'POST', headers })
+    await fetch(`${API_BASE}/spots/${id}/retry`, { method: 'POST', headers: getAuthHeaders() })
     void loadHistory()
-  }, [sessionToken, guestId, loadHistory])
+  }, [loadHistory])
 
   const retrySync = useCallback(async () => {
     await flushOutbox({
       apiBase: API_BASE,
       sessionToken,
+      guestToken,
       currentUserId: user?.id ?? null,
       currentGuestId: guestId ?? null,
     })
     void loadOutbox()
-  }, [sessionToken, user, guestId, loadOutbox])
+  }, [sessionToken, guestToken, user, guestId, loadOutbox])
 
   const startDelete = useCallback((spotId: string) => {
     setConfirmDeleteId(null)
@@ -316,20 +303,14 @@ export function HistoryPanel() {
       setPendingDeleteId(null)
       deleteTimerRef.current = null
 
-      const headers: Record<string, string> = {}
-      if (sessionToken) headers.Authorization = `Bearer ${sessionToken}`
-
-      const params = new URLSearchParams()
-      if (!sessionToken && guestId) params.set('guestId', guestId)
-
       try {
-        await fetch(`${API_BASE}/spots/${spotId}?${params.toString()}`, { method: 'DELETE', headers })
+        await fetch(`${API_BASE}/spots/${spotId}`, { method: 'DELETE', headers: getAuthHeaders() })
         window.dispatchEvent(new Event('picks-changed'))
       } catch {
         void loadHistory()
       }
     }, 3000)
-  }, [sessionToken, guestId, loadHistory])
+  }, [loadHistory])
 
   const undoDelete = useCallback(() => {
     if (deleteTimerRef.current) {

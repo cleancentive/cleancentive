@@ -6,7 +6,9 @@ Guest-first passwordless auth using email magic links. Users start as anonymous 
 
 ## Core Concepts
 
-**Guest-first identity.** Every visitor gets a client-side guest identity on first load (a UUIDv7 stored in localStorage). No database record is created until the guest performs a write operation (e.g., claiming an account via magic link). When they enter an email, a magic link is sent; clicking it "claims" the guest into a real account. If the email already belongs to an existing account, the guest is merged into that account on verification.
+**Guest-first identity.** Every visitor gets a guest session on first load: the browser proposes a UUIDv7 and the server hands back a signed token for it. No database record is created until the guest performs a write operation (e.g., claiming an account via magic link). When they enter an email, a magic link is sent; clicking it "claims" the guest into a real account. If the email already belongs to an existing account, the guest is merged into that account on verification.
+
+The token matters: a guest id on its own is not a credential. Ids are public — they appear on spot pages and team member lists — so while `guestId` was a plain request parameter, anyone could pass someone else's and read, edit or delete their picks.
 
 **Magic links as the only credential.** There are no passwords. All authentication happens through short-lived (24h) signed tokens delivered via email. A separate long-lived session token (365d) is issued after verification and used for subsequent API calls. The client silently refreshes the session token when it is within 30 days of expiry.
 
@@ -33,6 +35,7 @@ Guest-first passwordless auth using email magic links. Users start as anonymous 
 | Add email | 24h | `purpose = add-email` | Confirms a new address. `subject` is the requester, so this must never be usable as a session. |
 | Merge confirm | 24h | `purpose = merge-confirm` | Sent to the account being absorbed. Payload also carries `merge_into_user_id`. |
 | Session | 365d | `typ = session` | Bearer token for authenticated API calls. Payload: `subject` (user id). Client refreshes silently when within 30d of expiry. |
+| Guest session | 365d | `typ = guest` | Same, for a visitor with no account. Stops working the moment that id becomes an account. Rejected by everything that requires an account. |
 
 All tokens are signed with the same secret, so the signature alone does not say
 what a token may be used for. A token carrying a `purpose` is rejected as a
@@ -44,7 +47,11 @@ once the last pre-2026-09 token has expired.
 ### Flows
 
 #### 1. Guest Initialization
-On app load, check for a stored guest id in localStorage. If none exists, generate a UUIDv7 client-side and store it. No server call is made. The guest database record is created lazily on the first write operation (e.g., claiming an account via magic link).
+On app load, check for a stored guest session. If there is none, take the stored guest id (or generate a UUIDv7) and exchange it at `POST /auth/guest` for a signed guest token. The app renders immediately and does not wait for the round trip, so it still works offline; the token arrives shortly after and queued picks sync with it.
+
+The server honours a proposed id only when it is unclaimed and has not been exchanged before — otherwise it issues a fresh one. That is what lets ids already in people's localStorage keep their picks without making a known id claimable by whoever sees it.
+
+The guest database record is still created lazily, on the first write.
 
 #### 2. Login (Claim or Return)
 Input: `email`, `guest_id?`.
@@ -132,7 +139,8 @@ All endpoints return JSON. Auth-protected endpoints expect `Authorization: Beare
 
 | Method | Path | Auth | Body / Query | Response | Notes |
 |--------|------|------|-------------|----------|-------|
-| POST | `/auth/magic-link` | No | `{ email, guestId? }` | `{ success }` | Sends magic link. Silent no-op if email unknown and no guest. |
+| POST | `/auth/guest` | No | `{ guestId? }` | `{ token, userId }` | Issues a guest session. Honours a proposed id once, if unclaimed. |
+| POST | `/auth/magic-link` | No | `{ email, guestId? }` | `{ success, requestId? }` | Sends magic link. Silent no-op if email unknown and no guest, or if the guest id names somebody's account. |
 | GET | `/auth/verify` | No | `?token=<jwt>` | `{ userId, email, requestId, pendingSignIn }` + header `x-session-token` | Consumes magic link. Merges guest if applicable. Does **not** complete a waiting sign-in. |
 | POST | `/auth/pending/:id/complete` | Yes | — | `{ success }` | Hand the waiting device a session. Only for the account the request was issued to. |
 | DELETE | `/auth/pending/:id` | Yes | — | `{ success }` | Turn down a sign-in started elsewhere. |
@@ -151,6 +159,6 @@ All endpoints return JSON. Auth-protected endpoints expect `Authorization: Beare
 |--------|------|------|-------------|----------|-------|
 | GET | `/user/profile` | Yes | — | User object with emails | Current user profile. |
 | PUT | `/user/profile` | Yes | `{ nickname?, full_name? }` | User object | Update profile fields. |
-| DELETE | `/user/profile` | Yes | `?mode=delete\|anonymize` | `{ success }` | Delete or anonymize account. |
+| DELETE | `/user/profile` | Yes | `?mode=delete\|anonymize` | `{ success }` | Delete or anonymize account. Accepts a guest session, so a guest can clear their own data. |
 | DELETE | `/user/profile/email/:emailId` | Yes | — | User object | Remove email (fails if last). |
 | PUT | `/user/profile/emails/selection` | Yes | `{ emailIds[] }` | Updated emails | Set which emails receive magic links. |
