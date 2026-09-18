@@ -42,6 +42,15 @@ Two visible differences:
 1. **Cross-device sign-in asks once.** Request a link on the laptop, open it on the phone, and the phone asks "A sign-in was started on Chrome on macOS in Bern. Also sign in that device?" The phone is signed in either way. That automatic handoff *was* report #2, so it cannot go away without leaving the hole open.
 2. **More than ten sign-in emails an hour for one address** answers "too many requests".
 
+## Found while fixing
+
+Three problems the review itself introduced, caught by testing against a running
+stack rather than by reading the diff:
+
+- **A guest id could still be claimed twice.** Guest rows are created on first write, so a token issued for a new id recorded nothing, and the row that appeared when that guest logged their first pick — the same moment the id became public on that pick — did not mark the id as taken.
+- **A rejected session left the app looking signed in.** Rotating the signing secret showed it: the user menu still displayed an account while every request failed and a panel printed the raw refusal. A year-long token will eventually expire in somebody's browser and do the same.
+- **Sessions quietly dropped to a week.** Moving the lifetime into one place started honouring `JWT_EXPIRES_IN`, which had sat unread in `.env.example` at `7d` — so any environment copied from the example would have shortened every session.
+
 ## Deliberately not done
 
 Scope was kept to what closes a takeover or is invisible. Shorter sessions,
@@ -64,3 +73,8 @@ people something real and buy little here. This is a litter-photo app.
 fails if a route is neither guarded nor written down as deliberately public.
 Adding an unguarded endpoint now breaks the build rather than waiting for the
 next review.
+
+The e2e suite also had to move to the app's real dev URL,
+`https://cleancentive.local`, rather than the Vite port. Sign-in behaviour
+depends on origin, so a suite testing a different origin from the one magic
+links point at could not see these flows correctly.
