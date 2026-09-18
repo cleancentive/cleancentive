@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query, Param, Res, UseGuards, Request, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Body, Delete, Get, Query, Param, ParseUUIDPipe, Res, UseGuards, Request, BadRequestException, NotFoundException } from '@nestjs/common';
 import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
@@ -34,22 +34,47 @@ export class AuthController {
 
   @Get('verify')
   async verifyMagicLink(@Query('token') token: string, @Res() res: Response): Promise<void> {
-    const { userId, email, requestId } = await this.authService.verifyMagicLink(token);
+    const { userId, email, requestId, pendingSignIn } = await this.authService.verifyMagicLink(token);
     const sessionToken = await this.authService.generateSessionToken(userId);
 
-    if (requestId) {
-      await this.authService.completePendingAuth(requestId, sessionToken);
-    }
-
+    // Deliberately does not complete the pending request. Completing it here
+    // handed a session to whoever started it, so requesting a link for someone
+    // else's address and polling for the result was enough to take the account
+    // over the moment they clicked. The browser that opened the link decides:
+    // silently when it is the one that asked, after a prompt when it is not.
     res.setHeader('x-session-token', sessionToken);
     // requestId tells the magic-link tab which BroadcastChannel key to use so
     // only sibling tabs polling for *this* requestId apply the session.
-    res.json({ userId, email, requestId });
+    res.json({ userId, email, requestId, pendingSignIn });
   }
 
   @Get('pending/:requestId')
   async pollPendingAuth(@Param('requestId') requestId: string): Promise<{ status: string; sessionToken?: string }> {
     return this.authService.pollPendingAuth(requestId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('Bearer')
+  @Post('pending/:requestId/complete')
+  @ApiOperation({ summary: 'Hand a session to a sign-in started on another device' })
+  async completePendingAuth(
+    @Request() req: any,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+  ): Promise<{ success: boolean }> {
+    await this.authService.completePendingAuthFor(requestId, req.user.userId);
+    return { success: true };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('Bearer')
+  @Delete('pending/:requestId')
+  @ApiOperation({ summary: 'Turn down a sign-in started on another device' })
+  async rejectPendingAuth(
+    @Request() req: any,
+    @Param('requestId', ParseUUIDPipe) requestId: string,
+  ): Promise<{ success: boolean }> {
+    await this.authService.rejectPendingAuth(requestId, req.user.userId);
+    return { success: true };
   }
 
   @UseGuards(JwtAuthGuard)

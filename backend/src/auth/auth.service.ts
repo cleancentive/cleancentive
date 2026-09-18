@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -14,6 +14,20 @@ import { resolveFrontendUrl } from '../common/allowed-origins';
 import { MAGIC_LINK_TTL } from './jwt-config';
 import { isMagicLinkPayload, isSessionPayload, type TokenPayload } from './token-claims';
 import type { RequestMetadata } from './request-metadata';
+
+export interface PendingSignInSummary {
+  requestId: string;
+  browser: string | null;
+  location: string | null;
+}
+
+export interface VerifiedMagicLink {
+  userId: string;
+  email: string;
+  requestId?: string;
+  /** Set when a sign-in started on another device is still waiting on this link. */
+  pendingSignIn: PendingSignInSummary | null;
+}
 
 @Injectable()
 export class AuthService {
@@ -40,13 +54,17 @@ export class AuthService {
     let userId: string;
 
     if (existingUser) {
-      // Returning user — send magic link to existing account
-      // Include guestId in token so verify step can merge the guest into this account
+      // Returning user. The guest id rides along in the token so the verify
+      // step can merge that guest in, but only after the link is proven.
       userId = existingUser.id;
     } else if (guestId) {
-      // New claim — create guest if needed, attach email, then send magic link
-      await this.userService.findOrCreateGuest(guestId);
-      await this.userService.validateAndAssociateEmail(guestId, email);
+      // A new address claiming a guest. The id is client-supplied: passing a
+      // registered user's id here used to attach this address to their account
+      // right away, and a magic link to it then let the sender in as them.
+      // Nothing is written until the link comes back verified.
+      if (!(await this.userService.isUnclaimedGuest(guestId))) {
+        return null;
+      }
       userId = guestId;
     } else {
       // No guest context and email not found — nothing to do
@@ -75,6 +93,8 @@ export class AuthService {
       sessionToken: null,
       status: PendingAuthStatus.PENDING,
       expiresAt,
+      browser: requestMetadata?.browser ?? null,
+      location: requestMetadata?.location ?? null,
     });
 
     await this.emailService.sendMagicLink(email, magicLink, requestMetadata);
@@ -82,48 +102,125 @@ export class AuthService {
     return { requestId };
   }
 
-  async verifyMagicLink(token: string): Promise<{ userId: string; email: string; requestId?: string }> {
+  async verifyMagicLink(token: string): Promise<VerifiedMagicLink> {
+    let payload: TokenPayload;
     try {
-      const payload: TokenPayload = this.jwtService.verify(token);
-      // A session token is signed with the same secret. Without this it could
-      // be replayed on the sign-in route, and so could an add-email or
-      // merge-confirm token delivered to someone else's inbox.
-      if (!isMagicLinkPayload(payload)) {
-        throw new UnauthorizedException('Invalid or expired magic link');
-      }
-      const userId = payload.sub;
-      const guestId = payload.guestId;
-      const requestId = payload.requestId as string | undefined;
-
-      // If a guest session was active when the magic link was requested,
-      // merge the guest account into the existing user
-      if (guestId && guestId !== userId) {
-        await this.userService.mergeGuestAccount(guestId, userId);
-      }
-
-      await this.userService.updateLastLogin(userId);
-
-      // Auto-promote to admin if email is in ADMIN_EMAILS
-      if (this.adminService.isAdminEmail(payload.email)) {
-        await this.adminService.promoteToAdmin(userId, null);
-      }
-
-      this.eventEmitter.emit('user-email.changed', { userId });
-
-      return { userId, email: payload.email as string, requestId };
-    } catch (error) {
-      if (error instanceof UnauthorizedException) throw error;
+      payload = this.jwtService.verify(token);
+    } catch {
       throw new UnauthorizedException('Invalid or expired magic link');
     }
+
+    // A session token is signed with the same secret. Without this it could
+    // be replayed on the sign-in route, and so could an add-email or
+    // merge-confirm token delivered to someone else's inbox.
+    if (!isMagicLinkPayload(payload)) {
+      throw new UnauthorizedException('Invalid or expired magic link');
+    }
+
+    const email = payload.email as string;
+    const guestId = payload.guestId as string | undefined;
+    const requestId = payload.requestId as string | undefined;
+
+    // The address is only attached now, once the link proves the person reading
+    // that inbox asked for this. Between the request and the click someone else
+    // may have registered it, in which case this is a sign-in to their account
+    // and the claimed guest merges into it.
+    const ownerOfEmail = await this.userService.findUserByEmail(email);
+    const userId = ownerOfEmail?.id ?? (payload.sub as string);
+
+    if (ownerOfEmail) {
+      if (ownerOfEmail.id !== payload.sub && (await this.userService.isUnclaimedGuest(payload.sub as string))) {
+        await this.userService.mergeGuestAccount(payload.sub as string, ownerOfEmail.id);
+      }
+    } else {
+      if (!(await this.userService.isUnclaimedGuest(userId))) {
+        // The token names an account that is not ours to claim and the address
+        // is not on it. Nothing here is safe to attach.
+        throw new UnauthorizedException('Invalid or expired magic link');
+      }
+      await this.userService.validateAndAssociateEmail(userId, email);
+    }
+
+    // A guest session that was active in the requesting browser folds into the
+    // account being signed in to.
+    if (guestId && guestId !== userId && (await this.userService.isUnclaimedGuest(guestId))) {
+      await this.userService.mergeGuestAccount(guestId, userId);
+    }
+
+    await this.userService.updateLastLogin(userId);
+
+    // Auto-promote to admin if email is in ADMIN_EMAILS. Safe here and not at
+    // request time: the address has just been proven.
+    if (this.adminService.isAdminEmail(email)) {
+      await this.adminService.promoteToAdmin(userId, null);
+    }
+
+    this.eventEmitter.emit('user-email.changed', { userId });
+
+    return { userId, email, requestId, pendingSignIn: await this.describePendingSignIn(requestId, userId) };
   }
 
-  async completePendingAuth(requestId: string, sessionToken: string): Promise<void> {
+  /**
+   * The sign-in request this link belongs to, when it is still waiting and was
+   * started by some other device.
+   *
+   * Completing it hands a session to whoever is polling, which is the whole
+   * attack: request a link for someone else's address, keep the request id,
+   * and collect their session the moment they click. The caller decides — the
+   * same browser completes it silently, a different one asks first.
+   */
+  private async describePendingSignIn(
+    requestId: string | undefined,
+    userId: string,
+  ): Promise<PendingSignInSummary | null> {
+    if (!requestId) return null;
+
     const record = await this.pendingAuthRepo.findOne({ where: { id: requestId } });
-    if (!record || record.status === PendingAuthStatus.COMPLETED) return;
+    if (!record) return null;
+    if (record.userId !== userId) return null;
+    if (record.status !== PendingAuthStatus.PENDING) return null;
+    if (record.expiresAt < new Date()) return null;
+
+    return {
+      requestId,
+      browser: record.browser,
+      location: record.location,
+    };
+  }
+
+  /**
+   * Hand the waiting device its session. Called by the browser that opened the
+   * link, after it has established who it is — never by `verify` itself.
+   */
+  async completePendingAuthFor(requestId: string, userId: string): Promise<void> {
+    const record = await this.pendingAuthRepo.findOne({ where: { id: requestId } });
+    if (!record) {
+      throw new NotFoundException('Pending auth request not found or expired');
+    }
+    if (record.userId !== userId) {
+      throw new ForbiddenException('This sign-in request belongs to a different account');
+    }
+    if (record.expiresAt < new Date()) {
+      await this.pendingAuthRepo.delete(requestId);
+      throw new NotFoundException('Pending auth request not found or expired');
+    }
+    if (record.status === PendingAuthStatus.COMPLETED) return;
+
+    const sessionToken = await this.generateSessionToken(userId);
     await this.pendingAuthRepo.update(requestId, {
       status: PendingAuthStatus.COMPLETED,
       sessionToken,
     });
+  }
+
+  /** Turn down a sign-in started elsewhere. The poller stops on the 404. */
+  async rejectPendingAuth(requestId: string, userId: string): Promise<void> {
+    const record = await this.pendingAuthRepo.findOne({ where: { id: requestId } });
+    if (!record) return;
+    if (record.userId !== userId) {
+      throw new ForbiddenException('This sign-in request belongs to a different account');
+    }
+    await this.pendingAuthRepo.delete(requestId);
   }
 
   async pollPendingAuth(requestId: string): Promise<{ status: string; sessionToken?: string }> {

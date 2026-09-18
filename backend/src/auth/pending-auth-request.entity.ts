@@ -25,4 +25,15 @@ export class PendingAuthRequest {
 
   @Column()
   expiresAt: Date;
+
+  /**
+   * The requesting browser and rough location, captured at issue time. Shown on
+   * the device that opens the link when it is not the device that asked, so the
+   * person can see whose sign-in they would be completing.
+   */
+  @Column({ nullable: true, type: 'varchar' })
+  browser: string | null;
+
+  @Column({ nullable: true, type: 'varchar' })
+  location: string | null;
 }

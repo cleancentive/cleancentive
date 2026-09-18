@@ -49,16 +49,29 @@ On app load, check for a stored guest id in localStorage. If none exists, genera
 #### 2. Login (Claim or Return)
 Input: `email`, `guest_id?`.
 
-- **Email not in system + guest provided:** associate email with guest, send magic link to that email.
+- **Email not in system + guest provided:** send a magic link carrying the guest id. Nothing is written yet — the address is *not* associated until the link comes back verified. The guest id is client-supplied, so it is only accepted when it names an unclaimed guest (no row, or nickname `guest` with no emails); naming somebody else's account is refused silently.
 - **Email not in system + no guest:** silent no-op (don't reveal whether email exists).
 - **Email exists (returning user):** send magic link to that email. Embed `guest_id` in token so the verify step can merge the guest into the returning account.
+
+The pending request also records the requesting browser and rough location, so
+the device that opens the link can say who asked.
 
 #### 3. Magic Link Verification
 Input: token from email link.
 
-- Validate token signature and expiry.
-- If token contains a `guest_id` different from the subject: merge guest account into the subject user (transfer emails, delete guest).
-- Issue a session token for the subject user.
+- Validate token signature, expiry and `purpose` — a session token must not work here.
+- Resolve who is signing in: if the address now belongs to an account, that account, and the claimed guest merges into it. Otherwise associate the address with the subject, which must still be an unclaimed guest.
+- If the token contains a `guest_id` different from the subject: merge that guest in too.
+- Issue a session token for the resulting user.
+- Report whether a sign-in request is still waiting, and on which browser and location it was started.
+
+**Verification does not complete the waiting request.** Completing it hands a
+session to whoever is polling, so requesting a link for an address you do not
+own and polling for the result was enough to take the account over the moment
+the owner clicked. The browser that opened the link decides instead:
+
+- **It started the request** (its own request id is in localStorage): complete it silently. This is the ordinary same-device sign-in and looks no different than before.
+- **It did not**: show who asked and complete only on confirmation, via `POST /auth/pending/:id/complete`. Declining calls `DELETE /auth/pending/:id` so the other device stops waiting. Either way the device that opened the link is signed in.
 
 #### 4. Add Email
 Input: `email` (requires active session).
@@ -87,7 +100,7 @@ Input: `email`.
 
 - Look up user by email. Silent no-op if not found.
 - Collect all emails with `is_selected_for_login = true` (fall back to all emails if none selected).
-- Send a magic link for each to the respective address.
+- Send a magic link for each to the respective address. These are ordinary magic links (`purpose = magic-link`) and go through the same verification.
 
 #### 8. Remove Email
 Input: `email_id` (requires active session).
@@ -120,7 +133,9 @@ All endpoints return JSON. Auth-protected endpoints expect `Authorization: Beare
 | Method | Path | Auth | Body / Query | Response | Notes |
 |--------|------|------|-------------|----------|-------|
 | POST | `/auth/magic-link` | No | `{ email, guestId? }` | `{ success }` | Sends magic link. Silent no-op if email unknown and no guest. |
-| GET | `/auth/verify` | No | `?token=<jwt>` | `{ userId, email }` + header `x-session-token` | Consumes magic link. Merges guest if applicable. |
+| GET | `/auth/verify` | No | `?token=<jwt>` | `{ userId, email, requestId, pendingSignIn }` + header `x-session-token` | Consumes magic link. Merges guest if applicable. Does **not** complete a waiting sign-in. |
+| POST | `/auth/pending/:id/complete` | Yes | — | `{ success }` | Hand the waiting device a session. Only for the account the request was issued to. |
+| DELETE | `/auth/pending/:id` | Yes | — | `{ success }` | Turn down a sign-in started elsewhere. |
 | POST | `/auth/add-email` | Yes | `{ email }` | `{ status, ownerNickname? }` | Status: `verification-sent`, `already-yours`, or `conflict`. |
 | GET | `/auth/verify-email` | No | `?token=<jwt>` | Redirect to frontend | Consumes add-email verification link. |
 | POST | `/auth/add-email/confirm-merge` | Yes | `{ email }` | `{ success, sent }` | Sends merge warning to target account. |

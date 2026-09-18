@@ -33,6 +33,12 @@ interface User {
   active_cleanup_end_at?: string | null
 }
 
+interface CrossDeviceSignIn {
+  requestId: string
+  browser: string | null
+  location: string | null
+}
+
 interface AuthState {
   user: User | null
   sessionToken: string | null
@@ -46,11 +52,17 @@ interface AuthState {
   // attempt (a separate POST /auth/magic-link) gets its own requestId and
   // must be resolved by its own link.
   pendingAuthRequestId: string | null
+  // Set when this browser opened a magic link that completes a sign-in started
+  // somewhere else. Completing it hands a session to whoever is polling, so the
+  // person is asked first rather than it happening silently.
+  crossDeviceSignIn: CrossDeviceSignIn | null
 
   // Actions
   initializeGuest: () => Promise<void>
   login: (email: string) => Promise<void>
   verifyMagicLink: (token: string) => Promise<void>
+  confirmCrossDeviceSignIn: () => Promise<void>
+  dismissCrossDeviceSignIn: () => Promise<void>
   cancelPendingAuth: () => void
   logout: () => void
   updateProfile: (data: { nickname?: string; full_name?: string | null; locale?: string | null }) => Promise<void>
@@ -74,6 +86,32 @@ interface AuthState {
 
 function selectedEmails(user: User): string[] {
   return user.emails.filter(e => e.is_selected_for_login).map(e => e.email)
+}
+
+/**
+ * The sign-in request this browser started, kept where the magic-link tab can
+ * see it. The link often opens in a *new* tab, which shares localStorage but
+ * not the in-memory store, and it is the only way to tell "I asked for this"
+ * from "somebody else asked and I am about to hand them my session".
+ */
+const STARTED_REQUEST_KEY = 'pendingAuthRequestId'
+
+function rememberStartedRequest(requestId: string): void {
+  try {
+    localStorage.setItem(STARTED_REQUEST_KEY, requestId)
+  } catch {
+    // Private mode or a full quota — we fall back to asking, which is safe.
+  }
+}
+
+function takeStartedRequest(): string | null {
+  try {
+    const value = localStorage.getItem(STARTED_REQUEST_KEY)
+    localStorage.removeItem(STARTED_REQUEST_KEY)
+    return value
+  } catch {
+    return null
+  }
 }
 
 // Module-level polling handles (not in Zustand state — not serializable)
@@ -120,6 +158,17 @@ interface BroadcastSessionMessage {
   requestId: string
   sessionToken: string
   user: User
+}
+
+async function completePendingAuth(requestId: string, sessionToken: string): Promise<void> {
+  try {
+    await axios.post(`${API_BASE}/auth/pending/${requestId}/complete`, {}, {
+      headers: { Authorization: `Bearer ${sessionToken}` },
+    })
+  } catch {
+    // The waiting device keeps polling and can be signed in another way; this
+    // browser is signed in regardless.
+  }
 }
 
 function startPolling(
@@ -178,6 +227,7 @@ export const useAuthStore = create<AuthState>()(
       error: null,
       guestReady: false,
       pendingAuthRequestId: null,
+      crossDeviceSignIn: null,
 
       initializeGuest: async () => {
         // If already authenticated, skip guest initialization
@@ -218,6 +268,7 @@ export const useAuthStore = create<AuthState>()(
 
           const requestId = response.data.requestId as string | undefined
           if (requestId) {
+            rememberStartedRequest(requestId)
             set({ pendingAuthRequestId: requestId })
             startPolling(requestId, get, set)
           }
@@ -232,12 +283,16 @@ export const useAuthStore = create<AuthState>()(
       verifyMagicLink: async (token: string) => {
         // This browser clicked the magic link — stop any active polling
         clearPolling()
-        set({ isLoading: true, error: null, pendingAuthRequestId: null })
+        // Read before clearing: this is what says whether the waiting device is
+        // this one.
+        const startedHere = takeStartedRequest()
+        set({ isLoading: true, error: null, pendingAuthRequestId: null, crossDeviceSignIn: null })
 
         try {
           const response = await axios.get(`${API_BASE}/auth/verify?token=${token}`)
           const sessionToken = response.headers['x-session-token']
           const completedRequestId = response.data?.requestId as string | undefined
+          const pendingSignIn = response.data?.pendingSignIn as CrossDeviceSignIn | null | undefined
 
           const profileResponse = await axios.get(`${API_BASE}/user/profile`, {
             headers: { Authorization: `Bearer ${sessionToken}` },
@@ -249,6 +304,20 @@ export const useAuthStore = create<AuthState>()(
             guestId: null,
             isLoading: false
           })
+
+          // A sign-in is still waiting on a device somewhere. If it is this
+          // browser, finish it silently — that is the ordinary case, where
+          // someone typed their address here and opened the link here. If it is
+          // not, ask: completing it hands a session to whoever started it, and
+          // requesting a link for an address you do not own and polling for the
+          // result is exactly how an account gets taken over.
+          if (pendingSignIn) {
+            if (startedHere === pendingSignIn.requestId) {
+              await completePendingAuth(pendingSignIn.requestId, sessionToken)
+            } else {
+              set({ crossDeviceSignIn: pendingSignIn })
+            }
+          }
 
           // Tell sibling tabs in this browser they're signed in too — but only
           // if they were polling for *this exact* requestId. Each independent
@@ -276,6 +345,31 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      confirmCrossDeviceSignIn: async () => {
+        const { crossDeviceSignIn, sessionToken } = get()
+        if (!crossDeviceSignIn || !sessionToken) return
+        set({ crossDeviceSignIn: null })
+        await completePendingAuth(crossDeviceSignIn.requestId, sessionToken)
+        trackEvent('cross-device-sign-in-confirmed')
+      },
+
+      dismissCrossDeviceSignIn: async () => {
+        const { crossDeviceSignIn, sessionToken } = get()
+        if (!crossDeviceSignIn) return
+        set({ crossDeviceSignIn: null })
+        if (!sessionToken) return
+        try {
+          // Drop the request so the other device stops polling and says so,
+          // rather than spinning until the link expires.
+          await axios.delete(`${API_BASE}/auth/pending/${crossDeviceSignIn.requestId}`, {
+            headers: { Authorization: `Bearer ${sessionToken}` },
+          })
+        } catch {
+          // It expires on its own anyway.
+        }
+        trackEvent('cross-device-sign-in-declined')
+      },
+
       cancelPendingAuth: () => {
         clearPolling()
         set({ pendingAuthRequestId: null })
@@ -290,8 +384,10 @@ export const useAuthStore = create<AuthState>()(
           guestReady: false,
           error: null,
           pendingAuthRequestId: null,
+          crossDeviceSignIn: null,
         })
         localStorage.removeItem('guestId')
+        localStorage.removeItem(STARTED_REQUEST_KEY)
         useUiStore.getState().setPickCount(0)
       },
 

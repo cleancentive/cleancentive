@@ -58,6 +58,24 @@ export class UserService {
     });
   }
 
+  /**
+   * Whether this id may be claimed by a sign-in: either no row yet, or a guest
+   * that has never attached an email.
+   *
+   * The id arrives from the client, and used to be trusted: passing a
+   * registered user's id as `guestId` had us attach the caller's email address
+   * to that account, after which a magic link for it let the caller in. A row
+   * with a nickname or any email belongs to somebody.
+   */
+  async isUnclaimedGuest(id: string): Promise<boolean> {
+    const user = await this.userRepository.findOne({
+      where: { id },
+      relations: ['emails'],
+    });
+    if (!user) return true;
+    return user.nickname === 'guest' && (user.emails?.length ?? 0) === 0;
+  }
+
   async findByNickname(nickname: string): Promise<User | null> {
     return this.userRepository.findOne({
       where: { nickname },

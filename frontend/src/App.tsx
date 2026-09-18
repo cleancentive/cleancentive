@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useSearchParams, useNavigate } from 'react-router-dom'
 import i18n from './i18n'
 import { AppShell } from './components/AppShell'
+import { CrossDeviceSignInPrompt } from './components/CrossDeviceSignInPrompt'
 import { AppLayout } from './components/AppLayout'
 import { StewardLayout } from './components/steward/StewardLayout'
 import { StewardOperations } from './components/steward/StewardOperations'
@@ -50,6 +51,9 @@ function AuthHandler() {
 
     if (token) {
       void verifyMagicLink(token).then(() => {
+        // A sign-in started on another device is waiting on an answer here —
+        // closing the tab would take the question away with it.
+        if (useAuthStore.getState().crossDeviceSignIn) return
         // After a successful magic-link verify, sibling tabs in this browser
         // received the session via BroadcastChannel and are already signed in.
         // Try to close this redundant tab — browsers block window.close() when
@@ -91,6 +95,7 @@ function App() {
       <NavHistoryProvider>
       <AuthHandler />
       <LocaleSync />
+      <CrossDeviceSignInPrompt />
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/" element={<AppLayout />} />

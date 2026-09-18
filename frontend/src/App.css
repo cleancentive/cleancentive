@@ -738,6 +738,12 @@
   line-height: 1.5;
 }
 
+/* The "only say yes if that was you" line under a confirmation prompt. */
+.confirm-dialog-hint {
+  font-size: 0.8125rem;
+  opacity: 0.85;
+}
+
 /* Merge Section */
 .merge-section {
   margin-top: 2rem;
