@@ -34,18 +34,14 @@ export async function signInFreshUser(page: Page): Promise<{ email: string; sess
   const message = await waitForEmail(email, 10000)
   const magicLink = extractMagicLink(message.HTML)
   if (!magicLink) throw new Error('No magic link found in email')
-  // /auth/verify returns JSON + an x-session-token header rather than redirecting,
-  // so opening it directly in the page would show raw JSON. Instead hit it as a
-  // plain fetch from the test runner — this completes the pending-auth record on
-  // the backend, and the frontend's poll on /auth/pending/:requestId picks it up.
-  const tokenMatch = magicLink.match(/[?&]token=([^&]+)/)
-  if (!tokenMatch) throw new Error(`No token in magic link: ${magicLink}`)
-  const verifyResponse = await fetch(`${API_BASE}/auth/verify?token=${tokenMatch[1]}`)
-  if (!verifyResponse.ok) {
-    throw new Error(`/auth/verify failed: ${verifyResponse.status} ${await verifyResponse.text()}`)
-  }
 
-  // Frontend polls every 2s; give it generous time to react.
+  // Open the link in the browser that asked for it, which is what a person
+  // does. Fetching /auth/verify from the runner instead used to sign this page
+  // in through its poll — that is the cross-device handoff, and it no longer
+  // happens without someone confirming it.
+  await page.goto(magicLink)
+  await page.waitForLoadState('networkidle')
+
   await expect(page.locator('button[aria-label="User menu"]')).toBeVisible({ timeout: 15000 })
 
   const sessionToken = await page.evaluate(() => {
