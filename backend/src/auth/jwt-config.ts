@@ -17,8 +17,16 @@ const KNOWN_DEFAULTS = new Set([
   'secret',
 ]);
 
-/** Sessions stay long-lived: people may take part once a season. */
-export const SESSION_TTL = process.env.JWT_EXPIRES_IN || '365d';
+/**
+ * Sessions stay long-lived: people may take part once a season, and being
+ * signed out between two cleanups is a worse outcome than the risk it buys
+ * back. A stolen token is a revocation problem, not a lifetime one.
+ *
+ * Deliberately not read from JWT_EXPIRES_IN. That variable has been sitting
+ * unread in .env.example at 7d, so honouring it would quietly cut every
+ * session from a year to a week wherever the example was copied.
+ */
+export const SESSION_TTL = '365d';
 
 /** Guests cannot sign in again, so their token has to outlive a long gap. */
 export const GUEST_SESSION_TTL = '365d';
