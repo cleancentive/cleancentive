@@ -5,6 +5,7 @@ import { DECORATORS } from '@nestjs/swagger/dist/constants';
 import { AdminController } from '../admin/admin.controller';
 import { AuthController } from '../auth/auth.controller';
 import { CleanupController } from '../cleanup/cleanup.controller';
+import { CleanupFeedController } from '../cleanup-feed/cleanup-feed.controller';
 import { FeedbackController } from '../feedback/feedback.controller';
 import { LabelController } from '../label/label.controller';
 import { SpotController } from '../spot/spot.controller';
@@ -19,6 +20,7 @@ describe('swagger tags', () => {
     expect(Reflect.getMetadata(DECORATORS.API_TAGS, SpotController)).toEqual(['spots']);
     expect(Reflect.getMetadata(DECORATORS.API_TAGS, LabelController)).toEqual(['labels']);
     expect(Reflect.getMetadata(DECORATORS.API_TAGS, CleanupController)).toEqual(['cleanups']);
+    expect(Reflect.getMetadata(DECORATORS.API_TAGS, CleanupFeedController)).toEqual(['cleanup-feeds']);
     expect(Reflect.getMetadata(DECORATORS.API_TAGS, TeamController)).toEqual(['teams']);
     expect(Reflect.getMetadata(DECORATORS.API_TAGS, AdminController)).toEqual(['admin']);
     expect(Reflect.getMetadata(DECORATORS.API_TAGS, UserController)).toEqual(['users']);

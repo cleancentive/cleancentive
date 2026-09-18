@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import Redis from 'ioredis';
 import { isValidLatLng } from '@cleancentive/shared';
 import { redisConnection } from '../common/redis-connection';
@@ -30,7 +30,6 @@ type NominatimResponse = Array<{ lat?: string; lon?: string }>;
  * Results are cached because addresses repeat across refreshes and both
  * services are free ones we should lean on lightly.
  */
-@Injectable()
 export class Geocoder {
   private readonly logger = new Logger(Geocoder.name);
   private readonly redis: Redis;

@@ -25,10 +25,12 @@ import { Cleanup } from './cleanup/cleanup.entity';
 import { CleanupDate } from './cleanup/cleanup-date.entity';
 import { CleanupParticipant } from './cleanup/cleanup-participant.entity';
 import { CleanupMessage } from './cleanup/cleanup-message.entity';
+import { CleanupFeed } from './cleanup-feed/cleanup-feed.entity';
 import { TeamEmailPattern } from './team/team-email-pattern.entity';
 import { TeamOutlineCollection } from './team/team-outline-collection.entity';
 import { TeamModule } from './team/team.module';
 import { CleanupModule } from './cleanup/cleanup.module';
+import { CleanupFeedModule } from './cleanup-feed/cleanup-feed.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { StorageModule } from './storage/storage.module';
 import { PurgeModule } from './purge/purge.module';
@@ -83,6 +85,7 @@ import { SystemModule } from './system/system.module';
         CleanupDate,
         CleanupParticipant,
         CleanupMessage,
+        CleanupFeed,
         Feedback,
         FeedbackResponse,
         Label,
@@ -109,6 +112,7 @@ import { SystemModule } from './system/system.module';
     SpotModule,
     TeamModule,
     CleanupModule,
+    CleanupFeedModule,
     CalendarModule,
     StorageModule,
     PurgeModule,

@@ -27,7 +27,7 @@ type ScopeGroup = 'users' | 'teams' | 'cleanups' | 'spots' | 'labels' | 'feedbac
 const SCOPE_GROUPS: Record<ScopeGroup, string[]> = {
   labels: ['labels', 'label_translations'],
   users: ['users', 'user_emails', 'admins'],
-  teams: ['teams', 'team_email_patterns', 'team_memberships', 'team_messages'],
+  teams: ['teams', 'team_email_patterns', 'team_memberships', 'team_messages', 'cleanup_feeds'],
   cleanups: ['cleanups', 'cleanup_dates', 'cleanup_participants', 'cleanup_messages'],
   spots: ['spots', 'detected_items', 'detected_item_edits', 'spot_edits'],
   feedback: ['feedback', 'feedback_responses'],
@@ -59,6 +59,7 @@ const TABLE_ORDER: string[] = [
   'team_email_patterns',
   'team_memberships',
   'team_messages',
+  'cleanup_feeds',
   'cleanups',
   'cleanup_dates',
   'cleanup_participants',

@@ -51,6 +51,21 @@ interface EmailStrings {
     action: (link: string) => string;
     disclosure: string;
   };
+  cleanupFeed: {
+    subject: (team: string) => string;
+    preheader: (created: number, updated: number, archived: number) => string;
+    title: (team: string) => string;
+    intro: (source: string) => string;
+    createdLabel: string;
+    adoptedLabel: string;
+    updatedLabel: string;
+    archivedLabel: string;
+    errorsLabel: string;
+    entry: (name: string, when: string) => string;
+    errorEntry: (title: string, reason: string) => string;
+    action: (link: string) => string;
+    disclosure: string;
+  };
   cleanup: {
     goingTitle: (name: string) => string;
     cancelTitle: (name: string) => string;
@@ -103,6 +118,22 @@ const STRINGS: Record<Locale, EmailStrings> = {
       breakdownLabel: 'By vendor',
       action: (link) => `See the breakdown: ${link}`,
       disclosure: 'You are receiving this because you are a CleanCentive steward.',
+    },
+    cleanupFeed: {
+      subject: (team: string) => `[CleanCentive] ${team} — cleanups updated`,
+      preheader: (created: number, updated: number, archived: number) =>
+        `${created} created, ${updated} updated, ${archived} archived`,
+      title: (team: string) => `Cleanup feed — ${team}`,
+      intro: (source: string) => `The listing at ${source} was refreshed. Here is what changed.`,
+      createdLabel: 'Created',
+      adoptedLabel: 'Linked to the feed',
+      updatedLabel: 'Updated',
+      archivedLabel: 'Archived (no longer listed)',
+      errorsLabel: 'Needs attention',
+      entry: (name: string, when: string) => `${name} — ${when}`,
+      errorEntry: (title: string, reason: string) => `${title}: ${reason}`,
+      action: (link: string) => `Review them here: ${link}`,
+      disclosure: 'You receive this because you are a steward or an organizer of this team.',
     },
     cleanup: {
       goingTitle: (name) => `You're going: ${name}`,
@@ -157,6 +188,22 @@ const STRINGS: Record<Locale, EmailStrings> = {
       action: (link) => `Aufschlüsselung ansehen: ${link}`,
       disclosure: 'Du erhältst diese Nachricht, weil du CleanCentive-Steward bist.',
     },
+    cleanupFeed: {
+      subject: (team: string) => `[CleanCentive] ${team} — Cleanups aktualisiert`,
+      preheader: (created: number, updated: number, archived: number) =>
+        `${created} erstellt, ${updated} aktualisiert, ${archived} archiviert`,
+      title: (team: string) => `Cleanup-Feed — ${team}`,
+      intro: (source: string) => `Die Liste unter ${source} wurde aktualisiert. Das hat sich geändert.`,
+      createdLabel: 'Erstellt',
+      adoptedLabel: 'Mit dem Feed verknüpft',
+      updatedLabel: 'Aktualisiert',
+      archivedLabel: 'Archiviert (nicht mehr gelistet)',
+      errorsLabel: 'Braucht Aufmerksamkeit',
+      entry: (name: string, when: string) => `${name} — ${when}`,
+      errorEntry: (title: string, reason: string) => `${title}: ${reason}`,
+      action: (link: string) => `Hier ansehen: ${link}`,
+      disclosure: 'Du erhältst diese E-Mail als Steward oder Organizer dieses Teams.',
+    },
     cleanup: {
       goingTitle: (name) => `Du bist dabei: ${name}`,
       cancelTitle: (name) => `Abgesagt: ${name}`,
@@ -209,6 +256,22 @@ const STRINGS: Record<Locale, EmailStrings> = {
       breakdownLabel: 'Par fournisseur',
       action: (link) => `Voir le détail : ${link}`,
       disclosure: 'Vous recevez ce message parce que vous êtes steward CleanCentive.',
+    },
+    cleanupFeed: {
+      subject: (team: string) => `[CleanCentive] ${team} — cleanups mis à jour`,
+      preheader: (created: number, updated: number, archived: number) =>
+        `${created} créés, ${updated} mis à jour, ${archived} archivés`,
+      title: (team: string) => `Flux de cleanups — ${team}`,
+      intro: (source: string) => `La liste sur ${source} a été actualisée. Voici ce qui a changé.`,
+      createdLabel: 'Créés',
+      adoptedLabel: 'Rattachés au flux',
+      updatedLabel: 'Mis à jour',
+      archivedLabel: 'Archivés (plus listés)',
+      errorsLabel: 'À vérifier',
+      entry: (name: string, when: string) => `${name} — ${when}`,
+      errorEntry: (title: string, reason: string) => `${title} : ${reason}`,
+      action: (link: string) => `À consulter ici : ${link}`,
+      disclosure: 'Vous recevez ce message en tant que Steward ou Organizer de ce Team.',
     },
     cleanup: {
       goingTitle: (name) => `Vous participez : ${name}`,

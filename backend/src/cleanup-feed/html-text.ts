@@ -51,7 +51,7 @@ export function htmlToText(html: string): string {
 
   return decodeEntities(text)
     .replace(/\r/g, '')
-    .replace(/[ \t ]+/g, ' ')
+    .replace(/[ \t\u00a0]+/g, ' ')
     .split('\n')
     .map((line) => line.trim())
     .join('\n')

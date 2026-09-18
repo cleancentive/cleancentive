@@ -131,6 +131,24 @@ describe('cleanuptourAdapter.fetchDetail', () => {
     expect(detail.body).toContain('Lieu de rendez-vous');
   });
 
+  test('a page whose programme has been taken down still yields a usable cleanup', async () => {
+    // Seen for real on an event's own day: the site emptied the content blocks,
+    // leaving only the date, the map and the sign-up button.
+    const { ctx } = makeContext({
+      'https://cleanuptour.ch/de/event/zermatt/': fixture('event-zermatt.de.no-programme.html'),
+      'https://cleanuptour.ch/event/zermatt/': fixture('event-zermatt.de.no-programme.html'),
+    });
+    const detail = await cleanuptourAdapter.fetchDetail(zermattListing, makeFeed('de'), ctx);
+
+    expect(detail.body).toBe('');
+    expect(detail.address).toBe('Wiestistrasse, 44, Zermatt, Wallis, 3920, Suisse');
+    expect(detail.registrationUrl).toContain('docs.google.com/forms');
+    // Falls back to the usual cleanup day rather than inventing times.
+    expect(detail.startAt.toISOString()).toBe('2026-09-18T07:00:00.000Z');
+    // And keeps crediting the page the feed's language actually asked for.
+    expect(detail.url).toBe('https://cleanuptour.ch/de/event/zermatt/');
+  });
+
   test('the description leaves out a past event\'s recap counters and teasers', async () => {
     const adelboden: ExternalListing = {
       externalId: '788',

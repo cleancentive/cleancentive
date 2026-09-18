@@ -57,6 +57,11 @@ export const cleanuptourAdapter: FeedAdapter = {
     if ((!page.dateText || !page.body) && localizedUrl !== listing.url) {
       ctx.logger.warn(`cleanuptour: ${localizedUrl} incomplete, falling back to ${listing.url}`);
       const fallback = parseEventPage(await ctx.fetchHtml(listing.url));
+      // Only claim the fallback page as the source if it is the one that
+      // actually carried the text; a page can simply have no programme on it.
+      if (!page.body && fallback.body) {
+        usedUrl = listing.url;
+      }
       page = {
         title: page.title || fallback.title,
         dateText: page.dateText || fallback.dateText,
@@ -64,7 +69,6 @@ export const cleanuptourAdapter: FeedAdapter = {
         address: page.address ?? fallback.address,
         registrationUrl: page.registrationUrl ?? fallback.registrationUrl,
       };
-      usedUrl = listing.url;
     }
 
     const startAt = resolveStart(listing, page);
