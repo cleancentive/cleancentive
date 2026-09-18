@@ -71,6 +71,7 @@ interface AuthState {
   verifyMagicLink: (token: string) => Promise<void>
   confirmCrossDeviceSignIn: () => Promise<void>
   dismissCrossDeviceSignIn: () => Promise<void>
+  discardRejectedSession: () => Promise<void>
   cancelPendingAuth: () => void
   logout: () => void
   updateProfile: (data: { nickname?: string; full_name?: string | null; locale?: string | null }) => Promise<void>
@@ -121,6 +122,16 @@ function takeStartedRequest(): string | null {
     return null
   }
 }
+
+/**
+ * One guest-session request at a time.
+ *
+ * Two tabs opening together, or an effect running twice, would each ask for a
+ * token. The server hands an id out once and only once, so the second caller
+ * would get a different identity and overwrite the first one's. Sharing the
+ * in-flight promise keeps a single browser to a single request.
+ */
+let guestSessionRequest: Promise<void> | null = null
 
 // Module-level polling handles (not in Zustand state — not serializable)
 let pollIntervalId: ReturnType<typeof setInterval> | null = null
@@ -252,24 +263,32 @@ export const useAuthStore = create<AuthState>()(
           return
         }
 
+        if (guestSessionRequest) return guestSessionRequest
+
         // Pick the id here and show the app straight away, as before — the app
         // is usable offline and must not wait on a round trip. The server is
         // asked to confirm it and hand back a signed token; it returns this
-        // same id unless the id is already somebody's account, so picks queued
-        // in the meantime keep the owner they were queued under.
+        // same id unless the id has been claimed already, so picks queued in
+        // the meantime keep the owner they were queued under.
         const knownGuestId = get().guestId || localStorage.getItem('guestId') || uuidv7()
         localStorage.setItem('guestId', knownGuestId)
         set({ guestId: knownGuestId, guestReady: true })
 
-        try {
-          const response = await axios.post(`${API_BASE}/auth/guest`, { guestId: knownGuestId })
-          const { token, userId } = response.data as { token: string; userId: string }
-          localStorage.setItem('guestId', userId)
-          set({ guestToken: token, guestId: userId })
-        } catch {
-          // Offline, or the API is down. Picks keep queueing locally against
-          // the id above and sync once a token can be fetched.
-        }
+        guestSessionRequest = (async () => {
+          try {
+            const response = await axios.post(`${API_BASE}/auth/guest`, { guestId: knownGuestId })
+            const { token, userId } = response.data as { token: string; userId: string }
+            localStorage.setItem('guestId', userId)
+            set({ guestToken: token, guestId: userId })
+          } catch {
+            // Offline, or the API is down. Picks keep queueing locally against
+            // the id above and sync once a token can be fetched.
+          } finally {
+            guestSessionRequest = null
+          }
+        })()
+
+        return guestSessionRequest
       },
 
       login: async (email: string) => {
@@ -738,6 +757,32 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      /**
+       * The server refused our token. Drop it and carry on as a guest.
+       *
+       * Without this the app sits in a half-signed-in state: the user menu
+       * still shows an account while every request comes back 401 and the
+       * panels print the raw error. A session token is good for a year, so it
+       * will eventually expire in someone's browser; rotating the signing
+       * secret does the same thing to everyone at once.
+       */
+      discardRejectedSession: async () => {
+        if (!get().sessionToken) return
+        clearPolling()
+        set({
+          user: null,
+          sessionToken: null,
+          guestToken: null,
+          guestId: null,
+          guestReady: false,
+          isLoading: false,
+          error: null,
+          pendingAuthRequestId: null,
+          crossDeviceSignIn: null,
+        })
+        await get().initializeGuest()
+      },
+
       clearError: () => set({ error: null })
     }),
     {
@@ -751,6 +796,33 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 )
+
+/**
+ * Turn a rejected session into a guest one, wherever the rejection surfaces.
+ * Only 401 counts: a guest reaching an account-only route gets 403, which is a
+ * correct answer and not a reason to throw the session away.
+ */
+export function handleUnauthorizedResponse(status: number): void {
+  if (status !== 401) return
+  void useAuthStore.getState().discardRejectedSession()
+}
+
+let axiosInterceptorInstalled = false
+
+export function installUnauthorizedInterceptor(): void {
+  if (axiosInterceptorInstalled) return
+  axiosInterceptorInstalled = true
+  axios.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      const status = error?.response?.status
+      const url: string | undefined = error?.config?.url
+      // The sign-in routes answer 401 by design; that is not a stale session.
+      if (!url?.includes('/auth/')) handleUnauthorizedResponse(status)
+      return Promise.reject(error)
+    },
+  )
+}
 
 let broadcastListenerInstalled = false
 

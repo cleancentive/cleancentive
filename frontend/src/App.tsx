@@ -26,7 +26,7 @@ import { FeedbackPage } from './components/FeedbackPage'
 import { FeedbackNew } from './components/FeedbackNew'
 import { DeviceAuthPage } from './components/DeviceAuthPage'
 import { OidcAuthorize } from './components/OidcAuthorize'
-import { useAuthStore, installAuthBroadcastListener } from './stores/authStore'
+import { useAuthStore, installAuthBroadcastListener, installUnauthorizedInterceptor } from './stores/authStore'
 import { NavHistoryProvider } from './lib/navHistory'
 import './App.css'
 
@@ -34,6 +34,7 @@ import './App.css'
 // that don't render the AuthHandler (e.g. /steward) react to a sign-in
 // happening in a sibling tab.
 installAuthBroadcastListener()
+installUnauthorizedInterceptor()
 
 function AuthHandler() {
   const { verifyMagicLink, refreshProfile, logout } = useAuthStore()

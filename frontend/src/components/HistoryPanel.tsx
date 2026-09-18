@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
-import { useAuthStore } from '../stores/authStore'
+import { handleUnauthorizedResponse, useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useUiStore } from '../stores/uiStore'
 import { useInsightsFilterStore, presetToSince, pickedUpFilterToParam } from '../stores/insightsFilterStore'
@@ -247,6 +247,9 @@ export function HistoryPanel() {
     try {
       const response = await fetch(buildRequestUrl(cursor), { headers: getAuthHeaders() })
       if (!response.ok) {
+        // A rejected session drops back to guest rather than leaving the panel
+        // showing the raw refusal.
+        handleUnauthorizedResponse(response.status)
         const body = await response.text()
         throw new Error(body || `${response.status} ${response.statusText}`)
       }

@@ -1,3 +1,5 @@
+import { handleUnauthorizedResponse } from '../stores/authStore'
+
 /**
  * Turn a non-2xx `fetch` response into a thrown Error, so a mutation cannot fall through to
  * its success path. The message is the API's `message` field when the body is JSON (Nest's
@@ -6,6 +8,8 @@
  */
 export async function throwIfNotOk(res: Response): Promise<Response> {
   if (res.ok) return res
+  // A rejected session should not leave the app looking signed in.
+  handleUnauthorizedResponse(res.status)
   const data = await res.json().catch(() => null) as { message?: unknown } | null
   const message = typeof data?.message === 'string' && data.message.trim()
     ? data.message
