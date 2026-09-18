@@ -95,9 +95,12 @@ export class SpotService {
     this.s3Client = createS3Client();
   }
 
+  // The mime type is sniffed from the file's own bytes in the controller, so
+  // the extension follows what the file is rather than what it claimed.
   private getFileExtension(mimeType: string): string {
     if (mimeType === 'image/png') return 'png';
     if (mimeType === 'image/webp') return 'webp';
+    if (mimeType === 'image/heic') return 'heic';
     return 'jpg';
   }
 

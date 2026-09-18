@@ -30,8 +30,45 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { AdminGuard } from '../admin/admin.guard';
 import { ApiTags } from '@nestjs/swagger';
+import sharp = require('sharp');
 import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters, lookupInvasive } from '@cleancentive/shared';
 import type { AuthenticatedUser } from '../auth/jwt.strategy';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const MIME_BY_FORMAT: Record<string, string> = {
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  heif: 'image/heic',
+};
+
+/**
+ * What this file actually is, read from its bytes.
+ *
+ * The Content-Type on a multipart part is whatever the client wrote, and it
+ * ends up as the stored object's content type and its file extension. sharp
+ * reads the container for the formats it decodes; HEIC needs the manual check
+ * because the prebuilt binary cannot decode it, and batch import uploads camera
+ * originals untouched.
+ */
+async function detectImageMime(buffer: Buffer): Promise<string | null> {
+  if (isHeic(buffer)) return MIME_BY_FORMAT.heif;
+  try {
+    const { format } = await sharp(buffer).metadata();
+    return format ? MIME_BY_FORMAT[format] ?? null : null;
+  } catch {
+    return null;
+  }
+}
+
+/** ISO base media file format box with a HEIC brand. */
+function isHeic(buffer: Buffer): boolean {
+  if (buffer.length < 12) return false;
+  if (buffer.toString('latin1', 4, 8) !== 'ftyp') return false;
+  const brand = buffer.toString('latin1', 8, 12);
+  return ['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1'].includes(brand);
+}
 
 type UploadFiles = {
   image?: Array<{ buffer: Buffer; mimetype: string; size: number }>;
@@ -207,6 +244,12 @@ export class SpotController {
       throw new BadRequestException('uploadId is required');
     }
 
+    // It becomes part of the S3 key, so it has to be the uuid the client
+    // already sends and not an arbitrary string.
+    if (!UUID_PATTERN.test(uploadId)) {
+      throw new BadRequestException('uploadId must be a UUID');
+    }
+
     if (!isValidLatLng(latitude, longitude)) {
       throw new BadRequestException('latitude must be in [-90, 90] and longitude must be in [-180, 180]');
     }
@@ -221,6 +264,13 @@ export class SpotController {
       throw new BadRequestException('capturedAt must be a valid ISO date');
     }
 
+    // Trusting the declared Content-Type meant the stored object's type and
+    // extension came from the uploader. Read the container instead.
+    const detectedMime = await detectImageMime(image.buffer);
+    if (!detectedMime) {
+      throw new BadRequestException('image must be a JPEG, PNG, WebP or HEIC photo');
+    }
+
     const userId = await this.resolveOwner((req as any).user);
 
     const result = await this.spotService.createSpot({
@@ -228,7 +278,7 @@ export class SpotController {
       uploadId,
       imageBuffer: image.buffer,
       thumbnailBuffer: thumbnail?.buffer || null,
-      mimeType: image.mimetype || 'image/jpeg',
+      mimeType: detectedMime,
       capturedAt,
       latitude,
       longitude,
