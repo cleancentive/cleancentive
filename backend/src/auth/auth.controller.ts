@@ -225,7 +225,11 @@ export class AuthController {
     }
   }
 
+  // Rejecting cancels somebody's pending CLI login. The page only offers it to
+  // a signed-in user, and without a guard anyone could cancel any code.
   @Post('device-code/reject')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('Bearer')
   @ApiOperation({ summary: 'Reject a device code' })
   async rejectDeviceCode(
     @Body('deviceCode') deviceCode: string,

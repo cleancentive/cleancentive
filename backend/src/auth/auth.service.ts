@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
+import { randomInt } from 'node:crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { EmailService } from '../email/email.service';
 import { UserService } from '../user/user.service';
@@ -417,7 +418,9 @@ export class AuthService {
       .where('"expiresAt" < :now', { now: new Date() })
       .execute();
 
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    // Math.random is predictable: seeing a few codes narrows the generator
+    // state, and these authorise a CLI session on the approving user's account.
+    const code = String(randomInt(100000, 1000000));
     const expiresAt = new Date(Date.now() + AuthService.DEVICE_CODE_EXPIRY_MINUTES * 60 * 1000);
 
     const record = await this.deviceCodeRepo.save({

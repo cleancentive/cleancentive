@@ -60,7 +60,6 @@ const PENDING_HARDENING = new Set([
   'GET /insights/map',
   'GET /insights/stats',
   'GET /oidc/callback',
-  'POST /auth/device-code/reject',
 ]);
 
 function listControllerFiles(dir: string): string[] {

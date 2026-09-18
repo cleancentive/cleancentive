@@ -94,7 +94,11 @@ export function DeviceAuthPage() {
           style={{ padding: '0.75rem 2rem', fontSize: '1rem' }}
           onClick={async () => {
             try {
-              await axios.post(`${API_BASE}/auth/device-code/reject`, { deviceCode: code })
+              await axios.post(
+                `${API_BASE}/auth/device-code/reject`,
+                { deviceCode: code },
+                { headers: { Authorization: `Bearer ${sessionToken}` } },
+              )
             } catch { /* best-effort */ }
             setStatus('rejected')
           }}
