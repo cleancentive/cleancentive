@@ -1,5 +1,8 @@
 # Passwordless Authentication
 
+> The September 2026 security review reshaped several of these flows. See
+> [security-review-2026-09.md](security-review-2026-09.md) for what changed and why.
+
 ## Abstract
 
 Guest-first passwordless auth using email magic links. Users start as anonymous guests, claim accounts by verifying an email, and manage multiple emails per account. Adding an email that belongs to another account triggers a merge flow requiring the other party's confirmation. Recovery sends magic links to all selected login emails.

@@ -52,13 +52,6 @@ const PUBLIC_ROUTES = new Set([
   'POST /outline-webhooks/incoming',
 ]);
 
-/**
- * The last routes with no credential of their own. Each is fixed by a later
- * commit in the same series; this list must only ever shrink.
- */
-const PENDING_HARDENING = new Set([
-]);
-
 function listControllerFiles(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir)) {
@@ -121,12 +114,7 @@ describe('every HTTP route is guarded or explicitly public', () => {
     expect(routes.length).toBeGreaterThan(50);
 
     const unguarded = routes
-      .filter(
-        (r) =>
-          r.guards.length === 0 &&
-          !PUBLIC_ROUTES.has(r.key) &&
-          !PENDING_HARDENING.has(r.key),
-      )
+      .filter((r) => r.guards.length === 0 && !PUBLIC_ROUTES.has(r.key))
       .map((r) => `${r.key} (${r.controller})`)
       .sort();
 
@@ -136,9 +124,7 @@ describe('every HTTP route is guarded or explicitly public', () => {
   test('the public allowlist has no stale entries', async () => {
     const routes = await collectRoutes();
     const known = new Set(routes.map((r) => r.key));
-    const stale = [...PUBLIC_ROUTES, ...PENDING_HARDENING]
-      .filter((key) => !known.has(key))
-      .sort();
+    const stale = [...PUBLIC_ROUTES].filter((key) => !known.has(key)).sort();
 
     expect(stale).toEqual([]);
   });
