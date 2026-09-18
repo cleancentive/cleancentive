@@ -45,6 +45,7 @@ function linkedRow(source: ExternalCleanup, overrides: Partial<LinkedCleanupRow>
       dateId: 'date-1',
       name,
       description,
+      registrationUrl: source.registrationUrl,
       startAt: source.startAt.toISOString(),
       endAt: source.endAt.toISOString(),
       address: source.address,
@@ -172,6 +173,23 @@ describe('reconcile — updating', () => {
     expect(plan.updates[0].changes.name).toBe('Clean-Up Tour Zermatt Matterhorn');
     expect(plan.updates[0].changes.latitude).toBeUndefined();
     expect(plan.updates[0].changes.longitude).toBeUndefined();
+  });
+
+  test('a registration link the source changed is written back', () => {
+    const moved = external({ registrationUrl: 'https://forms.gle/new' });
+    const plan = reconcile(input({ linked: [linkedRow(external())], externals: [moved] }));
+
+    expect(plan.updates[0].changes.registrationUrl).toBe('https://forms.gle/new');
+  });
+
+  test('a cleanup stored before the feed tracked registration links picks one up', () => {
+    // Snapshots written by earlier versions have no registrationUrl; the first
+    // refresh after the upgrade fills it in rather than leaving it empty.
+    const row = linkedRow(external());
+    delete row.snapshot.registrationUrl;
+    const plan = reconcile(input({ linked: [row], externals: [external()] }));
+
+    expect(plan.updates[0].changes.registrationUrl).toBe('https://forms.gle/abc');
   });
 
   test('a coordinate the source itself moved is written back', () => {

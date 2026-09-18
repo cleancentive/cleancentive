@@ -4024,6 +4024,13 @@
   margin: 1rem 0 0.25rem;
 }
 
+/* Signing up happens at the organizer's, not here — so it reads as its own
+   step rather than as another sentence of the description. */
+.cleanup-registration {
+  margin: 0.75rem 0;
+  font-weight: 600;
+}
+
 /* Where a cleanup comes from: prose with an inline link, so unlike
    .partner-notice (a badge next to a label) it must not be a flex row. */
 .cleanup-provenance {

@@ -40,7 +40,7 @@ export interface ReconcileInput {
   unresolved: Array<{ listing: ExternalListing; reason: string }>;
 }
 
-export type OwnedFields = Omit<CleanupSyncSnapshot, 'dateId' | 'address'>;
+export type OwnedFields = Omit<CleanupSyncSnapshot, 'dateId' | 'address'> & { registrationUrl: string | null };
 
 export interface ReconcilePlan {
   creates: Array<{ external: ExternalCleanup; name: string; description: string }>;
@@ -183,6 +183,9 @@ function planUpdate(
   if (external.latitude !== null && (!snapshot || snapshot.latitude !== external.latitude)) changes.latitude = external.latitude;
   if (external.longitude !== null && (!snapshot || snapshot.longitude !== external.longitude)) changes.longitude = external.longitude;
   if (!snapshot || snapshot.locationName !== external.locationName) changes.locationName = external.locationName;
+  if (!snapshot || (snapshot.registrationUrl ?? null) !== external.registrationUrl) {
+    changes.registrationUrl = external.registrationUrl;
+  }
 
   if (Object.keys(changes).length === 0) {
     plan.unchanged.push(external.externalId);

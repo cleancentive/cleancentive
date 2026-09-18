@@ -30,6 +30,9 @@ const NAMED_ENTITIES: Record<string, string> = {
   szlig: 'ß',
 };
 
+/** Private-use codepoint, so it cannot collide with anything a source writes. */
+const MARKER = '\uE000';
+
 export function decodeEntities(input: string): string {
   return input
     .replace(/&#x([0-9a-f]+);/gi, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
@@ -54,17 +57,19 @@ function inlineText(html: string): string {
  * renderer should never be the only thing standing between that and a reader.
  */
 export function htmlToMarkdown(html: string): string {
-  // Inline constructs become Markdown up front and are parked as placeholders,
+  // Inline constructs become Markdown up front and are parked behind a marker,
   // so escaping the surrounding prose cannot chew through the syntax they just
-  // produced.
+  // produced. The marker is a private-use codepoint, and any that somehow came
+  // in with the source is dropped so it cannot be mistaken for one of ours.
   const parked: string[] = [];
+  const source = html.replace(new RegExp(MARKER, 'g'), '');
   const park = (markdown: string): string => {
     if (!markdown) return '';
     parked.push(markdown);
-    return `\u0000${parked.length - 1}\u0000`;
+    return `${MARKER}${parked.length - 1}${MARKER}`;
   };
 
-  const withPlaceholders = html
+  const withPlaceholders = source
     .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, '')
     .replace(/<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_, href: string, label: string) => {
       const url = decodeEntities(href).trim();
@@ -95,7 +100,7 @@ export function htmlToMarkdown(html: string): string {
   const escaped = escapeMarkdown(decodeEntities(withPlaceholders));
 
   const collapsed = escaped
-    .replace(/\u0000(\d+)\u0000/g, (_, index: string) => parked[Number(index)])
+    .replace(new RegExp(`${MARKER}(\\d+)${MARKER}`, 'g'), (_, index: string) => parked[Number(index)])
     .replace(/\r/g, '')
     .replace(/[ \t\u00a0]+/g, ' ')
     .split('\n')

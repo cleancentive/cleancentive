@@ -19,6 +19,8 @@ export interface CleanupSummary {
   team?: CleanupTeam | null
   /** Set when a cleanup feed mirrored this cleanup from another site. */
   external_url?: string | null
+  /** Where the organizer takes sign-ups, when that is not this app. */
+  registration_url?: string | null
 }
 
 export interface CleanupDate {

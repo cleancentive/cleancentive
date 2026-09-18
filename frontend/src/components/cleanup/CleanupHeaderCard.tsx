@@ -6,7 +6,7 @@ import { MarkdownText } from '../MarkdownText'
 import { MarkdownEditor } from '../MarkdownEditor'
 
 interface CleanupHeaderCardProps {
-  cleanup: { name: string; description: string; external_url?: string | null }
+  cleanup: { name: string; description: string; registration_url?: string | null }
   team: { id: string; name: string } | null
   organizerTeams: Array<{ id: string; name: string }>
   hasUser: boolean
@@ -103,6 +103,13 @@ export function CleanupHeaderCard({
             )}
           </legend>
           {cleanup.description && <MarkdownText source={cleanup.description} className="cleanup-description-display" />}
+          {cleanup.registration_url && (
+            <p className="cleanup-registration">
+              <a href={cleanup.registration_url} target="_blank" rel="noopener noreferrer">
+                {t('cleanups:header.registration')}
+              </a>
+            </p>
+          )}
           {team && (
             <p className="cleanup-provenance">
               <Trans

@@ -170,7 +170,7 @@ export class CleanupFeedService {
     }
 
     try {
-      const { plan, stats } = await this.buildPlan(feed, team);
+      const { plan, stats } = await this.buildPlan(feed);
       const summary = dryRun
         ? this.summarize(plan, stats, startedAt, true)
         : await this.applyPlan(feed, team, plan, stats, startedAt);
@@ -198,7 +198,7 @@ export class CleanupFeedService {
   }
 
   /** Reads the source and turns it into a plan, fetching as little as it can. */
-  private async buildPlan(feed: CleanupFeed, team: Team): Promise<{ plan: ReconcilePlan; stats: SourceStats }> {
+  private async buildPlan(feed: CleanupFeed): Promise<{ plan: ReconcilePlan; stats: SourceStats }> {
     const adapter = FEED_ADAPTERS[feed.kind];
     const now = new Date();
     const ctx = this.makeAdapterContext(now);
@@ -366,6 +366,7 @@ export class CleanupFeedService {
         external_id: external.externalId,
         external_url: external.url,
         external_version: external.version,
+        registration_url: external.registrationUrl,
         synced_at: new Date(),
         sync_snapshot: null,
       });
@@ -394,6 +395,7 @@ export class CleanupFeedService {
         dateId: savedDate.id,
         name,
         description,
+        registrationUrl: external.registrationUrl,
         startAt: external.startAt.toISOString(),
         endAt: external.endAt.toISOString(),
         address: external.address,
@@ -425,6 +427,7 @@ export class CleanupFeedService {
     cleanup.external_id = external.externalId;
     cleanup.external_url = external.url;
     cleanup.external_version = external.version;
+    cleanup.registration_url = cleanup.registration_url ?? external.registrationUrl;
     cleanup.synced_at = new Date();
     cleanup.team_id = cleanup.team_id ?? feed.team_id;
     // The snapshot records what is there now, not what the feed would write:
@@ -434,6 +437,7 @@ export class CleanupFeedService {
           dateId: nearest.id,
           name: cleanup.name,
           description: cleanup.description,
+          registrationUrl: cleanup.registration_url,
           startAt: nearest.start_at.toISOString(),
           endAt: nearest.end_at.toISOString(),
           address: external.address,
@@ -474,6 +478,9 @@ export class CleanupFeedService {
     if (update.changes.locationName !== undefined) {
       date.location_name = update.changes.locationName;
     }
+    if (update.changes.registrationUrl !== undefined) {
+      cleanup.registration_url = update.changes.registrationUrl;
+    }
     await this.cleanupDateRepository.save(date);
 
     cleanup.external_version = update.external.version;
@@ -483,6 +490,7 @@ export class CleanupFeedService {
       dateId: date.id,
       name: update.name,
       description: update.description,
+      registrationUrl: update.external.registrationUrl,
       startAt: update.external.startAt.toISOString(),
       endAt: update.external.endAt.toISOString(),
       address: update.external.address,

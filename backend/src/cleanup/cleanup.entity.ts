@@ -5,6 +5,7 @@ export interface CleanupSyncSnapshot {
   dateId: string;
   name: string;
   description: string;
+  registrationUrl?: string | null;
   startAt: string;
   endAt: string;
   address: string | null;
@@ -44,6 +45,10 @@ export class Cleanup extends BaseEntity {
 
   @Column('varchar', { length: 2048, nullable: true })
   external_url: string | null;
+
+  /** Where the organizer takes sign-ups, when that is not this app. */
+  @Column('varchar', { length: 2048, nullable: true })
+  registration_url: string | null;
 
   /** Opaque change marker from the source; equal means nothing to re-read. */
   @Column('varchar', { length: 64, nullable: true })

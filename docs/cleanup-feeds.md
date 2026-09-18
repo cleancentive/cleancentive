@@ -32,9 +32,22 @@ list the source  →  drop what is past or unchanged  →  read each remaining p
 6. **Apply and report.** The plan is written in the worker, and the run is summarised on
    the feed row and mailed out.
 
+## What the description holds
+
+The description is the source's own text and nothing else, converted to Markdown
+so its links survive: the Kandersteg meeting point links to a map, and flattening
+that to plain text left the link's label stranded beside its own words.
+
+Facts the app already knows are **not** written into it. Which team organizes the
+cleanup (`cleanups.team_id`), where it was mirrored from (`external_url`) and where
+sign-ups happen (`registration_url`) are columns, shown by the page in their own
+right. Putting them in the description made the page say the same thing twice, in a
+field people are free to edit — and an edit would then quietly lose them.
+
 ## What the feed owns, and what it leaves alone
 
-A feed owns a cleanup's name, description, start, end, coordinates and location name —
+A feed owns a cleanup's name, description, start, end, coordinates, location name
+and registration link —
 but it only rewrites a field when the **source's own value** changed. Every refresh
 stores what it wrote (`cleanups.sync_snapshot`), and compares against that rather than
 against the row.
@@ -119,3 +132,11 @@ applies the User-Agent, the timeout, the size cap and the pacing.
   `ExternalCleanup` per occurrence, with the occurrence in its `externalId`.
 - **A source that renumbers its ids** looks like every event was withdrawn and re-added.
   The adapter's listing-count check guards against a truncated response, not a renumbering.
+- **A new feed-owned field does not backfill by itself.** Refreshes skip any event
+  whose version is unchanged, so cleanups stored before the field existed keep it
+  empty until the source edits that event. To fill them in at once, clear the marker
+  and refresh:
+
+  ```sql
+  UPDATE cleanups SET external_version = NULL WHERE feed_id = '<feed id>';
+  ```

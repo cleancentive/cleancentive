@@ -62,7 +62,8 @@
     "archiveTitle": "Hides the cleanup from search and prevents new activity. Existing data is preserved.",
     "archiveConfirmBody": "Are you sure you want to archive <strong>{{name}}</strong>? This will deactivate the cleanup for all participants.",
     "organizedBy": "Organized by <teamLink>{{team}}</teamLink>",
-    "teamLabel": "Organized by team"
+    "teamLabel": "Organized by team",
+    "registration": "Sign up with the organizer →"
   },
   "calendar": {
     "heading": "Add to your calendar",
