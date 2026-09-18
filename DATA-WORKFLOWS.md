@@ -40,10 +40,29 @@ scripts. Pass script flags after a `--` separator:
 | `bun run data:import -- --input <dir> --mode <replace\|merge>` | Import a single bundle |
 | `bun run data:restore -- [--source <label>]` | Rebuild the DB from the latest full + its increments (chain) |
 | `bun run data:generate -- [--spec <file>] [...]` | Generate a synthetic bundle (see below) |
+| `bun run data:clean-e2e [-- --apply]` | Remove what the Playwright suite left in the dev database (see below) |
 
 The underlying scripts can also be run directly from the `backend/` workspace
 (`cd backend && bun run db:export -- ...`, `db:import`, `db:generate`) — path
 resolution is identical (repo-root-relative).
+
+## Clearing out e2e data
+
+Every `bun run test:e2e` signs up throwaway accounts and creates teams and cleanups
+under them, so after a few runs the local app is mostly test rows and there is
+nowhere clean to look at a feature by hand.
+
+```bash
+bun run data:clean-e2e             # dry run: says what would go
+bun run data:clean-e2e -- --apply  # delete it
+```
+
+It removes cleanups and teams named `E2E …` and accounts on `@example.com` — the
+shapes `frontend/e2e/helpers` produces. An account that owns spots is kept even
+if it looks like a test one, and the script refuses to run against anything but a
+local database.
+
+Take a `bun run data:backup` first if the database holds anything you care about.
 
 ## Bundle format (the contract)
 

@@ -25,7 +25,8 @@
     "data:import": "bun run --filter '@cleancentive/backend' db:import --",
     "data:backup": "bun run --filter '@cleancentive/backend' db:export -- --full",
     "data:restore": "bun run --filter '@cleancentive/backend' db:import -- --chain",
-    "data:generate": "bun run --filter '@cleancentive/backend' db:generate --"
+    "data:generate": "bun run --filter '@cleancentive/backend' db:generate --",
+    "data:clean-e2e": "bun run --filter '@cleancentive/backend' db:clean-e2e --"
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "3.1045.0",
