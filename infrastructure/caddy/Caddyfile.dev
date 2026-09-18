@@ -7,6 +7,16 @@
 cleancentive.local {
   tls /certs/cleancentive.local.pem /certs/cleancentive.local-key.pem
 
+  # Same as production, minus HSTS: pinning a .local name to HTTPS for a year
+  # on a developer's machine is not worth the recovery it would need.
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+    X-Frame-Options SAMEORIGIN
+    Permissions-Policy "camera=(self), geolocation=(self), microphone=()"
+    -Server
+  }
+
   @api path /api/*
   handle @api {
     reverse_proxy host.docker.internal:3000

@@ -1,6 +1,20 @@
 {$DOMAIN} {
   encode zstd gzip
 
+  header {
+    # A year, and subdomains, because wiki. and analytics. are HTTPS-only too.
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    # Uploaded photos are served back from /api; without this a file sniffed as
+    # something else could be run as that something else.
+    X-Content-Type-Options nosniff
+    # Spot URLs carry ids; don't hand them to whatever a user clicks through to.
+    Referrer-Policy strict-origin-when-cross-origin
+    X-Frame-Options SAMEORIGIN
+    # The app needs the camera and location; nothing else does.
+    Permissions-Policy "camera=(self), geolocation=(self), microphone=()"
+    -Server
+  }
+
   @api path /api/*
   handle @api {
     request_body {
