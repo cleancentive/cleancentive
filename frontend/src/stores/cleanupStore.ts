@@ -6,14 +6,14 @@ import { datetimeLocalToIso } from '../utils/datetime'
 import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 import { shouldFallBackToPast, type CleanupCounts, type CleanupStatus } from '../lib/cleanupStatus'
 
-interface CleanupSummary {
+export interface CleanupSummary {
   id: string
   name: string
   description: string
   created_at: string
 }
 
-interface CleanupDate {
+export interface CleanupDate {
   id: string
   start_at: string
   end_at: string
@@ -23,7 +23,7 @@ interface CleanupDate {
   recurrence_id: string | null
 }
 
-interface CleanupParticipant {
+export interface CleanupParticipant {
   userId: string
   nickname: string
   role: string
@@ -31,14 +31,14 @@ interface CleanupParticipant {
   uploadedAvatarUpdatedAt: string | null
 }
 
-interface CleanupSearchResult {
+export interface CleanupSearchResult {
   cleanup: CleanupSummary
   nearestDate: CleanupDate | null
   dates: CleanupDate[]
   userRole: string | null
 }
 
-interface CleanupDetail {
+export interface CleanupDetail {
   cleanup: CleanupSummary
   dates: CleanupDate[]
   participants: CleanupParticipant[]

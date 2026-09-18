@@ -843,6 +843,14 @@ export class CleanupService {
     cleanup.archived_by = actorUserId;
     await this.cleanupRepository.save(cleanup);
 
+    await this.clearActiveCleanupDates(cleanupId);
+  }
+
+  /**
+   * Drops the cleanup's dates from every user's active selection. Archiving is
+   * not the only caller — a cleanup feed archives what vanished from its source.
+   */
+  async clearActiveCleanupDates(cleanupId: string): Promise<void> {
     await this.userRepository.query(
       `
         UPDATE users

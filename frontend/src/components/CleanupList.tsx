@@ -6,7 +6,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useInsightsFilterStore } from '../stores/insightsFilterStore'
 import { CommunityList } from './CommunityList'
-import { CommunityCard } from './CommunityCard'
+import { CleanupCard } from './cleanup/CleanupCard'
 import { LocationPicker } from './LocationPicker'
 import { ProfileHintBanner } from './ProfileHintBanner'
 import { isoToDatetimeLocal } from '../utils/datetime'
@@ -38,16 +38,6 @@ const STATUS_OPTIONS = [
   { value: 'future' as const },
   { value: 'past' as const },
 ]
-
-function formatDateRange(startAt: string, endAt: string): string {
-  const start = new Date(startAt)
-  const end = new Date(endAt)
-  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }
-  if (start.toDateString() === end.toDateString()) {
-    return start.toLocaleDateString(undefined, opts)
-  }
-  return `${start.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, opts)}`
-}
 
 export function CleanupList() {
   const { t } = useTranslation(['cleanups', 'common'])
@@ -205,29 +195,9 @@ export function CleanupList() {
         </form>
       )}
 
-      {visibleCleanups.map(({ cleanup, nearestDate, userRole }) => {
-        const isActive = nearestDate && activeCleanupDateId === nearestDate.id
-        return (
-          <CommunityCard
-            key={cleanup.id}
-            to={`/cleanups/${cleanup.id}`}
-            title={cleanup.name}
-            description={cleanup.description}
-            tags={
-              <>
-                {userRole && <span className={`badge ${userRole === 'admin' ? 'admin-badge' : ''}`}>{userRole === 'organizer' ? t('common:domain.organizer') : userRole === 'member' ? t('cleanups:members.roleMember') : userRole}</span>}
-                {isActive && <span className="badge" style={{ background: 'var(--color-badge-active)' }}>{t('cleanups:list.badge.active')}</span>}
-              </>
-            }
-            meta={nearestDate && (
-              <>
-                <span>{formatDateRange(nearestDate.start_at, nearestDate.end_at)}</span>
-                {nearestDate.location_name && <span> · {nearestDate.location_name}</span>}
-              </>
-            )}
-          />
-        )
-      })}
+      {visibleCleanups.map((item) => (
+        <CleanupCard key={item.cleanup.id} item={item} activeCleanupDateId={activeCleanupDateId} />
+      ))}
     </CommunityList>
   )
 }
