@@ -301,27 +301,6 @@ export class UserService {
     return this.userEmailRepository.save(userEmail);
   }
 
-  async registerUser(userId: string, email: string): Promise<{ user: User; email: UserEmail; needsMerge: boolean }> {
-    // Check if email already exists with another user
-    const existingUser = await this.findUserByEmail(email);
-    
-    if (existingUser && existingUser.id !== userId) {
-      // Email belongs to another user - mark for merging
-      const userEmail = await this.validateAndAssociateEmail(userId, email);
-      return { user: existingUser, email: userEmail, needsMerge: true };
-    }
-
-    // Normal registration - associate email with current user
-    const userEmail = await this.validateAndAssociateEmail(userId, email);
-    const user = await this.findById(userId);
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    return { user, email: userEmail, needsMerge: false };
-  }
-
   async updateEmailSelection(userId: string, emailIds: string[]): Promise<UserEmail[]> {
     // First, deselect all emails for this user
     await this.userEmailRepository.update(

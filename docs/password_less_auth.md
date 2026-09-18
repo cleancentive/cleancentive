@@ -125,8 +125,6 @@ All endpoints return JSON. Auth-protected endpoints expect `Authorization: Beare
 
 | Method | Path | Auth | Body / Query | Response | Notes |
 |--------|------|------|-------------|----------|-------|
-| POST | `/user/guest` | No | — | User object | Create anonymous guest. Retained for backwards compatibility; frontend uses client-side UUIDv7 instead. |
-| GET | `/user/:id` | No | — | User object | Look up user by id. |
 | GET | `/user/profile` | Yes | — | User object with emails | Current user profile. |
 | PUT | `/user/profile` | Yes | `{ nickname?, full_name? }` | User object | Update profile fields. |
 | DELETE | `/user/profile` | Yes | `?mode=delete\|anonymize` | `{ success }` | Delete or anonymize account. |
