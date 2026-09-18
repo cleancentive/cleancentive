@@ -3,7 +3,6 @@ import {
   Body,
   Controller,
   HttpCode,
-  HttpException,
   HttpStatus,
   Post,
   Request,
@@ -17,10 +16,13 @@ import {
   ClientEventsService,
   IdentityHint,
 } from './client-events.service';
+import { createRateLimiter } from '../common/rate-limit';
 
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
-const RATE_LIMIT_MAX = 60;
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const rateLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 60,
+  message: 'Too many client events. Please try again later.',
+});
 
 const VALID_EVENT_TYPES: ClientEventType[] = [
   'pick.upload.failed',
@@ -57,22 +59,6 @@ interface RawBody {
   status?: unknown;
   message?: unknown;
   identityHint?: unknown;
-}
-
-function checkRateLimit(key: string): void {
-  const now = Date.now();
-  const entry = rateLimitMap.get(key);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) {
-    throw new HttpException(
-      'Too many client events. Please try again later.',
-      HttpStatus.TOO_MANY_REQUESTS,
-    );
-  }
-  entry.count++;
 }
 
 function validatePayload(body: RawBody): ClientEventPayload {
@@ -183,7 +169,7 @@ export class ClientEventsController {
       : 'anonymous';
 
     const rateLimitKey = req.user?.userId || req.ip || 'anonymous';
-    checkRateLimit(rateLimitKey);
+    rateLimiter.check(rateLimitKey);
 
     this.service.record({ ...payload, identity });
 

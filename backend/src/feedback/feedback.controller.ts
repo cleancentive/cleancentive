@@ -12,7 +12,6 @@ import {
   HttpCode,
   HttpStatus,
   BadRequestException,
-  HttpException,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -20,28 +19,18 @@ import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { AdminGuard } from '../admin/admin.guard';
 import { AdminService } from '../admin/admin.service';
 import { parseWeeksParam } from '../common/weekly-series';
+import { createRateLimiter } from '../common/rate-limit';
 import { FeedbackService } from './feedback.service';
 import {
   FEEDBACK_CATEGORY_QUERY_VALUES,
   normalizeFeedbackListQuery,
 } from './feedback-query';
 
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const RATE_LIMIT_MAX = 10;
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(key: string): void {
-  const now = Date.now();
-  const entry = rateLimitMap.get(key);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) {
-    throw new HttpException('Too many feedback submissions. Please try again later.', HttpStatus.TOO_MANY_REQUESTS);
-  }
-  entry.count++;
-}
+const rateLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: 'Too many feedback submissions. Please try again later.',
+});
 
 const VALID_CATEGORIES = ['bug', 'suggestion', 'question'] as const;
 type Category = (typeof VALID_CATEGORIES)[number];
@@ -78,7 +67,7 @@ export class FeedbackController {
     }
 
     const rateLimitKey = req.user?.userId || req.ip || 'anonymous';
-    checkRateLimit(rateLimitKey);
+    rateLimiter.check(rateLimitKey);
 
     // Identity comes from the token, not the body: a `guestId` the sender
     // chose could name anyone, and guest feedback is readable by its guest id.

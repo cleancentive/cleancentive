@@ -4,6 +4,34 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { buildRequestMetadata, type RequestMetadata } from './request-metadata';
+import { clientIp, createRateLimiter } from '../common/rate-limit';
+
+/**
+ * Sending mail is the one thing an anonymous caller can make this API do that
+ * costs real money and reaches a stranger's inbox. The monthly allowance is
+ * finite, and exhausting it takes sign-in down for everybody.
+ *
+ * Not an account-security measure: one link is all an attacker needs. The
+ * limits are loose enough that nobody reaches them by hand.
+ */
+const HOUR_MS = 60 * 60 * 1000;
+
+const perAddressMailLimiter = createRateLimiter({
+  windowMs: HOUR_MS,
+  max: 10,
+  message: 'Too many sign-in emails for this address. Please try again later.',
+});
+
+const perIpMailLimiter = createRateLimiter({
+  windowMs: HOUR_MS,
+  max: 60,
+  message: 'Too many sign-in emails requested. Please try again later.',
+});
+
+function limitMailSending(req: any, email: string | undefined): void {
+  perIpMailLimiter.check(clientIp(req));
+  if (email) perAddressMailLimiter.check(email.trim().toLowerCase());
+}
 
 @Controller('auth')
 @ApiTags('auth')
@@ -22,6 +50,7 @@ export class AuthController {
     // attempt from someone else's attempted impersonation. This is a
     // nice-to-have for the email body and must never block sign-in, so any
     // failure degrades to undefined (email falls back to "Unknown …").
+    limitMailSending(req, email);
     let requestMetadata: RequestMetadata | undefined;
     try {
       requestMetadata = buildRequestMetadata(req);
@@ -120,8 +149,12 @@ export class AuthController {
 
   @Post('recover')
   async recover(
+    @Request() req: any,
     @Body('email') email: string,
   ): Promise<{ success: boolean }> {
+    // Recovery mails every address on the account at once, so it is the more
+    // expensive of the two.
+    limitMailSending(req, email);
     await this.authService.sendRecoveryLinks(email);
     return { success: true };
   }
