@@ -11,8 +11,13 @@ import { clientIp, createRateLimiter } from '../common/rate-limit';
  * costs real money and reaches a stranger's inbox. The monthly allowance is
  * finite, and exhausting it takes sign-in down for everybody.
  *
- * Not an account-security measure: one link is all an attacker needs. The
- * limits are loose enough that nobody reaches them by hand.
+ * Not an account-security measure: one link is all a targeted attacker needs.
+ *
+ * The per-address limit is the meaningful one — it stops a mailbox being
+ * buried, and no real person asks for eleven links to the same address in an
+ * hour. The per-IP number is a coarse flood stop, deliberately loose: an
+ * office, a school or a mobile carrier puts many people behind one address,
+ * and a full end-to-end test run signs in a dozen times from one.
  */
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -24,7 +29,7 @@ const perAddressMailLimiter = createRateLimiter({
 
 const perIpMailLimiter = createRateLimiter({
   windowMs: HOUR_MS,
-  max: 60,
+  max: 300,
   message: 'Too many sign-in emails requested. Please try again later.',
 });
 
