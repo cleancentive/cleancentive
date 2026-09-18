@@ -119,3 +119,25 @@ describe('UserService.getProfileWithContext active cleanup expiry', () => {
     expect(updates).toHaveLength(0);
   });
 });
+
+describe('findOrCreateGuest records the claim', () => {
+  test('stamps guest_token_issued_at when the row first appears', async () => {
+    const saved: any[] = [];
+    const service: any = Object.create(UserService.prototype);
+    service.userRepository = {
+      findOne: async () => null,
+      create: (row: any) => row,
+      save: async (row: any) => {
+        saved.push(row);
+        return row;
+      },
+    };
+
+    // A guest's id is public the moment they log a pick. If the row that
+    // appears then does not record that the id is taken, whoever reads it off
+    // that spot can get a guest token for it and reach those picks.
+    await service.findOrCreateGuest('019e7901-0000-7000-8000-00000000abcd');
+
+    expect(saved[0].guest_token_issued_at).toBeInstanceOf(Date);
+  });
+});

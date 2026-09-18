@@ -80,7 +80,10 @@ describe('issueGuestToken', () => {
     expect(result.userId).not.toBe('0199b3d2-1c00-7000-8000-000000000003');
   });
 
-  test('lets two tabs opening at once share one identity', async () => {
+  test('refuses an id claimed moments ago, not just long ago', async () => {
+    // A guest's id is public as soon as they log a pick, and the row is stamped
+    // at that same moment. A window of even a minute is one an attacker
+    // watching the public feed can hit.
     const rows: Row[] = [
       {
         id: '0199b3d2-1c00-7000-8000-000000000004',
@@ -93,7 +96,26 @@ describe('issueGuestToken', () => {
 
     const result = await service.issueGuestToken('0199b3d2-1c00-7000-8000-000000000004');
 
-    expect(result.userId).toBe('0199b3d2-1c00-7000-8000-000000000004');
+    expect(result.userId).not.toBe('0199b3d2-1c00-7000-8000-000000000004');
+  });
+
+  test('refuses an id that is already in use, even with no token recorded', async () => {
+    // A guest's id becomes visible the moment they log a pick — it is on the
+    // spot. Rows are created lazily, so the row that appears then is the only
+    // record that the id is taken.
+    const rows: Row[] = [
+      {
+        id: '0199b3d2-1c00-7000-8000-000000000005',
+        nickname: 'guest',
+        emails: [],
+        guest_token_issued_at: new Date(Date.now() - 60 * 60 * 1000),
+      },
+    ];
+    const service = makeAuthService(makeUserService(rows));
+
+    const result = await service.issueGuestToken('0199b3d2-1c00-7000-8000-000000000005');
+
+    expect(result.userId).not.toBe('0199b3d2-1c00-7000-8000-000000000005');
   });
 
   test('ignores anything that is not a uuid', async () => {

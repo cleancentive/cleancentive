@@ -44,9 +44,15 @@ export class UserService {
     });
     if (existing) return existing;
 
+    // Stamped on creation, not only when a token is handed out. Rows are lazy,
+    // so a guest who has a token but has not written yet has no row to stamp —
+    // and once they do write, their id becomes visible on the spot they
+    // created. Without this, whoever read that id could ask for a token of
+    // their own for it and reach the picks behind it.
     const guest = this.userRepository.create({
       id: guestId,
       nickname: 'guest',
+      guest_token_issued_at: new Date(),
     });
     return this.userRepository.save(guest);
   }
@@ -80,11 +86,10 @@ export class UserService {
    * Claim a guest id for a server-issued session token, once.
    *
    * Ids created by the old client-side flow are already in people's
-   * localStorage and hold their picks, so they are honoured — but only the
-   * first time, or a leaked id would be exchangeable by anyone who saw it. The
-   * short grace window is for a browser opening two tabs at once on the first
-   * load after the change; without it the second tab would be handed a fresh
-   * empty identity and overwrite the first.
+   * localStorage and hold their picks, so they are honoured — but only while
+   * nothing has claimed them yet. A guest's id goes public the moment they log
+   * a pick, since it is on the spot; anyone reading it there must not be able
+   * to ask for a token of their own for it.
    */
   async claimGuestId(id: string): Promise<boolean> {
     if (!(await this.isUnclaimedGuest(id))) return false;
@@ -94,14 +99,11 @@ export class UserService {
       select: ['id', 'guest_token_issued_at'],
     });
 
-    // No row yet: nothing has been claimed, and the row appears on first write.
+    // No row yet: nothing has been claimed. The row appears on this guest's
+    // first write and is stamped then, by findOrCreateGuest.
     if (!user) return true;
 
-    if (user.guest_token_issued_at) {
-      const graceMs = 60 * 1000;
-      if (Date.now() - user.guest_token_issued_at.getTime() > graceMs) return false;
-      return true;
-    }
+    if (user.guest_token_issued_at) return false;
 
     await this.userRepository.update({ id }, { guest_token_issued_at: new Date() });
     return true;
