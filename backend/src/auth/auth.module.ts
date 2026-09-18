@@ -10,13 +10,19 @@ import { UserModule } from '../user/user.module';
 import { AdminModule } from '../admin/admin.module';
 import { PendingAuthRequest } from './pending-auth-request.entity';
 import { DeviceCode } from './device-code.entity';
+import { getJwtSecret, SESSION_TTL } from './jwt-config';
 
 @Module({
   imports: [
     PassportModule,
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'default-secret-change-in-production',
-      signOptions: { expiresIn: '365d' },
+    JwtModule.registerAsync({
+      // Async so the secret is read when the module is instantiated rather than
+      // when the file is imported: a spec that imports a controller for its
+      // metadata must not trip the production guard.
+      useFactory: () => ({
+        secret: getJwtSecret(),
+        signOptions: { expiresIn: SESSION_TTL },
+      }),
     }),
     TypeOrmModule.forFeature([PendingAuthRequest, DeviceCode]),
     EmailModule,
