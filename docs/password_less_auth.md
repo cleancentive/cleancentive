@@ -27,10 +27,19 @@ Guest-first passwordless auth using email magic links. Users start as anonymous 
 
 ### Token Types
 
-| Token | Lifetime | Purpose |
-|-------|----------|---------|
-| Magic link | 24h | One-time use, delivered via email. Payload: `subject` (user id), `email`, optional `guest_id`, optional `purpose`, optional `merge_into_user_id`. |
-| Session | 365d | Bearer token for authenticated API calls. Payload: `subject` (user id). Client refreshes silently when within 30d of expiry. |
+| Token | Lifetime | Claims | Purpose |
+|-------|----------|--------|---------|
+| Magic link | 24h | `purpose = magic-link` | Delivered via email. Payload: `subject` (user id), `email`, optional `guest_id`. Recovery links are the same kind. |
+| Add email | 24h | `purpose = add-email` | Confirms a new address. `subject` is the requester, so this must never be usable as a session. |
+| Merge confirm | 24h | `purpose = merge-confirm` | Sent to the account being absorbed. Payload also carries `merge_into_user_id`. |
+| Session | 365d | `typ = session` | Bearer token for authenticated API calls. Payload: `subject` (user id). Client refreshes silently when within 30d of expiry. |
+
+All tokens are signed with the same secret, so the signature alone does not say
+what a token may be used for. A token carrying a `purpose` is rejected as a
+session, and a session token is rejected on the sign-in route. Tokens issued
+before these claims existed carry neither and are still accepted as sessions so
+that nobody is signed out for a problem they cannot see; drop that allowance
+once the last pre-2026-09 token has expired.
 
 ### Flows
 

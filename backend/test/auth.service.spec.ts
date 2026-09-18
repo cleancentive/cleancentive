@@ -166,13 +166,13 @@ describe('AuthService', () => {
   });
 
   describe('generateSessionToken', () => {
-    it('should generate JWT token for user', async () => {
+    it('should tag the token as a session so email links cannot stand in for one', async () => {
       const mockToken = 'session-token-123';
       jest.spyOn(jwtService, 'sign').mockReturnValue(mockToken);
 
       const result = await service.generateSessionToken('user-123');
 
-      expect(jwtService.sign).toHaveBeenCalledWith({ sub: 'user-123' });
+      expect(jwtService.sign).toHaveBeenCalledWith({ sub: 'user-123', typ: 'session' });
       expect(result).toBe(mockToken);
     });
   });

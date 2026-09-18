@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -11,6 +11,8 @@ import { AdminService } from '../admin/admin.service';
 import { PendingAuthRequest, PendingAuthStatus } from './pending-auth-request.entity';
 import { DeviceCode, DeviceCodeStatus } from './device-code.entity';
 import { resolveFrontendUrl } from '../common/allowed-origins';
+import { MAGIC_LINK_TTL } from './jwt-config';
+import { isMagicLinkPayload, isSessionPayload, type TokenPayload } from './token-claims';
 import type { RequestMetadata } from './request-metadata';
 
 @Injectable()
@@ -53,11 +55,11 @@ export class AuthService {
 
     const requestId = uuidv4();
 
-    const payload: Record<string, string> = { sub: userId, email, requestId };
+    const payload: Record<string, string> = { sub: userId, email, requestId, purpose: 'magic-link' };
     if (guestId && existingUser && existingUser.id !== guestId) {
       payload.guestId = guestId;
     }
-    const token = this.jwtService.sign(payload, { expiresIn: '24h' });
+    const token = this.jwtService.sign(payload, { expiresIn: MAGIC_LINK_TTL });
 
     // The origin is attacker-controlled: a request carrying
     // `Origin: https://evil.example` used to have us mail a genuine-looking
@@ -82,7 +84,13 @@ export class AuthService {
 
   async verifyMagicLink(token: string): Promise<{ userId: string; email: string; requestId?: string }> {
     try {
-      const payload = this.jwtService.verify(token);
+      const payload: TokenPayload = this.jwtService.verify(token);
+      // A session token is signed with the same secret. Without this it could
+      // be replayed on the sign-in route, and so could an add-email or
+      // merge-confirm token delivered to someone else's inbox.
+      if (!isMagicLinkPayload(payload)) {
+        throw new UnauthorizedException('Invalid or expired magic link');
+      }
       const userId = payload.sub;
       const guestId = payload.guestId;
       const requestId = payload.requestId as string | undefined;
@@ -102,9 +110,10 @@ export class AuthService {
 
       this.eventEmitter.emit('user-email.changed', { userId });
 
-      return { userId, email: payload.email, requestId };
+      return { userId, email: payload.email as string, requestId };
     } catch (error) {
-      throw new Error('Invalid or expired magic link');
+      if (error instanceof UnauthorizedException) throw error;
+      throw new UnauthorizedException('Invalid or expired magic link');
     }
   }
 
@@ -188,8 +197,8 @@ export class AuthService {
     const links: string[] = [];
 
     for (const userEmail of emailsToSend) {
-      const payload = { sub: user.id, email: userEmail.email };
-      const token = this.jwtService.sign(payload, { expiresIn: '24h' });
+      const payload = { sub: user.id, email: userEmail.email, purpose: 'magic-link' };
+      const token = this.jwtService.sign(payload, { expiresIn: MAGIC_LINK_TTL });
       emails.push(userEmail.email);
       links.push(`${frontendUrl}/auth/verify?token=${token}`);
     }
@@ -244,16 +253,23 @@ export class AuthService {
   }
 
   async generateSessionToken(userId: string): Promise<string> {
-    const payload = { sub: userId };
+    const payload = { sub: userId, typ: 'session' };
     return this.jwtService.sign(payload);
   }
 
   async validateSessionToken(token: string): Promise<any> {
+    let payload: TokenPayload;
     try {
-      return this.jwtService.verify(token);
+      payload = this.jwtService.verify(token);
     } catch (error) {
-      throw new Error('Invalid session token');
+      throw new UnauthorizedException('Invalid session token');
     }
+    // An emailed link is signed with the same secret as a session, so the
+    // signature alone does not say it may be used as one.
+    if (!isSessionPayload(payload)) {
+      throw new UnauthorizedException('Invalid session token');
+    }
+    return payload;
   }
 
   async refreshSessionToken(userId: string): Promise<string> {
