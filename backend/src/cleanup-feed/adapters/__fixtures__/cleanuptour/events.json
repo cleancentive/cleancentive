@@ -1,0 +1,46 @@
+[
+  {
+    "id": 963,
+    "slug": "kandersteg",
+    "link": "https://cleanuptour.ch/event/kandersteg/",
+    "title": {
+      "rendered": "Kandersteg"
+    },
+    "status": "publish",
+    "date_gmt": "2025-03-03T16:06:59",
+    "modified_gmt": "2026-06-11T11:40:00"
+  },
+  {
+    "id": 943,
+    "slug": "zermatt",
+    "link": "https://cleanuptour.ch/event/zermatt/",
+    "title": {
+      "rendered": "Zermatt"
+    },
+    "status": "publish",
+    "date_gmt": "2025-03-03T15:40:42",
+    "modified_gmt": "2026-08-13T07:35:23"
+  },
+  {
+    "id": 902,
+    "slug": "thyon-veysonnaz",
+    "link": "https://cleanuptour.ch/event/thyon-veysonnaz/",
+    "title": {
+      "rendered": "Thyon &#038; Veysonnaz"
+    },
+    "status": "publish",
+    "date_gmt": "2025-03-03T14:41:59",
+    "modified_gmt": "2026-07-20T13:46:50"
+  },
+  {
+    "id": 788,
+    "slug": "adelboden",
+    "link": "https://cleanuptour.ch/event/adelboden/",
+    "title": {
+      "rendered": "Adelboden"
+    },
+    "status": "publish",
+    "date_gmt": "2025-03-03T09:59:57",
+    "modified_gmt": "2026-05-12T14:00:51"
+  }
+]
