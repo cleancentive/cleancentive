@@ -32,7 +32,7 @@ test('an organizer picks their team when creating a cleanup', async ({ page }) =
 
   await page.locator('form.community-create-form button[type="submit"]').click()
 
-  await expect(page.locator('.partner-notice', { hasText: teamName })).toBeVisible({ timeout: 10000 })
+  await expect(page.locator('.cleanup-provenance', { hasText: teamName })).toBeVisible({ timeout: 10000 })
   await expect(page).toHaveURL(/\/cleanups\/[0-9a-f-]+$/)
 })
 
@@ -45,11 +45,11 @@ test('an organizer assigns a team to an existing cleanup by editing it', async (
   const { cleanupId } = await createCleanupViaApi(sessionToken, { name: `E2E Unassigned Cleanup ${suffix}` })
 
   await page.goto(`/cleanups/${cleanupId}`)
-  await expect(page.locator('.partner-notice', { hasText: 'Organized by' })).toHaveCount(0)
+  await expect(page.locator('.cleanup-provenance', { hasText: 'Organized by' })).toHaveCount(0)
 
   await page.locator('button.legend-edit-button:has-text("Edit")').click()
   await page.locator('#cleanup-edit-team').selectOption(teamId)
   await page.locator('button.primary-button:has-text("Save")').click()
 
-  await expect(page.locator('.partner-notice', { hasText: teamName })).toBeVisible({ timeout: 10000 })
+  await expect(page.locator('.cleanup-provenance', { hasText: teamName })).toBeVisible({ timeout: 10000 })
 })

@@ -50,7 +50,7 @@ test('a team cleanup is badged in the list and credits the team on its page', as
   await expect(card.locator('.badge', { hasText: teamName })).toBeVisible()
 
   await page.goto(`/cleanups/${cleanupId}`)
-  const credit = page.locator('.partner-notice', { hasText: 'Organized by' })
+  const credit = page.locator('.cleanup-provenance', { hasText: 'Organized by' })
   await expect(credit).toBeVisible({ timeout: 10000 })
 
   await credit.locator(`a:has-text("${teamName}")`).click()
