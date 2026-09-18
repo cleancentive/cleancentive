@@ -113,15 +113,31 @@ function rememberStartedRequest(requestId: string): void {
   }
 }
 
-function takeStartedRequest(): string | null {
+function readStartedRequest(): string | null {
   try {
-    const value = localStorage.getItem(STARTED_REQUEST_KEY)
-    localStorage.removeItem(STARTED_REQUEST_KEY)
-    return value
+    return localStorage.getItem(STARTED_REQUEST_KEY)
   } catch {
     return null
   }
 }
+
+function forgetStartedRequest(): void {
+  try {
+    localStorage.removeItem(STARTED_REQUEST_KEY)
+  } catch {
+    // Nothing to clean up if it could not be written in the first place.
+  }
+}
+
+/**
+ * Verifying the same link twice must not change the outcome.
+ *
+ * The magic-link effect runs twice under React StrictMode, and a link can be
+ * opened again from history. Reading the started-request marker destructively
+ * made the second run look like a different device and ask to confirm a
+ * sign-in the first run had already completed silently.
+ */
+let verifyInFlight: { token: string; done: Promise<void> } | null = null
 
 /**
  * One guest-session request at a time.
@@ -318,68 +334,83 @@ export const useAuthStore = create<AuthState>()(
       },
 
       verifyMagicLink: async (token: string) => {
-        // This browser clicked the magic link — stop any active polling
-        clearPolling()
-        // Read before clearing: this is what says whether the waiting device is
-        // this one.
-        const startedHere = takeStartedRequest()
-        set({ isLoading: true, error: null, pendingAuthRequestId: null, crossDeviceSignIn: null })
+        // StrictMode runs the magic-link effect twice; both runs must resolve
+        // to the same outcome rather than racing each other.
+        if (verifyInFlight?.token === token) return verifyInFlight.done
 
-        try {
-          const response = await axios.get(`${API_BASE}/auth/verify?token=${token}`)
-          const sessionToken = response.headers['x-session-token']
-          const completedRequestId = response.data?.requestId as string | undefined
-          const pendingSignIn = response.data?.pendingSignIn as CrossDeviceSignIn | null | undefined
+        const run = (async () => {
+          // This browser clicked the magic link — stop any active polling
+          clearPolling()
+          // This is what says whether the device still waiting is this one.
+          // Read, not consumed: StrictMode and a reopened link both run this
+          // twice, and the second run must reach the same conclusion.
+          const startedHere = readStartedRequest()
+          set({ isLoading: true, error: null, pendingAuthRequestId: null, crossDeviceSignIn: null })
 
-          const profileResponse = await axios.get(`${API_BASE}/user/profile`, {
-            headers: { Authorization: `Bearer ${sessionToken}` },
-          })
+          try {
+            const response = await axios.get(`${API_BASE}/auth/verify?token=${token}`)
+            const sessionToken = response.headers['x-session-token']
+            const completedRequestId = response.data?.requestId as string | undefined
+            const pendingSignIn = response.data?.pendingSignIn as CrossDeviceSignIn | null | undefined
 
-          set({
-            user: profileResponse.data,
-            sessionToken,
-            guestToken: null,
-            guestId: null,
-            isLoading: false
-          })
+            const profileResponse = await axios.get(`${API_BASE}/user/profile`, {
+              headers: { Authorization: `Bearer ${sessionToken}` },
+            })
 
-          // A sign-in is still waiting on a device somewhere. If it is this
-          // browser, finish it silently — that is the ordinary case, where
-          // someone typed their address here and opened the link here. If it is
-          // not, ask: completing it hands a session to whoever started it, and
-          // requesting a link for an address you do not own and polling for the
-          // result is exactly how an account gets taken over.
-          if (pendingSignIn) {
-            if (startedHere === pendingSignIn.requestId) {
-              await completePendingAuth(pendingSignIn.requestId, sessionToken)
-            } else {
-              set({ crossDeviceSignIn: pendingSignIn })
-            }
-          }
-
-          // Tell sibling tabs in this browser they're signed in too — but only
-          // if they were polling for *this exact* requestId. Each independent
-          // sign-in attempt (separate POST /auth/magic-link) gets its own
-          // requestId and must be resolved by its own link. Without this
-          // binding, two tabs that both started a sign-in would both get
-          // signed in when only one link is clicked.
-          if (completedRequestId) {
-            getAuthChannel()?.postMessage({
-              type: 'session',
-              requestId: completedRequestId,
-              sessionToken,
+            set({
               user: profileResponse.data,
-            } satisfies BroadcastSessionMessage)
-          }
+              sessionToken,
+              guestToken: null,
+              guestId: null,
+              isLoading: false
+            })
 
-          trackEvent('sign-in-completed')
-          identifyUser((profileResponse.data as User).id, selectedEmails(profileResponse.data as User))
-          localStorage.removeItem('guestId')
-        } catch (error: any) {
-          set({
-            error: error.response?.data?.message || 'Invalid or expired magic link',
-            isLoading: false
-          })
+            // A sign-in is still waiting on a device somewhere. If it is this
+            // browser, finish it silently — that is the ordinary case, where
+            // someone typed their address here and opened the link here. If it is
+            // not, ask: completing it hands a session to whoever started it, and
+            // requesting a link for an address you do not own and polling for the
+            // result is exactly how an account gets taken over.
+            if (pendingSignIn) {
+              if (startedHere === pendingSignIn.requestId) {
+                await completePendingAuth(pendingSignIn.requestId, sessionToken)
+                forgetStartedRequest()
+              } else {
+                set({ crossDeviceSignIn: pendingSignIn })
+              }
+            }
+
+            // Tell sibling tabs in this browser they're signed in too — but only
+            // if they were polling for *this exact* requestId. Each independent
+            // sign-in attempt (separate POST /auth/magic-link) gets its own
+            // requestId and must be resolved by its own link. Without this
+            // binding, two tabs that both started a sign-in would both get
+            // signed in when only one link is clicked.
+            if (completedRequestId) {
+              getAuthChannel()?.postMessage({
+                type: 'session',
+                requestId: completedRequestId,
+                sessionToken,
+                user: profileResponse.data,
+              } satisfies BroadcastSessionMessage)
+            }
+
+            trackEvent('sign-in-completed')
+            identifyUser((profileResponse.data as User).id, selectedEmails(profileResponse.data as User))
+            localStorage.removeItem('guestId')
+          } catch (error: any) {
+            set({
+              error: error.response?.data?.message || 'Invalid or expired magic link',
+              isLoading: false
+            })
+          }
+        })()
+
+        verifyInFlight = { token, done: run }
+        try {
+          await run
+        } finally {
+          verifyInFlight = null
         }
       },
 
@@ -388,6 +419,7 @@ export const useAuthStore = create<AuthState>()(
         if (!crossDeviceSignIn || !sessionToken) return
         set({ crossDeviceSignIn: null })
         await completePendingAuth(crossDeviceSignIn.requestId, sessionToken)
+        forgetStartedRequest()
         trackEvent('cross-device-sign-in-confirmed')
       },
 
@@ -395,6 +427,7 @@ export const useAuthStore = create<AuthState>()(
         const { crossDeviceSignIn, sessionToken } = get()
         if (!crossDeviceSignIn) return
         set({ crossDeviceSignIn: null })
+        forgetStartedRequest()
         if (!sessionToken) return
         try {
           // Drop the request so the other device stops polling and says so,
@@ -426,7 +459,7 @@ export const useAuthStore = create<AuthState>()(
           crossDeviceSignIn: null,
         })
         localStorage.removeItem('guestId')
-        localStorage.removeItem(STARTED_REQUEST_KEY)
+        forgetStartedRequest()
         useUiStore.getState().setPickCount(0)
       },
 
