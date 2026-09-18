@@ -4,6 +4,9 @@
 > **Author:** matthias (with Claude)
 > **Supersedes:** Track B brainstorm captured during implementation of feedback `019dee68`
 > **Related:** [docs/federation-analysis.md](../federation-analysis.md), [docs/public-api-design.md](../public-api-design.md), feedback `019dee68` (already shipped)
+> **Note (2026-09-18):** Part II is still unimplemented. A separate, narrower feature ships
+> the recurring case — see [docs/cleanup-feeds.md](cleanup-feeds.md), which mirrors a known
+> source into a team on a schedule rather than pre-filling a form on demand.
 
 ## 1. Context
 

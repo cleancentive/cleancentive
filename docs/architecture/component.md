@@ -65,6 +65,7 @@ graph TD
 | User | User entity management (profiles, nicknames), email associations, account lifecycle |
 | Spot | Geolocated litter spot persistence, detection queue management, detection status tracking |
 | Cleanup | Community cleanup coordination: cleanup lifecycle, date scheduling with geolocation, participant roles (admin/member), messaging |
+| Cleanup Feed | Mirroring of external cleanup listings into a team: feed registry, per-source adapters, geocoding, reconciliation into cleanups, scheduled refresh and steward digest |
 | Team | Team-based organization: team creation, membership with role hierarchy, active team per user, internal messaging |
 | Admin | Platform administration: admin user management, operations overview (queue, worker, spots), health checks (DB, Redis, S3), failed spot retry |
 | Email | Magic link email composition and delivery via external email service |

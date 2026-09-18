@@ -104,6 +104,27 @@ Can be one-time or recurring. When recurring, individual instances are identifie
 - **UI examples:** "Saturday Park Cleanup", "Beach Cleanup — March 14th", "Join this cleanup", "Next cleanup: March 21st"
 - **Code entity:** `Cleanup` (was `Event`)
 
+### Team Cleanup
+
+A Cleanup a Team organizes, rather than an individual. Shown as "Organized by <Team>"
+on the cleanup and listed on the team's page. Organizers of that team can manage the
+cleanup even if they never joined it themselves.
+
+- **DB column:** `cleanups.team_id`
+
+### Cleanup Feed
+
+An external cleanup listing that a Team mirrors. Refreshing a feed creates, updates
+and archives that team's upcoming Cleanups from the source, and mails stewards and the
+team's organizers a digest of what changed.
+
+Use the verb **refresh** (DE *aktualisieren*, FR *actualiser*) — **not** "sync", which
+in Cleancentive means transferring locally-queued picks to the server.
+
+- **UI examples:** "Cleanup Feeds (Steward)", "Refresh now", "Mirrored from cleanuptour.ch"
+- **Code entity:** `CleanupFeed`; `cleanups.feed_id` marks what a feed created
+- **Adapters:** one per source site, in `backend/src/cleanup-feed/adapters/`
+
 ### Participant
 
 A user who joined a Cleanup.
