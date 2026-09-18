@@ -6,11 +6,17 @@ import { datetimeLocalToIso } from '../utils/datetime'
 import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 import { shouldFallBackToPast, type CleanupCounts, type CleanupStatus } from '../lib/cleanupStatus'
 
+export interface CleanupTeam {
+  id: string
+  name: string
+}
+
 export interface CleanupSummary {
   id: string
   name: string
   description: string
   created_at: string
+  team?: CleanupTeam | null
 }
 
 export interface CleanupDate {
@@ -36,6 +42,7 @@ export interface CleanupSearchResult {
   nearestDate: CleanupDate | null
   dates: CleanupDate[]
   userRole: string | null
+  team?: CleanupTeam | null
 }
 
 export interface CleanupDetail {
@@ -43,6 +50,9 @@ export interface CleanupDetail {
   dates: CleanupDate[]
   participants: CleanupParticipant[]
   userRole: string | null
+  team: CleanupTeam | null
+  /** True for the cleanup's own organizers and for organizers of the team that runs it. */
+  canManage: boolean
 }
 
 interface CleanupMessage {
@@ -60,6 +70,8 @@ interface CleanupState {
   cleanupTotal: number
   cleanupCounts: CleanupCounts | null
   myCleanups: CleanupSearchResult[]
+  teamCleanups: CleanupSearchResult[]
+  isLoadingTeamCleanups: boolean
   currentCleanup: CleanupDetail | null
   messages: CleanupMessage[]
   statusFilter: Set<CleanupStatus>
@@ -70,6 +82,7 @@ interface CleanupState {
 
   searchCleanups: (query?: string) => Promise<void>
   fetchMyCleanups: () => Promise<void>
+  fetchTeamCleanups: (teamId: string) => Promise<void>
   fetchCleanup: (id: string) => Promise<void>
   createCleanup: (name: string, description: string, date: {
     startAt: string
@@ -115,6 +128,8 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
   cleanupTotal: 0,
   cleanupCounts: null,
   myCleanups: [],
+  teamCleanups: [],
+  isLoadingTeamCleanups: false,
   currentCleanup: null,
   messages: [],
   statusFilter: new Set<CleanupStatus>(['ongoing', 'future']),
@@ -154,6 +169,18 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
       set({ myCleanups: response.data.items })
     } catch {
       // Silently fail — ContextBar dropdowns will just be empty
+    }
+  },
+
+  fetchTeamCleanups: async (teamId: string) => {
+    set({ isLoadingTeamCleanups: true })
+    try {
+      const params = new URLSearchParams({ team_id: teamId })
+      const response = await axios.get(`${API_BASE}/cleanups/search?${params}`, { headers: getAuthHeaders() })
+      set({ teamCleanups: response.data.items, isLoadingTeamCleanups: false })
+    } catch {
+      // The team page still works without its cleanups — leave the section empty.
+      set({ teamCleanups: [], isLoadingTeamCleanups: false })
     }
   },
 

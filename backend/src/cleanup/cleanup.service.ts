@@ -10,6 +10,8 @@ import { Cleanup } from './cleanup.entity';
 import { CleanupDate } from './cleanup-date.entity';
 import { CleanupParticipant } from './cleanup-participant.entity';
 import { CleanupMessage } from './cleanup-message.entity';
+import { Team } from '../team/team.entity';
+import { TeamMembership } from '../team/team-membership.entity';
 import { User } from '../user/user.entity';
 import { UserEmail } from '../user/user-email.entity';
 import { resolveNotificationRecipients, toLocale } from '../user/notification-recipients';
@@ -26,6 +28,7 @@ import tzLookup = require('tz-lookup');
 interface CreateCleanupInput {
   name: string;
   description: string;
+  teamId?: string | null;
   date: {
     startAt: Date;
     endAt: Date;
@@ -35,8 +38,14 @@ interface CreateCleanupInput {
   };
 }
 
+export interface TeamSummary {
+  id: string;
+  name: string;
+}
+
 interface SearchCleanupsInput {
   query?: string;
+  teamId?: string;
   statuses?: CleanupStatus[];
   date?: Date;
   includeArchived?: boolean;
@@ -97,6 +106,10 @@ export class CleanupService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(UserEmail)
     private readonly userEmailRepository: Repository<UserEmail>,
+    @InjectRepository(Team)
+    private readonly teamRepository: Repository<Team>,
+    @InjectRepository(TeamMembership)
+    private readonly teamMembershipRepository: Repository<TeamMembership>,
     private readonly adminService: AdminService,
     private readonly emailService: EmailService,
     private readonly calendarService: CalendarService,
@@ -133,12 +146,79 @@ export class CleanupService {
     return participant;
   }
 
-  private async ensureOrganizer(cleanupId: string, userId: string): Promise<CleanupParticipant> {
-    const participant = await this.getParticipantOrThrow(cleanupId, userId);
-    if (participant.role !== 'organizer') {
-      throw new ForbiddenException('Cleanup organizer permissions required');
+  private async ensureOrganizer(cleanupId: string, userId: string): Promise<void> {
+    const participant = await this.getParticipant(cleanupId, userId);
+    if (participant?.role === 'organizer') {
+      return;
     }
-    return participant;
+    // A cleanup the team organizes is managed by that team's organizers, even
+    // when they never joined it themselves — which is the only way anyone can
+    // edit a cleanup a cleanup feed created.
+    const cleanup = await this.getCleanupOrThrow(cleanupId);
+    if (cleanup.team_id && (await this.isTeamOrganizer(cleanup.team_id, userId))) {
+      return;
+    }
+    if (!participant) {
+      throw new ForbiddenException('You are not a participant in this cleanup');
+    }
+    throw new ForbiddenException('Cleanup organizer permissions required');
+  }
+
+  private async isTeamOrganizer(teamId: string, userId: string): Promise<boolean> {
+    const membership = await this.teamMembershipRepository.findOne({ where: { team_id: teamId, user_id: userId } });
+    return membership?.role === 'organizer';
+  }
+
+  /**
+   * Resolves the teams a set of cleanups belongs to. An unlisted team stays
+   * hidden from everyone but its own members and stewards, so its cleanups
+   * show up unattributed rather than leaking the team's existence.
+   */
+  private async resolveTeamSummaries(
+    teamIds: string[],
+    userId?: string,
+    isPlatformAdmin?: boolean,
+  ): Promise<Map<string, TeamSummary>> {
+    const summaries = new Map<string, TeamSummary>();
+    if (teamIds.length === 0) {
+      return summaries;
+    }
+    const teams = await this.teamRepository.find({ where: { id: In(teamIds) } });
+    const unlistedIds = teams.filter((team) => team.is_unlisted).map((team) => team.id);
+
+    let visibleUnlisted = new Set<string>();
+    if (unlistedIds.length > 0 && isPlatformAdmin) {
+      visibleUnlisted = new Set(unlistedIds);
+    } else if (unlistedIds.length > 0 && userId) {
+      const memberships = await this.teamMembershipRepository.find({
+        where: { user_id: userId, team_id: In(unlistedIds) },
+      });
+      visibleUnlisted = new Set(memberships.map((m) => m.team_id));
+    }
+
+    for (const team of teams) {
+      if (team.archived_at) continue;
+      if (team.is_unlisted && !visibleUnlisted.has(team.id)) continue;
+      summaries.set(team.id, { id: team.id, name: team.name });
+    }
+    return summaries;
+  }
+
+  /**
+   * Throws unless the actor may hand a cleanup to this team. Only a team's own
+   * organizers can, so a cleanup cannot be attributed to a team behind its back.
+   */
+  private async ensureTeamAssignable(teamId: string, actorUserId: string): Promise<void> {
+    const team = await this.teamRepository.findOne({ where: { id: teamId } });
+    if (!team || team.archived_at) {
+      throw new BadRequestException('Team not found');
+    }
+    if (team.system_key) {
+      throw new BadRequestException('System teams cannot organize cleanups');
+    }
+    if (!(await this.isTeamOrganizer(teamId, actorUserId))) {
+      throw new ForbiddenException('Team organizer permissions required');
+    }
   }
 
   private async ensureRegisteredUser(userId: string): Promise<void> {
@@ -188,12 +268,17 @@ export class CleanupService {
     this.assertDateWindow(input.date.startAt, input.date.endAt);
     this.assertCoordinates(input.date.latitude, input.date.longitude);
 
+    if (input.teamId) {
+      await this.ensureTeamAssignable(input.teamId, userId);
+    }
+
     const cleanup = this.cleanupRepository.create({
       name: trimmedName,
       name_normalized: nameNormalized,
       description: trimmedDescription || '',
       archived_at: null,
       archived_by: null,
+      team_id: input.teamId || null,
     });
     const savedCleanup = await this.cleanupRepository.save(cleanup);
 
@@ -234,7 +319,11 @@ export class CleanupService {
     return { cleanup, dates };
   }
 
-  async updateCleanup(cleanupId: string, actorUserId: string, input: { name?: string; description?: string }): Promise<Cleanup> {
+  async updateCleanup(
+    cleanupId: string,
+    actorUserId: string,
+    input: { name?: string; description?: string; teamId?: string | null },
+  ): Promise<Cleanup> {
     await this.ensureRegisteredUser(actorUserId);
     const cleanup = await this.getCleanupOrThrow(cleanupId);
     await this.ensureCleanupNotArchived(cleanup);
@@ -252,15 +341,23 @@ export class CleanupService {
     if (input.description !== undefined) {
       cleanup.description = input.description.trim();
     }
+    if (input.teamId !== undefined) {
+      if (input.teamId) {
+        await this.ensureTeamAssignable(input.teamId, actorUserId);
+      }
+      cleanup.team_id = input.teamId || null;
+    }
 
     return this.cleanupRepository.save(cleanup);
   }
 
-  async getCleanupDetail(cleanupId: string, userId?: string): Promise<{
+  async getCleanupDetail(cleanupId: string, userId?: string, isPlatformAdmin?: boolean): Promise<{
     cleanup: Cleanup;
     dates: CleanupDate[];
     participants: Array<{ userId: string; nickname: string; role: string; avatarEmailId: string | null; uploadedAvatarUpdatedAt: string | null }>;
     userRole: string | null;
+    team: TeamSummary | null;
+    canManage: boolean;
   }> {
     const { cleanup, dates } = await this.getCleanup(cleanupId);
 
@@ -292,11 +389,19 @@ export class CleanupService {
       userRole = participant?.role || null;
     }
 
-    return { cleanup, dates, participants, userRole };
+    const teamSummaries = cleanup.team_id
+      ? await this.resolveTeamSummaries([cleanup.team_id], userId, isPlatformAdmin)
+      : new Map<string, TeamSummary>();
+    const team = cleanup.team_id ? teamSummaries.get(cleanup.team_id) || null : null;
+
+    const canManage = userRole === 'organizer'
+      || (!!userId && !!cleanup.team_id && (await this.isTeamOrganizer(cleanup.team_id, userId)));
+
+    return { cleanup, dates, participants, userRole, team, canManage };
   }
 
   async searchCleanups(input: SearchCleanupsInput): Promise<{
-    items: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null; dates: Array<CleanupDate & { spotCount: number }>; userRole: string | null }>;
+    items: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null; dates: Array<CleanupDate & { spotCount: number }>; userRole: string | null; team: TeamSummary | null }>;
     total: number;
     counts: { past: number; ongoing: number; future: number };
   }> {
@@ -306,6 +411,10 @@ export class CleanupService {
     if (input.query?.trim()) {
       const query = `%${input.query.trim()}%`;
       qb.where('(cleanup.name ILIKE :query OR cleanup.description ILIKE :query)', { query });
+    }
+
+    if (input.teamId) {
+      qb.andWhere('cleanup.team_id = :teamId', { teamId: input.teamId });
     }
 
     if (input.includeArchived) {
@@ -330,7 +439,13 @@ export class CleanupService {
       participantMap = new Map(participations.map((p) => [p.cleanup_id, p.role]));
     }
 
-    const items: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null; dates: Array<CleanupDate & { spotCount: number }>; userRole: string | null }> = [];
+    const teamSummaries = await this.resolveTeamSummaries(
+      [...new Set(cleanups.map((c) => c.team_id).filter((id): id is string => !!id))],
+      input.userId,
+      input.currentUserIsPlatformAdmin,
+    );
+
+    const items: Array<{ cleanup: Cleanup; nearestDate: CleanupDate | null; dates: Array<CleanupDate & { spotCount: number }>; userRole: string | null; team: TeamSummary | null }> = [];
     const counts = { past: 0, ongoing: 0, future: 0 };
 
     const allDatesByCleanup = new Map<string, CleanupDate[]>();
@@ -390,7 +505,7 @@ export class CleanupService {
         if (!passes) continue;
       }
 
-      items.push({ cleanup, nearestDate, dates, userRole });
+      items.push({ cleanup, nearestDate, dates, userRole, team: cleanup.team_id ? teamSummaries.get(cleanup.team_id) || null : null });
     }
 
     return { items, total: items.length, counts };

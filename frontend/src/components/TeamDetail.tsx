@@ -6,6 +6,9 @@ import { useTeamStore } from '../stores/teamStore'
 import { useAuthStore } from '../stores/authStore'
 import { useAdminStore } from '../stores/adminStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
+import { CleanupCard } from './cleanup/CleanupCard'
+import { partitionTeamCleanups } from '../lib/teamCleanups'
+import { useCleanupStore } from '../stores/cleanupStore'
 import { MemberList } from './MemberList'
 import { MessageBoard } from './MessageBoard'
 import { useUiStore } from '../stores/uiStore'
@@ -43,6 +46,8 @@ export function TeamDetail() {
     clearError,
   } = useTeamStore()
 
+  const { teamCleanups, fetchTeamCleanups } = useCleanupStore()
+
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
@@ -59,6 +64,10 @@ export function TeamDetail() {
       fetchMessages(id)
     }
   }, [id, currentTeam?.userRole, fetchMessages])
+
+  useEffect(() => {
+    if (id) fetchTeamCleanups(id)
+  }, [id, fetchTeamCleanups])
 
   useEffect(() => {
     if (currentTeam) {
@@ -88,6 +97,8 @@ export function TeamDetail() {
   const isOrganizer = userRole === 'organizer'
   const isStewardsTeam = systemKey === 'stewards' || membershipManagedBy === 'steward-role'
   const activeTeamId = user?.active_team_id
+  const activeCleanupDateId = (user as any)?.active_cleanup_date_id ?? null
+  const { upcoming: upcomingCleanups, past: pastCleanups } = partitionTeamCleanups(teamCleanups)
 
   const handleJoin = () => { if (id) joinTeam(id) }
   const handleLeave = () => { if (id) leaveTeam(id) }
@@ -246,6 +257,25 @@ export function TeamDetail() {
               </button>
             </div>
           </details>
+        </fieldset>
+      )}
+
+      {(teamCleanups.length > 0 || isOrganizer) && (
+        <fieldset className="page-card">
+          <legend>{t('detail.cleanups', { count: teamCleanups.length })}</legend>
+          {teamCleanups.length === 0 ? (
+            <p className="end-of-list">{t('detail.noCleanups')}</p>
+          ) : (
+            <>
+              {upcomingCleanups.map((item) => (
+                <CleanupCard key={item.cleanup.id} item={item} activeCleanupDateId={activeCleanupDateId} showTeam={false} />
+              ))}
+              {pastCleanups.length > 0 && upcomingCleanups.length > 0 && <h3>{t('detail.cleanupsPast')}</h3>}
+              {pastCleanups.map((item) => (
+                <CleanupCard key={item.cleanup.id} item={item} activeCleanupDateId={activeCleanupDateId} showTeam={false} />
+              ))}
+            </>
+          )}
         </fieldset>
       )}
 

@@ -19,8 +19,12 @@ function makeController() {
       calls.push({ method: 'updateDate', cleanupDateId, userId, input });
       return { id: cleanupDateId };
     },
+    searchCleanups: async (input: any) => {
+      calls.push({ method: 'searchCleanups', input });
+      return { items: [], total: 0, counts: { past: 0, ongoing: 0, future: 0 } };
+    },
   } as any;
-  const adminService = {} as any;
+  const adminService = { isAdmin: async () => false } as any;
   const controller = new CleanupController(cleanupService, adminService);
   return { controller, calls };
 }
@@ -110,5 +114,50 @@ describe('CleanupController datetime parsing', () => {
         },
       ),
     ).rejects.toThrow(BadRequestException);
+  });
+});
+
+describe('CleanupController team wiring', () => {
+  test('createCleanup forwards the chosen team', async () => {
+    const { controller, calls } = makeController();
+    await controller.createCleanup(
+      { user: { userId: 'u1' } },
+      {
+        name: 'x',
+        description: '',
+        teamId: 'team-1',
+        date: {
+          startAt: '2026-05-06T08:00:00.000Z',
+          endAt: '2026-05-06T10:00:00.000Z',
+          latitude: 47,
+          longitude: 8,
+        },
+      },
+    );
+    expect(calls[0].input.teamId).toBe('team-1');
+  });
+
+  test('createCleanup without a team passes null', async () => {
+    const { controller, calls } = makeController();
+    await controller.createCleanup(
+      { user: { userId: 'u1' } },
+      {
+        name: 'x',
+        description: '',
+        date: {
+          startAt: '2026-05-06T08:00:00.000Z',
+          endAt: '2026-05-06T10:00:00.000Z',
+          latitude: 47,
+          longitude: 8,
+        },
+      },
+    );
+    expect(calls[0].input.teamId).toBeNull();
+  });
+
+  test('searchCleanups forwards the team_id filter', async () => {
+    const { controller, calls } = makeController();
+    await controller.searchCleanups({ user: undefined }, undefined, undefined, undefined, undefined, undefined, 'team-1');
+    expect(calls[0].input.teamId).toBe('team-1');
   });
 });

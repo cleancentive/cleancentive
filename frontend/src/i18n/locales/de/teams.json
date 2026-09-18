@@ -49,7 +49,10 @@
     "members": "Mitglieder ({{count}})",
     "messages": "Nachrichten",
     "archiveConfirm": "Archivieren",
-    "archivePrompt": "Möchtest du <strong>{{name}}</strong> wirklich archivieren? Dadurch wird das Team für alle Mitglieder deaktiviert."
+    "archivePrompt": "Möchtest du <strong>{{name}}</strong> wirklich archivieren? Dadurch wird das Team für alle Mitglieder deaktiviert.",
+    "cleanups": "Cleanups ({{count}})",
+    "cleanupsPast": "Vergangene Cleanups",
+    "noCleanups": "Noch keine Cleanups. Organizer können dieses Team beim Erstellen oder Bearbeiten eines Cleanups auswählen."
   },
   "partner": {
     "importLabel": "Von URL importieren",

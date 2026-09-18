@@ -57,7 +57,8 @@
     "organizerActions": "Organizer Actions",
     "archive": "Archive Cleanup",
     "archiveTitle": "Hides the cleanup from search and prevents new activity. Existing data is preserved.",
-    "archiveConfirmBody": "Are you sure you want to archive <strong>{{name}}</strong>? This will deactivate the cleanup for all participants."
+    "archiveConfirmBody": "Are you sure you want to archive <strong>{{name}}</strong>? This will deactivate the cleanup for all participants.",
+    "organizedBy": "Organized by <teamLink>{{team}}</teamLink>"
   },
   "calendar": {
     "heading": "Add to your calendar",
@@ -116,7 +117,8 @@
     "sheetClose": "Close"
   },
   "card": {
-    "viewDetails": "View"
+    "viewDetails": "View",
+    "organizedBy": "Organized by {{team}}"
   },
   "members": {
     "empty": "No {{entity}}s yet",

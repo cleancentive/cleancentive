@@ -1,24 +1,11 @@
 import { test, expect } from '@playwright/test'
-import { signInFreshUser } from './helpers/cleanup'
+import { signInFreshUser, createTeamViaApi } from './helpers/cleanup'
 
 // The teams list carried the same defect as the cleanups list: an active team
 // hard-filtered it down to that one team. Activating a team marks it, it does
 // not hide the others.
 
 const API_BASE = 'http://localhost:3000/api/v1'
-
-async function createTeamViaApi(sessionToken: string, name: string): Promise<string> {
-  const response = await fetch(`${API_BASE}/teams`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
-    body: JSON.stringify({ name, description: 'Created by Playwright' }),
-  })
-  if (!response.ok) throw new Error(`Failed to create team: ${response.status} ${await response.text()}`)
-  const data = await response.json()
-  const id = data.team?.id ?? data.id
-  if (!id) throw new Error(`Unexpected createTeam response shape: ${JSON.stringify(data)}`)
-  return id
-}
 
 test('activating a team badges it without hiding the other teams', async ({ page }) => {
   const { sessionToken } = await signInFreshUser(page)

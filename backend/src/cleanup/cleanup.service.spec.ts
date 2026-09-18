@@ -259,3 +259,129 @@ describe('CleanupService calendar invite locale', () => {
     expect(sentEmails[0].locale).toBe('en');
   });
 });
+
+/**
+ * Team-linked cleanups: who may edit them, and whose team name is shown.
+ * Built the same way as the harness above — prototype methods over stub repos.
+ */
+function makeTeamService(opts: {
+  cleanup: { id: string; team_id: string | null; archived_at?: Date | null };
+  participants?: Array<{ cleanup_id: string; user_id: string; role: string }>;
+  memberships?: Array<{ team_id: string; user_id: string; role: string }>;
+  teams?: Array<{ id: string; name: string; is_unlisted?: boolean; archived_at?: Date | null; system_key?: string | null }>;
+}) {
+  const saved: any[] = [];
+  const participants = opts.participants ?? [];
+  const memberships = opts.memberships ?? [];
+  const teams = opts.teams ?? [];
+
+  const service: any = Object.create(CleanupService.prototype);
+  service.cleanupRepository = {
+    findOne: async ({ where }: any) => {
+      if (where?.name_normalized) return null;
+      return where?.id === opts.cleanup.id ? { ...opts.cleanup } : null;
+    },
+    save: async (row: any) => {
+      saved.push(row);
+      return row;
+    },
+  };
+  service.cleanupParticipantRepository = {
+    findOne: async ({ where }: any) =>
+      participants.find((p) => p.cleanup_id === where.cleanup_id && p.user_id === where.user_id) ?? null,
+  };
+  service.teamMembershipRepository = {
+    findOne: async ({ where }: any) =>
+      memberships.find((m) => m.team_id === where.team_id && m.user_id === where.user_id) ?? null,
+    find: async ({ where }: any) => {
+      const wanted: string[] = where.team_id?._value ?? where.team_id?.value ?? [];
+      return memberships.filter((m) => m.user_id === where.user_id && wanted.includes(m.team_id));
+    },
+  };
+  service.teamRepository = {
+    findOne: async ({ where }: any) => teams.find((t) => t.id === where.id) ?? null,
+    find: async ({ where }: any) => {
+      const wanted: string[] = where.id?._value ?? where.id?.value ?? [];
+      return teams.filter((t) => wanted.includes(t.id));
+    },
+  };
+  service.userEmailRepository = { count: async () => 1 };
+
+  return { service, saved };
+}
+
+describe('CleanupService team-organized cleanups', () => {
+  test('a team organizer may edit a team cleanup they never joined', async () => {
+    const { service, saved } = makeTeamService({
+      cleanup: { id: 'c1', team_id: 't1', archived_at: null },
+      memberships: [{ team_id: 't1', user_id: 'u-org', role: 'organizer' }],
+      teams: [{ id: 't1', name: 'Summit', system_key: null }],
+    });
+
+    await service.updateCleanup('c1', 'u-org', { description: 'edited by the team' });
+
+    expect(saved).toHaveLength(1);
+    expect(saved[0].description).toBe('edited by the team');
+  });
+
+  test('a plain team member may not edit a team cleanup', async () => {
+    const { service } = makeTeamService({
+      cleanup: { id: 'c1', team_id: 't1', archived_at: null },
+      memberships: [{ team_id: 't1', user_id: 'u-member', role: 'member' }],
+      teams: [{ id: 't1', name: 'Summit', system_key: null }],
+    });
+
+    await expect(service.updateCleanup('c1', 'u-member', { description: 'nope' })).rejects.toThrow(
+      'You are not a participant in this cleanup',
+    );
+  });
+
+  test('assigning a team you do not organize is refused', async () => {
+    const { service } = makeTeamService({
+      cleanup: { id: 'c1', team_id: null, archived_at: null },
+      participants: [{ cleanup_id: 'c1', user_id: 'u1', role: 'organizer' }],
+      memberships: [{ team_id: 't1', user_id: 'u1', role: 'member' }],
+      teams: [{ id: 't1', name: 'Summit', system_key: null }],
+    });
+
+    await expect(service.updateCleanup('c1', 'u1', { teamId: 't1' })).rejects.toThrow(
+      'Team organizer permissions required',
+    );
+  });
+
+  test('clearing the team is allowed for the cleanup organizer', async () => {
+    const { service, saved } = makeTeamService({
+      cleanup: { id: 'c1', team_id: 't1', archived_at: null },
+      participants: [{ cleanup_id: 'c1', user_id: 'u1', role: 'organizer' }],
+      teams: [{ id: 't1', name: 'Summit', system_key: null }],
+    });
+
+    await service.updateCleanup('c1', 'u1', { teamId: null });
+
+    expect(saved[0].team_id).toBeNull();
+  });
+
+  test('an unlisted team is not named to outsiders', async () => {
+    const { service } = makeTeamService({
+      cleanup: { id: 'c1', team_id: 't1' },
+      teams: [{ id: 't1', name: 'Secret', is_unlisted: true }],
+    });
+
+    const outsider = await service.resolveTeamSummaries(['t1'], 'u-outsider', false);
+    expect(outsider.get('t1')).toBeUndefined();
+  });
+
+  test('an unlisted team is named to its members and to stewards', async () => {
+    const { service } = makeTeamService({
+      cleanup: { id: 'c1', team_id: 't1' },
+      memberships: [{ team_id: 't1', user_id: 'u-member', role: 'member' }],
+      teams: [{ id: 't1', name: 'Secret', is_unlisted: true }],
+    });
+
+    const member = await service.resolveTeamSummaries(['t1'], 'u-member', false);
+    expect(member.get('t1').name).toBe('Secret');
+
+    const steward = await service.resolveTeamSummaries(['t1'], 'u-steward', true);
+    expect(steward.get('t1').name).toBe('Secret');
+  });
+});

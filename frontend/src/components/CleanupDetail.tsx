@@ -113,7 +113,9 @@ export function CleanupDetail() {
 
   const { cleanup, participants, userRole } = currentCleanup
   const isParticipant = userRole !== null
-  const isOrganizer = userRole === 'organizer'
+  // Organizers of the team that runs this cleanup manage it too, even without
+  // a participant row of their own.
+  const isOrganizer = userRole === 'organizer' || currentCleanup.canManage
   const activeCleanupDateId = (user as any)?.active_cleanup_date_id
 
   // Build recurrence color map
@@ -192,6 +194,7 @@ export function CleanupDetail() {
 
       <CleanupHeaderCard
         cleanup={cleanup}
+        team={currentCleanup.team}
         hasUser={!!user}
         isParticipant={isParticipant}
         isOrganizer={isOrganizer}

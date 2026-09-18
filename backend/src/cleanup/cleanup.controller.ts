@@ -49,6 +49,7 @@ export class CleanupController {
     body: {
       name?: string;
       description?: string;
+      teamId?: string | null;
       date?: {
         startAt?: string;
         endAt?: string;
@@ -61,6 +62,7 @@ export class CleanupController {
     return this.cleanupService.createCleanup(req.user.userId, {
       name: body.name || '',
       description: body.description || '',
+      teamId: body.teamId || null,
       date: {
         startAt: parseIsoWithOffset('date.startAt', body.date?.startAt),
         endAt: parseIsoWithOffset('date.endAt', body.date?.endAt),
@@ -80,11 +82,13 @@ export class CleanupController {
     @Query('date') date?: string,
     @Query('includeArchived') includeArchived?: string,
     @Query('member_only') memberOnly?: string,
+    @Query('team_id') teamId?: string,
   ) {
     const userId = req.user?.userId;
     const isPlatformAdmin = userId ? await this.adminService.isAdmin(userId) : false;
     return this.cleanupService.searchCleanups({
       query,
+      teamId,
       statuses: parseCleanupStatuses(status),
       date: date ? new Date(date) : undefined,
       includeArchived: includeArchived === 'true',
@@ -131,7 +135,9 @@ export class CleanupController {
     @Request() req: any,
     @Param('id', ParseUUIDPipe) cleanupId: string,
   ) {
-    return this.cleanupService.getCleanupDetail(cleanupId, req.user?.userId);
+    const userId = req.user?.userId;
+    const isPlatformAdmin = userId ? await this.adminService.isAdmin(userId) : false;
+    return this.cleanupService.getCleanupDetail(cleanupId, userId, isPlatformAdmin);
   }
 
   @Put(':id')
@@ -139,7 +145,7 @@ export class CleanupController {
   async updateCleanup(
     @Request() req: any,
     @Param('id', ParseUUIDPipe) cleanupId: string,
-    @Body() body: { name?: string; description?: string },
+    @Body() body: { name?: string; description?: string; teamId?: string | null },
   ) {
     return this.cleanupService.updateCleanup(cleanupId, req.user.userId, body);
   }

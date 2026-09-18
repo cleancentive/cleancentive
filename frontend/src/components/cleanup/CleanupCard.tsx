@@ -5,6 +5,8 @@ import type { CleanupSearchResult } from '../../stores/cleanupStore'
 interface CleanupCardProps {
   item: CleanupSearchResult
   activeCleanupDateId: string | null
+  /** Off on the team's own page, where every card would carry the same badge. */
+  showTeam?: boolean
 }
 
 function formatDateRange(startAt: string, endAt: string): string {
@@ -17,10 +19,11 @@ function formatDateRange(startAt: string, endAt: string): string {
   return `${start.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, opts)}`
 }
 
-export function CleanupCard({ item, activeCleanupDateId }: CleanupCardProps) {
+export function CleanupCard({ item, activeCleanupDateId, showTeam = true }: CleanupCardProps) {
   const { t } = useTranslation(['cleanups', 'common'])
   const { cleanup, nearestDate, userRole } = item
   const isActive = nearestDate && activeCleanupDateId === nearestDate.id
+  const team = showTeam ? cleanup.team ?? item.team : null
 
   return (
     <CommunityCard
@@ -31,6 +34,11 @@ export function CleanupCard({ item, activeCleanupDateId }: CleanupCardProps) {
         <>
           {userRole && <span className={`badge ${userRole === 'admin' ? 'admin-badge' : ''}`}>{userRole === 'organizer' ? t('common:domain.organizer') : userRole === 'member' ? t('cleanups:members.roleMember') : userRole}</span>}
           {isActive && <span className="badge" style={{ background: 'var(--color-badge-active)' }}>{t('cleanups:list.badge.active')}</span>}
+          {team && (
+            <span className="badge" style={{ background: 'var(--color-badge-partner)' }} title={t('cleanups:card.organizedBy', { team: team.name })}>
+              {team.name}
+            </span>
+          )}
         </>
       }
       meta={nearestDate && (

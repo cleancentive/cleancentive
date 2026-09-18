@@ -8,6 +8,8 @@ import { CleanupService } from './cleanup.service';
 import { CleanupController } from './cleanup.controller';
 import { User } from '../user/user.entity';
 import { UserEmail } from '../user/user-email.entity';
+import { Team } from '../team/team.entity';
+import { TeamMembership } from '../team/team-membership.entity';
 import { AdminModule } from '../admin/admin.module';
 import { EmailModule } from '../email/email.module';
 import { CalendarModule } from '../calendar/calendar.module';
@@ -15,7 +17,7 @@ import { InsightsModule } from '../insights/insights.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Cleanup, CleanupDate, CleanupParticipant, CleanupMessage, User, UserEmail]),
+    TypeOrmModule.forFeature([Cleanup, CleanupDate, CleanupParticipant, CleanupMessage, User, UserEmail, Team, TeamMembership]),
     AdminModule,
     EmailModule,
     CalendarModule,

@@ -57,7 +57,8 @@
     "organizerActions": "Actions de l'Organizer",
     "archive": "Archiver le cleanup",
     "archiveTitle": "Masque le cleanup de la recherche et empêche toute nouvelle activité. Les données existantes sont conservées.",
-    "archiveConfirmBody": "Voulez-vous vraiment archiver <strong>{{name}}</strong> ? Cela désactivera le cleanup pour tous les participant·es."
+    "archiveConfirmBody": "Voulez-vous vraiment archiver <strong>{{name}}</strong> ? Cela désactivera le cleanup pour tous les participant·es.",
+    "organizedBy": "Organisé par <teamLink>{{team}}</teamLink>"
   },
   "calendar": {
     "heading": "Ajouter à votre calendrier",
@@ -116,7 +117,8 @@
     "sheetClose": "Fermer"
   },
   "card": {
-    "viewDetails": "Voir"
+    "viewDetails": "Voir",
+    "organizedBy": "Organisé par {{team}}"
   },
   "members": {
     "empty": "Aucun·e {{entity}} pour l'instant",

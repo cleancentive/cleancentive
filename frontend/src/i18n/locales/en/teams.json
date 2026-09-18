@@ -49,7 +49,10 @@
     "members": "Members ({{count}})",
     "messages": "Messages",
     "archiveConfirm": "Archive",
-    "archivePrompt": "Are you sure you want to archive <strong>{{name}}</strong>? This will deactivate the team for all members."
+    "archivePrompt": "Are you sure you want to archive <strong>{{name}}</strong>? This will deactivate the team for all members.",
+    "cleanups": "Cleanups ({{count}})",
+    "cleanupsPast": "Past cleanups",
+    "noCleanups": "No cleanups yet. Organizers can pick this team when creating or editing a cleanup."
   },
   "partner": {
     "importLabel": "Import from URL",

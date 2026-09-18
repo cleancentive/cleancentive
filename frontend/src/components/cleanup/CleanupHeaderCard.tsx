@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useTranslation, Trans } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import { CleanupCalendarSection } from './CleanupCalendarSection'
 
 interface CleanupHeaderCardProps {
   cleanup: { name: string; description: string }
+  team: { id: string; name: string } | null
   hasUser: boolean
   isParticipant: boolean
   isOrganizer: boolean
@@ -20,6 +22,7 @@ interface CleanupHeaderCardProps {
 
 export function CleanupHeaderCard({
   cleanup,
+  team,
   hasUser,
   isParticipant,
   isOrganizer,
@@ -78,6 +81,16 @@ export function CleanupHeaderCard({
             )}
           </legend>
           {cleanup.description && <p className="cleanup-description-display">{cleanup.description}</p>}
+          {team && (
+            <p className="partner-notice">
+              <Trans
+                t={t}
+                i18nKey="cleanups:header.organizedBy"
+                values={{ team: team.name }}
+                components={{ teamLink: <Link to={`/teams/${team.id}`} /> }}
+              />
+            </p>
+          )}
         </>
       )}
 

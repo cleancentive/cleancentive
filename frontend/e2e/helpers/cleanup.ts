@@ -76,6 +76,7 @@ export async function createCleanupViaApi(
     latitude: number
     longitude: number
     locationName: string
+    teamId: string
   }> = {},
 ): Promise<{ cleanupId: string; cleanupDateId: string }> {
   const start = new Date(Date.now() + 7 * 24 * 60 * 60_000) // a week from now
@@ -84,6 +85,7 @@ export async function createCleanupViaApi(
   const body = {
     name: overrides.name ?? `E2E Cleanup ${Date.now()}`,
     description: overrides.description ?? 'Created by Playwright',
+    teamId: overrides.teamId ?? null,
     date: {
       startAt: overrides.startAt ?? start.toISOString(),
       endAt: overrides.endAt ?? end.toISOString(),
@@ -113,4 +115,20 @@ export async function createCleanupViaApi(
     throw new Error(`Unexpected createCleanup response shape: ${JSON.stringify(data)}`)
   }
   return { cleanupId, cleanupDateId }
+}
+
+/**
+ * Create a team via the API as the signed-in user, who becomes its organizer.
+ */
+export async function createTeamViaApi(sessionToken: string, name: string): Promise<string> {
+  const response = await fetch(`${API_BASE}/teams`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionToken}` },
+    body: JSON.stringify({ name, description: 'Created by Playwright' }),
+  })
+  if (!response.ok) throw new Error(`Failed to create team: ${response.status} ${await response.text()}`)
+  const data = await response.json()
+  const id = data.team?.id ?? data.id
+  if (!id) throw new Error(`Unexpected createTeam response shape: ${JSON.stringify(data)}`)
+  return id
 }
