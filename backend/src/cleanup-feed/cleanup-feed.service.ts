@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, type FindOptionsWhere } from 'typeorm';
 import { isSupportedLocale, type Locale } from '@cleancentive/shared';
 import { Cleanup } from '../cleanup/cleanup.entity';
 import { CleanupDate } from '../cleanup/cleanup-date.entity';
@@ -409,7 +409,7 @@ export class CleanupFeedService {
 
   /** Links a cleanup somebody entered by hand, keeping their text as it stands. */
   private async adopt(feed: CleanupFeed, cleanupId: string, external: ExternalCleanup): Promise<void> {
-    const cleanup = await this.cleanupRepository.findOne({ where: { id: cleanupId } });
+    const [cleanup] = await this.findWithSnapshot({ id: cleanupId });
     if (!cleanup) {
       return;
     }
@@ -446,7 +446,7 @@ export class CleanupFeedService {
   }
 
   private async applyUpdate(update: ReconcilePlan['updates'][number]): Promise<void> {
-    const cleanup = await this.cleanupRepository.findOne({ where: { id: update.cleanupId } });
+    const [cleanup] = await this.findWithSnapshot({ id: update.cleanupId });
     const date = await this.cleanupDateRepository.findOne({ where: { id: update.dateId } });
     if (!cleanup || !date) {
       return;
@@ -507,8 +507,16 @@ export class CleanupFeedService {
   // ---------------------------------------------------------------- loading
 
   private async loadLinkedRows(feedId: string): Promise<LinkedCleanupRow[]> {
-    const cleanups = await this.cleanupRepository.find({ where: { feed_id: feedId } });
-    return this.toRows(cleanups);
+    return this.toRows(await this.findWithSnapshot({ feed_id: feedId }));
+  }
+
+  /** sync_snapshot is not selected by default; the reconciler needs it. */
+  private async findWithSnapshot(where: FindOptionsWhere<Cleanup>): Promise<Cleanup[]> {
+    return this.cleanupRepository
+      .createQueryBuilder('cleanup')
+      .addSelect('cleanup.sync_snapshot')
+      .where(where)
+      .getMany();
   }
 
   /**
@@ -520,7 +528,7 @@ export class CleanupFeedService {
     if (names.length === 0) {
       return new Map();
     }
-    const cleanups = await this.cleanupRepository.find({ where: { name_normalized: In([...new Set(names)]) } });
+    const cleanups = await this.findWithSnapshot({ name_normalized: In([...new Set(names)]) });
     const rows = await this.toRows(cleanups.filter((cleanup) => !cleanup.feed_id && !cleanup.archived_at));
     return new Map(rows.map((row) => [row.nameNormalized, row]));
   }

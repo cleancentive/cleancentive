@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { CommunityCard } from '../CommunityCard'
+import { sourceHost } from '../../lib/externalUrl'
 import type { CleanupSearchResult } from '../../stores/cleanupStore'
 
 interface CleanupCardProps {
@@ -45,6 +46,7 @@ export function CleanupCard({ item, activeCleanupDateId, showTeam = true }: Clea
         <>
           <span>{formatDateRange(nearestDate.start_at, nearestDate.end_at)}</span>
           {nearestDate.location_name && <span> · {nearestDate.location_name}</span>}
+          {cleanup.external_url && <span> · {t('cleanups:card.mirroredFrom', { host: sourceHost(cleanup.external_url) })}</span>}
         </>
       )}
     />

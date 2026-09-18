@@ -3949,6 +3949,14 @@
   color: var(--slate-600);
 }
 
+/* Where a cleanup comes from: prose with an inline link, so unlike
+   .partner-notice (a badge next to a label) it must not be a flex row. */
+.cleanup-provenance {
+  padding: 0.25rem 0;
+  font-size: 0.9rem;
+  color: var(--slate-600);
+}
+
 /* Partner settings collapsible */
 .partner-settings-collapsible {
   border: 1px solid var(--slate-200);

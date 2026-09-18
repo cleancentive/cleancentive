@@ -17,6 +17,8 @@ export interface CleanupSummary {
   description: string
   created_at: string
   team?: CleanupTeam | null
+  /** Set when a cleanup feed mirrored this cleanup from another site. */
+  external_url?: string | null
 }
 
 export interface CleanupDate {

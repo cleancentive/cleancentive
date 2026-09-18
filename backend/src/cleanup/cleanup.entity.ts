@@ -52,7 +52,11 @@ export class Cleanup extends BaseEntity {
   @Column('timestamp with time zone', { nullable: true })
   synced_at: Date | null;
 
-  /** What the feed last wrote, so human corrections can be told apart. */
-  @Column('jsonb', { nullable: true })
+  /**
+   * What the feed last wrote, so human corrections can be told apart. Internal
+   * bookkeeping — not selected by default, since it would otherwise ship a
+   * second copy of the description to every client on every list.
+   */
+  @Column('jsonb', { nullable: true, select: false })
   sync_snapshot: CleanupSyncSnapshot | null;
 }

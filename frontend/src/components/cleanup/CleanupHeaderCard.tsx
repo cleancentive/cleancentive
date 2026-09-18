@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useTranslation, Trans } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { CleanupCalendarSection } from './CleanupCalendarSection'
+import { sourceHost } from '../../lib/externalUrl'
 
 interface CleanupHeaderCardProps {
-  cleanup: { name: string; description: string }
+  cleanup: { name: string; description: string; external_url?: string | null }
   team: { id: string; name: string } | null
   organizerTeams: Array<{ id: string; name: string }>
   hasUser: boolean
@@ -101,8 +102,18 @@ export function CleanupHeaderCard({
             )}
           </legend>
           {cleanup.description && <p className="cleanup-description-display">{cleanup.description}</p>}
+          {cleanup.external_url && (
+            <p className="cleanup-provenance">
+              <Trans
+                t={t}
+                i18nKey="cleanups:header.mirroredFrom"
+                values={{ host: sourceHost(cleanup.external_url) }}
+                components={{ sourceLink: <a href={cleanup.external_url} target="_blank" rel="noopener noreferrer" /> }}
+              />
+            </p>
+          )}
           {team && (
-            <p className="partner-notice">
+            <p className="cleanup-provenance">
               <Trans
                 t={t}
                 i18nKey="cleanups:header.organizedBy"

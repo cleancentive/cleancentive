@@ -62,7 +62,8 @@
     "archiveTitle": "Hides the cleanup from search and prevents new activity. Existing data is preserved.",
     "archiveConfirmBody": "Are you sure you want to archive <strong>{{name}}</strong>? This will deactivate the cleanup for all participants.",
     "organizedBy": "Organized by <teamLink>{{team}}</teamLink>",
-    "teamLabel": "Organized by team"
+    "teamLabel": "Organized by team",
+    "mirroredFrom": "Mirrored from <sourceLink>{{host}}</sourceLink> — details and registration are handled there, and changes are picked up automatically."
   },
   "calendar": {
     "heading": "Add to your calendar",
@@ -122,7 +123,8 @@
   },
   "card": {
     "viewDetails": "View",
-    "organizedBy": "Organized by {{team}}"
+    "organizedBy": "Organized by {{team}}",
+    "mirroredFrom": "from {{host}}"
   },
   "members": {
     "empty": "No {{entity}}s yet",
