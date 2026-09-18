@@ -6,13 +6,14 @@ import { CleanupCalendarSection } from './CleanupCalendarSection'
 interface CleanupHeaderCardProps {
   cleanup: { name: string; description: string }
   team: { id: string; name: string } | null
+  organizerTeams: Array<{ id: string; name: string }>
   hasUser: boolean
   isParticipant: boolean
   isOrganizer: boolean
   isOnline: boolean
   error: string | null
   joinedWebcal: string | null
-  onUpdate: (name: string, description: string) => Promise<void> | void
+  onUpdate: (name: string, description: string, teamId: string | null) => Promise<void> | void
   onJoin: () => void
   onLeave: () => void
   onArchiveRequest: () => void
@@ -23,6 +24,7 @@ interface CleanupHeaderCardProps {
 export function CleanupHeaderCard({
   cleanup,
   team,
+  organizerTeams,
   hasUser,
   isParticipant,
   isOrganizer,
@@ -40,6 +42,13 @@ export function CleanupHeaderCard({
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
+  const [editTeamId, setEditTeamId] = useState('')
+
+  // The current team stays selectable even when the editor does not organize it,
+  // so saving an unrelated edit cannot silently drop the team.
+  const teamOptions = team && !organizerTeams.some((option) => option.id === team.id)
+    ? [...organizerTeams, team]
+    : organizerTeams
 
   return (
     <fieldset className="page-card">
@@ -53,12 +62,23 @@ export function CleanupHeaderCard({
             <label>{t('cleanups:header.descriptionLabel')}</label>
             <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={4} />
           </div>
+          {teamOptions.length > 0 && (
+            <div className="form-group">
+              <label htmlFor="cleanup-edit-team">{t('cleanups:header.teamLabel')}</label>
+              <select id="cleanup-edit-team" value={editTeamId} onChange={(e) => setEditTeamId(e.target.value)}>
+                <option value="">{t('cleanups:createForm.teamNone')}</option>
+                {teamOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="community-actions">
             <button
               className="primary-button"
               disabled={!editName.trim() || !isOnline}
               onClick={async () => {
-                await onUpdate(editName, editDescription)
+                await onUpdate(editName, editDescription, editTeamId || null)
                 setEditing(false)
               }}
             >
@@ -74,7 +94,7 @@ export function CleanupHeaderCard({
             {isOrganizer && (
               <button
                 className="link-button legend-edit-button"
-                onClick={() => { setEditName(cleanup.name); setEditDescription(cleanup.description); setEditing(true) }}
+                onClick={() => { setEditName(cleanup.name); setEditDescription(cleanup.description); setEditTeamId(team?.id ?? ''); setEditing(true) }}
               >
                 {t('common:actions.edit')}
               </button>

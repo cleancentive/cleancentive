@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import { useCleanupStore } from '../stores/cleanupStore'
+import { useTeamStore } from '../stores/teamStore'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { useInsightsFilterStore } from '../stores/insightsFilterStore'
@@ -45,6 +46,7 @@ export function CleanupList() {
   const { isOnline } = useConnectivityStore()
   const { cleanups, cleanupCounts, statusFilter, isLoading, error, searchCleanups, createCleanup, toggleStatusFilter, clearError } = useCleanupStore()
   const { myFilter } = useInsightsFilterStore()
+  const { myTeams, fetchMyTeams } = useTeamStore()
   const navigate = useNavigate()
   const activeCleanupDateId = (user as any)?.active_cleanup_date_id as string | null
 
@@ -57,10 +59,15 @@ export function CleanupList() {
   const [locationName, setLocationName] = useState('')
   const [latitude, setLatitude] = useState('')
   const [longitude, setLongitude] = useState('')
+  const [teamId, setTeamId] = useState('')
 
   useEffect(() => {
     searchCleanups()
   }, [searchCleanups, statusFilter])
+
+  useEffect(() => {
+    if (user) fetchMyTeams()
+  }, [user, fetchMyTeams])
 
   const handleSearch = (q: string) => {
     setSearchQuery(q)
@@ -80,12 +87,17 @@ export function CleanupList() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    const cleanup = await createCleanup(name.trim(), description.trim(), {
-      startAt,
-      endAt,
-      latitude: Number(latitude),
-      longitude: Number(longitude),
-      locationName: locationName.trim() || undefined,
+    const cleanup = await createCleanup({
+      name: name.trim(),
+      description: description.trim(),
+      teamId: teamId || null,
+      date: {
+        startAt,
+        endAt,
+        latitude: Number(latitude),
+        longitude: Number(longitude),
+        locationName: locationName.trim() || undefined,
+      },
     })
     if (cleanup) {
       setShowCreate(false)
@@ -96,11 +108,13 @@ export function CleanupList() {
       setLocationName('')
       setLatitude('')
       setLongitude('')
+      setTeamId('')
       navigate(`/cleanups/${cleanup.id}`)
     }
   }
 
   const visibleCleanups = cleanups.filter(c => !myFilter || c.userRole !== null)
+  const organizerTeams = myTeams.filter((row) => row.userRole === 'organizer' && !row.isSystem)
 
   return (
     <CommunityList
@@ -149,6 +163,18 @@ export function CleanupList() {
             <label htmlFor="cleanup-description">{t('cleanups:createForm.descriptionLabel')}</label>
             <textarea id="cleanup-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('cleanups:createForm.descriptionPlaceholder')} rows={10} />
           </div>
+          {organizerTeams.length > 0 && (
+            <div className="form-group">
+              <label htmlFor="cleanup-team">{t('cleanups:createForm.teamLabel')}</label>
+              <select id="cleanup-team" value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+                <option value="">{t('cleanups:createForm.teamNone')}</option>
+                {organizerTeams.map((row) => (
+                  <option key={row.team.id} value={row.team.id}>{row.team.name}</option>
+                ))}
+              </select>
+              <small>{t('cleanups:createForm.teamHint')}</small>
+            </div>
+          )}
           <div className="form-row">
             <div className="form-group">
               <label htmlFor="cleanup-start">{t('cleanups:createForm.startLabel')}</label>

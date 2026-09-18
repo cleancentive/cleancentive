@@ -22,7 +22,10 @@
     "endLabel": "Ende",
     "shortDurationWarning": "Die Dauer beträgt weniger als 2 Stunden. Bist du sicher?",
     "creating": "Wird erstellt...",
-    "submit": "Erstellen"
+    "submit": "Erstellen",
+    "teamLabel": "Organisierendes Team (optional)",
+    "teamNone": "Kein Team – von mir organisiert",
+    "teamHint": "Nur Teams, in denen du Organizer bist, werden angezeigt."
   },
   "detail": {
     "notFound": "Cleanup nicht gefunden",
@@ -58,7 +61,8 @@
     "archive": "Cleanup archivieren",
     "archiveTitle": "Blendet das Cleanup aus der Suche aus und verhindert neue Aktivitäten. Bestehende Daten bleiben erhalten.",
     "archiveConfirmBody": "Möchtest du <strong>{{name}}</strong> wirklich archivieren? Dadurch wird das Cleanup für alle Teilnehmer deaktiviert.",
-    "organizedBy": "Organisiert von <teamLink>{{team}}</teamLink>"
+    "organizedBy": "Organisiert von <teamLink>{{team}}</teamLink>",
+    "teamLabel": "Organisierendes Team"
   },
   "calendar": {
     "heading": "Zu deinem Kalender hinzufügen",

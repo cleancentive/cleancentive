@@ -84,14 +84,19 @@ interface CleanupState {
   fetchMyCleanups: () => Promise<void>
   fetchTeamCleanups: (teamId: string) => Promise<void>
   fetchCleanup: (id: string) => Promise<void>
-  createCleanup: (name: string, description: string, date: {
-    startAt: string
-    endAt: string
-    latitude: number
-    longitude: number
-    locationName?: string
+  createCleanup: (input: {
+    name: string
+    description: string
+    teamId?: string | null
+    date: {
+      startAt: string
+      endAt: string
+      latitude: number
+      longitude: number
+      locationName?: string
+    }
   }) => Promise<CleanupSummary | null>
-  updateCleanup: (id: string, data: { name?: string; description?: string }) => Promise<void>
+  updateCleanup: (id: string, data: { name?: string; description?: string; teamId?: string | null }) => Promise<void>
   joinCleanup: (id: string) => Promise<boolean>
   leaveCleanup: (id: string) => Promise<boolean>
   addDate: (id: string, date: {
@@ -194,12 +199,13 @@ export const useCleanupStore = create<CleanupState>()((set, get) => ({
     }
   },
 
-  createCleanup: async (name, description, date) => {
+  createCleanup: async ({ name, description, teamId, date }) => {
     set({ isLoading: true, error: null })
     try {
       const response = await axios.post(`${API_BASE}/cleanups`, {
         name,
         description,
+        teamId: teamId ?? null,
         date: {
           startAt: datetimeLocalToIso(date.startAt),
           endAt: datetimeLocalToIso(date.endAt),

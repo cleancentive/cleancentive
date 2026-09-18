@@ -22,7 +22,10 @@
     "endLabel": "Fin",
     "shortDurationWarning": "La durée est inférieure à 2 heures. Êtes-vous sûr ?",
     "creating": "Création...",
-    "submit": "Créer"
+    "submit": "Créer",
+    "teamLabel": "Team organisateur (facultatif)",
+    "teamNone": "Aucun Team – organisé par moi",
+    "teamHint": "Seuls les Teams dont vous êtes Organizer sont proposés."
   },
   "detail": {
     "notFound": "Cleanup introuvable",
@@ -58,7 +61,8 @@
     "archive": "Archiver le cleanup",
     "archiveTitle": "Masque le cleanup de la recherche et empêche toute nouvelle activité. Les données existantes sont conservées.",
     "archiveConfirmBody": "Voulez-vous vraiment archiver <strong>{{name}}</strong> ? Cela désactivera le cleanup pour tous les participant·es.",
-    "organizedBy": "Organisé par <teamLink>{{team}}</teamLink>"
+    "organizedBy": "Organisé par <teamLink>{{team}}</teamLink>",
+    "teamLabel": "Team organisateur"
   },
   "calendar": {
     "heading": "Ajouter à votre calendrier",

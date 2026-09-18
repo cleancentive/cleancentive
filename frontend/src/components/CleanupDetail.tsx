@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { BackLink } from './BackLink'
 import { v7 as uuidv7 } from 'uuid'
 import { useCleanupStore } from '../stores/cleanupStore'
+import { useTeamStore } from '../stores/teamStore'
 import { useAuthStore } from '../stores/authStore'
 import { useConnectivityStore } from '../stores/connectivityStore'
 import { MemberList } from './MemberList'
@@ -25,6 +26,7 @@ export function CleanupDetail() {
   const { user, getCalendarUrls } = useAuthStore()
   const { isOnline } = useConnectivityStore()
   const { openSignInModal } = useUiStore()
+  const { myTeams, fetchMyTeams } = useTeamStore()
   const {
     currentCleanup,
     messages,
@@ -63,6 +65,10 @@ export function CleanupDetail() {
   useEffect(() => {
     if (id) fetchCleanup(id)
   }, [id, fetchCleanup])
+
+  useEffect(() => {
+    if (user) fetchMyTeams()
+  }, [user, fetchMyTeams])
 
   useEffect(() => {
     if (!user) { setJoinedWebcal(null); return }
@@ -195,15 +201,16 @@ export function CleanupDetail() {
       <CleanupHeaderCard
         cleanup={cleanup}
         team={currentCleanup.team}
+        organizerTeams={myTeams.filter((row) => row.userRole === 'organizer' && !row.isSystem).map((row) => ({ id: row.team.id, name: row.team.name }))}
         hasUser={!!user}
         isParticipant={isParticipant}
         isOrganizer={isOrganizer}
         isOnline={isOnline}
         error={error}
         joinedWebcal={joinedWebcal}
-        onUpdate={async (name, description) => {
+        onUpdate={async (name, description, teamId) => {
           if (!id) return
-          await updateCleanup(id, { name, description })
+          await updateCleanup(id, { name, description, teamId })
         }}
         onJoin={handleJoin}
         onLeave={handleLeave}
