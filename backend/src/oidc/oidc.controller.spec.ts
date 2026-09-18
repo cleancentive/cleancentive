@@ -19,7 +19,7 @@ describe('OidcController token exchange integration hooks', () => {
     const integrationQueue = {
       enqueueOutlineBootstrap: async (payload: unknown) => enqueued.push(payload),
     };
-    const controller = new OidcController(oidcService as any, {} as any, integrationQueue as any);
+    const controller = new OidcController(oidcService as any, integrationQueue as any);
     const response = jsonResponse();
 
     await controller.token({
@@ -50,7 +50,7 @@ describe('OidcController token exchange integration hooks', () => {
     const integrationQueue = {
       enqueueOutlineBootstrap: async (payload: unknown) => enqueued.push(payload),
     };
-    const controller = new OidcController(oidcService as any, {} as any, integrationQueue as any);
+    const controller = new OidcController(oidcService as any, integrationQueue as any);
 
     await controller.token({
       grant_type: 'authorization_code',
@@ -78,3 +78,82 @@ function jsonResponse() {
     },
   };
 }
+
+describe('OidcController authorize', () => {
+  test('refuses an unregistered redirect_uri instead of bouncing to it', async () => {
+    const oidcService = {
+      getClient: async () => ({ clientId: 'outline' }),
+      validateRedirectUri: async () => false,
+    };
+    const controller = new OidcController(oidcService as any, {} as any);
+    const res = { redirect: (url: string) => redirects.push(url) };
+    const redirects: string[] = [];
+
+    // An open redirect wearing our domain: the error response used to go to
+    // whatever redirect_uri the caller named, before anything was validated.
+    await expect(
+      controller.authorize(
+        { url: '/authorize' } as any,
+        res as any,
+        'token',
+        'outline',
+        'https://evil.example',
+        'openid',
+        'state-1',
+      ),
+    ).rejects.toThrow('Invalid redirect URI');
+    expect(redirects).toEqual([]);
+  });
+
+  test('refuses an unknown client before looking at anything else', async () => {
+    const oidcService = {
+      getClient: async () => null,
+      validateRedirectUri: async () => false,
+    };
+    const controller = new OidcController(oidcService as any, {} as any);
+    const redirects: string[] = [];
+    const res = { redirect: (url: string) => redirects.push(url) };
+
+    await expect(
+      controller.authorize(
+        { url: '/authorize' } as any,
+        res as any,
+        'code',
+        'not-a-client',
+        'https://evil.example',
+        'openid',
+        'state-1',
+      ),
+    ).rejects.toThrow('Unknown client');
+    expect(redirects).toEqual([]);
+  });
+});
+
+describe('OidcController token', () => {
+  test('rejects a wrong client secret', async () => {
+    const oidcService = { getClientSecret: async () => 'the-real-secret' };
+    const controller = new OidcController(oidcService as any, {} as any);
+    const response = jsonResponse();
+
+    await controller.token(
+      { grant_type: 'authorization_code', client_id: 'outline', client_secret: 'wrong' },
+      response as any,
+    );
+
+    expect(response.statusCode).toBe(401);
+    expect(response.body).toMatchObject({ error: 'invalid_client' });
+  });
+
+  test('rejects a secret that is merely a prefix of the real one', async () => {
+    const oidcService = { getClientSecret: async () => 'the-real-secret' };
+    const controller = new OidcController(oidcService as any, {} as any);
+    const response = jsonResponse();
+
+    await controller.token(
+      { grant_type: 'authorization_code', client_id: 'outline', client_secret: 'the-real' },
+      response as any,
+    );
+
+    expect(response.statusCode).toBe(401);
+  });
+});

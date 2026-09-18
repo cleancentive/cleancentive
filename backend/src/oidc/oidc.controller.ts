@@ -11,22 +11,26 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { timingSafeEqual } from 'node:crypto';
 import { OidcService } from './oidc.service';
-import { AuthService } from '../auth/auth.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { IntegrationQueueService } from '../integrations/integration-queue.service';
 
+/** Constant-time compare, so a wrong secret cannot be found byte by byte. */
+function secretsMatch(provided: string | undefined, expected: string): boolean {
+  if (typeof provided !== 'string') return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 @Controller('oidc')
 export class OidcController {
-  private readonly issuerUrl: string;
-
   constructor(
     private readonly oidcService: OidcService,
-    private readonly authService: AuthService,
     private readonly integrationQueueService: IntegrationQueueService,
-  ) {
-    this.issuerUrl = process.env.OIDC_ISSUER_URL || 'https://cleancentive.org/api/v1/oidc';
-  }
+  ) {}
 
   @Get('.well-known/openid-configuration')
   getDiscoveryDocument() {
@@ -51,23 +55,25 @@ export class OidcController {
     @Query('code_challenge_method') _codeChallengeMethod?: string,
     @Query('nonce') _nonce?: string,
   ) {
-    // Validate response_type
-    if (responseType !== 'code') {
-      const errorUrl = this.buildErrorUrl(redirectUri, 'unsupported_response_type', 'Response type must be "code"', state);
-      return res.redirect(errorUrl);
-    }
-
-    // Validate client_id
+    // Validate the client and its redirect target *before* redirecting
+    // anywhere. Error responses used to bounce to whatever redirect_uri the
+    // caller supplied, so `?response_type=token&redirect_uri=https://evil`
+    // made this a redirector wearing our domain.
     const client = await this.oidcService.getClient(clientId);
     if (!client) {
-      const errorUrl = this.buildErrorUrl(redirectUri, 'invalid_client', 'Unknown client', state);
-      return res.redirect(errorUrl);
+      throw new HttpException('Unknown client', HttpStatus.BAD_REQUEST);
     }
 
-    // Validate redirect_uri
     if (!(await this.oidcService.validateRedirectUri(clientId, redirectUri))) {
-      const errorUrl = this.buildErrorUrl(redirectUri, 'invalid_request', 'Invalid redirect URI', state);
-      return res.redirect(errorUrl);
+      throw new HttpException('Invalid redirect URI', HttpStatus.BAD_REQUEST);
+    }
+
+    // Past this point the target is one we registered, so reporting an error
+    // by redirecting to it is safe and is what the spec asks for.
+    if (responseType !== 'code') {
+      return res.redirect(
+        this.buildErrorUrl(redirectUri, 'unsupported_response_type', 'Response type must be "code"', state),
+      );
     }
 
     // Top-level navigation from an SSO client (e.g. Outline) has no way to
@@ -145,9 +151,9 @@ export class OidcController {
   ) {
     const { grant_type, code, redirect_uri, client_id, client_secret, code_verifier, refresh_token } = body;
 
-    // Validate client credentials (simplified for MVP)
+    // Validate client credentials
     const validSecret = await this.oidcService.getClientSecret(client_id || 'outline');
-    if (!validSecret || client_secret !== validSecret) {
+    if (!validSecret || !secretsMatch(client_secret, validSecret)) {
       return res.status(HttpStatus.UNAUTHORIZED).json({
         error: 'invalid_client',
         error_description: 'Client authentication failed',
@@ -246,22 +252,6 @@ export class OidcController {
   ) {
     await this.oidcService.revokeToken(body.token, body.token_type_hint);
     return res.status(HttpStatus.OK).json({});
-  }
-
-  @Get('callback')
-  async callback(@Query('token') token: string, @Res() res: Response) {
-    // This endpoint is called after magic link login
-    // The token is the session token from the magic link flow
-    // We redirect to the authorize endpoint with the session
-    try {
-      await this.authService.validateSessionToken(token);
-      // Re-run the authorize flow with the session
-      const authorizeUrl = `${this.issuerUrl}/authorize${token ? `?session_token=${token}` : ''}`;
-      return res.redirect(authorizeUrl);
-    } catch (e) {
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-      return res.redirect(`${frontendUrl}?oidcError=invalid_session`);
-    }
   }
 
   private buildErrorUrl(redirectUri: string, error: string, description: string, state?: string): string {
