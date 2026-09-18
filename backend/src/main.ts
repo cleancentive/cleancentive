@@ -5,6 +5,7 @@ import { Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AdminService } from './admin/admin.service';
 import { buildSwaggerCustomJs, swaggerAuthSchemeName, swaggerJsonPath, swaggerUiPath } from './swagger/swagger-config';
+import { allowedOrigins } from './common/allowed-origins';
 const pkg = require(require('path').join(process.cwd(), 'package.json'));
 
 const logger = new Logger('Bootstrap');
@@ -41,9 +42,11 @@ async function bootstrap() {
     // Set global API prefix
     app.setGlobalPrefix('api/v1');
 
-    // Enable CORS for frontend development
+    // `origin: true` reflects whatever Origin the caller sent and, with
+    // credentials enabled, lets any site read authenticated responses. The
+    // allowlist throws instead of falling back to that outside dev and test.
     app.enableCors({
-      origin: process.env.FRONTEND_URL || true,
+      origin: allowedOrigins(),
       credentials: true,
       exposedHeaders: ['x-session-token'],
     });

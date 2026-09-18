@@ -10,6 +10,7 @@ import { toLocale } from '../user/notification-recipients';
 import { AdminService } from '../admin/admin.service';
 import { PendingAuthRequest, PendingAuthStatus } from './pending-auth-request.entity';
 import { DeviceCode, DeviceCodeStatus } from './device-code.entity';
+import { resolveFrontendUrl } from '../common/allowed-origins';
 import type { RequestMetadata } from './request-metadata';
 
 @Injectable()
@@ -58,7 +59,10 @@ export class AuthService {
     }
     const token = this.jwtService.sign(payload, { expiresIn: '24h' });
 
-    const frontendUrl = origin || process.env.FRONTEND_URL || 'http://localhost:5173';
+    // The origin is attacker-controlled: a request carrying
+    // `Origin: https://evil.example` used to have us mail a genuine-looking
+    // link pointing at that host. Only allowlisted origins survive.
+    const frontendUrl = resolveFrontendUrl(origin);
     const magicLink = `${frontendUrl}/auth/verify?token=${token}`;
 
     // Create pending auth request so the requesting browser can poll for completion
@@ -179,7 +183,7 @@ export class AuthService {
       ? allEmails
       : (await this.userService.findById(user.id))?.emails || [];
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = resolveFrontendUrl();
     const emails: string[] = [];
     const links: string[] = [];
 
