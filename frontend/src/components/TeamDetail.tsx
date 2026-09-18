@@ -14,6 +14,7 @@ import { MessageBoard } from './MessageBoard'
 import { useUiStore } from '../stores/uiStore'
 import { ConfirmDialog } from './ConfirmDialog'
 import { PartnerSettingsFields } from './PartnerSettingsFields'
+import { CleanupFeedsSection } from './CleanupFeedsSection'
 import { WIKI_URL } from '../lib/wikiUrl'
 
 export function TeamDetail() {
@@ -259,6 +260,8 @@ export function TeamDetail() {
           </details>
         </fieldset>
       )}
+
+      {isPlatformAdmin && !isStewardsTeam && id && <CleanupFeedsSection teamId={id} />}
 
       {(teamCleanups.length > 0 || isOrganizer) && (
         <fieldset className="page-card">

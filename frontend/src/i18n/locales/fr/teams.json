@@ -87,5 +87,53 @@
   },
   "avatar": {
     "setPhoto": "Définir une photo de profil"
+  },
+  "feeds": {
+    "legend": "Flux de Cleanups (Steward)",
+    "intro": "Listes externes reflétées dans ce Team. Les cleanups à venir sont créés, mis à jour et archivés automatiquement ; les Stewards et les Organizers de ce Team reçoivent un résumé après chaque actualisation.",
+    "empty": "Aucun flux pour l'instant.",
+    "add": "+ Ajouter un flux",
+    "urlLabel": "URL de la liste",
+    "adapterLabel": "Type de source",
+    "adapter": {
+      "cleanuptour": "Clean-Up Tour (cleanuptour.ch)"
+    },
+    "languageLabel": "Langue des textes importés",
+    "language": {
+      "de": "Allemand",
+      "fr": "Français",
+      "en": "Anglais"
+    },
+    "namePrefixLabel": "Préfixe du nom (facultatif)",
+    "namePrefixHint": "Placé devant chaque nom de cleanup importé, p. ex. « Clean-Up Tour Zermatt ».",
+    "submit": "Ajouter le flux",
+    "enabled": "Actif",
+    "disabled": "Désactivé",
+    "enable": "Activer",
+    "disable": "Désactiver",
+    "refreshNow": "Actualiser maintenant",
+    "neverRefreshed": "Jamais actualisé",
+    "lastRefreshed": "Dernière actualisation {{time}}",
+    "summary": "{{created}} créés · {{updated}} mis à jour · {{archived}} archivés · {{errors}} erreurs",
+    "lastError": "Dernière erreur : {{error}}",
+    "reloadStatus": "Recharger l'état",
+    "preview": "Prévisualiser les changements",
+    "previewing": "Lecture de la source…",
+    "previewTitle": "Changements prévus ({{count}})",
+    "previewEmpty": "Rien ne changerait.",
+    "previewAction": "Action",
+    "previewCleanup": "Cleanup",
+    "previewDate": "Date",
+    "previewNote": "Remarque",
+    "action": {
+      "create": "Créer",
+      "adopt": "Rattacher",
+      "update": "Mettre à jour",
+      "archive": "Archiver",
+      "unchanged": "Inchangé",
+      "error": "Erreur"
+    },
+    "delete": "Supprimer le flux",
+    "deleteConfirm": "Supprimer le flux de {{host}} ? Les cleanups créés restent en place et ne seront plus actualisés."
   }
 }

@@ -87,5 +87,53 @@
   },
   "avatar": {
     "setPhoto": "Set a profile photo"
+  },
+  "feeds": {
+    "legend": "Cleanup Feeds (Steward)",
+    "intro": "External listings mirrored into this team. Upcoming cleanups are created, updated and archived automatically; stewards and this team’s organizers get a digest after each refresh.",
+    "empty": "No feeds yet.",
+    "add": "+ Add feed",
+    "urlLabel": "Listing URL",
+    "adapterLabel": "Source type",
+    "adapter": {
+      "cleanuptour": "Clean-Up Tour (cleanuptour.ch)"
+    },
+    "languageLabel": "Language of imported text",
+    "language": {
+      "de": "German",
+      "fr": "French",
+      "en": "English"
+    },
+    "namePrefixLabel": "Name prefix (optional)",
+    "namePrefixHint": "Put in front of every imported cleanup name, e.g. \"Clean-Up Tour Zermatt\".",
+    "submit": "Add feed",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "enable": "Enable",
+    "disable": "Disable",
+    "refreshNow": "Refresh now",
+    "neverRefreshed": "Never refreshed",
+    "lastRefreshed": "Last refreshed {{time}}",
+    "summary": "{{created}} created · {{updated}} updated · {{archived}} archived · {{errors}} errors",
+    "lastError": "Last error: {{error}}",
+    "reloadStatus": "Reload status",
+    "preview": "Preview changes",
+    "previewing": "Reading the source…",
+    "previewTitle": "Planned changes ({{count}})",
+    "previewEmpty": "Nothing would change.",
+    "previewAction": "Action",
+    "previewCleanup": "Cleanup",
+    "previewDate": "Date",
+    "previewNote": "Note",
+    "action": {
+      "create": "Create",
+      "adopt": "Link",
+      "update": "Update",
+      "archive": "Archive",
+      "unchanged": "Unchanged",
+      "error": "Error"
+    },
+    "delete": "Delete feed",
+    "deleteConfirm": "Delete the feed from {{host}}? Cleanups it created stay in place and are no longer refreshed."
   }
 }

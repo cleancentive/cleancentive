@@ -87,5 +87,53 @@
   },
   "avatar": {
     "setPhoto": "Profilfoto festlegen"
+  },
+  "feeds": {
+    "legend": "Cleanup-Feeds (Steward)",
+    "intro": "Externe Listen, die in dieses Team gespiegelt werden. Bevorstehende Cleanups werden automatisch erstellt, aktualisiert und archiviert; Stewards und die Organizer dieses Teams erhalten nach jeder Aktualisierung eine Zusammenfassung.",
+    "empty": "Noch keine Feeds.",
+    "add": "+ Feed hinzufügen",
+    "urlLabel": "URL der Liste",
+    "adapterLabel": "Quellentyp",
+    "adapter": {
+      "cleanuptour": "Clean-Up Tour (cleanuptour.ch)"
+    },
+    "languageLabel": "Sprache der importierten Texte",
+    "language": {
+      "de": "Deutsch",
+      "fr": "Französisch",
+      "en": "Englisch"
+    },
+    "namePrefixLabel": "Namenspräfix (optional)",
+    "namePrefixHint": "Wird jedem importierten Cleanup-Namen vorangestellt, z. B. „Clean-Up Tour Zermatt“.",
+    "submit": "Feed hinzufügen",
+    "enabled": "Aktiv",
+    "disabled": "Deaktiviert",
+    "enable": "Aktivieren",
+    "disable": "Deaktivieren",
+    "refreshNow": "Jetzt aktualisieren",
+    "neverRefreshed": "Noch nie aktualisiert",
+    "lastRefreshed": "Zuletzt aktualisiert {{time}}",
+    "summary": "{{created}} erstellt · {{updated}} aktualisiert · {{archived}} archiviert · {{errors}} Fehler",
+    "lastError": "Letzter Fehler: {{error}}",
+    "reloadStatus": "Status neu laden",
+    "preview": "Änderungen anzeigen",
+    "previewing": "Quelle wird gelesen…",
+    "previewTitle": "Geplante Änderungen ({{count}})",
+    "previewEmpty": "Es würde sich nichts ändern.",
+    "previewAction": "Aktion",
+    "previewCleanup": "Cleanup",
+    "previewDate": "Termin",
+    "previewNote": "Hinweis",
+    "action": {
+      "create": "Erstellen",
+      "adopt": "Verknüpfen",
+      "update": "Aktualisieren",
+      "archive": "Archivieren",
+      "unchanged": "Unverändert",
+      "error": "Fehler"
+    },
+    "delete": "Feed löschen",
+    "deleteConfirm": "Feed von {{host}} löschen? Daraus erstellte Cleanups bleiben bestehen und werden nicht mehr aktualisiert."
   }
 }
