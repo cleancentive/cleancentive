@@ -8,6 +8,7 @@ import { useConnectivityStore } from '../stores/connectivityStore'
 import { useInsightsFilterStore } from '../stores/insightsFilterStore'
 import { CommunityList } from './CommunityList'
 import { CleanupCard } from './cleanup/CleanupCard'
+import { MarkdownEditor } from './MarkdownEditor'
 import { LocationPicker } from './LocationPicker'
 import { ProfileHintBanner } from './ProfileHintBanner'
 import { isoToDatetimeLocal } from '../utils/datetime'
@@ -161,7 +162,12 @@ export function CleanupList() {
           </div>
           <div className="form-group">
             <label htmlFor="cleanup-description">{t('cleanups:createForm.descriptionLabel')}</label>
-            <textarea id="cleanup-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t('cleanups:createForm.descriptionPlaceholder')} rows={10} />
+            <MarkdownEditor
+              id="cleanup-description"
+              value={description}
+              onChange={setDescription}
+              placeholder={t('cleanups:createForm.descriptionPlaceholder')}
+            />
           </div>
           {organizerTeams.length > 0 && (
             <div className="form-group">

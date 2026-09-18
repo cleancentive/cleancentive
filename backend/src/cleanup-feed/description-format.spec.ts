@@ -27,38 +27,20 @@ function external(overrides: Partial<ExternalCleanup> = {}): ExternalCleanup {
 }
 
 describe('formatDescription', () => {
-  test('keeps the source text and says where to sign up', () => {
-    const text = formatDescription(external(), settings(), 'Summit Foundation');
-    expect(text).toBe(
-      [
-        'Am Freitag 18. September findet der nationale Clean-Up-Day statt.',
-        '',
-        'Anmeldung: https://forms.gle/abc',
-        'Details: https://cleanuptour.ch/de/event/zermatt/',
-        'Organisiert von Summit Foundation',
-      ].join('\n'),
-    );
+  test('is the source text and nothing else', () => {
+    // Where it came from and who runs it are shown by the app; putting them in
+    // the description made the page say the same thing twice, inside a field
+    // people are free to edit.
+    expect(formatDescription(external())).toBe('Am Freitag 18. September findet der nationale Clean-Up-Day statt.');
   });
 
-  test('omits the registration line when the source offers no form', () => {
-    const text = formatDescription(external({ registrationUrl: null }), settings(), 'Summit Foundation');
-    expect(text).not.toContain('Anmeldung');
-    expect(text).toContain('Details: https://cleanuptour.ch/de/event/zermatt/');
+  test('keeps the links the source wrote', () => {
+    const withLink = external({ body: 'Treffpunkt: [Gondelbahn](https://maps.app.goo.gl/oVvS)' });
+    expect(formatDescription(withLink)).toBe('Treffpunkt: [Gondelbahn](https://maps.app.goo.gl/oVvS)');
   });
 
-  test('follows the feed language', () => {
-    const french = formatDescription(external(), settings({ language: 'fr' }), 'Summit Foundation');
-    expect(french).toContain('Inscription: https://forms.gle/abc');
-    expect(french).toContain('Organisé par Summit Foundation');
-
-    const english = formatDescription(external(), settings({ language: 'en' }), 'Summit Foundation');
-    expect(english).toContain('Registration: https://forms.gle/abc');
-    expect(english).toContain('Organised by Summit Foundation');
-  });
-
-  test('a source with no body still gets the links', () => {
-    const text = formatDescription(external({ body: '' }), settings(), 'Summit Foundation');
-    expect(text.startsWith('Anmeldung:')).toBe(true);
+  test('a source with no text yields nothing to show', () => {
+    expect(formatDescription(external({ body: '' }))).toBe('');
   });
 });
 

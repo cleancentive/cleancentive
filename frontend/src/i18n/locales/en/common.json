@@ -59,5 +59,11 @@
     "manualFallback": "Set location manually",
     "denied": "Location access is blocked. Enable it in your browser's site settings, or set the location manually.",
     "unsupported": "Location isn't available in this browser. You can set the location manually."
+  },
+  "markdown": {
+    "write": "Write",
+    "preview": "Preview",
+    "supported": "Markdown supported",
+    "nothingToPreview": "Nothing to preview yet."
   }
 }

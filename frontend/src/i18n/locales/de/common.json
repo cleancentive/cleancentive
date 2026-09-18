@@ -59,5 +59,11 @@
     "manualFallback": "Standort manuell festlegen",
     "denied": "Der Standortzugriff ist blockiert. Aktiviere ihn in den Website-Einstellungen deines Browsers oder lege den Standort manuell fest.",
     "unsupported": "Standort ist in diesem Browser nicht verfügbar. Du kannst den Standort manuell festlegen."
+  },
+  "markdown": {
+    "write": "Schreiben",
+    "preview": "Vorschau",
+    "supported": "Markdown möglich",
+    "nothingToPreview": "Noch nichts für die Vorschau."
   }
 }

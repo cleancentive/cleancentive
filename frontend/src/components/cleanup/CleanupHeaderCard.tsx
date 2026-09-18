@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useTranslation, Trans } from 'react-i18next'
 import { Link } from 'react-router-dom'
 import { CleanupCalendarSection } from './CleanupCalendarSection'
-import { sourceHost } from '../../lib/externalUrl'
+import { MarkdownText } from '../MarkdownText'
+import { MarkdownEditor } from '../MarkdownEditor'
 
 interface CleanupHeaderCardProps {
   cleanup: { name: string; description: string; external_url?: string | null }
@@ -60,8 +61,8 @@ export function CleanupHeaderCard({
             <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} required />
           </div>
           <div className="form-group">
-            <label>{t('cleanups:header.descriptionLabel')}</label>
-            <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} rows={4} />
+            <label htmlFor="cleanup-edit-description">{t('cleanups:header.descriptionLabel')}</label>
+            <MarkdownEditor id="cleanup-edit-description" value={editDescription} onChange={setEditDescription} />
           </div>
           {teamOptions.length > 0 && (
             <div className="form-group">
@@ -101,17 +102,7 @@ export function CleanupHeaderCard({
               </button>
             )}
           </legend>
-          {cleanup.description && <p className="cleanup-description-display">{cleanup.description}</p>}
-          {cleanup.external_url && (
-            <p className="cleanup-provenance">
-              <Trans
-                t={t}
-                i18nKey="cleanups:header.mirroredFrom"
-                values={{ host: sourceHost(cleanup.external_url) }}
-                components={{ sourceLink: <a href={cleanup.external_url} target="_blank" rel="noopener noreferrer" /> }}
-              />
-            </p>
-          )}
+          {cleanup.description && <MarkdownText source={cleanup.description} className="cleanup-description-display" />}
           {team && (
             <p className="cleanup-provenance">
               <Trans

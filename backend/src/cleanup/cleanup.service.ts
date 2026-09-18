@@ -89,6 +89,8 @@ interface ActiveCleanupDateResolution {
   warning: string | null;
 }
 
+const MAX_DESCRIPTION_BYTES = 8 * 1024;
+
 @Injectable()
 export class CleanupService {
   private readonly warningThresholdKm = 15;
@@ -228,6 +230,17 @@ export class CleanupService {
     }
   }
 
+  /**
+   * Descriptions are Markdown that a human types or a feed imports. The cap is
+   * generous for either and only exists so a runaway import cannot put megabytes
+   * behind every cleanup card.
+   */
+  private assertDescriptionLength(description: string): void {
+    if (Buffer.byteLength(description, 'utf8') > MAX_DESCRIPTION_BYTES) {
+      throw new BadRequestException('description is too long');
+    }
+  }
+
   private assertDateWindow(startAt: Date, endAt: Date): void {
     if (!(startAt instanceof Date) || Number.isNaN(startAt.getTime())) {
       throw new BadRequestException('date.startAt must be a valid ISO date');
@@ -265,6 +278,7 @@ export class CleanupService {
       throw new BadRequestException('Cleanup name already exists');
     }
 
+    this.assertDescriptionLength(trimmedDescription || '');
     this.assertDateWindow(input.date.startAt, input.date.endAt);
     this.assertCoordinates(input.date.latitude, input.date.longitude);
 
@@ -339,7 +353,9 @@ export class CleanupService {
       cleanup.name_normalized = nameNormalized;
     }
     if (input.description !== undefined) {
-      cleanup.description = input.description.trim();
+      const trimmed = input.description.trim();
+      this.assertDescriptionLength(trimmed);
+      cleanup.description = trimmed;
     }
     if (input.teamId !== undefined) {
       if (input.teamId) {

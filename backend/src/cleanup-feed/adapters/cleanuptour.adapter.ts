@@ -1,6 +1,6 @@
 import type { CleanupFeed } from '../cleanup-feed.entity';
 import type { AdapterContext, ExternalCleanup, ExternalListing, FeedAdapter } from './adapter';
-import { decodeEntities, htmlToText, capText } from '../html-text';
+import { decodeEntities, htmlToMarkdown, capText } from '../html-markdown';
 import { zonedToUtc } from '../local-time';
 import { parseDayMonth, inferYear, extractTimes } from './cleanuptour-text';
 
@@ -200,7 +200,7 @@ function parseBody(html: string): string {
   const blocks = /<(h[1-6]|div)[^>]*class="[^"]*brxe-(heading|text)(?![\w-])[^"]*"[^>]*>([\s\S]*?)<\/\1>/gi;
   const parts: string[] = [];
   for (const block of section.matchAll(blocks)) {
-    const text = htmlToText(block[3]);
+    const text = htmlToMarkdown(block[3]);
     if (text) {
       parts.push(text);
     }

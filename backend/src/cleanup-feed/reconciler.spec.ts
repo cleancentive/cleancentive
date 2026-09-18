@@ -7,7 +7,7 @@ import type { ExternalCleanup } from './adapters/adapter';
 
 const NOW = new Date('2026-09-17T08:00:00Z');
 const SETTINGS: CleanupFeedSettings = { language: 'de', horizon: 'upcoming', namePrefix: 'Clean-Up Tour' };
-const FEED = { id: 'feed-1', teamId: 'team-1', teamName: 'Summit Foundation', settings: SETTINGS };
+const FEED = { id: 'feed-1', teamId: 'team-1', settings: SETTINGS };
 
 function external(overrides: Partial<ExternalCleanup> = {}): ExternalCleanup {
   return {
@@ -30,7 +30,7 @@ function external(overrides: Partial<ExternalCleanup> = {}): ExternalCleanup {
 /** A cleanup this feed already created, in sync with the given source event. */
 function linkedRow(source: ExternalCleanup, overrides: Partial<LinkedCleanupRow> = {}): LinkedCleanupRow {
   const name = `Clean-Up Tour ${source.title}`;
-  const description = formatDescription(source, SETTINGS, FEED.teamName);
+  const description = formatDescription(source);
   return {
     id: 'cleanup-1',
     name,
@@ -85,7 +85,7 @@ describe('reconcile — creating', () => {
 
     expect(plan.creates).toHaveLength(1);
     expect(plan.creates[0].name).toBe('Clean-Up Tour Zermatt');
-    expect(plan.creates[0].description).toContain('Anmeldung: https://forms.gle/abc');
+    expect(plan.creates[0].description).toBe(external().body);
     expect(plan.updates).toHaveLength(0);
     expect(plan.archives).toHaveLength(0);
   });

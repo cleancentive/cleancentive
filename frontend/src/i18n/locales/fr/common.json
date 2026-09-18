@@ -59,5 +59,11 @@
     "manualFallback": "Définir la position manuellement",
     "denied": "L'accès à la position est bloqué. Activez-le dans les paramètres du site de votre navigateur, ou définissez la position manuellement.",
     "unsupported": "La localisation n'est pas disponible dans ce navigateur. Vous pouvez définir la position manuellement."
+  },
+  "markdown": {
+    "write": "Écrire",
+    "preview": "Aperçu",
+    "supported": "Markdown pris en charge",
+    "nothingToPreview": "Rien à prévisualiser pour l'instant."
   }
 }

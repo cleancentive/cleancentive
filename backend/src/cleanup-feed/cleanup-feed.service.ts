@@ -255,7 +255,7 @@ export class CleanupFeedService {
 
     const plan = reconcile({
       now,
-      feed: { id: feed.id, teamId: feed.team_id, teamName: team.name, settings: feed.settings },
+      feed: { id: feed.id, teamId: feed.team_id, settings: feed.settings },
       linked,
       candidatesByName: await this.loadNameCandidates(feed, externals),
       externals: externals.filter((external) => external.latitude !== null && external.longitude !== null),

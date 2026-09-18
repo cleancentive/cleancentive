@@ -27,7 +27,7 @@ export interface LinkedCleanupRow {
 
 export interface ReconcileInput {
   now: Date;
-  feed: { id: string; teamId: string; teamName: string; settings: CleanupFeedSettings };
+  feed: { id: string; teamId: string; settings: CleanupFeedSettings };
   /** Every cleanup already linked to this feed. */
   linked: LinkedCleanupRow[];
   /** Unlinked cleanups whose normalized name matches one the feed would use. */
@@ -147,7 +147,7 @@ function planCreate(
   plan.creates.push({
     external,
     name: free,
-    description: formatDescription(external, input.feed.settings, input.feed.teamName),
+    description: formatDescription(external),
   });
 }
 
@@ -169,7 +169,7 @@ function planUpdate(
   }
 
   const name = formatName(external, input.feed.settings);
-  const description = formatDescription(external, input.feed.settings, input.feed.teamName);
+  const description = formatDescription(external);
   const snapshot = row.snapshot;
 
   // Only fields whose *source* value moved are rewritten. Anything an organizer

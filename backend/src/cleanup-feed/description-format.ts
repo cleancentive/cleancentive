@@ -1,38 +1,15 @@
-import type { Locale } from '@cleancentive/shared';
 import type { CleanupFeedSettings } from './cleanup-feed.entity';
 import type { ExternalCleanup } from './adapters/adapter';
 
-interface FooterStrings {
-  registration: string;
-  details: string;
-  organizedBy: string;
-}
-
-const FOOTERS: Record<Locale, FooterStrings> = {
-  en: { registration: 'Registration', details: 'Details', organizedBy: 'Organised by' },
-  de: { registration: 'Anmeldung', details: 'Details', organizedBy: 'Organisiert von' },
-  fr: { registration: 'Inscription', details: 'Détails', organizedBy: 'Organisé par' },
-};
-
 /**
- * The description a mirrored cleanup carries: the source's own text, then where
- * to actually sign up. Joining the cleanup here is not a registration with the
- * organizer, so the link has to be in the text people read.
+ * The description a mirrored cleanup carries: what the source wrote, and
+ * nothing else. Where it came from and which team runs it are structural facts
+ * the app already shows — repeating them in the text only made the description
+ * say twice what the page says once, and put app plumbing inside a field people
+ * are free to edit.
  */
-export function formatDescription(
-  external: ExternalCleanup,
-  settings: CleanupFeedSettings,
-  teamName: string,
-): string {
-  const strings = FOOTERS[settings.language] ?? FOOTERS.en;
-  const footer: string[] = [];
-  if (external.registrationUrl) {
-    footer.push(`${strings.registration}: ${external.registrationUrl}`);
-  }
-  footer.push(`${strings.details}: ${external.url}`);
-  footer.push(`${strings.organizedBy} ${teamName}`);
-
-  return [external.body.trim(), footer.join('\n')].filter(Boolean).join('\n\n');
+export function formatDescription(external: ExternalCleanup): string {
+  return external.body.trim();
 }
 
 export function formatName(external: ExternalCleanup, settings: CleanupFeedSettings): string {

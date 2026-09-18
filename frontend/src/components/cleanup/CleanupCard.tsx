@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { CommunityCard } from '../CommunityCard'
-import { sourceHost } from '../../lib/externalUrl'
+import { markdownPreview } from '../../lib/markdownPreview'
 import type { CleanupSearchResult } from '../../stores/cleanupStore'
 
 interface CleanupCardProps {
@@ -30,7 +30,7 @@ export function CleanupCard({ item, activeCleanupDateId, showTeam = true }: Clea
     <CommunityCard
       to={`/cleanups/${cleanup.id}`}
       title={cleanup.name}
-      description={cleanup.description}
+      description={markdownPreview(cleanup.description)}
       tags={
         <>
           {userRole && <span className={`badge ${userRole === 'admin' ? 'admin-badge' : ''}`}>{userRole === 'organizer' ? t('common:domain.organizer') : userRole === 'member' ? t('cleanups:members.roleMember') : userRole}</span>}
@@ -46,7 +46,6 @@ export function CleanupCard({ item, activeCleanupDateId, showTeam = true }: Clea
         <>
           <span>{formatDateRange(nearestDate.start_at, nearestDate.end_at)}</span>
           {nearestDate.location_name && <span> · {nearestDate.location_name}</span>}
-          {cleanup.external_url && <span> · {t('cleanups:card.mirroredFrom', { host: sourceHost(cleanup.external_url) })}</span>}
         </>
       )}
     />
