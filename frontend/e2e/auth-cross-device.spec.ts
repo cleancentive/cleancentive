@@ -26,12 +26,17 @@ async function requestMagicLink(page: Page, email: string): Promise<void> {
   await expect(page.locator('h2:has-text("Check your email!")')).toBeVisible({ timeout: 5000 });
 }
 
+// The header's sign-in control is icon-only and named by aria-label. Matched
+// exactly: Playwright's `name` is a substring match by default, so a loose
+// "Sign in" also matches the prompt's own "Yes, sign in that device" button.
+const signInControl = (page: Page) => page.getByRole('button', { name: 'Sign in', exact: true });
+
 async function expectSignedIn(page: Page): Promise<void> {
-  await expect(page.getByRole('button', { name: 'Sign in' })).toHaveCount(0, { timeout: 10000 });
+  await expect(signInControl(page)).toHaveCount(0, { timeout: 10000 });
 }
 
 async function expectSignedOut(page: Page): Promise<void> {
-  await expect(page.getByRole('button', { name: 'Sign in' }).first()).toBeVisible();
+  await expect(signInControl(page).first()).toBeVisible();
 }
 
 test.describe('Cross-device magic link', () => {

@@ -71,7 +71,7 @@ interface AuthState {
   verifyMagicLink: (token: string) => Promise<void>
   confirmCrossDeviceSignIn: () => Promise<void>
   dismissCrossDeviceSignIn: () => Promise<void>
-  discardRejectedSession: () => Promise<void>
+  discardRejectedSession: (rejectedToken?: string) => Promise<void>
   cancelPendingAuth: () => void
   logout: () => void
   updateProfile: (data: { nickname?: string; full_name?: string | null; locale?: string | null }) => Promise<void>
@@ -799,8 +799,14 @@ export const useAuthStore = create<AuthState>()(
        * will eventually expire in someone's browser; rotating the signing
        * secret does the same thing to everyone at once.
        */
-      discardRejectedSession: async () => {
-        if (!get().sessionToken) return
+      discardRejectedSession: async (rejectedToken?: string) => {
+        const current = get().sessionToken
+        if (!current) return
+        // Only the token that was actually refused. A request that carried no
+        // credentials — the history panel fires one before the guest session
+        // arrives — also answers 401, and if that reply lands just after a
+        // sign-in it would throw away the session that just succeeded.
+        if (rejectedToken !== current) return
         clearPolling()
         set({
           user: null,
@@ -832,12 +838,21 @@ export const useAuthStore = create<AuthState>()(
 
 /**
  * Turn a rejected session into a guest one, wherever the rejection surfaces.
+ *
  * Only 401 counts: a guest reaching an account-only route gets 403, which is a
- * correct answer and not a reason to throw the session away.
+ * correct answer and not a reason to throw the session away. And only the
+ * token that was actually rejected, so an unauthenticated request failing in
+ * the background cannot take a good session with it.
  */
-export function handleUnauthorizedResponse(status: number): void {
+export function handleUnauthorizedResponse(status: number, rejectedToken?: string): void {
   if (status !== 401) return
-  void useAuthStore.getState().discardRejectedSession()
+  void useAuthStore.getState().discardRejectedSession(rejectedToken)
+}
+
+/** The bearer token a request actually sent, if any. */
+function bearerOf(header: unknown): string | undefined {
+  if (typeof header !== 'string') return undefined
+  return header.startsWith('Bearer ') ? header.slice('Bearer '.length) : undefined
 }
 
 let axiosInterceptorInstalled = false
@@ -851,7 +866,9 @@ export function installUnauthorizedInterceptor(): void {
       const status = error?.response?.status
       const url: string | undefined = error?.config?.url
       // The sign-in routes answer 401 by design; that is not a stale session.
-      if (!url?.includes('/auth/')) handleUnauthorizedResponse(status)
+      if (!url?.includes('/auth/')) {
+        handleUnauthorizedResponse(status, bearerOf(error?.config?.headers?.Authorization))
+      }
       return Promise.reject(error)
     },
   )

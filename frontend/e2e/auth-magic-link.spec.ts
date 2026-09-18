@@ -78,8 +78,8 @@ test.describe('Magic Link Authentication', () => {
     // Should see Sign Out button
     await expectSignedIn(page);
 
-    // Still on the app
-    await expect(page).toHaveURL(/.*localhost:5173/);
+    // Still on the app, not left on the verify URL
+    await expect(page).toHaveURL(/cleancentive\.local/);
     console.log('User authenticated successfully');
   });
 

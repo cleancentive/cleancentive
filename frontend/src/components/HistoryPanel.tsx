@@ -245,11 +245,14 @@ export function HistoryPanel() {
     setError(null)
 
     try {
-      const response = await fetch(buildRequestUrl(cursor), { headers: getAuthHeaders() })
+      const headers = getAuthHeaders()
+      const response = await fetch(buildRequestUrl(cursor), { headers })
       if (!response.ok) {
         // A rejected session drops back to guest rather than leaving the panel
-        // showing the raw refusal.
-        handleUnauthorizedResponse(response.status)
+        // showing the raw refusal. Scoped to the token this request sent: the
+        // first load fires before the guest session arrives and gets a 401 of
+        // its own, which must not disturb a sign-in happening alongside it.
+        handleUnauthorizedResponse(response.status, headers.Authorization?.slice('Bearer '.length))
         const body = await response.text()
         throw new Error(body || `${response.status} ${response.statusText}`)
       }

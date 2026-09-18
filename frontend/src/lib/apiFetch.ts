@@ -6,10 +6,10 @@ import { handleUnauthorizedResponse } from '../stores/authStore'
  * BadRequest/NotFound shape), otherwise `HTTP <status>` — e.g. `HTTP 502` when Caddy answers
  * for a backend that is restarting.
  */
-export async function throwIfNotOk(res: Response): Promise<Response> {
+export async function throwIfNotOk(res: Response, sentToken?: string): Promise<Response> {
   if (res.ok) return res
   // A rejected session should not leave the app looking signed in.
-  handleUnauthorizedResponse(res.status)
+  handleUnauthorizedResponse(res.status, sentToken)
   const data = await res.json().catch(() => null) as { message?: unknown } | null
   const message = typeof data?.message === 'string' && data.message.trim()
     ? data.message

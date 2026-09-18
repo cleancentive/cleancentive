@@ -4,15 +4,16 @@ import { defineConfig, devices } from '@playwright/test';
  * Playwright E2E Test Configuration
  *
  * These tests run against the real development environment:
- * - Frontend: http://localhost:5173
- * - Backend API: http://localhost:3000/api/v1
- * - Mailpit: http://localhost:8025
+ * - App (frontend + /api): https://cleancentive.local
+ * - Backend API, direct:   http://localhost:3000/api/v1
+ * - Mailpit:               http://localhost:8025
  *
  * Prerequisites:
- * 1. Start Docker services: cd infrastructure && docker compose -f docker-compose.dev.yml up -d
- * 2. Start backend: cd backend && bun run dev
- * 3. Start frontend: cd frontend && bun run dev
- * 4. Run tests: bun run test:e2e
+ * 1. Start everything: bun dev  (from the repo root)
+ * 2. Run tests: bun run test:e2e
+ *
+ * Sign-in specs share one Mailpit inbox, so run them with --workers=1 or they
+ * delete each other's magic links.
  *
  * Shared browser mode (human + agent):
  * 1. bun run browser:launch   (in one terminal)
@@ -45,8 +46,18 @@ export default defineConfig({
   
   /* Shared settings for all the projects below */
   use: {
-    /* Base URL to use in actions like `await page.goto('/')` */
-    baseURL: 'http://localhost:5173',
+    /* Base URL to use in actions like `await page.goto('/')`.
+     *
+     * The app's dev URL is the Caddy one, not the Vite port: that is where
+     * HTTPS, geolocation permissions and Secure cookies behave as they do in
+     * production. It also has to match the host magic links point at, or every
+     * sign-in looks like it came from a different device — localStorage, and so
+     * the record of which sign-in this browser started, is per origin. */
+    baseURL: 'https://cleancentive.local',
+
+    /* mkcert's CA is installed locally, but a fresh CI checkout has no trust
+     * store for it. */
+    ignoreHTTPSErrors: true,
     
     /* Collect trace when retrying the failed test */
     trace: 'on-first-retry',
