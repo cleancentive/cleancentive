@@ -57,8 +57,6 @@ const PUBLIC_ROUTES = new Set([
  * commit in the same series; this list must only ever shrink.
  */
 const PENDING_HARDENING = new Set([
-  'GET /insights/map',
-  'GET /insights/stats',
   'GET /oidc/callback',
 ]);
 

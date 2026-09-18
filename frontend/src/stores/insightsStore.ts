@@ -51,7 +51,7 @@ interface InsightsState {
   fetchStats: (params?: StatsFilterParams) => Promise<void>
 }
 
-import { API_BASE } from '../lib/apiBase'
+import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 
 export const useInsightsStore = create<InsightsState>((set) => ({
   stats: null,
@@ -69,7 +69,7 @@ export const useInsightsStore = create<InsightsState>((set) => ({
       if (params?.picked_up) searchParams.set('picked_up', params.picked_up)
       if (params?.user_id) searchParams.set('user_id', params.user_id)
       const qs = searchParams.toString()
-      const response = await axios.get(`${API_BASE}/insights/stats${qs ? '?' + qs : ''}`)
+      const response = await axios.get(`${API_BASE}/insights/stats${qs ? '?' + qs : ''}`, { headers: getAuthHeaders() })
       set({ stats: response.data, isLoading: false })
     } catch (error: any) {
       set({

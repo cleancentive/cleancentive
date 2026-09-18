@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AdminModule } from '../admin/admin.module';
 import { Spot } from '../spot/spot.entity';
 import { DetectedItem } from '../spot/detected-item.entity';
 import { User } from '../user/user.entity';
@@ -10,7 +11,7 @@ import { InsightsCacheService } from './insights-cache.service';
 import { InsightsController } from './insights.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Spot, DetectedItem, User, Team, Cleanup])],
+  imports: [TypeOrmModule.forFeature([Spot, DetectedItem, User, Team, Cleanup]), AdminModule],
   providers: [InsightsService, InsightsCacheService],
   controllers: [InsightsController],
   exports: [InsightsCacheService],

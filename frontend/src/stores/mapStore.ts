@@ -14,7 +14,7 @@ interface MapState {
   setHeatMetric: (m: HeatMetric) => void
 }
 
-import { API_BASE } from '../lib/apiBase'
+import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 
 export const useMapStore = create<MapState>((set) => ({
   spotGeoJson: null,
@@ -36,7 +36,7 @@ export const useMapStore = create<MapState>((set) => ({
       if (params?.user_id) searchParams.set('user_id', params.user_id)
       if (params?.subject_kind) searchParams.set('subject_kind', params.subject_kind)
       const qs = searchParams.toString()
-      const response = await axios.get(`${API_BASE}/insights/map${qs ? '?' + qs : ''}`)
+      const response = await axios.get(`${API_BASE}/insights/map${qs ? '?' + qs : ''}`, { headers: getAuthHeaders() })
       set({
         spotGeoJson: response.data.spots,
         cleanupGeoJson: response.data.cleanupLocations,
