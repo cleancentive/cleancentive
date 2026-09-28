@@ -49,7 +49,7 @@ caddy_checksum=$(shasum -a 256 "$DEPLOY_DIR/caddy/Caddyfile" | awk '{print $1}')
 env_checksum=$(shasum -a 256 "$PRIVATE_DIR/.env" | awk '{print $1}')
 
 last_compose_checksum=$(cat "$STATE_DIR/compose.sha256" 2>/dev/null || true)
-last_caddy_checksum=$(cat "$STATE_DIR/caddy.sha256" 2>/dev/null || true)
+last_caddy_checksum=$(cat "$STATE_DIR/caddy-loaded.sha256" 2>/dev/null || true)
 last_env_checksum=$(cat "$STATE_DIR/env.sha256" 2>/dev/null || true)
 
 desired_images=()
@@ -118,8 +118,17 @@ done
 docker compose --env-file "$PRIVATE_DIR/.env" -f docker-compose.prod.yml pull
 docker compose --env-file "$PRIVATE_DIR/.env" -f docker-compose.prod.yml up -d
 
+# The Caddyfile is a bind mount, so a new one changes nothing Compose looks at:
+# `up -d` leaves the container alone and Caddy keeps serving the config it
+# started with. Reload it explicitly.
+if [[ "$caddy_checksum" != "$last_caddy_checksum" ]]; then
+  docker compose --env-file "$PRIVATE_DIR/.env" -f docker-compose.prod.yml exec -T caddy \
+    caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+  echo "Reloaded Caddy config"
+fi
+
 printf '%s\n' "$compose_checksum" > "$STATE_DIR/compose.sha256"
-printf '%s\n' "$caddy_checksum" > "$STATE_DIR/caddy.sha256"
+printf '%s\n' "$caddy_checksum" > "$STATE_DIR/caddy-loaded.sha256"
 printf '%s\n' "$env_checksum" > "$STATE_DIR/env.sha256"
 
 echo "Reconcile complete"
