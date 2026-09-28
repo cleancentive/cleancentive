@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAdminStore } from '../../stores/adminStore'
 import { formatTimestamp } from '../../utils/formatTimestamp'
 import { FEEDBACK_STATUS_COLORS } from '../../lib/statusColors'
@@ -13,7 +13,8 @@ import {
 export function StewardFeedback() {
   const { t } = useTranslation(['steward', 'common'])
   const { feedbackId: feedbackIdParam } = useParams<{ feedbackId?: string }>()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const feedbackItems = useAdminStore((s) => s.feedbackItems)
   const feedbackTotal = useAdminStore((s) => s.feedbackTotal)
   const feedbackCounts = useAdminStore((s) => s.feedbackCounts)
@@ -41,26 +42,28 @@ export function StewardFeedback() {
     } else {
       next.add(status)
     }
-    setSearchParams(serializeFeedbackStatusFilter(next), { replace: true })
+    // Changing the filter returns to the list, dropping any permalink focus.
+    navigate({ pathname: '/steward/feedback', search: serializeFeedbackStatusFilter(next).toString() }, { replace: true })
   }
 
   useEffect(() => {
-    // The permalink effect below fetches all statuses; don't fight it.
-    if (feedbackIdParam) return
     fetchFeedback(parseFeedbackStatusFilter(searchParams))
     fetchFeedbackCounts()
-    // Keyed on the raw status string so URL changes refetch; searchParams identity is unstable.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusParam, feedbackIdParam, fetchFeedback, fetchFeedbackCounts])
-
-  useEffect(() => {
     if (feedbackIdParam) {
-      fetchFeedback(new Set())
       fetchFeedbackDetail(feedbackIdParam).then(() => {
         setExpandedFeedbackId(feedbackIdParam)
       })
     }
-  }, [feedbackIdParam, fetchFeedback, fetchFeedbackDetail])
+    // Keyed on the raw status string so URL changes refetch; searchParams identity is unstable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusParam, feedbackIdParam, fetchFeedback, fetchFeedbackCounts, fetchFeedbackDetail])
+
+  // A permalinked item stays visible even when the status filter excludes it.
+  const pinnedItem =
+    feedbackIdParam && activeFeedbackItem?.id === feedbackIdParam && !feedbackItems.some((f) => f.id === feedbackIdParam)
+      ? activeFeedbackItem
+      : null
+  const listItems = pinnedItem ? [pinnedItem, ...feedbackItems] : feedbackItems
 
   return (
     <fieldset className="page-card">
@@ -83,12 +86,12 @@ export function StewardFeedback() {
 
       {isLoadingFeedback && <p className="loading">{t('feedback.loading')}</p>}
 
-      {!isLoadingFeedback && feedbackItems.length === 0 && (
+      {!isLoadingFeedback && listItems.length === 0 && (
         <p className="end-of-list">{t('feedback.none')}</p>
       )}
 
       <div className="feedback-admin-list">
-        {feedbackItems.map((f) => (
+        {listItems.map((f) => (
           <div key={f.id} className="feedback-admin-item">
             <div
               className="feedback-admin-item-header"
