@@ -73,7 +73,7 @@ interface Route {
 
 async function collectRoutes(): Promise<Route[]> {
   const routes: Route[] = [];
-  for (const file of listControllerFiles(join(import.meta.dir, '..'))) {
+  for (const file of listControllerFiles(join(__dirname, '..'))) {
     const mod = await import(file);
     for (const exported of Object.values(mod)) {
       if (typeof exported !== 'function') continue;
