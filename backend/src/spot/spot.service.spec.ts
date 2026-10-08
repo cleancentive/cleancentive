@@ -545,7 +545,8 @@ describe('SpotService.deleteSpotInternal', () => {
     inject.logger = { log: () => undefined, warn: () => undefined };
     inject.bucketName = 'test-bucket';
     inject.s3Client = { send: async (command: { input: { Key: string } }) => { deletedKeys.push(command.input.Key); } };
-    inject.spotRepository = { remove: async (row: Spot) => { removed.push(row.id); } };
+    // Like TypeORM: the primary key is cleared on the entity once the row is gone.
+    inject.spotRepository = { remove: async (row: Spot) => { removed.push(row.id); (row as { id?: string }).id = undefined; } };
     inject.detectionQueue = { remove: async (id: string) => { removedJobs.push(id); } };
     inject.insightsEvents = { publish: async (event: { type: string; spotId: string }) => { announced.push({ type: event.type, spotId: event.spotId }); } };
     const run = () => (service as unknown as { deleteSpotInternal: (s: Spot) => Promise<void> }).deleteSpotInternal(spot as Spot);

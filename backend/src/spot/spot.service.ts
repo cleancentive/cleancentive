@@ -371,7 +371,7 @@ export class SpotService {
       throw new ServiceUnavailableException('Spot accepted but detection queue is unavailable');
     }
 
-    await this.announce('spot.created', savedSpot);
+    await this.announce(this.toSpotEvent('spot.created', savedSpot));
 
     return {
       spot: savedSpot,
@@ -379,24 +379,28 @@ export class SpotService {
     };
   }
 
+  private toSpotEvent(type: SpotEvent['type'], spot: Spot): Omit<SpotEvent, 'emittedAt'> {
+    return {
+      type,
+      spotId: spot.id,
+      teamId: spot.team_id,
+      cleanupId: spot.cleanup_id,
+      cleanupDateId: spot.cleanup_date_id,
+      capturedAt: spot.captured_at.toISOString(),
+      latitude: spot.latitude,
+      longitude: spot.longitude,
+      pickedUp: spot.picked_up,
+      subjectKind: spot.subject_kind,
+    };
+  }
+
   // The write is committed by the time this runs; a lost notification is a
   // stale scoreboard for a few seconds, not a reason to fail the request.
-  private async announce(type: SpotEvent['type'], spot: Spot): Promise<void> {
+  private async announce(event: Omit<SpotEvent, 'emittedAt'>): Promise<void> {
     try {
-      await this.insightsEvents.publish({
-        type,
-        spotId: spot.id,
-        teamId: spot.team_id,
-        cleanupId: spot.cleanup_id,
-        cleanupDateId: spot.cleanup_date_id,
-        capturedAt: spot.captured_at.toISOString(),
-        latitude: spot.latitude,
-        longitude: spot.longitude,
-        pickedUp: spot.picked_up,
-        subjectKind: spot.subject_kind,
-      });
+      await this.insightsEvents.publish(event);
     } catch (error) {
-      this.logger.warn(`Could not publish ${type} for spot ${spot.id}: ${error.message}`);
+      this.logger.warn(`Could not publish ${event.type} for spot ${event.spotId}: ${error.message}`);
     }
   }
 
@@ -1034,8 +1038,10 @@ export class SpotService {
       await this.detectionQueue.remove(spot.id).catch(() => undefined);
     }
 
+    // Built before the remove: TypeORM clears the entity's id once the row is gone.
+    const deletion = this.toSpotEvent('spot.deleted', spot);
     await this.spotRepository.remove(spot);
-    await this.announce('spot.deleted', spot);
+    await this.announce(deletion);
   }
 
   async close(): Promise<void> {
