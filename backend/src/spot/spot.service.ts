@@ -67,6 +67,31 @@ export interface SpotListPage {
   nextCursor: string | null;
 }
 
+export interface SpotRangeFilter {
+  userId?: string;
+  teamId?: string;
+  /** Inclusive lower bound on captured_at. */
+  since: Date;
+  /** Exclusive upper bound on captured_at. */
+  before: Date;
+}
+
+// Bounds one call: each spot costs two object deletes and a cache clear. The
+// response says how many are left so the caller simply calls again.
+const BULK_DELETE_MAX_SPOTS = 500;
+
+function assertRangeFilter(filter: SpotRangeFilter): void {
+  if (Number.isNaN(filter.since.getTime()) || Number.isNaN(filter.before.getTime())) {
+    throw new BadRequestException('since and before must be valid ISO 8601 dates');
+  }
+  if (filter.since >= filter.before) {
+    throw new BadRequestException('since must be earlier than before');
+  }
+  if (!filter.userId && !filter.teamId) {
+    throw new BadRequestException('A range delete needs a user or a team');
+  }
+}
+
 export interface SpotEditHistoryEntry {
   id: string;
   entityType: 'item' | 'spot';
@@ -949,6 +974,43 @@ export class SpotService {
     if (!spot) throw new NotFoundException('Spot not found');
 
     await this.deleteSpotInternal(spot);
+  }
+
+  async deleteSpotAsAdmin(spotId: string): Promise<void> {
+    const spot = await this.spotRepository.findOne({ where: { id: spotId }, relations: ['items'] });
+    if (!spot) throw new NotFoundException('Spot not found');
+    this.logger.log(`Steward deleting spot ${spot.id} owned by ${spot.user_id}`);
+    await this.deleteSpotInternal(spot);
+  }
+
+  async countSpotsInRange(filter: SpotRangeFilter): Promise<number> {
+    return this.spotsInRange(filter).getCount();
+  }
+
+  /** Deletes up to BULK_DELETE_MAX_SPOTS matching spots, oldest first. */
+  async deleteSpotsInRange(filter: SpotRangeFilter): Promise<{ deleted: number; remaining: number }> {
+    const spots = await this.spotsInRange(filter)
+      .leftJoinAndSelect('spot.items', 'items')
+      .orderBy('spot.captured_at', 'ASC')
+      .take(BULK_DELETE_MAX_SPOTS)
+      .getMany();
+
+    for (const spot of spots) {
+      await this.deleteSpotInternal(spot);
+    }
+
+    const remaining = await this.countSpotsInRange(filter);
+    return { deleted: spots.length, remaining };
+  }
+
+  private spotsInRange(filter: SpotRangeFilter) {
+    assertRangeFilter(filter);
+    const query = this.spotRepository
+      .createQueryBuilder('spot')
+      .where('spot.captured_at >= :since AND spot.captured_at < :before', { since: filter.since, before: filter.before });
+    if (filter.userId) query.andWhere('spot.user_id = :userId', { userId: filter.userId });
+    if (filter.teamId) query.andWhere('spot.team_id = :teamId', { teamId: filter.teamId });
+    return query;
   }
 
   private async deleteSpotInternal(spot: Spot): Promise<void> {

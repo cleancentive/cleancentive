@@ -30,7 +30,7 @@ import { RequireApiKeyScope } from '../api-key/api-key.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { AdminGuard } from '../admin/admin.guard';
-import { ApiTags, ApiSecurity } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import sharp = require('sharp');
 import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters, lookupInvasive } from '@cleancentive/shared';
 import type { AuthenticatedUser } from '../auth/jwt.strategy';
@@ -381,6 +381,30 @@ export class SpotController {
   ): Promise<{ status: string }> {
     await this.spotService.retryDetection(id, req.user.userId);
     return { status: PROCESSING_STATUS.QUEUED };
+  }
+
+  @Delete()
+  @UseGuards(GuestOrUserAuthGuard)
+  @ApiOperation({
+    summary: 'Delete your own picks captured in a time range',
+    description:
+      'Removes your spots with `since <= capturedAt < before`, images included, at most 500 per call; ' +
+      '`remaining` says how many are left for another call. `dry_run=true` only counts.',
+  })
+  @ApiQuery({ name: 'since', required: true, description: 'ISO 8601, inclusive' })
+  @ApiQuery({ name: 'before', required: true, description: 'ISO 8601, exclusive' })
+  @ApiQuery({ name: 'dry_run', required: false, description: 'true to count without deleting' })
+  async deleteSpotsInRange(
+    @Query('since') since: string | undefined,
+    @Query('before') before: string | undefined,
+    @Query('dry_run') dryRun: string | undefined,
+    @Req() req: any,
+  ): Promise<{ count: number } | { deleted: number; remaining: number }> {
+    const filter = { userId: req.user.userId as string, since: new Date(since ?? ''), before: new Date(before ?? '') };
+    if (dryRun === 'true') {
+      return { count: await this.spotService.countSpotsInRange(filter) };
+    }
+    return this.spotService.deleteSpotsInRange(filter);
   }
 
   @Delete(':id')

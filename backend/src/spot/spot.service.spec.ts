@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { HttpException, HttpStatus } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
 import sharp = require('sharp');
 import { Readable } from 'node:stream';
 
@@ -585,5 +585,59 @@ describe('SpotService.deleteSpotInternal', () => {
     await run();
 
     expect(removedJobs).toEqual([]);
+  });
+});
+
+describe('SpotService.deleteSpotsInRange', () => {
+  function makeRangeService(rows: Spot[], remainingAfter: number) {
+    const service = Object.create(SpotService.prototype) as SpotService;
+    const inject = service as unknown as Record<string, unknown>;
+    const deletedIds: string[] = [];
+    let take: number | null = null;
+    const wheres: string[] = [];
+    const qb: Record<string, unknown> = {};
+    Object.assign(qb, {
+      where: (clause: string) => { wheres.push(clause); return qb; },
+      andWhere: (clause: string) => { wheres.push(clause); return qb; },
+      leftJoinAndSelect: () => qb,
+      orderBy: () => qb,
+      take: (n: number) => { take = n; return qb; },
+      getMany: async () => rows,
+      getCount: async () => remainingAfter,
+    });
+    inject.spotRepository = { createQueryBuilder: () => qb };
+    inject.deleteSpotInternal = async (spot: Spot) => { deletedIds.push(spot.id); };
+    return { service, deletedIds, wheres, getTake: () => take };
+  }
+
+  const range = { since: new Date('2026-10-30T00:00:00Z'), before: new Date('2026-11-02T00:00:00Z') };
+
+  test('deletes each matching spot through the single-spot path and reports what is left', async () => {
+    const rows = [makeSpot('2026-10-31T10:00:00Z', 'a'), makeSpot('2026-10-31T11:00:00Z', 'b')];
+    const { service, deletedIds, wheres, getTake } = makeRangeService(rows, 7);
+
+    const outcome = await service.deleteSpotsInRange({ ...range, userId: 'user-1' });
+
+    expect(deletedIds).toEqual(['a', 'b']);
+    expect(outcome).toEqual({ deleted: 2, remaining: 7 });
+    expect(getTake()).toBe(500);
+    // Two builds: one for the delete pass, one for the remaining count.
+    expect(wheres.slice(0, 2)).toEqual(['spot.captured_at >= :since AND spot.captured_at < :before', 'spot.user_id = :userId']);
+  });
+
+  test('scopes a steward delete by team as well', async () => {
+    const { service, wheres } = makeRangeService([], 0);
+
+    await service.countSpotsInRange({ ...range, teamId: 'team-1' });
+
+    expect(wheres).toContain('spot.team_id = :teamId');
+  });
+
+  test('refuses an empty, inverted or unscoped range', async () => {
+    const { service } = makeRangeService([], 0);
+
+    await expect(service.countSpotsInRange({ ...range })).rejects.toThrow(BadRequestException);
+    await expect(service.countSpotsInRange({ since: range.before, before: range.since, userId: 'u' })).rejects.toThrow(BadRequestException);
+    await expect(service.countSpotsInRange({ since: new Date('nope'), before: range.before, userId: 'u' })).rejects.toThrow(BadRequestException);
   });
 });
