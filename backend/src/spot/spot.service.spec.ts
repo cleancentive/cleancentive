@@ -460,3 +460,38 @@ describe('SpotService.getOriginalStream', () => {
     expect(served.equals(stored)).toBe(true);
   });
 });
+
+describe('SpotService.getThumbnailStream', () => {
+  function makeThumbnailService(sendOutcome: () => Promise<unknown>) {
+    const service = Object.create(SpotService.prototype) as SpotService;
+    const inject = service as unknown as Record<string, unknown>;
+    inject.spotRepository = { findOne: async () => ownedSpot };
+    inject.bucketName = 'test-bucket';
+    inject.s3Client = { send: sendOutcome };
+    return service;
+  }
+
+  test('returns null when the object is gone from storage', async () => {
+    const service = makeThumbnailService(async () => {
+      throw Object.assign(new Error('The specified key does not exist.'), { name: 'NoSuchKey' });
+    });
+
+    expect(await service.getThumbnailStream('spot-1')).toBeNull();
+  });
+
+  test('returns null on a 404 that carries no error name', async () => {
+    const service = makeThumbnailService(async () => {
+      throw Object.assign(new Error('Not Found'), { $metadata: { httpStatusCode: 404 } });
+    });
+
+    expect(await service.getThumbnailStream('spot-1')).toBeNull();
+  });
+
+  test('still surfaces storage failures that are not a missing object', async () => {
+    const service = makeThumbnailService(async () => {
+      throw Object.assign(new Error('connect ECONNREFUSED'), { name: 'TimeoutError' });
+    });
+
+    await expect(service.getThumbnailStream('spot-1')).rejects.toThrow('ECONNREFUSED');
+  });
+});

@@ -20,6 +20,11 @@ import { redisConnection } from '../common/redis-connection';
 import { createS3Client } from '../common/s3-client';
 import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters, clampWeightGrams } from '@cleancentive/shared';
 
+function isMissingObjectError(error: unknown): boolean {
+  const s3Error = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+  return s3Error.name === 'NoSuchKey' || s3Error.$metadata?.httpStatusCode === 404;
+}
+
 interface CreateSpotInput {
   userId: string;
   uploadId: string;
@@ -492,9 +497,17 @@ export class SpotService {
     const spot = await this.spotRepository.findOne({ where: { id: spotId } });
     if (!spot?.thumbnail_key) return null;
 
-    const result = await this.s3Client.send(
-      new GetObjectCommand({ Bucket: this.bucketName, Key: spot.thumbnail_key }),
-    );
+    let result;
+    try {
+      result = await this.s3Client.send(
+        new GetObjectCommand({ Bucket: this.bucketName, Key: spot.thumbnail_key }),
+      );
+    } catch (error) {
+      // The row can outlive the object: a purge, a failed upload, or a bundle
+      // imported without images. That is a missing thumbnail, not a broken server.
+      if (isMissingObjectError(error)) return null;
+      throw error;
+    }
 
     if (!result.Body) return null;
     return { body: result.Body as NodeJS.ReadableStream, contentType: 'image/jpeg' };
