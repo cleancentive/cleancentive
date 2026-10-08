@@ -27,6 +27,8 @@ graph TD
     API --> MinIO
     API -->|enqueue jobs| Redis
     Redis -->|dequeue jobs| Worker
+    Worker -->|spot events| Redis
+    Redis -->|spot events| API
     Worker --> OpenAI
     Worker --> MinIO
     API --> EmailProvider
@@ -40,5 +42,5 @@ graph TD
 | NestJS API | NestJS, TypeScript, Bun | Backend REST API handling auth, async image upload, and cleanup report persistence |
 | Image Analysis Worker | BullMQ, Bun | Processes image analysis jobs asynchronously via OpenAI Vision API |
 | PostgreSQL + PostGIS | PostgreSQL 15, PostGIS 3.4 | Primary data store with geospatial support for location-tagged submissions |
-| Redis | Redis 7 | Session storage and BullMQ job queue broker |
+| Redis | Redis 7 | Session storage, BullMQ job queue broker, insights cache, spot event pub/sub (worker → API → SSE) |
 | MinIO | MinIO (S3 API) | Object storage for uploaded images |

@@ -17,6 +17,13 @@ cleancentive.local {
     -Server
   }
 
+  @sse path /api/v1/insights/events
+  handle @sse {
+    reverse_proxy host.docker.internal:3000 {
+      flush_interval -1
+    }
+  }
+
   @api path /api/*
   handle @api {
     reverse_proxy host.docker.internal:3000

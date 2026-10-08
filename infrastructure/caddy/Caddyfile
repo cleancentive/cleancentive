@@ -15,6 +15,15 @@
     -Server
   }
 
+  # Server-sent events: a stream that only carries a heartbeat every 15 s.
+  # Never buffer it, and keep it out of the per-read timeout below.
+  @sse path /api/v1/insights/events
+  handle @sse {
+    reverse_proxy backend:3000 {
+      flush_interval -1
+    }
+  }
+
   @api path /api/*
   handle @api {
     request_body {

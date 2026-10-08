@@ -1,8 +1,12 @@
-import { Controller, ForbiddenException, Get, Query, Req, UseGuards } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Controller, ForbiddenException, Get, MessageEvent, NotFoundException, Query, Req, Sse, UseGuards } from '@nestjs/common';
+import { ApiOkResponse, ApiOperation, ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Observable, interval, map, merge } from 'rxjs';
 import { InsightsService } from './insights.service';
+import { InsightsEventsService } from './insights-events.service';
 import { AdminService } from '../admin/admin.service';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
+
+const SSE_HEARTBEAT_MS = 15_000;
 
 @ApiTags('insights')
 @Controller('insights')
@@ -11,6 +15,7 @@ export class InsightsController {
   constructor(
     private readonly insightsService: InsightsService,
     private readonly adminService: AdminService,
+    private readonly insightsEvents: InsightsEventsService,
   ) {}
 
   /**
@@ -86,6 +91,34 @@ export class InsightsController {
       pickedUp: this.parseBooleanParam(pickedUp),
       userId,
     });
+  }
+
+  @Sse('events')
+  @ApiOperation({
+    summary: 'Live stream of spot events (server-sent events)',
+    description:
+      'Emits `spot.created`, `spot.completed` (with an item summary) and `spot.deleted` as they happen, ' +
+      'filtered by team, cleanup or cleanup date. A `heartbeat` event with no data keeps the connection open. ' +
+      'Public: payloads carry only what the map already shows. 404 while the stream is switched off.',
+  })
+  @ApiProduces('text/event-stream')
+  @ApiQuery({ name: 'team_id', required: false, description: 'Only events for this team UUID' })
+  @ApiQuery({ name: 'cleanup_id', required: false, description: 'Only events for this cleanup UUID (all dates)' })
+  @ApiQuery({ name: 'cleanup_date_id', required: false, description: 'Only events for this cleanup date UUID (takes precedence over cleanup_id)' })
+  streamEvents(
+    @Query('team_id') teamId?: string,
+    @Query('cleanup_id') cleanupId?: string,
+    @Query('cleanup_date_id') cleanupDateId?: string,
+  ): Observable<MessageEvent> {
+    if (!this.insightsEvents.enabled) throw new NotFoundException();
+
+    const spotEvents = this.insightsEvents
+      .stream({ teamId, cleanupId, cleanupDateId })
+      .pipe(map((event) => ({ type: event.type, id: event.spotId, data: event })));
+    // Proxies and some mobile networks drop an idle stream well before Caddy
+    // would; an empty event every few seconds is cheap and browsers ignore it.
+    const heartbeat = interval(SSE_HEARTBEAT_MS).pipe(map(() => ({ type: 'heartbeat', data: '' })));
+    return merge(spotEvents, heartbeat);
   }
 
   private parseBooleanParam(value?: string): boolean | undefined {
