@@ -21,6 +21,7 @@ import { MistralPlantIdentifier } from './identifiers/mistral-plant';
 import { ShadowPlantIdentifier } from './identifiers/shadow';
 import type { PlantIdentifier } from './identifiers/types';
 import { persistPlantIdentification } from './plant-identification';
+import { loadCompletedSpotEvent, publishSpotEvent } from './spot-events';
 
 interface SpotJobData extends LitterDetectionJobData {
   subjectKind?: 'litter' | 'plant';
@@ -442,8 +443,20 @@ async function withTransaction<T>(handler: (client: PoolClient) => Promise<T>): 
   }
 }
 
-async function markSpotProcessing(spotId: string, userId: string): Promise<void> {
-  await dbPool.query(
+// The results are committed by now, so a failed announcement must not fail
+// the job: that would re-run a paid detection to re-send a notification.
+async function announceCompletion(spotId: string): Promise<void> {
+  try {
+    const event = await loadCompletedSpotEvent(dbPool, spotId);
+    if (event) await publishSpotEvent(redisClient, event);
+  } catch (error) {
+    console.error(`Could not publish spot.completed for ${spotId}:`, error);
+  }
+}
+
+/** Marks the spot as in progress; false when the row is gone. */
+async function markSpotProcessing(spotId: string, userId: string): Promise<boolean> {
+  const { rowCount } = await dbPool.query(
     `
       UPDATE spots
       SET processing_status = 'processing',
@@ -455,6 +468,7 @@ async function markSpotProcessing(spotId: string, userId: string): Promise<void>
     `,
     [spotId, userId],
   );
+  return (rowCount ?? 0) > 0;
 }
 
 async function markSpotFailed(spotId: string, userId: string, errorMessage: string): Promise<void> {
@@ -491,6 +505,7 @@ async function runLitterDetection(spotId: string, userId: string, imageKey: stri
   // first — otherwise a fallback silently files its results under the primary.
   const { detection, model, provider, usage } = await detectLitter(resizedBytes, 'image/jpeg', systemPrompt);
   await persistDetection(spotId, userId, detection, model);
+  await announceCompletion(spotId);
   await recordLlmUsage(
     dbPool,
     buildUsageRow({
@@ -514,6 +529,7 @@ async function runPlantIdentification(spotId: string, userId: string, imageKey: 
   const resizedBytes = await resizeForDetection(imageBytes, detectionMaxImageSize);
   const result = await plantIdentifier.identify(resizedBytes, 'image/jpeg');
   await withTransaction((client) => persistPlantIdentification(client, spotId, userId, result));
+  await announceCompletion(spotId);
   if (result.usage && primaryProvider) {
     await recordLlmUsage(
       dbPool,
@@ -548,7 +564,13 @@ const litterDetectionWorker = new Worker<SpotJobData>(
       lastJobStartedAt: nowIsoString(),
     });
 
-    await markSpotProcessing(spotId, userId);
+    // A spot deleted while its job waited (a bulk delete during a burst, say)
+    // would otherwise cost a detection call and then fail on the foreign key,
+    // five retries in a row.
+    if (!(await markSpotProcessing(spotId, userId))) {
+      console.log(`Spot ${spotId} no longer exists, skipping detection`);
+      return { spotId, skipped: 'spot-missing' };
+    }
 
     if (subjectKind === 'plant') {
       const { scientificName } = await runPlantIdentification(spotId, userId, imageKey);
