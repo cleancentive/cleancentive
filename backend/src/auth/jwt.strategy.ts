@@ -5,10 +5,14 @@ import { UserService } from '../user/user.service';
 import { getJwtSecret } from './jwt-config';
 import { isGuestPayload, isSessionPayload, type TokenPayload } from './token-claims';
 
+export type AuthKind = 'session' | 'pat';
+
 export interface AuthenticatedUser {
   userId: string;
   /** True for an anonymous visitor who has not claimed an account yet. */
   isGuest: boolean;
+  /** How the caller proved who they are: an interactive session, or a personal access token. */
+  authKind: AuthKind;
 }
 
 @Injectable()
@@ -38,6 +42,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Guest session has been claimed. Sign in again.');
     }
 
-    return { userId: payload.sub as string, isGuest };
+    return { userId: payload.sub as string, isGuest, authKind: 'session' };
   }
 }

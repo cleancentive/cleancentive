@@ -14,6 +14,7 @@ import type { Request, Response } from 'express';
 import { timingSafeEqual } from 'node:crypto';
 import { OidcService } from './oidc.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { SessionOnlyGuard } from '../auth/session-only.guard';
 import { IntegrationQueueService } from '../integrations/integration-queue.service';
 
 /** Constant-time compare, so a wrong secret cannot be found byte by byte. */
@@ -86,7 +87,7 @@ export class OidcController {
   }
 
   @Post('authorize/complete')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionOnlyGuard)
   async authorizeComplete(
     @Req() req: Request,
     @Body() body: {

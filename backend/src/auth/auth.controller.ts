@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { SessionOnlyGuard } from './session-only.guard';
 import { buildRequestMetadata, type RequestMetadata } from './request-metadata';
 import { clientIp, createRateLimiter } from '../common/rate-limit';
 
@@ -95,7 +96,7 @@ export class AuthController {
     return this.authService.pollPendingAuth(requestId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionOnlyGuard)
   @ApiBearerAuth('Bearer')
   @Post('pending/:requestId/complete')
   @ApiOperation({ summary: 'Hand a session to a sign-in started on another device' })
@@ -107,7 +108,7 @@ export class AuthController {
     return { success: true };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionOnlyGuard)
   @ApiBearerAuth('Bearer')
   @Delete('pending/:requestId')
   @ApiOperation({ summary: 'Turn down a sign-in started on another device' })
@@ -119,7 +120,7 @@ export class AuthController {
     return { success: true };
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionOnlyGuard)
   @ApiBearerAuth('Bearer')
   @Post('add-email')
   async addEmail(
@@ -129,7 +130,7 @@ export class AuthController {
     return this.authService.sendEmailVerification(req.user.userId, email);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionOnlyGuard)
   @ApiBearerAuth('Bearer')
   @Post('add-email/confirm-merge')
   async confirmMerge(
@@ -176,7 +177,7 @@ export class AuthController {
     }
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionOnlyGuard)
   @ApiBearerAuth('Bearer')
   @Post('refresh')
   async refreshToken(@Request() req: any): Promise<{ token: string }> {
@@ -211,7 +212,7 @@ export class AuthController {
   }
 
   @Post('device-code/approve')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionOnlyGuard)
   @ApiBearerAuth('Bearer')
   @ApiOperation({ summary: 'Approve a device code — grants the CLI a session token for the approving user' })
   async approveDeviceCode(
@@ -233,7 +234,7 @@ export class AuthController {
   // Rejecting cancels somebody's pending CLI login. The page only offers it to
   // a signed-in user, and without a guard anyone could cancel any code.
   @Post('device-code/reject')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionOnlyGuard)
   @ApiBearerAuth('Bearer')
   @ApiOperation({ summary: 'Reject a device code' })
   async rejectDeviceCode(

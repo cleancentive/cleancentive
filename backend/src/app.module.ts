@@ -54,6 +54,8 @@ import { OutlineMaintenanceState } from './outline-sync/outline-maintenance-stat
 import { ClientEventsModule } from './client-events/client-events.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { SystemModule } from './system/system.module';
+import { PersonalAccessToken } from './personal-access-token/personal-access-token.entity';
+import { PersonalAccessTokenModule } from './personal-access-token/personal-access-token.module';
 
 @Module({
   imports: [
@@ -99,6 +101,7 @@ import { SystemModule } from './system/system.module';
         OutlineEvent,
         OutlineMaintenanceState,
         VendorInvoice,
+        PersonalAccessToken,
       ],
       subscribers: [AuditSubscriber, InsightsCacheSubscriber],
       synchronize: false,
@@ -125,6 +128,7 @@ import { SystemModule } from './system/system.module';
     IntegrationsModule,
     ClientEventsModule,
     SystemModule,
+    PersonalAccessTokenModule,
   ],
   providers: [
     {

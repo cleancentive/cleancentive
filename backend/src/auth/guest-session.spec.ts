@@ -149,6 +149,7 @@ describe('JwtStrategy', () => {
     expect(await strategy.validate({ sub: 'g1', typ: 'guest' })).toEqual({
       userId: 'g1',
       isGuest: true,
+      authKind: 'session',
     });
   });
 
@@ -166,6 +167,7 @@ describe('JwtStrategy', () => {
     expect(await strategy.validate({ sub: 'u1', typ: 'session' })).toEqual({
       userId: 'u1',
       isGuest: false,
+      authKind: 'session',
     });
   });
 

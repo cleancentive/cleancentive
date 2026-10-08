@@ -59,8 +59,9 @@ async function bootstrap() {
         {
           type: 'http',
           scheme: 'bearer',
-          bearerFormat: 'JWT',
-          description: 'Paste an existing Bearer token or use the magic-link flow below.',
+          description:
+            'A session token (use the magic-link flow below) or a personal access token ' +
+            '(`cc_pat_…`, created under Profile → Access tokens).',
         },
         swaggerAuthSchemeName,
       )

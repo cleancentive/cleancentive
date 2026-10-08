@@ -1,8 +1,9 @@
 import { Injectable, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ACCEPTED_BEARER_STRATEGIES } from './bearer-strategies';
 
 @Injectable()
-export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
+export class OptionalJwtAuthGuard extends AuthGuard(ACCEPTED_BEARER_STRATEGIES) {
   canActivate(context: ExecutionContext) {
     return super.canActivate(context);
   }

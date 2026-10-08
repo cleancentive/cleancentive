@@ -5,9 +5,11 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { PatStrategy } from './pat.strategy';
 import { EmailModule } from '../email/email.module';
 import { UserModule } from '../user/user.module';
 import { AdminModule } from '../admin/admin.module';
+import { PersonalAccessTokenModule } from '../personal-access-token/personal-access-token.module';
 import { PendingAuthRequest } from './pending-auth-request.entity';
 import { DeviceCode } from './device-code.entity';
 import { getJwtSecret, SESSION_TTL } from './jwt-config';
@@ -28,8 +30,9 @@ import { getJwtSecret, SESSION_TTL } from './jwt-config';
     EmailModule,
     UserModule,
     AdminModule,
+    PersonalAccessTokenModule,
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, PatStrategy],
   controllers: [AuthController],
   exports: [AuthService],
 })

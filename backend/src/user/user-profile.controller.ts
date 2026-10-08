@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { GuestOrUserAuthGuard } from '../auth/guest-or-user-auth.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { SessionOnlyGuard } from '../auth/session-only.guard';
 import { MulterExceptionFilter } from '../common/multer-exception.filter';
 import { UserService } from './user.service';
 import { User } from './user.entity';
@@ -34,7 +35,7 @@ export class UserProfileController {
     });
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionOnlyGuard)
   @Delete('profile/email/:emailId')
   async removeEmail(
     @Request() req: any,
@@ -43,7 +44,7 @@ export class UserProfileController {
     return this.userService.removeEmail(req.user.userId, emailId);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionOnlyGuard)
   @Put('profile/emails/selection')
   async updateEmailSelection(
     @Request() req: any,
@@ -55,7 +56,7 @@ export class UserProfileController {
     return this.userService.updateEmailSelection(req.user.userId, emailIds);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, SessionOnlyGuard)
   @Put('profile/emails/calendar-selection')
   async updateCalendarEmailSelection(
     @Request() req: any,
@@ -100,7 +101,7 @@ export class UserProfileController {
   // permissive kind. It used to be reachable as DELETE /user/guest/:guestId
   // with no credential at all, so passing any user id — they are public —
   // deleted that person's account.
-  @UseGuards(GuestOrUserAuthGuard)
+  @UseGuards(GuestOrUserAuthGuard, SessionOnlyGuard)
   @Delete('profile')
   async deleteOrAnonymizeAccount(
     @Request() req: any,

@@ -1,5 +1,6 @@
 import { Injectable, ForbiddenException, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ACCEPTED_BEARER_STRATEGIES } from './bearer-strategies';
 import type { AuthenticatedUser } from './jwt.strategy';
 
 /**
@@ -11,7 +12,7 @@ import type { AuthenticatedUser } from './jwt.strategy';
  * GuestOrUserAuthGuard instead.
  */
 @Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') {
+export class JwtAuthGuard extends AuthGuard(ACCEPTED_BEARER_STRATEGIES) {
   handleRequest<TUser = AuthenticatedUser>(
     err: any,
     user: any,

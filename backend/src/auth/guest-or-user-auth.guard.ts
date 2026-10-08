@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ACCEPTED_BEARER_STRATEGIES } from './bearer-strategies';
 
 /**
  * Requires a session, and accepts a guest one.
@@ -13,4 +14,4 @@ import { AuthGuard } from '@nestjs/passport';
  * `guestId` query parameter that the caller chose freely.
  */
 @Injectable()
-export class GuestOrUserAuthGuard extends AuthGuard('jwt') {}
+export class GuestOrUserAuthGuard extends AuthGuard(ACCEPTED_BEARER_STRATEGIES) {}
