@@ -240,5 +240,27 @@
     "copied": "Copied!",
     "done": "Done",
     "error": "Could not update API keys. Please try again."
+  },
+  "deletePicks": {
+    "legend": "Delete picks in range",
+    "hint": "Removes the picks matching the scope above and this time range, photos included. Count first; this cannot be undone.",
+    "from": "From",
+    "to": "To",
+    "count": "Count",
+    "delete": "Delete",
+    "countResult_one": "{{count}} pick in this range.",
+    "countResult_other": "{{count}} picks in this range.",
+    "confirmTitle": "Delete these picks?",
+    "confirmPrompt_one": "{{count}} pick, with its photo, will be removed from the map. This cannot be undone.",
+    "confirmPrompt_other": "{{count}} picks, with their photos, will be removed from the map. This cannot be undone.",
+    "result_one": "Deleted {{count}} pick.",
+    "result_other": "Deleted {{count}} picks.",
+    "remaining_one": "{{count}} still in range — delete again to continue.",
+    "remaining_other": "{{count}} still in range — delete again to continue.",
+    "error": "Could not delete picks. Check the scope and try again.",
+    "scopeLegend": "Delete picks: scope",
+    "scopeHint": "At least one of owner or team. Copy the UUIDs from the user and team pages.",
+    "userId": "Owner (user UUID)",
+    "teamId": "Team UUID"
   }
 }

@@ -4,6 +4,7 @@ import { useAdminStore } from '../../stores/adminStore'
 import { useConnectivityStore } from '../../stores/connectivityStore'
 import { formatTimestamp } from '../../utils/formatTimestamp'
 import { CountdownButton } from '../CountdownButton'
+import { StewardDeletePicks } from './StewardDeletePicks'
 
 function formatAge(seconds: number | null) {
   if (seconds === null) {
@@ -47,6 +48,7 @@ export function StewardOperations() {
   const retryLimit = Number.isFinite(parsedRetryBatchSize) && parsedRetryBatchSize > 0 ? parsedRetryBatchSize : 10
 
   return (
+    <>
     <fieldset className="page-card ops-overview-panel">
       <legend>{t('operations.legend')}</legend>
       <div className="ops-overview-header">
@@ -159,5 +161,7 @@ export function StewardOperations() {
         </div>
       </div>
     </fieldset>
+    <StewardDeletePicks />
+    </>
   )
 }

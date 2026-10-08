@@ -240,5 +240,27 @@
     "copied": "Copié !",
     "done": "Terminé",
     "error": "Impossible de mettre à jour les clés API. Veuillez réessayer."
+  },
+  "deletePicks": {
+    "legend": "Supprimer les ramassages d’une période",
+    "hint": "Retire les ramassages correspondant au périmètre ci-dessus et à cette période, photos comprises. Comptez d’abord ; c’est définitif.",
+    "from": "Du",
+    "to": "Au",
+    "count": "Compter",
+    "delete": "Supprimer",
+    "countResult_one": "{{count}} ramassage dans cette période.",
+    "countResult_other": "{{count}} ramassages dans cette période.",
+    "confirmTitle": "Supprimer ces ramassages ?",
+    "confirmPrompt_one": "{{count}} ramassage, photo comprise, sera retiré de la carte. C’est définitif.",
+    "confirmPrompt_other": "{{count}} ramassages, photos comprises, seront retirés de la carte. C’est définitif.",
+    "result_one": "{{count}} ramassage supprimé.",
+    "result_other": "{{count}} ramassages supprimés.",
+    "remaining_one": "{{count}} reste dans la période — supprimez à nouveau pour continuer.",
+    "remaining_other": "{{count}} restent dans la période — supprimez à nouveau pour continuer.",
+    "error": "Impossible de supprimer les ramassages. Vérifiez le périmètre et réessayez.",
+    "scopeLegend": "Supprimer des ramassages : périmètre",
+    "scopeHint": "Au moins un propriétaire ou une équipe. Copiez les UUID depuis les pages utilisateur et équipe.",
+    "userId": "Propriétaire (UUID utilisateur)",
+    "teamId": "UUID de l’équipe"
   }
 }

@@ -240,5 +240,27 @@
     "copied": "Kopiert!",
     "done": "Fertig",
     "error": "API-Schlüssel konnten nicht aktualisiert werden. Bitte versuchen Sie es erneut."
+  },
+  "deletePicks": {
+    "legend": "Funde im Zeitraum löschen",
+    "hint": "Entfernt die Funde, die auf den obigen Bereich und diesen Zeitraum passen, samt Fotos. Zuerst zählen; das lässt sich nicht rückgängig machen.",
+    "from": "Von",
+    "to": "Bis",
+    "count": "Zählen",
+    "delete": "Löschen",
+    "countResult_one": "{{count}} Fund in diesem Zeitraum.",
+    "countResult_other": "{{count}} Funde in diesem Zeitraum.",
+    "confirmTitle": "Diese Funde löschen?",
+    "confirmPrompt_one": "{{count}} Fund wird samt Foto von der Karte entfernt. Das lässt sich nicht rückgängig machen.",
+    "confirmPrompt_other": "{{count}} Funde werden samt Fotos von der Karte entfernt. Das lässt sich nicht rückgängig machen.",
+    "result_one": "{{count}} Fund gelöscht.",
+    "result_other": "{{count}} Funde gelöscht.",
+    "remaining_one": "{{count}} weiterer im Zeitraum — erneut löschen, um fortzufahren.",
+    "remaining_other": "{{count}} weitere im Zeitraum — erneut löschen, um fortzufahren.",
+    "error": "Funde konnten nicht gelöscht werden. Prüfen Sie den Bereich und versuchen Sie es erneut.",
+    "scopeLegend": "Funde löschen: Bereich",
+    "scopeHint": "Mindestens Besitzer oder Team. Die UUIDs finden Sie auf den Benutzer- und Team-Seiten.",
+    "userId": "Besitzer (Benutzer-UUID)",
+    "teamId": "Team-UUID"
   }
 }
