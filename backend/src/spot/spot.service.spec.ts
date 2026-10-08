@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { HttpException, HttpStatus } from '@nestjs/common';
 import sharp = require('sharp');
 import { Readable } from 'node:stream';
 
@@ -493,5 +494,42 @@ describe('SpotService.getThumbnailStream', () => {
     });
 
     await expect(service.getThumbnailStream('spot-1')).rejects.toThrow('ECONNREFUSED');
+  });
+});
+
+describe('SpotService.createSpot rate limit', () => {
+  test('counts a new upload against the hourly budget before touching storage', async () => {
+    const service = Object.create(SpotService.prototype) as SpotService;
+    const inject = service as unknown as Record<string, unknown>;
+    const checked: string[] = [];
+    let bucketTouched = false;
+    inject.spotRepository = { findOne: async () => null, query: async () => [] };
+    inject.spotCreateLimiter = {
+      check: async (key: string) => {
+        checked.push(key);
+        throw new HttpException('Too many picks', HttpStatus.TOO_MANY_REQUESTS);
+      },
+    };
+    inject.ensureBucketExists = async () => { bucketTouched = true; };
+
+    await expect(
+      service.createSpot({ userId: 'user-1', uploadId: 'u1', imageBuffer: Buffer.from('img') } as never),
+    ).rejects.toMatchObject({ status: 429 });
+
+    expect(checked).toEqual(['spots:user:user-1']);
+    expect(bucketTouched).toBe(false);
+  });
+
+  test('does not count an idempotent retry of the same upload', async () => {
+    const service = Object.create(SpotService.prototype) as SpotService;
+    const inject = service as unknown as Record<string, unknown>;
+    let checks = 0;
+    inject.spotRepository = { findOne: async () => ({ id: 'existing' }), query: async () => [] };
+    inject.spotCreateLimiter = { check: async () => { checks++; } };
+
+    const created = await service.createSpot({ userId: 'user-1', uploadId: 'u1', imageBuffer: Buffer.from('img') } as never);
+
+    expect(created.spot.id).toBe('existing');
+    expect(checks).toBe(0);
   });
 });

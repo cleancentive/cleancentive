@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException, ServiceUnav
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Queue } from 'bullmq';
+import Redis from 'ioredis';
 import { createHash, randomUUID } from 'node:crypto';
 // sharp is CJS and callable. A default import compiles to sharp_1.default
 // (undefined) because the tsconfig has no esModuleInterop, and a namespace
@@ -17,8 +18,15 @@ import { CleanupService } from '../cleanup/cleanup.service';
 import { LabelService } from '../label/label.service';
 import { AdminService } from '../admin/admin.service';
 import { redisConnection } from '../common/redis-connection';
+import { createRedisRateLimiter, type RedisRateLimiter } from '../common/redis-rate-limit';
 import { createS3Client } from '../common/s3-client';
 import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters, clampWeightGrams } from '@cleancentive/shared';
+
+// A budget guard, not a UX limit: every spot is a paid detection call, and a
+// script stuck in a loop would otherwise spend without bound. Well above any
+// real cleanup day; the (user_id, upload_id) retry path is not counted.
+const SPOT_CREATE_PER_USER_PER_HOUR = parseInt(process.env.SPOT_CREATE_PER_USER_PER_HOUR || '300', 10);
+const ONE_HOUR_MS = 60 * 60 * 1000;
 
 function isMissingObjectError(error: unknown): boolean {
   const s3Error = error as { name?: string; $metadata?: { httpStatusCode?: number } };
@@ -76,6 +84,7 @@ export class SpotService {
   private readonly bucketName = process.env.S3_BUCKET || 'cleancentive-images';
   private readonly detectionQueue: Queue;
   private readonly s3Client: S3Client;
+  private readonly spotCreateLimiter: RedisRateLimiter;
   private bucketReady = false;
 
   constructor(
@@ -98,6 +107,13 @@ export class SpotService {
     });
 
     this.s3Client = createS3Client();
+
+    // lazyConnect so constructing the service never opens a socket on its own;
+    // the first spot creation does.
+    this.spotCreateLimiter = createRedisRateLimiter(new Redis({ ...redisConnection(), lazyConnect: true }), {
+      windowMs: ONE_HOUR_MS,
+      message: 'Too many picks logged in the last hour. Please try again later.',
+    });
   }
 
   // The mime type is sniffed from the file's own bytes in the controller, so
@@ -162,6 +178,8 @@ export class SpotService {
       const dupe = await this.spotRepository.findOne({ where: { id: dupeRows[0].id } });
       if (dupe) return { spot: dupe, warning: null };
     }
+
+    await this.spotCreateLimiter.check(`spots:user:${input.userId}`, SPOT_CREATE_PER_USER_PER_HOUR);
 
     await this.ensureBucketExists();
 
