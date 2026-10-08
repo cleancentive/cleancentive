@@ -171,6 +171,10 @@ anywhere an account is required.
 
 Passwordless email authentication. A secure link sent to the user's email to sign in.
 
+### Access Token
+
+A credential a person creates for their own scripts and third-party apps, under Profile → Access tokens. Shown once, revocable on its own, and acts as that person except where credentials are changed. Developer docs call it a **personal access token (PAT)**; user-facing text says **access token**. See [auth-tokens.md](auth-tokens.md).
+
 ### Nickname
 
 The user's chosen display name. Required. Unique.
@@ -192,6 +196,10 @@ Background process that runs detection jobs on submitted photos.
 ### Outbox
 
 Internal term for the local IndexedDB queue of pending syncs. The user-facing label for this concept is **Pending**.
+
+### API Key
+
+A credential for an application, never for a person. Sent as `X-API-Key` next to the user's own bearer token; it attributes the app's picks and budgets its traffic. Issued and revoked by Stewards. See [auth-tokens.md](auth-tokens.md).
 
 ### Purge
 
@@ -273,6 +281,8 @@ pair is **"Gesammelt / Gesehen"** (de) and **"Ramassé / Repéré"** (fr).
 | Participant | Teilnehmer | Participant·e |
 | Guest | Gast | Invité·e |
 | Magic link | Magic Link | Lien magique |
+| Access token | Zugriffstoken | Jeton d'accès |
+| API key | API-Schlüssel | Clé API |
 | Nickname | Spitzname | Pseudo |
 | Nav: Teams | Teams | Équipes |
 | Nav: Cleanups | Cleanups | Nettoyages |

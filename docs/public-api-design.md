@@ -1,6 +1,6 @@
 # Public API Surface — Design Document
 
-> **Status:** Design document for reference and stakeholder discussion. No implementation yet.
+> **Status:** Partially implemented (2026-10). Personal access tokens and a minimal API-key system exist — attribution via `spots.source_api_key_id`, scopes `read` / `write:spots`, a per-key per-minute budget, steward-issued keys only. See [auth-tokens.md](auth-tokens.md). Not implemented: trial keys and applications, tiers and daily limits, the `/public/*` read endpoints, exports, datasets, webhooks.
 > **Date:** 2026-03-14
 > **Decisions made:** Real-time data (no delay), ODbL 1.0 license, self-service trial keys + admin-approved production keys.
 
