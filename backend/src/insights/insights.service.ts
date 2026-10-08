@@ -44,15 +44,33 @@ export interface PublicStats {
   };
 }
 
+export type LeaderboardFilter = Pick<StatsFilter, 'cleanupId' | 'cleanupDateId' | 'since' | 'before'>;
+
+export interface LeaderboardRow {
+  /** Null for the one row that gathers picks without a listed, active team. */
+  teamId: string | null;
+  teamName: string | null;
+  picks: number;
+  items: number;
+  totalWeightGrams: number;
+  lastPickAt: string | null;
+}
+
 export interface StatsFilter {
   teamId?: string;
   cleanupId?: string;
   cleanupDateId?: string;
   since?: string;
+  /** Exclusive upper bound on captured_at (ISO 8601). */
+  before?: string;
   pickedUp?: boolean;
   userId?: string;
   subjectKind?: 'litter' | 'plant';
 }
+
+// Short: spot events already clear the cache on every change, so this is a
+// safety net for a scoreboard polled by many clients, not the freshness bound.
+const LEADERBOARD_CACHE_TTL_SECONDS = 30;
 
 @Injectable()
 export class InsightsService {
@@ -191,12 +209,69 @@ export class InsightsService {
     return stats;
   }
 
+  /**
+   * Picks per team, for scoreboards. Grouped by the team as it stands now:
+   * picks whose team is archived, unlisted or missing fold into one unnamed
+   * row, so nothing vanishes from the total and no unlisted name leaks.
+   */
+  async getLeaderboard(filter: LeaderboardFilter): Promise<LeaderboardRow[]> {
+    const cacheKey = this.buildLeaderboardCacheKey(filter);
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    const { where, params } = this.buildSpotWhere({ ...filter, pickedUp: true, subjectKind: 'litter' });
+    const rows: Array<{
+      team_id: string | null;
+      team_name: string | null;
+      picks: number;
+      items: number;
+      total_weight_grams: number | string;
+      last_pick_at: Date | null;
+    }> = await this.spotRepository.query(
+      `SELECT t.id AS team_id, t.name AS team_name,
+              COUNT(DISTINCT s.id)::int AS picks,
+              COUNT(di.id)::int AS items,
+              COALESCE(SUM(di.weight_grams), 0)::float AS total_weight_grams,
+              MAX(s.captured_at) AS last_pick_at
+       FROM spots s
+       LEFT JOIN teams t ON t.id = s.team_id AND t.archived_at IS NULL AND t.is_unlisted = false
+       LEFT JOIN detected_items di ON di.spot_id = s.id
+       ${where}
+       GROUP BY t.id, t.name
+       ORDER BY picks DESC, total_weight_grams DESC, t.name ASC NULLS LAST`,
+      params,
+    );
+    const leaderboard = rows.map((row) => ({
+      teamId: row.team_id,
+      teamName: row.team_name,
+      picks: Number(row.picks),
+      items: Number(row.items),
+      totalWeightGrams: Number(row.total_weight_grams),
+      lastPickAt: row.last_pick_at ? new Date(row.last_pick_at).toISOString() : null,
+    }));
+
+    await this.redis.set(cacheKey, JSON.stringify(leaderboard), 'EX', LEADERBOARD_CACHE_TTL_SECONDS);
+    return leaderboard;
+  }
+
+  private buildLeaderboardCacheKey(filter: LeaderboardFilter): string {
+    const parts = ['insights:leaderboard'];
+    if (filter.cleanupDateId) parts.push(`cd:${filter.cleanupDateId}`);
+    else if (filter.cleanupId) parts.push(`c:${filter.cleanupId}`);
+    if (filter.since) parts.push(`s:${filter.since}`);
+    if (filter.before) parts.push(`b:${filter.before}`);
+    return parts.join(':');
+  }
+
   private buildCacheKey(filter: StatsFilter): string {
     const parts = ['insights:stats'];
     if (filter.teamId) parts.push(`t:${filter.teamId}`);
     if (filter.cleanupDateId) parts.push(`cd:${filter.cleanupDateId}`);
     else if (filter.cleanupId) parts.push(`c:${filter.cleanupId}`);
     if (filter.since) parts.push(`s:${filter.since}`);
+    if (filter.before) parts.push(`b:${filter.before}`);
     if (filter.pickedUp !== undefined) parts.push(`pu:${filter.pickedUp}`);
     if (filter.userId) parts.push(`u:${filter.userId}`);
     if (filter.subjectKind) parts.push(`sk:${filter.subjectKind}`);
@@ -209,6 +284,7 @@ export class InsightsService {
     if (filter.cleanupDateId) parts.push(`cd:${filter.cleanupDateId}`);
     else if (filter.cleanupId) parts.push(`c:${filter.cleanupId}`);
     if (filter.since) parts.push(`s:${filter.since}`);
+    if (filter.before) parts.push(`b:${filter.before}`);
     if (filter.pickedUp !== undefined) parts.push(`pu:${filter.pickedUp}`);
     if (filter.userId) parts.push(`u:${filter.userId}`);
     if (filter.subjectKind) parts.push(`sk:${filter.subjectKind}`);
@@ -233,6 +309,10 @@ export class InsightsService {
     if (filter.since) {
       conditions.push(`${alias}.captured_at >= $${idx++}`);
       params.push(filter.since);
+    }
+    if (filter.before) {
+      conditions.push(`${alias}.captured_at < $${idx++}`);
+      params.push(filter.before);
     }
     if (filter.pickedUp !== undefined) {
       conditions.push(`${alias}.picked_up = $${idx++}`);
@@ -270,6 +350,10 @@ export class InsightsService {
     if (filter.since) {
       conditions.push(`${alias}.captured_at >= $${idx++}`);
       params.push(filter.since);
+    }
+    if (filter.before) {
+      conditions.push(`${alias}.captured_at < $${idx++}`);
+      params.push(filter.before);
     }
     if (filter.pickedUp !== undefined) {
       conditions.push(`${alias}.picked_up = $${idx++}`);
@@ -314,11 +398,15 @@ export class InsightsService {
       dateConditions.push(`cd.start_at >= $${idx++}`);
       params.push(filter.since);
     }
+    if (filter.before) {
+      dateConditions.push(`cd.start_at < $${idx++}`);
+      params.push(filter.before);
+    }
     return { userId$, dateConditions, params, nextIdx: idx };
   }
 
   private hasFilter(filter: StatsFilter): boolean {
-    return !!(filter.teamId || filter.cleanupId || filter.cleanupDateId || filter.since || filter.pickedUp !== undefined || filter.userId);
+    return !!(filter.teamId || filter.cleanupId || filter.cleanupDateId || filter.since || filter.before || filter.pickedUp !== undefined || filter.userId);
   }
 
   private async computeStats(filter: StatsFilter = {}): Promise<PublicStats> {

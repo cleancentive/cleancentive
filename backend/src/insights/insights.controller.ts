@@ -1,7 +1,7 @@
-import { Controller, ForbiddenException, Get, MessageEvent, NotFoundException, Query, Req, Sse, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, ForbiddenException, Get, MessageEvent, NotFoundException, Query, Req, Sse, UseGuards } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Observable, interval, map, merge } from 'rxjs';
-import { InsightsService } from './insights.service';
+import { InsightsService, LeaderboardRow } from './insights.service';
 import { InsightsEventsService } from './insights-events.service';
 import { AdminService } from '../admin/admin.service';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
@@ -93,6 +93,30 @@ export class InsightsController {
     });
   }
 
+  @Get('leaderboard')
+  @ApiOperation({ summary: 'Picks, items and weight per team, for scoreboards' })
+  @ApiOkResponse({
+    description:
+      'Rows sorted by picks, then weight. One row with a null team gathers picks that have no listed, active team.',
+  })
+  @ApiQuery({ name: 'cleanup_id', required: false, description: 'Only picks logged during this cleanup (all dates)' })
+  @ApiQuery({ name: 'cleanup_date_id', required: false, description: 'Only picks logged during this cleanup date (takes precedence over cleanup_id)' })
+  @ApiQuery({ name: 'since', required: false, description: 'Picks captured on or after this ISO 8601 instant' })
+  @ApiQuery({ name: 'before', required: false, description: 'Picks captured before this ISO 8601 instant' })
+  async getLeaderboard(
+    @Query('cleanup_id') cleanupId?: string,
+    @Query('cleanup_date_id') cleanupDateId?: string,
+    @Query('since') since?: string,
+    @Query('before') before?: string,
+  ): Promise<LeaderboardRow[]> {
+    return this.insightsService.getLeaderboard({
+      cleanupId,
+      cleanupDateId,
+      since: this.parseInstantParam('since', since),
+      before: this.parseInstantParam('before', before),
+    });
+  }
+
   @Sse('events')
   @ApiOperation({
     summary: 'Live stream of spot events (server-sent events)',
@@ -119,6 +143,14 @@ export class InsightsController {
     // would; an empty event every few seconds is cheap and browsers ignore it.
     const heartbeat = interval(SSE_HEARTBEAT_MS).pipe(map(() => ({ type: 'heartbeat', data: '' })));
     return merge(spotEvents, heartbeat);
+  }
+
+  private parseInstantParam(name: string, value?: string): string | undefined {
+    if (value === undefined || value === '') return undefined;
+    if (Number.isNaN(new Date(value).getTime())) {
+      throw new BadRequestException(`${name} must be an ISO 8601 date`);
+    }
+    return value;
   }
 
   private parseBooleanParam(value?: string): boolean | undefined {
