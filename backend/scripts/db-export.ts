@@ -1,5 +1,5 @@
-import { createWriteStream } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { createWriteStream, existsSync, statSync } from 'node:fs';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
@@ -158,25 +158,44 @@ function getTablesForGroups(groups: ScopeGroup[]): string[] {
   return TABLE_ORDER.filter((t) => tableSet.has(t));
 }
 
+const DOWNLOAD_TIMEOUT_MS = 60_000;
+const DOWNLOAD_ATTEMPTS = 3;
+
+/**
+ * Fetches one object into the bundle. A file already on disk is kept, so a
+ * rerun resumes rather than restarts. Each attempt is bounded: an object
+ * store that stops sending mid-stream used to hang the export forever — and
+ * with nothing else keeping the event loop alive, Bun then exited 0 as if
+ * the export had finished.
+ */
 async function downloadS3Object(s3Client: S3Client, bucket: string, key: string, outputDir: string): Promise<boolean> {
   const filePath = join(outputDir, 'images', key);
   const dir = filePath.substring(0, filePath.lastIndexOf('/'));
   await mkdir(dir, { recursive: true });
+  if (existsSync(filePath) && statSync(filePath).size > 0) return true;
 
-  try {
-    const response = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-    if (!response.Body) return false;
-
-    const writeStream = createWriteStream(filePath);
-    await pipeline(response.Body as Readable, writeStream);
-    return true;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes('NoSuchKey') || message.includes('The specified key does not exist')) {
-      return false;
+  for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), DOWNLOAD_TIMEOUT_MS);
+    try {
+      const response = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }), { abortSignal: abort.signal });
+      if (!response.Body) return false;
+      await pipeline(response.Body as Readable, createWriteStream(filePath), { signal: abort.signal });
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('NoSuchKey') || message.includes('The specified key does not exist')) return false;
+      await rm(filePath, { force: true });
+      if (attempt === DOWNLOAD_ATTEMPTS) {
+        console.warn(`  giving up on ${key} after ${DOWNLOAD_ATTEMPTS} attempts: ${message}`);
+        return false;
+      }
+      console.warn(`  retrying ${key} (${attempt}/${DOWNLOAD_ATTEMPTS}): ${message}`);
+    } finally {
+      clearTimeout(timer);
     }
-    throw error;
   }
+  return false;
 }
 
 async function main(): Promise<void> {
@@ -322,6 +341,11 @@ async function main(): Promise<void> {
     console.log(`  ${table}: ${rowCount} rows`);
   }
 
+  // Everything the image phase needs is on disk now. Close the session before
+  // it: a download of a few GB over a tunnel outlasts idle timeouts, and the
+  // dropped connection used to fail the whole export at the very end.
+  await dbClient.end();
+
   // Download images for the spots in THIS bundle (incremental → only changed spots).
   const includeImages = !skipImages && groups.includes('spots');
   if (includeImages) {
@@ -354,7 +378,6 @@ async function main(): Promise<void> {
   }
 
   await writeFile(join(outputDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
-  await dbClient.end();
 
   console.log('');
   console.log(`Export complete (${type}) → ${outputDir}`);
