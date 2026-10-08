@@ -12,6 +12,12 @@ export {
 } from './geo/coords';
 export { PROCESSING_STATUS, type ProcessingStatus } from './spot/processing-status';
 export { clampWeightGrams, MIN_WEIGHT_GRAMS } from './spot/weight';
+export {
+  SPOT_EVENTS_CHANNEL,
+  type SpotEvent,
+  type SpotEventItems,
+  type SpotEventType,
+} from './spot/events';
 export type { LitterDetectionJobData, DetectedObject, DetectionResult } from './detection/types';
 export {
   lookupInvasive,
