@@ -97,5 +97,23 @@
     "deleteAll": "Alle Daten löschen",
     "onlyPersonal": "Nur persönliche Daten löschen",
     "body": "Diese Aktion kann nicht rückgängig gemacht werden. Wähle, was mit deinen Daten geschehen soll:"
+  },
+  "deletePicks": {
+    "legend": "Funde löschen",
+    "hint": "Entferne deine eigenen gesammelten Funde aus einem Zeitraum — zum Beispiel Test-Uploads. Zuerst zählen; Löschen lässt sich nicht rückgängig machen.",
+    "from": "Von",
+    "to": "Bis",
+    "count": "Zählen",
+    "delete": "Löschen",
+    "countResult_one": "{{count}} Fund in diesem Zeitraum.",
+    "countResult_other": "{{count}} Funde in diesem Zeitraum.",
+    "confirmTitle": "Diese Funde löschen?",
+    "confirmPrompt_one": "{{count}} Fund wird samt Foto von der Karte entfernt. Das lässt sich nicht rückgängig machen.",
+    "confirmPrompt_other": "{{count}} Funde werden samt Fotos von der Karte entfernt. Das lässt sich nicht rückgängig machen.",
+    "result_one": "{{count}} Fund gelöscht.",
+    "result_other": "{{count}} Funde gelöscht.",
+    "remaining_one": "{{count}} weiterer im Zeitraum — erneut löschen, um fortzufahren.",
+    "remaining_other": "{{count}} weitere im Zeitraum — erneut löschen, um fortzufahren.",
+    "error": "Funde konnten nicht gelöscht werden. Bitte versuche es erneut."
   }
 }

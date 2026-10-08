@@ -97,5 +97,23 @@
     "deleteAll": "Delete all data",
     "onlyPersonal": "Only delete personal info",
     "body": "This action cannot be undone. Choose what to do with your data:"
+  },
+  "deletePicks": {
+    "legend": "Delete picks",
+    "hint": "Remove your own picks captured in a time range — test uploads, for example. Count first; deleting cannot be undone.",
+    "from": "From",
+    "to": "To",
+    "count": "Count",
+    "delete": "Delete",
+    "countResult_one": "{{count}} pick in this range.",
+    "countResult_other": "{{count}} picks in this range.",
+    "confirmTitle": "Delete these picks?",
+    "confirmPrompt_one": "{{count}} pick, with its photo, will be removed from the map. This cannot be undone.",
+    "confirmPrompt_other": "{{count}} picks, with their photos, will be removed from the map. This cannot be undone.",
+    "result_one": "Deleted {{count}} pick.",
+    "result_other": "Deleted {{count}} picks.",
+    "remaining_one": "{{count}} still in range — delete again to continue.",
+    "remaining_other": "{{count}} still in range — delete again to continue.",
+    "error": "Could not delete picks. Please try again."
   }
 }

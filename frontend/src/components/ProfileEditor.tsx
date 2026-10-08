@@ -6,10 +6,29 @@ import { useConnectivityStore } from '../stores/connectivityStore'
 import { useUiStore } from '../stores/uiStore'
 import { suggestNicknameFromEmail, suggestFullNameFromEmail } from '../lib/nicknameSuggestion'
 import { useCopyToClipboard } from '../lib/useCopyToClipboard'
+import axios from 'axios'
+import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 import { AccessTokensSection } from './AccessTokensSection'
+import { DeletePicksRange, type PickRange } from './DeletePicksRange'
 import { Avatar } from './Avatar'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SignIn } from './SignIn'
+
+async function countOwnPicks(range: PickRange): Promise<number> {
+  const response = await axios.delete<{ count: number }>(`${API_BASE}/spots`, {
+    headers: getAuthHeaders(),
+    params: { since: range.since, before: range.before, dry_run: 'true' },
+  })
+  return response.data.count
+}
+
+async function deleteOwnPicks(range: PickRange): Promise<{ deleted: number; remaining: number }> {
+  const response = await axios.delete<{ deleted: number; remaining: number }>(`${API_BASE}/spots`, {
+    headers: getAuthHeaders(),
+    params: { since: range.since, before: range.before },
+  })
+  return response.data
+}
 
 export function ProfileEditor() {
   const { t, i18n } = useTranslation(['profile', 'common'])
@@ -585,6 +604,13 @@ export function ProfileEditor() {
       </fieldset>
 
       <AccessTokensSection />
+
+      <DeletePicksRange
+        namespace="profile"
+        countPicks={countOwnPicks}
+        deletePicks={deleteOwnPicks}
+        disabled={!isOnline}
+      />
 
       {conflictNickname && conflictEmail && (
         <ConfirmDialog title={t('merge.title')} actions={

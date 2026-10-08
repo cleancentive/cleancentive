@@ -97,5 +97,23 @@
     "deleteAll": "Supprimer toutes les données",
     "onlyPersonal": "Supprimer seulement les infos personnelles",
     "body": "Cette action est irréversible. Choisissez ce qu’il advient de vos données :"
+  },
+  "deletePicks": {
+    "legend": "Supprimer des ramassages",
+    "hint": "Retirez vos propres ramassages d’une période — des envois de test, par exemple. Comptez d’abord ; la suppression est définitive.",
+    "from": "Du",
+    "to": "Au",
+    "count": "Compter",
+    "delete": "Supprimer",
+    "countResult_one": "{{count}} ramassage dans cette période.",
+    "countResult_other": "{{count}} ramassages dans cette période.",
+    "confirmTitle": "Supprimer ces ramassages ?",
+    "confirmPrompt_one": "{{count}} ramassage, photo comprise, sera retiré de la carte. C’est définitif.",
+    "confirmPrompt_other": "{{count}} ramassages, photos comprises, seront retirés de la carte. C’est définitif.",
+    "result_one": "{{count}} ramassage supprimé.",
+    "result_other": "{{count}} ramassages supprimés.",
+    "remaining_one": "{{count}} reste dans la période — supprimez à nouveau pour continuer.",
+    "remaining_other": "{{count}} restent dans la période — supprimez à nouveau pour continuer.",
+    "error": "Impossible de supprimer les ramassages. Veuillez réessayer."
   }
 }
