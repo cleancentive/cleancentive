@@ -13,6 +13,7 @@ import { StewardStorage } from './components/steward/StewardStorage'
 import { StewardPurge } from './components/steward/StewardPurge'
 import { StewardUsers } from './components/steward/StewardUsers'
 import { StewardFeedback } from './components/steward/StewardFeedback'
+import { StewardApiKeys } from './components/steward/StewardApiKeys'
 import { ProfileEditor } from './components/ProfileEditor'
 import { UserDetail } from './components/UserDetail'
 import { TeamList } from './components/TeamList'
@@ -119,6 +120,7 @@ function App() {
             <Route path="storage" element={<StewardStorage />} />
           <Route path="cost" element={<StewardCost />} />
             <Route path="purge" element={<StewardPurge />} />
+            <Route path="api-keys" element={<StewardApiKeys />} />
             <Route path="users" element={<StewardUsers />} />
             <Route path="feedback" element={<StewardFeedback />} />
             <Route path="feedback/:feedbackId" element={<StewardFeedback />} />

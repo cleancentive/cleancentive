@@ -16,7 +16,8 @@
     "review": "Review",
     "analytics": "Analytics ↗",
     "wiki": "Wiki ↗",
-    "cost": "Cost"
+    "cost": "Cost",
+    "apiKeys": "API keys"
   },
   "operations": {
     "legend": "Operations Overview",
@@ -204,5 +205,40 @@
       "backblaze": "App bucket only — B2 exposes no bucket-size API, so the wiki bucket is not counted.",
       "resend": "{{sent}} sent so far, {{included}} included."
     }
+  },
+  "apiKeys": {
+    "legend": "API keys",
+    "hint": "A key identifies an application, never a person. Clients send it as X-API-Key next to the user’s own bearer token; it attributes their picks and budgets their traffic.",
+    "loading": "Loading API keys…",
+    "empty": "No API keys issued yet.",
+    "columns": {
+      "name": "Name",
+      "prefix": "Key",
+      "scopes": "Scopes",
+      "rateLimit": "Limit",
+      "contact": "Contact",
+      "spots": "Spots",
+      "lastUsed": "Last used",
+      "expires": "Expires"
+    },
+    "noExpiry": "never",
+    "revoked": "revoked",
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke this API key?",
+    "revokeBody": "Requests from “{{name}}” are refused from now on.",
+    "create": "Issue a key",
+    "nameField": "Application name",
+    "contactField": "Contact email",
+    "scopesField": "Scopes",
+    "rateLimitField": "Requests per minute",
+    "expiresField": "Expires",
+    "expires_30": "in 30 days",
+    "expires_365": "in 1 year",
+    "expires_never": "never",
+    "createdTitle": "Copy the new key",
+    "createdBody": "This is the only time it will be shown. Hand it to the team; they send it as X-API-Key.",
+    "copied": "Copied!",
+    "done": "Done",
+    "error": "Could not update API keys. Please try again."
   }
 }

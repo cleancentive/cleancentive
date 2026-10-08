@@ -5330,3 +5330,45 @@ textarea.mono {
   user-select: all;
   margin-top: 0.5rem;
 }
+
+/* Steward: API keys */
+.steward-api-keys-table {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.steward-api-key--revoked td {
+  color: var(--color-text-faint);
+  text-decoration: line-through;
+}
+
+.steward-api-key--revoked td:last-child {
+  text-decoration: none;
+}
+
+.steward-api-key-form {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 28rem;
+}
+
+.steward-api-key-form label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.steward-api-key-form input,
+.steward-api-key-form select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border-input);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+
+.steward-api-key-scopes {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.85rem;
+}

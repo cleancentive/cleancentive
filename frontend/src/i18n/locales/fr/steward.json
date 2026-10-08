@@ -16,7 +16,8 @@
     "review": "Vérifier",
     "analytics": "Analyses ↗",
     "wiki": "Wiki ↗",
-    "cost": "Coûts"
+    "cost": "Coûts",
+    "apiKeys": "Clés API"
   },
   "operations": {
     "legend": "Aperçu des opérations",
@@ -204,5 +205,40 @@
       "backblaze": "Bucket applicatif uniquement — B2 n'expose pas la taille d'un bucket, celui du wiki n'est pas compté.",
       "resend": "{{sent}} envoyés à ce jour, {{included}} inclus."
     }
+  },
+  "apiKeys": {
+    "legend": "Clés API",
+    "hint": "Une clé identifie une application, jamais une personne. Les clients l’envoient en X-API-Key à côté du jeton de l’utilisateur ; elle attribue leurs ramassages et limite leur trafic.",
+    "loading": "Chargement des clés API…",
+    "empty": "Aucune clé API émise pour l’instant.",
+    "columns": {
+      "name": "Nom",
+      "prefix": "Clé",
+      "scopes": "Portées",
+      "rateLimit": "Limite",
+      "contact": "Contact",
+      "spots": "Spots",
+      "lastUsed": "Dernière utilisation",
+      "expires": "Expire"
+    },
+    "noExpiry": "jamais",
+    "revoked": "révoquée",
+    "revoke": "Révoquer",
+    "revokeTitle": "Révoquer cette clé API ?",
+    "revokeBody": "Les requêtes de « {{name}} » seront refusées dès maintenant.",
+    "create": "Émettre une clé",
+    "nameField": "Nom de l’application",
+    "contactField": "E-mail de contact",
+    "scopesField": "Portées",
+    "rateLimitField": "Requêtes par minute",
+    "expiresField": "Expire",
+    "expires_30": "dans 30 jours",
+    "expires_365": "dans 1 an",
+    "expires_never": "jamais",
+    "createdTitle": "Copiez la nouvelle clé",
+    "createdBody": "Elle ne sera affichée que cette fois-ci. Remettez-la à l’équipe ; elle l’envoie en X-API-Key.",
+    "copied": "Copié !",
+    "done": "Terminé",
+    "error": "Impossible de mettre à jour les clés API. Veuillez réessayer."
   }
 }

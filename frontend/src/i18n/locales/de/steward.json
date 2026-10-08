@@ -16,7 +16,8 @@
     "review": "Prüfen",
     "analytics": "Analysen ↗",
     "wiki": "Wiki ↗",
-    "cost": "Kosten"
+    "cost": "Kosten",
+    "apiKeys": "API-Schlüssel"
   },
   "operations": {
     "legend": "Betriebsübersicht",
@@ -204,5 +205,40 @@
       "backblaze": "Nur der App-Bucket — B2 bietet keine API für die Bucket-Grösse, der Wiki-Bucket ist nicht enthalten.",
       "resend": "{{sent}} bisher versendet, {{included}} enthalten."
     }
+  },
+  "apiKeys": {
+    "legend": "API-Schlüssel",
+    "hint": "Ein Schlüssel identifiziert eine Anwendung, nie eine Person. Clients senden ihn als X-API-Key neben dem eigenen Bearer-Token des Benutzers; er ordnet deren Picks zu und begrenzt deren Verkehr.",
+    "loading": "API-Schlüssel werden geladen…",
+    "empty": "Noch keine API-Schlüssel ausgestellt.",
+    "columns": {
+      "name": "Name",
+      "prefix": "Schlüssel",
+      "scopes": "Berechtigungen",
+      "rateLimit": "Limit",
+      "contact": "Kontakt",
+      "spots": "Spots",
+      "lastUsed": "Zuletzt verwendet",
+      "expires": "Läuft ab"
+    },
+    "noExpiry": "nie",
+    "revoked": "widerrufen",
+    "revoke": "Widerrufen",
+    "revokeTitle": "Diesen API-Schlüssel widerrufen?",
+    "revokeBody": "Anfragen von „{{name}}“ werden ab sofort abgelehnt.",
+    "create": "Schlüssel ausstellen",
+    "nameField": "Name der Anwendung",
+    "contactField": "Kontakt-E-Mail",
+    "scopesField": "Berechtigungen",
+    "rateLimitField": "Anfragen pro Minute",
+    "expiresField": "Läuft ab",
+    "expires_30": "in 30 Tagen",
+    "expires_365": "in 1 Jahr",
+    "expires_never": "nie",
+    "createdTitle": "Neuen Schlüssel kopieren",
+    "createdBody": "Er wird nur dieses eine Mal angezeigt. Geben Sie ihn dem Team; es sendet ihn als X-API-Key.",
+    "copied": "Kopiert!",
+    "done": "Fertig",
+    "error": "API-Schlüssel konnten nicht aktualisiert werden. Bitte versuchen Sie es erneut."
   }
 }
