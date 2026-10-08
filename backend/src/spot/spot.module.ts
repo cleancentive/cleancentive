@@ -1,6 +1,7 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SpotController } from './spot.controller';
+import { SpotAdminController } from './spot-admin.controller';
 import { SpotService } from './spot.service';
 import { Spot } from './spot.entity';
 import { DetectedItem } from './detected-item.entity';
@@ -15,8 +16,8 @@ import { AdminModule } from '../admin/admin.module';
 import { InsightsModule } from '../insights/insights.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Spot, DetectedItem, DetectedItemEdit, SpotEdit]), AuthModule, UserModule, TeamModule, CleanupModule, LabelModule, forwardRef(() => AdminModule), forwardRef(() => InsightsModule)],
-  controllers: [SpotController],
+  imports: [TypeOrmModule.forFeature([Spot, DetectedItem, DetectedItemEdit, SpotEdit]), AuthModule, UserModule, TeamModule, CleanupModule, LabelModule, AdminModule, InsightsModule],
+  controllers: [SpotController, SpotAdminController],
   providers: [SpotService],
   exports: [SpotService, TypeOrmModule],
 })

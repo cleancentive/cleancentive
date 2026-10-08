@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, forwardRef } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Spot } from '../spot/spot.entity';
@@ -8,7 +8,6 @@ import Redis from 'ioredis';
 import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { StorageService } from '../storage/storage.service';
 import { PurgeService } from '../purge/purge.service';
-import { SpotService, type SpotRangeFilter } from '../spot/spot.service';
 import { redisConnection } from '../common/redis-connection';
 import { createS3Client } from '../common/s3-client';
 import { PROCESSING_STATUS } from '@cleancentive/shared';
@@ -79,8 +78,6 @@ export class AdminOpsService implements OnModuleDestroy {
     private readonly detectedItemRepository: Repository<DetectedItem>,
     private readonly storageService: StorageService,
     private readonly purgeService: PurgeService,
-    @Inject(forwardRef(() => SpotService))
-    private readonly spotService: SpotService,
   ) {
     this.detectionQueue = new Queue(this.queueName, {
       connection: redisConnection(),
@@ -687,17 +684,6 @@ export class AdminOpsService implements OnModuleDestroy {
     };
   }
 
-  async deleteSpot(spotId: string): Promise<void> {
-    await this.spotService.deleteSpotAsAdmin(spotId);
-  }
-
-  async countSpotsInRange(filter: SpotRangeFilter): Promise<number> {
-    return this.spotService.countSpotsInRange(filter);
-  }
-
-  async deleteSpotsInRange(filter: SpotRangeFilter): Promise<{ deleted: number; remaining: number }> {
-    return this.spotService.deleteSpotsInRange(filter);
-  }
 
   private isStalled(spot: Spot): boolean {
     if (spot.processing_status !== PROCESSING_STATUS.QUEUED && spot.processing_status !== PROCESSING_STATUS.PROCESSING) {
