@@ -1,5 +1,5 @@
 import { describe, expect, test, afterEach } from 'bun:test';
-import { allowedOrigins, isAllowedOrigin, resolveFrontendUrl } from './allowed-origins';
+import { allowedOrigins, corsOptionsFor, isAllowedOrigin, resolveFrontendUrl } from './allowed-origins';
 
 const saved = {
   CORS_ORIGINS: process.env.CORS_ORIGINS,
@@ -53,5 +53,33 @@ describe('resolveFrontendUrl', () => {
   test('falls back when the request carried no origin at all', () => {
     setEnv({ CORS_ORIGINS: 'https://a.example' });
     expect(resolveFrontendUrl(undefined)).toBe('https://a.example');
+  });
+});
+
+describe('corsOptionsFor', () => {
+  const trusted = ['https://cleancentive.local', 'https://cleancentive.org'];
+
+  test('reflects a trusted origin with credentials', () => {
+    expect(corsOptionsFor('https://cleancentive.org', trusted)).toEqual({
+      origin: true,
+      credentials: true,
+      exposedHeaders: ['x-session-token'],
+    });
+  });
+
+  test('ignores a trailing slash when matching', () => {
+    expect(corsOptionsFor('https://cleancentive.org/', trusted).credentials).toBe(true);
+  });
+
+  test('reflects a foreign origin without credentials', () => {
+    expect(corsOptionsFor('https://game.example', trusted)).toEqual({
+      origin: true,
+      credentials: false,
+      exposedHeaders: ['x-session-token'],
+    });
+  });
+
+  test('treats a missing Origin as untrusted', () => {
+    expect(corsOptionsFor(undefined, trusted).credentials).toBe(false);
   });
 });
