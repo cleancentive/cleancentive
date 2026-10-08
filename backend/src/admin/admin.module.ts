@@ -16,11 +16,13 @@ import { DetectionAlertService } from './detection-alert.service';
 import { EmailModule } from '../email/email.module';
 import { StorageModule } from '../storage/storage.module';
 import { PurgeModule } from '../purge/purge.module';
+import { SpotModule } from '../spot/spot.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Admin, User, UserEmail, Spot, DetectedItem, Team, TeamOutlineCollection]),
     forwardRef(() => StorageModule),
+    forwardRef(() => SpotModule),
     PurgeModule,
     EmailModule,
   ],

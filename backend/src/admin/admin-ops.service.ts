@@ -1,13 +1,14 @@
-import { Injectable, Logger, NotFoundException, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleDestroy, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Spot } from '../spot/spot.entity';
 import { DetectedItem } from '../spot/detected-item.entity';
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
-import { S3Client, HeadBucketCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, HeadBucketCommand } from '@aws-sdk/client-s3';
 import { StorageService } from '../storage/storage.service';
 import { PurgeService } from '../purge/purge.service';
+import { SpotService, type SpotRangeFilter } from '../spot/spot.service';
 import { redisConnection } from '../common/redis-connection';
 import { createS3Client } from '../common/s3-client';
 import { PROCESSING_STATUS } from '@cleancentive/shared';
@@ -78,6 +79,8 @@ export class AdminOpsService implements OnModuleDestroy {
     private readonly detectedItemRepository: Repository<DetectedItem>,
     private readonly storageService: StorageService,
     private readonly purgeService: PurgeService,
+    @Inject(forwardRef(() => SpotService))
+    private readonly spotService: SpotService,
   ) {
     this.detectionQueue = new Queue(this.queueName, {
       connection: redisConnection(),
@@ -685,23 +688,15 @@ export class AdminOpsService implements OnModuleDestroy {
   }
 
   async deleteSpot(spotId: string): Promise<void> {
-    const spot = await this.spotRepository.findOne({ where: { id: spotId } });
-    if (!spot) throw new NotFoundException('Spot not found');
+    await this.spotService.deleteSpotAsAdmin(spotId);
+  }
 
-    this.logger.log(
-      `Admin deleting spot ${spot.id}: user=${spot.user_id}, captured_at=${spot.captured_at.toISOString()}`,
-    );
+  async countSpotsInRange(filter: SpotRangeFilter): Promise<number> {
+    return this.spotService.countSpotsInRange(filter);
+  }
 
-    const keysToDelete = [spot.image_key, spot.thumbnail_key].filter(Boolean) as string[];
-    for (const key of keysToDelete) {
-      try {
-        await this.s3Client.send(new DeleteObjectCommand({ Bucket: this.bucketName, Key: key }));
-      } catch (error) {
-        this.logger.warn(`Failed to delete S3 object ${key} for spot ${spot.id}: ${error.message}`);
-      }
-    }
-
-    await this.spotRepository.remove(spot);
+  async deleteSpotsInRange(filter: SpotRangeFilter): Promise<{ deleted: number; remaining: number }> {
+    return this.spotService.deleteSpotsInRange(filter);
   }
 
   private isStalled(spot: Spot): boolean {
