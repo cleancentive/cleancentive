@@ -68,14 +68,14 @@ Detection runs in the background (seconds). Either poll `GET /spots/:id/view` (p
 
 ### Leaderboard
 ```
-GET /insights/leaderboard?cleanup_id=<HACK_CLEANUP_ID>
+GET /insights/leaderboard?cleanup_id=01a11d1e-7023-71ad-b351-37b29bc1555f
 GET /insights/leaderboard?since=2026-10-30T17:00:00Z&before=2026-11-01T14:00:00Z
 ```
 → `[{ teamId, teamName, picks, items, totalWeightGrams, lastPickAt }, …]` sorted by picks. One row with `teamId: null` holds picks without a listed team. Counts picked-up litter only. Fresh within a second of each change; safe to poll every few seconds.
 
 ### Event stream (server-sent events)
 ```bash
-curl -N "https://cleancentive.org/api/v1/insights/events?cleanup_id=<HACK_CLEANUP_ID>"
+curl -N "https://cleancentive.org/api/v1/insights/events?cleanup_id=01a11d1e-7023-71ad-b351-37b29bc1555f"
 ```
 ```
 event: spot.created
@@ -110,10 +110,14 @@ Your own picks only, by capture time, 500 per call. Also under **Profile → Del
 ## 6. The hackathon cleanup
 Picks logged near the venue during the event attach themselves to the hackathon cleanup automatically; you can also pass `cleanupId` + `cleanupDateId` explicitly.
 
+Venue: Peter Merian-Strasse 80, 4052 Basel (47.5463, 7.5940).
+
 | | id |
 |---|---|
-| Cleanup "BaselHack 2026 — Litter Wars" | `HACK_CLEANUP_ID` (announced at kickoff) |
-| Fri 30 Oct · Sat 31 Oct · Sun 1 Nov dates | announced at kickoff |
+| Cleanup "BaselHack 2026 — Litter Wars" (`cleanup_id`) | `01a11d1e-7023-71ad-b351-37b29bc1555f` |
+| Fri 30 Oct 18:00–23:00 (`cleanup_date_id`) | `01a11d1e-702d-74a8-9163-5ada35056342` |
+| Sat 31 Oct 08:00–23:00 | `01a11d1f-4a97-76b6-9f59-d78a63b68816` |
+| Sun 1 Nov 08:00–14:00 | `01a11d1f-4b56-77fe-8116-6f8e5cbaadb4` |
 
 ## 7. Endpoints on demand
 Need a webhook, a different aggregation, a match endpoint? Ask. We deploy to production in about ten minutes. See [`first-pick.sh`](first-pick.sh) for the whole loop in one script.
