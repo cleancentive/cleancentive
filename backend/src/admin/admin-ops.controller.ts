@@ -112,6 +112,33 @@ export class AdminOpsController {
     return this.adminOpsService.getSpotAggregateStats();
   }
 
+  @Delete('spots')
+  @ApiOperation({ summary: 'Delete picks by user and/or team in a time range (steward backstop)' })
+  @ApiOkResponse({ description: '`{ count }` for a dry run, otherwise `{ deleted, remaining }`; at most 500 per call.' })
+  @ApiQuery({ name: 'user_id', required: false, description: 'Owner UUID; at least one of user_id and team_id' })
+  @ApiQuery({ name: 'team_id', required: false, description: 'Team UUID; at least one of user_id and team_id' })
+  @ApiQuery({ name: 'since', required: true, description: 'ISO 8601, inclusive' })
+  @ApiQuery({ name: 'before', required: true, description: 'ISO 8601, exclusive' })
+  @ApiQuery({ name: 'dry_run', required: false, description: 'true to count without deleting' })
+  async deleteSpotsInRange(
+    @Query('user_id') userId: string | undefined,
+    @Query('team_id') teamId: string | undefined,
+    @Query('since') since: string | undefined,
+    @Query('before') before: string | undefined,
+    @Query('dry_run') dryRun: string | undefined,
+  ): Promise<{ count: number } | { deleted: number; remaining: number }> {
+    const filter = {
+      userId: userId || undefined,
+      teamId: teamId || undefined,
+      since: new Date(since ?? ''),
+      before: new Date(before ?? ''),
+    };
+    if (dryRun === 'true') {
+      return { count: await this.adminOpsService.countSpotsInRange(filter) };
+    }
+    return this.adminOpsService.deleteSpotsInRange(filter);
+  }
+
   @Delete('spots/:id')
   @HttpCode(204)
   @ApiOperation({ summary: 'Hard delete a spot, its detected items, and S3 images' })
