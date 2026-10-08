@@ -26,10 +26,11 @@ import { MulterExceptionFilter } from '../common/multer-exception.filter';
 import { SpotService } from './spot.service';
 import { UserService } from '../user/user.service';
 import { GuestOrUserAuthGuard } from '../auth/guest-or-user-auth.guard';
+import { RequireApiKeyScope } from '../api-key/api-key.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { AdminGuard } from '../admin/admin.guard';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiSecurity } from '@nestjs/swagger';
 import sharp = require('sharp');
 import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters, lookupInvasive } from '@cleancentive/shared';
 import type { AuthenticatedUser } from '../auth/jwt.strategy';
@@ -194,6 +195,8 @@ export class SpotController {
   @Post()
   @HttpCode(202)
   @UseGuards(GuestOrUserAuthGuard)
+  @RequireApiKeyScope('write:spots')
+  @ApiSecurity('ApiKey')
   @UseFilters(MulterExceptionFilter)
   @UseInterceptors(
     FileFieldsInterceptor(
@@ -287,6 +290,7 @@ export class SpotController {
       cleanupId,
       cleanupDateId,
       subjectKind,
+      sourceApiKeyId: (req as any).apiKey?.id ?? null,
     });
 
     return {

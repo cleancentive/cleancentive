@@ -13,6 +13,7 @@ export type SubjectKind = 'litter' | 'plant';
 @Index('IDX_spots_team_id', ['team_id'])
 @Index('IDX_spots_cleanup_id', ['cleanup_id'])
 @Index('IDX_spots_cleanup_date_id', ['cleanup_date_id'])
+@Index('IDX_spots_source_api_key_id', ['source_api_key_id'])
 export class Spot extends BaseEntity {
   @Column('uuid')
   user_id: string;
@@ -37,6 +38,10 @@ export class Spot extends BaseEntity {
 
   @Column('uuid', { nullable: true })
   cleanup_date_id: string | null;
+
+  /** The application (API key) that submitted this spot, when it was not the app itself. */
+  @Column('uuid', { nullable: true })
+  source_api_key_id: string | null;
 
   @ManyToOne('CleanupDate', { onDelete: 'SET NULL', nullable: true })
   @JoinColumn({ name: 'cleanup_date_id' })

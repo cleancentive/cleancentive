@@ -56,6 +56,8 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { SystemModule } from './system/system.module';
 import { PersonalAccessToken } from './personal-access-token/personal-access-token.entity';
 import { PersonalAccessTokenModule } from './personal-access-token/personal-access-token.module';
+import { ApiKey } from './api-key/api-key.entity';
+import { ApiKeyModule } from './api-key/api-key.module';
 
 @Module({
   imports: [
@@ -102,6 +104,7 @@ import { PersonalAccessTokenModule } from './personal-access-token/personal-acce
         OutlineMaintenanceState,
         VendorInvoice,
         PersonalAccessToken,
+        ApiKey,
       ],
       subscribers: [AuditSubscriber, InsightsCacheSubscriber],
       synchronize: false,
@@ -129,6 +132,7 @@ import { PersonalAccessTokenModule } from './personal-access-token/personal-acce
     ClientEventsModule,
     SystemModule,
     PersonalAccessTokenModule,
+    ApiKeyModule,
   ],
   providers: [
     {

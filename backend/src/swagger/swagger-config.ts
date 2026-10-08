@@ -1,6 +1,7 @@
 export const swaggerUiPath = 'api';
 export const swaggerJsonPath = 'api/openapi.json';
 export const swaggerAuthSchemeName = 'Bearer';
+export const swaggerApiKeySchemeName = 'ApiKey';
 export const swaggerTokenStorageKey = 'cleancentive-swagger-session-token';
 export const swaggerGuestIdStorageKey = 'cleancentive-swagger-guest-id';
 export const swaggerEmailStorageKey = 'cleancentive-swagger-email';

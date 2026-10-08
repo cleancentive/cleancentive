@@ -4,7 +4,7 @@ import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AdminService } from './admin/admin.service';
-import { buildSwaggerCustomJs, swaggerAuthSchemeName, swaggerJsonPath, swaggerUiPath } from './swagger/swagger-config';
+import { buildSwaggerCustomJs, swaggerApiKeySchemeName, swaggerAuthSchemeName, swaggerJsonPath, swaggerUiPath } from './swagger/swagger-config';
 import { allowedOrigins, corsOptionsFor } from './common/allowed-origins';
 const pkg = require(require('path').join(process.cwd(), 'package.json'));
 
@@ -61,6 +61,17 @@ async function bootstrap() {
             '(`cc_pat_…`, created under Profile → Access tokens).',
         },
         swaggerAuthSchemeName,
+      )
+      .addApiKey(
+        {
+          type: 'apiKey',
+          in: 'header',
+          name: 'X-API-Key',
+          description:
+            'Identifies the calling application (`cc_live_…`, issued by a steward). Optional, and never a ' +
+            'substitute for the Bearer token: send both.',
+        },
+        swaggerApiKeySchemeName,
       )
       .build();
     const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);

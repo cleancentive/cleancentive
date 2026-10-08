@@ -47,6 +47,7 @@ interface CreateSpotInput {
   cleanupId?: string | null;
   cleanupDateId?: string | null;
   subjectKind?: SubjectKind;
+  sourceApiKeyId?: string | null;
 }
 
 interface CreateSpotResult {
@@ -259,6 +260,7 @@ export class SpotService {
       pick_session_id: pickSessionId,
       image_sha256: imageSha256,
       subject_kind: input.subjectKind ?? 'litter',
+      source_api_key_id: input.sourceApiKeyId ?? null,
     });
 
     const savedSpot = await this.spotRepository.save(spot);
