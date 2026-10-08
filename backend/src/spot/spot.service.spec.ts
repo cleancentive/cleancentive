@@ -533,3 +533,57 @@ describe('SpotService.createSpot rate limit', () => {
     expect(checks).toBe(0);
   });
 });
+
+describe('SpotService.deleteSpotInternal', () => {
+  function makeDeleteService(spot: Partial<Spot>) {
+    const service = Object.create(SpotService.prototype) as SpotService;
+    const inject = service as unknown as Record<string, unknown>;
+    const deletedKeys: string[] = [];
+    const removed: string[] = [];
+    const removedJobs: string[] = [];
+    const announced: Array<{ type: string; spotId: string }> = [];
+    inject.logger = { log: () => undefined, warn: () => undefined };
+    inject.bucketName = 'test-bucket';
+    inject.s3Client = { send: async (command: { input: { Key: string } }) => { deletedKeys.push(command.input.Key); } };
+    inject.spotRepository = { remove: async (row: Spot) => { removed.push(row.id); } };
+    inject.detectionQueue = { remove: async (id: string) => { removedJobs.push(id); } };
+    inject.insightsEvents = { publish: async (event: { type: string; spotId: string }) => { announced.push({ type: event.type, spotId: event.spotId }); } };
+    const run = () => (service as unknown as { deleteSpotInternal: (s: Spot) => Promise<void> }).deleteSpotInternal(spot as Spot);
+    return { run, deletedKeys, removed, removedJobs, announced };
+  }
+
+  const baseSpot = {
+    id: 'spot-1',
+    user_id: 'owner-1',
+    team_id: null,
+    cleanup_id: null,
+    cleanup_date_id: null,
+    captured_at: new Date('2026-10-31T10:00:00Z'),
+    latitude: 47.5,
+    longitude: 7.6,
+    picked_up: true,
+    subject_kind: 'litter' as const,
+    image_key: 'spots/spot-1/original.jpg',
+    thumbnail_key: 'spots/spot-1/thumb.jpg',
+    items: [],
+  };
+
+  test('drops the objects, the row and a still-queued job, then announces the deletion', async () => {
+    const { run, deletedKeys, removed, removedJobs, announced } = makeDeleteService({ ...baseSpot, processing_status: 'queued' });
+
+    await run();
+
+    expect(deletedKeys).toEqual(['spots/spot-1/original.jpg', 'spots/spot-1/thumb.jpg']);
+    expect(removedJobs).toEqual(['spot-1']);
+    expect(removed).toEqual(['spot-1']);
+    expect(announced).toEqual([{ type: 'spot.deleted', spotId: 'spot-1' }]);
+  });
+
+  test('leaves a running job to the worker', async () => {
+    const { run, removedJobs } = makeDeleteService({ ...baseSpot, processing_status: 'processing' });
+
+    await run();
+
+    expect(removedJobs).toEqual([]);
+  });
+});

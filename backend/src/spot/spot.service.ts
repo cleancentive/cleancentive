@@ -17,10 +17,11 @@ import { TeamService } from '../team/team.service';
 import { CleanupService } from '../cleanup/cleanup.service';
 import { LabelService } from '../label/label.service';
 import { AdminService } from '../admin/admin.service';
+import { InsightsEventsService } from '../insights/insights-events.service';
 import { redisConnection } from '../common/redis-connection';
 import { createRedisRateLimiter, type RedisRateLimiter } from '../common/redis-rate-limit';
 import { createS3Client } from '../common/s3-client';
-import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters, clampWeightGrams } from '@cleancentive/shared';
+import { PROCESSING_STATUS, isValidLatLng, isValidAccuracyMeters, clampWeightGrams, type SpotEvent } from '@cleancentive/shared';
 
 // A budget guard, not a UX limit: every spot is a paid detection call, and a
 // script stuck in a loop would otherwise spend without bound. Well above any
@@ -102,6 +103,7 @@ export class SpotService {
     private readonly cleanupService: CleanupService,
     private readonly labelService: LabelService,
     private readonly adminService: AdminService,
+    private readonly insightsEvents: InsightsEventsService,
   ) {
     this.detectionQueue = new Queue(this.queueName, {
       connection: redisConnection(),
@@ -344,10 +346,33 @@ export class SpotService {
       throw new ServiceUnavailableException('Spot accepted but detection queue is unavailable');
     }
 
+    await this.announce('spot.created', savedSpot);
+
     return {
       spot: savedSpot,
       warning,
     };
+  }
+
+  // The write is committed by the time this runs; a lost notification is a
+  // stale scoreboard for a few seconds, not a reason to fail the request.
+  private async announce(type: SpotEvent['type'], spot: Spot): Promise<void> {
+    try {
+      await this.insightsEvents.publish({
+        type,
+        spotId: spot.id,
+        teamId: spot.team_id,
+        cleanupId: spot.cleanup_id,
+        cleanupDateId: spot.cleanup_date_id,
+        capturedAt: spot.captured_at.toISOString(),
+        latitude: spot.latitude,
+        longitude: spot.longitude,
+        pickedUp: spot.picked_up,
+        subjectKind: spot.subject_kind,
+      });
+    } catch (error) {
+      this.logger.warn(`Could not publish ${type} for spot ${spot.id}: ${error.message}`);
+    }
   }
 
   private static readonly ITEM_LABEL_RELATIONS = [
@@ -941,7 +966,14 @@ export class SpotService {
       }
     }
 
+    // A job still waiting for this spot would cost a detection call for
+    // nothing. One already running is left alone; the worker notices.
+    if (spot.processing_status === PROCESSING_STATUS.QUEUED) {
+      await this.detectionQueue.remove(spot.id).catch(() => undefined);
+    }
+
     await this.spotRepository.remove(spot);
+    await this.announce('spot.deleted', spot);
   }
 
   async close(): Promise<void> {
