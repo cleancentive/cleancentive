@@ -6,6 +6,7 @@ import { useConnectivityStore } from '../stores/connectivityStore'
 import { useUiStore } from '../stores/uiStore'
 import { suggestNicknameFromEmail, suggestFullNameFromEmail } from '../lib/nicknameSuggestion'
 import { useCopyToClipboard } from '../lib/useCopyToClipboard'
+import { AccessTokensSection } from './AccessTokensSection'
 import { Avatar } from './Avatar'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SignIn } from './SignIn'
@@ -582,6 +583,8 @@ export function ProfileEditor() {
           </div>
         )}
       </fieldset>
+
+      <AccessTokensSection />
 
       {conflictNickname && conflictEmail && (
         <ConfirmDialog title={t('merge.title')} actions={
