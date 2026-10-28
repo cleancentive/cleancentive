@@ -22,7 +22,7 @@ services:
       - caddy_config:/config
 
   frontend:
-    image: ghcr.io/cleancentive/cleancentive-frontend:e2602bd99f3d7ab8740cca8ad3c88e1c024d8714
+    image: ghcr.io/cleancentive/cleancentive-frontend:9a7c9248f6b2ba3d0e60661b6b6399bd694858cf
     restart: unless-stopped
     environment:
       UMAMI_SCRIPT_URL: https://analytics.${DOMAIN}/script.js
