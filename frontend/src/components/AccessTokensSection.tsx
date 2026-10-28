@@ -51,6 +51,14 @@ export function AccessTokensSection() {
     void loadTokens()
   }, [loadTokens])
 
+  // /profile#tokens is the deep link we hand to developers; the section renders
+  // after the profile loads, so the browser's own anchor jump has nothing to hit.
+  useEffect(() => {
+    if (window.location.hash === '#tokens') {
+      document.getElementById('tokens')?.scrollIntoView({ block: 'start' })
+    }
+  }, [])
+
   const handleCreate = async (event: FormEvent) => {
     event.preventDefault()
     setIsBusy(true)
@@ -87,7 +95,7 @@ export function AccessTokensSection() {
   }
 
   return (
-    <fieldset className="page-card access-tokens" disabled={!isOnline || isBusy}>
+    <fieldset id="tokens" className="page-card access-tokens" disabled={!isOnline || isBusy}>
       <legend>{t('tokens.legend')}</legend>
       <p className="calendar-hint">{t('tokens.hint')}</p>
 

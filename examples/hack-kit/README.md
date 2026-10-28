@@ -3,7 +3,7 @@
 Everything a team needs to build a game on top of cleancentive.org during BaselHack 2026. The API is the same one the app uses; nothing here is a mock.
 
 - Base URL: `https://cleancentive.org/api/v1`
-- Interactive docs: <https://cleancentive.org/api/> · machine-readable: <https://cleancentive.org/api/openapi.json>
+- Interactive docs: <https://cleancentive.org/api/> · machine-readable: <https://cleancentive.org/api/openapi.json> (OpenAPI 3; generate a client from it)
 - Source (AGPL-3.0): <https://github.com/cleancentive/cleancentive>
 - On site: Matthias Cullmann (API, backend), Johannes Bohren
 
@@ -17,10 +17,12 @@ Everything a team needs to build a game on top of cleancentive.org during BaselH
 Send **both** on every write. A key alone cannot create picks; a user alone can, but then nobody knows they came from your game.
 
 ### Your own token, in 30 seconds
-Sign in at <https://cleancentive.org>, open **Profile → Access tokens**, create one. You get a `cc_pat_…` once; it acts as you, except it cannot change your emails, approve devices, mint tokens or delete your account.
+Sign in at <https://cleancentive.org>, open <https://cleancentive.org/profile#tokens>, create one. You get a `cc_pat_…` once; it acts as you, except it cannot change your emails, approve devices, mint tokens or delete your account.
+
+From the terminal instead: [`mint-token.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/mint-token.sh) signs you in through a device code and prints a fresh token.
 
 ```bash
-curl https://cleancentive.org/api/v1/user/profile -H "Authorization: Bearer cc_pat_…"
+curl https://cleancentive.org/api/v1/user/profile -H "Authorization: Bearer $USER_TOKEN"
 ```
 
 ### Signing a player into your app (no email UI needed)
@@ -60,7 +62,7 @@ Detection runs in the background (seconds). Either poll `GET /spots/:id/view` (p
 ### Things that will bite you
 - **Same photo twice within 24 h = same spot.** The API de-duplicates by image hash per user. Testing with one photo in a loop silently returns the first spot. Use different photos.
 - **Same `uploadId` = same spot** (that is what makes retries safe).
-- **Budgets:** one user may log 300 picks per hour; your key has a per-minute budget (ask us to raise it). Over budget → `429`.
+- **Budgets:** two independent limits. **Per user:** 300 picks per hour, counted on the bearer token's account. **Per key:** requests per minute on *your team's key* (default 60, any route that carries the key) — one budget for the whole team, not per player; ask us to raise it. Over budget → `429`, retry after the minute turns.
 - **A bad or revoked API key is refused everywhere, even on public routes** (`401`). Check the header before suspecting the route.
 - Anyone signed in can correct any pick's detected items (wiki-style, with a change history). Good for a "verify your teammate's find" mechanic; don't rely on it as anti-cheat.
 
@@ -119,5 +121,44 @@ Venue: Peter Merian-Strasse 80, 4052 Basel (47.5463, 7.5940).
 | Sat 31 Oct 08:00–23:00 | `01a11d1f-4a97-76b6-9f59-d78a63b68816` |
 | Sun 1 Nov 08:00–14:00 | `01a11d1f-4b56-77fe-8116-6f8e5cbaadb4` |
 
-## 7. Endpoints on demand
-Need a webhook, a different aggregation, a match endpoint? Ask. We deploy to production in about ten minutes. See [`first-pick.sh`](first-pick.sh) for the whole loop in one script.
+## 7. Test data
+- **Your own phone** is the best source: every photo is new, and new photos never collide with the 24-hour de-duplication.
+- **TACO** (<http://tacodataset.org>, 1 500 litter photos with annotations, CC BY 4.0) is handy for scripted tests. Pros: real litter, varied, free. Cons: every upload is a real detection call that counts against your budgets, photos land on the public map at whatever coordinates you send — so delete them afterwards (section 5) — and the same TACO photo twice in a day returns the first spot. Attribute TACO if you ship its images.
+- **Real Basel data** is already on the map: `GET /insights/map` (GeoJSON) and `GET /insights/stats` need no credentials and cost nothing.
+
+## 8. Everything once, from bash
+Each of these ran unchanged against production while this page was written.
+
+```bash
+API=https://cleancentive.org/api/v1
+USER_TOKEN=cc_pat_…      # from /profile#tokens or mint-token.sh
+TEAM_KEY=cc_live_…       # handed over at kickoff
+CLEANUP=01a11d1e-7023-71ad-b351-37b29bc1555f
+
+# who am I
+curl -s $API/user/profile -H "Authorization: Bearer $USER_TOKEN"
+
+# an anonymous player
+GUEST=$(curl -s -X POST $API/auth/guest | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+
+# log a pick (202 + spotId)
+SPOT=$(curl -s -X POST $API/spots -H "Authorization: Bearer $USER_TOKEN" -H "X-API-Key: $TEAM_KEY" \
+  -F image=@pick.jpg -F uploadId=$(uuidgen) -F latitude=47.5463 -F longitude=7.5940 \
+  -F capturedAt=$(date -u +%FT%TZ) -F cleanupId=$CLEANUP | python3 -c 'import sys,json;print(json.load(sys.stdin)["spotId"])')
+
+# what was found (poll until status is completed)
+curl -s $API/spots/$SPOT/view | python3 -m json.tool | head -40
+
+# the scoreboard
+curl -s "$API/insights/leaderboard?cleanup_id=$CLEANUP"
+
+# live events (Ctrl-C to stop)
+curl -N "$API/insights/events?cleanup_id=$CLEANUP"
+
+# count, then delete, your picks from a time range
+curl -s -X DELETE -H "Authorization: Bearer $USER_TOKEN" "$API/spots?since=2026-10-30T00:00:00Z&before=2026-11-02T00:00:00Z&dry_run=true"
+curl -s -X DELETE -H "Authorization: Bearer $USER_TOKEN" "$API/spots?since=2026-10-30T00:00:00Z&before=2026-11-02T00:00:00Z"
+```
+
+## 9. Endpoints on demand
+Need a webhook, a different aggregation, a match endpoint? Ask. We deploy to production in about ten minutes. [`first-pick.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/first-pick.sh) runs the whole loop once; both scripts live in `examples/hack-kit/` of the repo.

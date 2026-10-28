@@ -50,7 +50,14 @@ async function bootstrap() {
 
     const swaggerConfig = new DocumentBuilder()
       .setTitle('Cleancentive API')
-      .setDescription('REST API for cleanup tracking, authentication, and image analysis workflows.')
+      .setDescription(
+        'REST API for cleanup tracking, authentication, and image analysis workflows.\n\n' +
+        `Machine-readable document: [/${swaggerJsonPath}](/${swaggerJsonPath}) (OpenAPI 3, generate a client from it).\n\n` +
+        '**Credentials.** `Authorization: Bearer …` says *who* is calling: a session token or a personal access ' +
+        'token (`cc_pat_…`, create one under [Profile → Access tokens](/profile#tokens)). `X-API-Key: cc_live_…` says ' +
+        '*which application* is calling: attribution and a per-key budget, issued by a steward, never a substitute ' +
+        'for the Bearer token. See [docs/auth-tokens.md](https://github.com/cleancentive/cleancentive/blob/main/docs/auth-tokens.md).',
+      )
       .setVersion(pkg.version)
       .addBearerAuth(
         {
