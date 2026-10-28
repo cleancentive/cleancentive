@@ -6,6 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AdminService } from './admin/admin.service';
 import { buildSwaggerCustomJs, swaggerApiKeySchemeName, swaggerAuthSchemeName, swaggerJsonPath, swaggerUiPath } from './swagger/swagger-config';
 import { allowedOrigins, corsOptionsFor } from './common/allowed-origins';
+import { RateLimitExceptionFilter } from './common/rate-limit-exception.filter';
 const pkg = require(require('path').join(process.cwd(), 'package.json'));
 
 const logger = new Logger('Bootstrap');
@@ -41,6 +42,7 @@ async function bootstrap() {
 
     // Set global API prefix
     app.setGlobalPrefix('api/v1');
+    app.useGlobalFilters(new RateLimitExceptionFilter());
 
     // Any origin may call the API; only the trusted list gets credentials.
     // Reading the list once here keeps the boot-time check that refuses to

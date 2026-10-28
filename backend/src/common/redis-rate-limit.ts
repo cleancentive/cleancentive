@@ -10,6 +10,16 @@ import type Redis from 'ioredis';
  * already depend on Redis being up: spot creation needs it for the detection
  * queue, so failing closed here adds no new way to be down.
  */
+/**
+ * A 429 that knows when the window turns, so the HTTP layer can send
+ * `Retry-After` and a client can sleep exactly that long instead of guessing.
+ */
+export class RateLimitExceededException extends HttpException {
+  constructor(message: string, public readonly retryAfterSeconds: number) {
+    super(message, HttpStatus.TOO_MANY_REQUESTS);
+  }
+}
+
 export interface RedisRateLimiter {
   /** Counts one hit for `key` and throws 429 once the window holds more than `max`. */
   check(key: string, max: number): Promise<void>;
@@ -21,12 +31,14 @@ export function createRedisRateLimiter(
 ): RedisRateLimiter {
   return {
     async check(key: string, max: number): Promise<void> {
-      const window = Math.floor(Date.now() / options.windowMs);
+      const now = Date.now();
+      const window = Math.floor(now / options.windowMs);
       const redisKey = `rate-limit:${key}:${window}`;
       const replies = await redis.multi().incr(redisKey).pexpire(redisKey, options.windowMs).exec();
       const count = Number(replies?.[0]?.[1] ?? 0);
       if (count > max) {
-        throw new HttpException(options.message, HttpStatus.TOO_MANY_REQUESTS);
+        const retryAfterSeconds = Math.max(1, Math.ceil(((window + 1) * options.windowMs - now) / 1000));
+        throw new RateLimitExceededException(options.message, retryAfterSeconds);
       }
     },
   };

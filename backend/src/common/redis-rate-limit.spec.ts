@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { HttpException } from '@nestjs/common';
 import type Redis from 'ioredis';
-import { createRedisRateLimiter } from './redis-rate-limit';
+import { RateLimitExceededException, createRedisRateLimiter } from './redis-rate-limit';
 
 function makeRedis() {
   const counters = new Map<string, number>();
@@ -35,6 +35,20 @@ describe('createRedisRateLimiter', () => {
 
     await expect(limiter.check('spots:user:u1', 2)).rejects.toThrow(HttpException);
     await expect(limiter.check('spots:user:u1', 2)).rejects.toMatchObject({ status: 429 });
+  });
+
+  test('tells the caller how many seconds remain in the window', async () => {
+    const { redis } = makeRedis();
+    const limiter = createRedisRateLimiter(redis, { windowMs: 60_000, message: 'slow down' });
+    await limiter.check('api-key:k1', 1);
+
+    let error: unknown;
+    await limiter.check('api-key:k1', 1).catch((e: unknown) => { error = e; });
+    expect(error).toBeInstanceOf(RateLimitExceededException);
+    const remaining = 60 - (Math.floor(Date.now() / 1000) % 60);
+    const retryAfter = (error as RateLimitExceededException).retryAfterSeconds;
+    expect(retryAfter).toBeGreaterThanOrEqual(1);
+    expect(retryAfter).toBeLessThanOrEqual(remaining + 1);
   });
 
   test('keeps counters per key and expires each window', async () => {
