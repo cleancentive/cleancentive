@@ -5346,6 +5346,16 @@ textarea.mono {
   text-decoration: none;
 }
 
+.steward-api-key-rate {
+  width: 5.5rem;
+}
+
+.api-key-scopes {
+  display: inline-flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .steward-api-key-form {
   display: grid;
   gap: 0.75rem;

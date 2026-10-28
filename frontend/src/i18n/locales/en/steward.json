@@ -239,7 +239,8 @@
     "createdBody": "This is the only time it will be shown. Hand it to the team; they send it as X-API-Key.",
     "copied": "Copied!",
     "done": "Done",
-    "error": "Could not update API keys. Please try again."
+    "error": "Could not update API keys. Please try again.",
+    "rateLimitEdit": "Change the budget of “{{name}}”"
   },
   "deletePicks": {
     "legend": "Delete picks in range",

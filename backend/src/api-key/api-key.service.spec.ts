@@ -6,8 +6,9 @@ import { ApiKeyService } from './api-key.service';
 
 type Row = Partial<ApiKey>;
 
-function makeService(rows: Row[] = []) {
+function makeService(rows: Row[] = [], emails: string[] = ['dev@example.org']) {
   const saved: Row[] = [];
+  const queries: Array<{ sql: string; params: unknown[] }> = [];
   const updates: Array<{ where: Record<string, unknown>; patch: Record<string, unknown> }> = [];
   const limited: Array<{ key: string; max: number }> = [];
   const repository = {
@@ -28,18 +29,26 @@ function makeService(rows: Row[] = []) {
     update: async (where: Record<string, unknown>, patch: Record<string, unknown>) => {
       updates.push({ where, patch });
     },
-    query: async () => rows.map((r) => ({ ...r, spot_count: 3 })),
+    count: async () => rows.filter((r) => r.revoked_at === null).length,
+    query: async (sql: string, params: unknown[] = []) => {
+      queries.push({ sql, params });
+      return rows.map((r) => ({ ...r, spot_count: 3 }));
+    },
+  };
+  const userEmailRepository = {
+    find: async () => emails.map((email) => ({ email, is_selected_for_login: true })),
   };
   const service = Object.create(ApiKeyService.prototype) as ApiKeyService;
   const inject = service as unknown as Record<string, unknown>;
   inject.apiKeyRepository = repository;
+  inject.userEmailRepository = userEmailRepository;
   inject.limiter = {
     check: async (key: string, max: number) => {
       limited.push({ key, max });
       if (max === 0) throw new HttpException('budget', 429);
     },
   };
-  return { service, saved, updates, limited };
+  return { service, saved, updates, limited, queries };
 }
 
 const PLAINTEXT = 'cc_live_' + 'b'.repeat(43);
@@ -141,5 +150,45 @@ describe('ApiKeyService.list and revoke', () => {
     expect(updates[0].patch.revoked_at).toBeInstanceOf(Date);
 
     await expect(service.revoke('missing')).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('ApiKeyService self-service', () => {
+  test('a developer gets a key with their sign-in address as contact and the default budget', async () => {
+    const { service, saved } = makeService([], ['me@example.org', 'other@example.org']);
+    const created = await service.createForOwner('user-1', { name: 'My game', scopes: ['write:spots'] });
+    expect(created.key.startsWith('cc_live_')).toBe(true);
+    expect(created.contactEmail).toBe('me@example.org');
+    expect(created.rateLimitPerMinute).toBe(60);
+    expect(saved[0].owner_user_id).toBe('user-1');
+  });
+
+  test('needs an email address and stops at ten active keys', async () => {
+    const { service: guest } = makeService([], []);
+    await expect(guest.createForOwner('guest-1', { name: 'x', scopes: ['read'] })).rejects.toThrow(BadRequestException);
+
+    const tenKeys = Array.from({ length: 10 }, (_, i) => liveKey({ id: `key-${i}`, owner_user_id: 'user-1' }));
+    const { service: full } = makeService(tenKeys);
+    await expect(full.createForOwner('user-1', { name: 'x', scopes: ['read'] })).rejects.toThrow(/10 active/);
+  });
+
+  test('lists only the owner’s live keys and revokes only those', async () => {
+    const { service, queries, updates } = makeService([liveKey({ owner_user_id: 'user-1' })]);
+    const listed = await service.listForOwner('user-1');
+    expect(listed).toHaveLength(1);
+    expect(queries[0].sql).toContain('k.owner_user_id = $1 AND k.revoked_at IS NULL');
+    expect(queries[0].params).toEqual(['user-1']);
+
+    await expect(service.revokeForOwner('someone-else', 'key-1')).rejects.toThrow(NotFoundException);
+    await service.revokeForOwner('user-1', 'key-1');
+    expect(updates[0].patch.revoked_at).toBeInstanceOf(Date);
+  });
+
+  test('a steward changes the budget of a live key within bounds', async () => {
+    const { service, updates } = makeService([liveKey()]);
+    await service.updateRateLimit('key-1', 600);
+    expect(updates[0]).toEqual({ where: { id: 'key-1' }, patch: { rate_limit_per_minute: 600 } });
+    await expect(service.updateRateLimit('key-1', 0)).rejects.toThrow(BadRequestException);
+    await expect(service.updateRateLimit('missing', 60)).rejects.toThrow(NotFoundException);
   });
 });

@@ -6,7 +6,7 @@ Three credentials reach the API. Two say **who** is calling, one says **which ap
 |---|---|---|---|---|---|
 | Session token | JWT (HS256, 365 d) | `Authorization: Bearer <jwt>` | a person (or a guest) | magic link, guest sign-up, device-code approval | only by rotating `JWT_SECRET` |
 | Personal access token (PAT) | `cc_pat_` + 43 url-safe chars | `Authorization: Bearer cc_pat_…` | a person | that person, under Profile → Access tokens | yes, one at a time |
-| API key | `cc_live_` + 43 url-safe chars | `X-API-Key: cc_live_…` | an application | a steward, under Steward → API keys | yes |
+| API key | `cc_live_` + 43 url-safe chars | `X-API-Key: cc_live_…` | an application | its developer, under Profile → API keys (`POST /user/api-keys`); a steward under Steward → API keys for a custom budget | yes |
 
 A request may carry a bearer token and an API key at the same time. That is the normal shape for a third-party client: the key says which app, the token says which user.
 
@@ -23,7 +23,8 @@ A request may carry a bearer token and an API key at the same time. That is the 
 
 - Identify the application, never a user. **A key alone cannot create a spot**: spots belong to a user, and team attribution, de-duplication and leaderboards are per user. A browser game without a signed-in player can use a guest session (`POST /auth/guest`) as the user.
 - Scopes: `read` (baseline, any request) and `write:spots` (required on `POST /spots`). A request whose key lacks the scope a route requires gets `403`.
-- Each key has a per-minute budget (`rate_limit_per_minute`, default 60). Over budget answers `429`.
+- Any registered user creates keys for their own apps (`POST/GET /user/api-keys`, `DELETE /user/api-keys/:id`; session-only like PATs, at most 10 active, contact = their sign-in address, default budget). Stewards see every key, issue keys with any budget, change a budget (`PATCH /admin/api-keys/:id`) and revoke.
+- Each key has a per-minute budget (`rate_limit_per_minute`, default 60). Every request carrying the key counts, reads included. Over budget answers `429` with `Retry-After` (seconds until the window turns) and `retryAfterSeconds` in the body.
 - A request carrying an unknown, revoked or expired key is refused with `401` **even on public routes**. This is deliberate: a misconfigured client should notice immediately rather than when its picks silently lose their attribution.
 - Spots created with a key record it in `spots.source_api_key_id`; the steward list shows the count per key.
 - A key that ships inside a browser app is public by nature. It gives attribution and a budget, nothing more. Never put a steward's PAT in a client.
@@ -34,7 +35,7 @@ A request may carry a bearer token and an API key at the same time. That is the 
 | Limit | Scope | Env | Default |
 |---|---|---|---|
 | Spot creation per user | one account, one hour | `SPOT_CREATE_PER_USER_PER_HOUR` | 300 |
-| Requests per API key | one key, one minute | per key, set when issued | 60 |
+| Requests per API key | one key, one minute | per key, 60 for self-service, any value for stewards | 60 |
 
 Both live in Redis (`backend/src/common/redis-rate-limit.ts`), so they survive restarts and replicas. Idempotent retries of the same upload are not counted.
 

@@ -5,9 +5,12 @@ import { IsNull, Repository } from 'typeorm';
 import { redisConnection } from '../common/redis-connection';
 import { createRedisRateLimiter, type RedisRateLimiter } from '../common/redis-rate-limit';
 import { generateSecretToken, hashSecretToken } from '../common/secret-token';
+import { UserEmail } from '../user/user-email.entity';
 import { API_KEY_SCOPES, ApiKey, type ApiKeyScope } from './api-key.entity';
 
 const NAME_MAX_LENGTH = 100;
+/** Active keys one person may hold without a steward; enough for a few apps, not for a key farm. */
+const MAX_SELF_SERVICE_KEYS = 10;
 const DEFAULT_RATE_LIMIT_PER_MINUTE = 60;
 const MAX_RATE_LIMIT_PER_MINUTE = 6000;
 const DEFAULT_EXPIRY_DAYS = 365;
@@ -22,6 +25,13 @@ export interface CreateApiKeyInput {
   scopes: ApiKeyScope[];
   rateLimitPerMinute?: number;
   /** Days until expiry; `null` means never. Defaults to a year. */
+  expiresInDays?: number | null;
+}
+
+/** What a developer may choose for their own key; budget and contact are decided for them. */
+export interface CreateOwnApiKeyInput {
+  name: string;
+  scopes: ApiKeyScope[];
   expiresInDays?: number | null;
 }
 
@@ -59,6 +69,8 @@ export class ApiKeyService {
   constructor(
     @InjectRepository(ApiKey)
     private readonly apiKeyRepository: Repository<ApiKey>,
+    @InjectRepository(UserEmail)
+    private readonly userEmailRepository: Repository<UserEmail>,
   ) {
     this.limiter = createRedisRateLimiter(new Redis({ ...redisConnection(), lazyConnect: true }), {
       windowMs: ONE_MINUTE_MS,
@@ -101,13 +113,55 @@ export class ApiKeyService {
     };
   }
 
+  /**
+   * A developer issues a key for their own app. The contact is their sign-in
+   * address, the budget is the default; a steward raises it on request.
+   */
+  async createForOwner(userId: string, input: CreateOwnApiKeyInput): Promise<CreatedApiKey> {
+    const emails = await this.userEmailRepository.find({ where: { user_id: userId }, order: { is_selected_for_login: 'DESC' } });
+    if (emails.length === 0) {
+      throw new BadRequestException('Sign in with an email address before creating an API key');
+    }
+    const active = await this.apiKeyRepository.count({ where: { owner_user_id: userId, revoked_at: IsNull() } });
+    if (active >= MAX_SELF_SERVICE_KEYS) {
+      throw new BadRequestException(`You already hold ${MAX_SELF_SERVICE_KEYS} active API keys; revoke one first`);
+    }
+    return this.create(
+      { name: input.name, contactEmail: emails[0].email, scopes: input.scopes, expiresInDays: input.expiresInDays },
+      userId,
+    );
+  }
+
+  async listForOwner(userId: string): Promise<ApiKeySummary[]> {
+    return this.queryWithSpotCounts('WHERE k.owner_user_id = $1 AND k.revoked_at IS NULL', [userId]);
+  }
+
+  async revokeForOwner(userId: string, id: string): Promise<void> {
+    const key = await this.apiKeyRepository.findOne({ where: { id, owner_user_id: userId, revoked_at: IsNull() } });
+    if (!key) throw new NotFoundException('API key not found');
+    await this.apiKeyRepository.update({ id }, { revoked_at: new Date() });
+  }
+
   async list(): Promise<ApiKeySummary[]> {
+    return this.queryWithSpotCounts('', []);
+  }
+
+  async updateRateLimit(id: string, rateLimitPerMinute: number): Promise<void> {
+    const limit = validateRateLimit(rateLimitPerMinute);
+    const key = await this.apiKeyRepository.findOne({ where: { id, revoked_at: IsNull() } });
+    if (!key) throw new NotFoundException('API key not found');
+    await this.apiKeyRepository.update({ id }, { rate_limit_per_minute: limit });
+  }
+
+  private async queryWithSpotCounts(where: string, params: unknown[]): Promise<ApiKeySummary[]> {
     const rows: Array<ApiKey & { spot_count: number }> = await this.apiKeyRepository.query(
       `SELECT k.*, COUNT(s.id)::int AS spot_count
        FROM api_keys k
        LEFT JOIN spots s ON s.source_api_key_id = k.id
+       ${where}
        GROUP BY k.id
        ORDER BY k.created_at DESC`,
+      params,
     );
     return rows.map((row) => ({
       id: row.id,

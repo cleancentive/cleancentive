@@ -87,6 +87,20 @@ export function StewardApiKeys() {
     }
   }
 
+  const handleRateLimit = async (key: ApiKeySummary, rateLimitPerMinute: number) => {
+    if (!Number.isInteger(rateLimitPerMinute) || rateLimitPerMinute === key.rateLimitPerMinute) return
+    setIsBusy(true)
+    setError(null)
+    try {
+      await axios.patch(`${API_BASE}/admin/api-keys/${key.id}`, { rateLimitPerMinute }, { headers: getAuthHeaders() })
+      await loadKeys()
+    } catch (err) {
+      setError(axios.isAxiosError(err) && err.response?.data?.message ? String(err.response.data.message) : t('apiKeys.error'))
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
   const handleRevoke = async (key: ApiKeySummary) => {
     setKeyToRevoke(null)
     setIsBusy(true)
@@ -133,7 +147,22 @@ export function StewardApiKeys() {
                     <td>{key.name}</td>
                     <td><code>{key.keyPrefix}…</code></td>
                     <td>{key.scopes.join(', ')}</td>
-                    <td>{key.rateLimitPerMinute}/min</td>
+                    <td>
+                      {key.revokedAt ? (
+                        `${key.rateLimitPerMinute}/min`
+                      ) : (
+                        <input
+                          type="number"
+                          className="steward-api-key-rate"
+                          min={1}
+                          max={6000}
+                          defaultValue={key.rateLimitPerMinute}
+                          aria-label={t('apiKeys.rateLimitEdit', { name: key.name })}
+                          onBlur={(e) => void handleRateLimit(key, Number(e.target.value))}
+                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                        />
+                      )}
+                    </td>
                     <td>{key.contactEmail}</td>
                     <td>{key.spotCount.toLocaleString()}</td>
                     <td>{formatDate(key.lastUsedAt, i18n.language)}</td>

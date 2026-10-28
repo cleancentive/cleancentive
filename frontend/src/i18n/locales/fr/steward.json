@@ -239,7 +239,8 @@
     "createdBody": "Elle ne sera affichée que cette fois-ci. Remettez-la à l’équipe ; elle l’envoie en X-API-Key.",
     "copied": "Copié !",
     "done": "Terminé",
-    "error": "Impossible de mettre à jour les clés API. Veuillez réessayer."
+    "error": "Impossible de mettre à jour les clés API. Veuillez réessayer.",
+    "rateLimitEdit": "Modifier le budget de « {{name}} »"
   },
   "deletePicks": {
     "legend": "Supprimer les ramassages d’une période",

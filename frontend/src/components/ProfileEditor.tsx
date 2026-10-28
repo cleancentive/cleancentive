@@ -9,6 +9,7 @@ import { useCopyToClipboard } from '../lib/useCopyToClipboard'
 import axios from 'axios'
 import { API_BASE, getAuthHeaders } from '../lib/apiBase'
 import { AccessTokensSection } from './AccessTokensSection'
+import { ApiKeysSection } from './ApiKeysSection'
 import { DeletePicksRange, type PickRange } from './DeletePicksRange'
 import { Avatar } from './Avatar'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -604,6 +605,8 @@ export function ProfileEditor() {
       </fieldset>
 
       <AccessTokensSection />
+
+      <ApiKeysSection />
 
       <DeletePicksRange
         namespace="profile"

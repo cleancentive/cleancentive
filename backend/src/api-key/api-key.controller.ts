@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Request, UseGuards, Patch } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../admin/admin.guard';
@@ -46,6 +46,16 @@ export class ApiKeyController {
   @ApiOperation({ summary: 'List API keys, revoked ones included (prefix only, never the key)' })
   async list(): Promise<ApiKeySummary[]> {
     return this.apiKeys.list();
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Change the per-minute budget of an API key' })
+  async updateRateLimit(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: { rateLimitPerMinute: number },
+  ): Promise<{ success: boolean }> {
+    await this.apiKeys.updateRateLimit(id, body?.rateLimitPerMinute);
+    return { success: true };
   }
 
   @Delete(':id')
