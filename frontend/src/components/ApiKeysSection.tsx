@@ -145,7 +145,7 @@ export function ApiKeysSection() {
         </ul>
       )}
 
-      <form onSubmit={handleCreate} className="add-email-form access-token-form">
+      <form onSubmit={handleCreate} className="add-email-form access-token-form api-key-form">
         <input
           type="text"
           value={name}
