@@ -6,9 +6,10 @@ We use the real production API; nothing here is a mock or sandbox. Please be nic
 - Swagger UI: <https://cleancentive.org/api/>
 - Source (AGPL-3.0): <https://github.com/cleancentive/cleancentive>
 
-<img src="readme-qr.png" alt="QR code: this page" width="140" align="right">
-
-This page: <https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/README.md> — scan the code to open it on a phone.
+<p align="center">
+  <a href="https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/README.md"><img src="readme-qr.png" alt="QR code: this page" width="120"></a><br>
+  <sub>Scan to open this page on a phone</sub>
+</p>
 
 ## 1. Credentials — who and which app
 
