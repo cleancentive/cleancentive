@@ -11,14 +11,14 @@ We use the real production API; nothing here is a mock or sandbox. Please be nic
 | You need | Get it from | Send it as |
 |---|---|---|
 | A **user** (every pick belongs to one) | your own account, a guest session, or a player who signs in through your app | `Authorization: Bearer …` |
-| Your **app's API key** (identifies your app, budgets its traffic, attributes its picks) | <https://cleancentive.org/profile#api-keys>, one per team | `X-API-Key: cc_live_…` |
+| Your **app's API key** (identifies your app, budgets its traffic, attributes its picks) | <https://cleancentive.org/profile#api-keys>, one per app | `X-API-Key: cc_live_…` |
 
 Send **both** on every write. A key alone cannot create picks; a user alone can, but then nobody knows they came from your game.
 
 ### Your own token and your app's key, in one minute
 Sign in at <https://cleancentive.org> (magic link to any email address), then:
 - <https://cleancentive.org/profile#tokens> → create a token. You get a `cc_pat_…` once; it acts as you, except it cannot change your emails, approve devices, mint credentials or delete your account.
-- <https://cleancentive.org/profile#api-keys> → create a key named after your game. You get a `cc_live_…` once. Any teammate can create it; share it inside the team, it is one budget for the whole team.
+- <https://cleancentive.org/profile#api-keys> → create a key named after your game. You get a `cc_live_…` once. Whoever builds the app creates it; everyone working on the app uses the same one, it is one budget per app.
 
 From the terminal instead: [`mint-token.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/mint-token.sh) and [`mint-key.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/mint-key.sh) sign you in through a device code and print a fresh token or key.
 
@@ -36,20 +36,22 @@ curl https://cleancentive.org/api/v1/user/profile -H "Authorization: Bearer $USE
 
 ## 2. Teams — how a pick gets its team
 
+A team is a team **in the game**: players who pick together and whose picks are counted together. It is the API's `Team`, the same thing people join on cleancentive.org, so the teams your game creates are real and public.
+
 A pick is attributed to the **active team of the user who logs it** at the moment it is logged. Nothing in the pick request chooses the team.
 
 - Create a team: `POST /teams` with `{"name":"…","description":"…"}` → the team, including its `id`. Find it again with `GET /teams?q=<name>`.
 - A player joins and activates: `POST /teams/:id/join`, then `POST /teams/:id/activate` (registered users only). Joining twice is harmless.
-- Only **listed** teams get their own scoreboard row. Unlisted and archived teams fold into the `teamId: null` row, so keep your squads listed while you play.
+- Only **listed** teams get their own scoreboard row. Unlisted and archived teams fold into the `teamId: null` row, so keep your teams listed while you play.
 
-Make "join our squad" the first thing your game does.
+Make "join our team" the first thing your game does.
 
 ## 3. The core loop
 
 ### Log a pick
 ```bash
 curl -X POST https://cleancentive.org/api/v1/spots \
-  -H "Authorization: Bearer $USER_TOKEN" -H "X-API-Key: $TEAM_KEY" \
+  -H "Authorization: Bearer $USER_TOKEN" -H "X-API-Key: $APP_KEY" \
   -F image=@pick.jpg \
   -F uploadId=$(uuidgen) \
   -F latitude=47.5596 -F longitude=7.5886 \
@@ -76,7 +78,7 @@ GET   /spots/:id/edit-history                          → { entries: [{ fieldCh
 ### Things that will bite you
 - **Same photo twice within 24 h = same spot.** The API de-duplicates by image hash per user. Testing with one photo in a loop silently returns the first spot. Use different photos.
 - **Same `uploadId` = same spot** (that is what makes retries safe).
-- **Budgets:** two independent limits. **Per user:** 300 picks per hour, counted on the bearer token's account. **Per key:** requests per minute on *your app's key* (60) — one budget for the whole team, not per player; a steward on site raises it on request, no new key needed. Every request that carries the key counts, reads included, so send the key on writes only; the public reads below never need it. Over budget → `429` with a `Retry-After` header (seconds until the minute turns) and `retryAfterSeconds` in the body.
+- **Budgets:** two independent limits. **Per user:** 300 picks per hour, counted on the bearer token's account. **Per key:** requests per minute on *your app's key* (60) — one budget for the whole app, not per player; a steward on site raises it on request, no new key needed. Every request that carries the key counts, reads included, so send the key on writes only; the public reads below never need it. Over budget → `429` with a `Retry-After` header (seconds until the minute turns) and `retryAfterSeconds` in the body.
 - **A bad or revoked API key is refused everywhere, even on public routes** (`401`). Check the header before suspecting the route.
 - Item corrections are wiki-style: anyone signed in can change anything, with a public change history. Good for a "verify your teammate's find" mechanic; don't rely on it as anti-cheat.
 
@@ -104,7 +106,7 @@ data: {…same fields…, "items":{"count":3,"totalWeightGrams":120,"topObject":
 event: spot.deleted
 data: {…same fields…}
 ```
-Filters: `team_id`, `cleanup_id`, `cleanup_date_id`, one value each — for two squads open one unfiltered stream (the whole city is a trickle) and match `teamId` yourself. A `heartbeat` event with no data arrives every 15 s; `EventSource` in the browser ignores it. Public, no auth. Payloads carry no user ids.
+Filters: `team_id`, `cleanup_id`, `cleanup_date_id`, one value each — for two teams open one unfiltered stream (the whole city is a trickle) and match `teamId` yourself. A `heartbeat` event with no data arrives every 15 s; `EventSource` in the browser ignores it. Public, no auth. Payloads carry no user ids.
 
 ```js
 const es = new EventSource('https://cleancentive.org/api/v1/insights/events?cleanup_id=…');
@@ -121,9 +123,9 @@ Test picks land on the real map. Delete them:
 DELETE /spots?since=2026-10-30T00:00:00Z&before=2026-10-31T00:00:00Z&dry_run=true   → { count }
 DELETE /spots?since=…&before=…                                                     → { deleted, remaining }
 ```
-Your own picks only, by capture time, 500 per call. Also under **Profile → Delete picks**. Stewards can do the same for a whole team.
+Your own picks only, by capture time, 500 per call. Also under **Profile → Delete picks**. Stewards can do the same for any user or team.
 
-Tidy the rest too: `DELETE /teams/active` (drop your active squad), `POST /teams/:id/archive` for test squads, `POST /cleanups/:id/leave`. A guest erases itself with `DELETE /user/profile?mode=delete`.
+Tidy the rest too: `DELETE /teams/active` (drop your active team), `POST /teams/:id/archive` for test teams, `POST /cleanups/:id/leave`. A guest erases itself with `DELETE /user/profile?mode=delete`.
 
 ## 6. The hackathon cleanup
 A pick belongs to a cleanup when three things hold: the user has **joined** the cleanup (`POST /cleanups/<cleanup_id>/join`, registered users only), the pick names the cleanup **and** the date (`cleanupId` + `cleanupDateId`, or the date is the user's active one in the app), and `capturedAt` falls inside that date's window, ±30 minutes. Nothing is inferred from location. Otherwise the pick is still accepted (202) with a `warning` and `cleanupId: null`.
@@ -150,7 +152,7 @@ Every line below has been run against production as written.
 ```bash
 API=https://cleancentive.org/api/v1
 USER_TOKEN=cc_pat_…      # from /profile#tokens or mint-token.sh
-TEAM_KEY=cc_live_…       # from /profile#api-keys or mint-key.sh
+APP_KEY=cc_live_…        # from /profile#api-keys or mint-key.sh
 CLEANUP=01a11d1e-7023-71ad-b351-37b29bc1555f
 
 # who am I
@@ -165,7 +167,7 @@ curl -s -X POST $API/cleanups/$CLEANUP/join -H "Authorization: Bearer $USER_TOKE
 # log a pick (202 + spotId). cleanupId + cleanupDateId attach it to the Friday date —
 # only inside that date's window; outside you get a warning and cleanupId stays null.
 DATE=01a11d1e-702d-74a8-9163-5ada35056342
-SPOT=$(curl -s -X POST $API/spots -H "Authorization: Bearer $USER_TOKEN" -H "X-API-Key: $TEAM_KEY" \
+SPOT=$(curl -s -X POST $API/spots -H "Authorization: Bearer $USER_TOKEN" -H "X-API-Key: $APP_KEY" \
   -F image=@pick.jpg -F uploadId=$(uuidgen) -F latitude=47.5463 -F longitude=7.5940 \
   -F capturedAt=$(date -u +%FT%TZ) -F cleanupId=$CLEANUP -F cleanupDateId=$DATE | python3 -c 'import sys,json;print(json.load(sys.stdin)["spotId"])')
 
@@ -191,4 +193,4 @@ Need a webhook, a different aggregation, a match endpoint? Ask. We deploy to pro
 All in [`examples/hack-kit/`](https://github.com/cleancentive/cleancentive/tree/main/examples/hack-kit) of the repo:
 - [`first-pick.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/first-pick.sh) — the loop once: sign in, log a pick, print what was found.
 - [`mint-token.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/mint-token.sh) and [`mint-key.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/mint-key.sh) — a personal access token or an API key from the terminal.
-- [`litter-duel.ts`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/litter-duel.ts) — a complete two-squad game in 200 lines of TypeScript ([Bun](https://bun.sh)): squads, picks, live feed, verify, scoreboard, and a cleanup that leaves nothing behind. `USER_TOKEN=… TEAM_KEY=… bun litter-duel.ts play a.jpg b.jpg c.jpg d.jpg e.jpg`, then `bun litter-duel.ts cleanup`. Written against this page, and every gap it found is fixed above.
+- [`litter-duel.ts`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/litter-duel.ts) — a complete two-team game in 200 lines of TypeScript ([Bun](https://bun.sh)): teams, picks, live feed, verify, scoreboard, and a cleanup that leaves nothing behind. `USER_TOKEN=… APP_KEY=… bun litter-duel.ts play a.jpg b.jpg c.jpg d.jpg e.jpg`, then `bun litter-duel.ts cleanup`. Written against this page, and every gap it found is fixed above.

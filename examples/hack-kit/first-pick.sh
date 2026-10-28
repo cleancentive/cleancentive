@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # The whole loop once: sign in (device code), log a pick, watch detection finish.
-#   USER_TOKEN=cc_pat_… TEAM_KEY=cc_live_… ./first-pick.sh photo.jpg
-#   TEAM_KEY=cc_live_… ./first-pick.sh photo.jpg          # device-code sign-in instead of a token
+#   USER_TOKEN=cc_pat_… APP_KEY=cc_live_… ./first-pick.sh photo.jpg
+#   APP_KEY=cc_live_… ./first-pick.sh photo.jpg           # device-code sign-in instead of a token
 set -euo pipefail
 API=${API:-https://cleancentive.org/api/v1}
 PHOTO=${1:?usage: first-pick.sh <photo.jpg>}
-TEAM_KEY=${TEAM_KEY:?set TEAM_KEY to the cc_live_… key of your team}
+APP_KEY=${APP_KEY:?set APP_KEY to the cc_live_… key of your app}
 json() { python3 -c "import sys,json;print(json.load(sys.stdin)$1)"; }
 
 if [ -z "${USER_TOKEN:-}" ]; then
@@ -16,7 +16,7 @@ if [ -z "${USER_TOKEN:-}" ]; then
 fi
 
 spot=$(curl -sf -X POST "$API/spots" \
-  -H "Authorization: Bearer $USER_TOKEN" -H "X-API-Key: $TEAM_KEY" \
+  -H "Authorization: Bearer $USER_TOKEN" -H "X-API-Key: $APP_KEY" \
   -F "image=@$PHOTO" -F "uploadId=$(uuidgen | tr 'A-Z' 'a-z')" \
   -F latitude=47.5596 -F longitude=7.5886 -F "capturedAt=$(date -u +%FT%TZ)" | json '["spotId"]')
 echo "Pick $spot accepted — waiting for detection"

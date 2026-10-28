@@ -236,7 +236,7 @@
     "expires_365": "in 1 year",
     "expires_never": "never",
     "createdTitle": "Copy the new key",
-    "createdBody": "This is the only time it will be shown. Hand it to the team; they send it as X-API-Key.",
+    "createdBody": "This is the only time it will be shown. Hand it to the developers; their app sends it as X-API-Key.",
     "copied": "Copied!",
     "done": "Done",
     "error": "Could not update API keys. Please try again.",

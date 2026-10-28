@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 // Litter Duel — the smallest possible team-vs-team game, written only from the
-// hack kit README. Two squads, picks score points, a live feed, a verify
+// hack kit README. Two teams ("squads" in this game), picks score points, a live feed, a verify
 // mechanic, a scoreboard, and a cleanup that leaves nothing behind.
 //
-//   USER_TOKEN=cc_pat_… TEAM_KEY=cc_live_… bun litter-duel.ts play photo1.jpg photo2.jpg …
-//   USER_TOKEN=cc_pat_… TEAM_KEY=cc_live_… bun litter-duel.ts cleanup
+//   USER_TOKEN=cc_pat_… APP_KEY=cc_live_… bun litter-duel.ts play photo1.jpg photo2.jpg …
+//   USER_TOKEN=cc_pat_… APP_KEY=cc_live_… bun litter-duel.ts cleanup
 //
 // `play` needs at least four photos (two per squad); a fifth is logged by an
 // anonymous guest to show where guest picks end up. State is kept in
@@ -12,7 +12,7 @@
 
 const API = process.env.API ?? 'https://cleancentive.org/api/v1';
 const USER_TOKEN = need('USER_TOKEN');
-const TEAM_KEY = need('TEAM_KEY');
+const APP_KEY = need('APP_KEY');
 const CLEANUP_ID = '01a11d1e-7023-71ad-b351-37b29bc1555f'; // BaselHack 2026 — Litter Wars
 const CLEANUP_DATE_ID = '01a11d1e-702d-74a8-9163-5ada35056342'; // Fri 30 Oct 18:00–23:00
 const VENUE = { latitude: 47.5463, longitude: 7.594 }; // Peter Merian-Strasse 80
@@ -46,7 +46,7 @@ async function api<T = any>(
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (opts.token) headers.Authorization = `Bearer ${opts.token}`;
-  if (opts.key) headers['X-API-Key'] = TEAM_KEY;
+  if (opts.key) headers['X-API-Key'] = APP_KEY;
   if (opts.json !== undefined) headers['Content-Type'] = 'application/json';
   const res = await fetch(`${API}${path}`, {
     method,

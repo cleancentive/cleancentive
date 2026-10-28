@@ -236,7 +236,7 @@
     "expires_365": "in 1 Jahr",
     "expires_never": "nie",
     "createdTitle": "Neuen Schlüssel kopieren",
-    "createdBody": "Er wird nur dieses eine Mal angezeigt. Geben Sie ihn dem Team; es sendet ihn als X-API-Key.",
+    "createdBody": "Er wird nur dieses eine Mal angezeigt. Geben Sie ihn den Entwicklern; ihre App sendet ihn als X-API-Key.",
     "copied": "Kopiert!",
     "done": "Fertig",
     "error": "API-Schlüssel konnten nicht aktualisiert werden. Bitte versuchen Sie es erneut.",

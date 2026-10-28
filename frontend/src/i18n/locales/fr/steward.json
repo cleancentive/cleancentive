@@ -236,7 +236,7 @@
     "expires_365": "dans 1 an",
     "expires_never": "jamais",
     "createdTitle": "Copiez la nouvelle clé",
-    "createdBody": "Elle ne sera affichée que cette fois-ci. Remettez-la à l’équipe ; elle l’envoie en X-API-Key.",
+    "createdBody": "Elle ne sera affichée que cette fois-ci. Remettez-la aux développeurs ; leur application l’envoie en X-API-Key.",
     "copied": "Copié !",
     "done": "Terminé",
     "error": "Impossible de mettre à jour les clés API. Veuillez réessayer.",

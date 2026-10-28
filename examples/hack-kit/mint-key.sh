@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Mint an API key for your app from the terminal: device-code sign-in in the
 # browser, then the resulting session creates the key.
-#   ./mint-key.sh "Litter Wars by Team Foo"          # prints cc_live_…
-#   ./mint-key.sh "Litter Wars by Team Foo" 30       # expires in 30 days (default 365; 0 = never)
+#   ./mint-key.sh "Litter Wars"                      # prints cc_live_…
+#   ./mint-key.sh "Litter Wars" 30                   # expires in 30 days (default 365; 0 = never)
 set -euo pipefail
 API=${API:-https://cleancentive.org/api/v1}
 APP=${APP:-https://cleancentive.org}
