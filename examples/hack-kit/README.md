@@ -110,7 +110,9 @@ DELETE /spots?since=…&before=…                                              
 Your own picks only, by capture time, 500 per call. Also under **Profile → Delete picks**. Stewards can do the same for a whole team.
 
 ## 6. The hackathon cleanup
-Picks logged near the venue during the event attach themselves to the hackathon cleanup automatically; you can also pass `cleanupId` + `cleanupDateId` explicitly.
+A pick belongs to a cleanup when three things hold: the user has **joined** the cleanup (`POST /cleanups/<cleanup_id>/join`, registered users only), the pick names the cleanup **and** the date (`cleanupId` + `cleanupDateId`, or the date is the user's active one in the app), and `capturedAt` falls inside that date's window, ±30 minutes. Nothing is inferred from location. Otherwise the pick is still accepted (202) with a `warning` and `cleanupId: null`.
+
+Consequence for this week: **until Friday 18:00 nothing can attach to the hackathon cleanup**, so a scoreboard filtered by `cleanup_id` is empty while you develop. Filter by `team_id` (or `since`/`before`) during the week and switch to `cleanup_date_id` at kickoff.
 
 Venue: Peter Merian-Strasse 80, 4052 Basel (47.5463, 7.5940).
 
@@ -127,7 +129,7 @@ Venue: Peter Merian-Strasse 80, 4052 Basel (47.5463, 7.5940).
 - **Real Basel data** is already on the map: `GET /insights/map` (GeoJSON) and `GET /insights/stats` need no credentials and cost nothing.
 
 ## 8. Everything once, from bash
-Each of these ran unchanged against production while this page was written.
+Each of these ran against production while this page was written (28 Oct — so the cleanup-filtered calls were legitimately empty, see section 6).
 
 ```bash
 API=https://cleancentive.org/api/v1
@@ -141,18 +143,24 @@ curl -s $API/user/profile -H "Authorization: Bearer $USER_TOKEN"
 # an anonymous player
 GUEST=$(curl -s -X POST $API/auth/guest | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
 
-# log a pick (202 + spotId)
+# join the hackathon cleanup once (registered users; guests cannot)
+curl -s -X POST $API/cleanups/$CLEANUP/join -H "Authorization: Bearer $USER_TOKEN"
+
+# log a pick (202 + spotId). cleanupId + cleanupDateId attach it to the Friday date —
+# only inside that date's window; outside you get a warning and cleanupId stays null.
+DATE=01a11d1e-702d-74a8-9163-5ada35056342
 SPOT=$(curl -s -X POST $API/spots -H "Authorization: Bearer $USER_TOKEN" -H "X-API-Key: $TEAM_KEY" \
   -F image=@pick.jpg -F uploadId=$(uuidgen) -F latitude=47.5463 -F longitude=7.5940 \
-  -F capturedAt=$(date -u +%FT%TZ) -F cleanupId=$CLEANUP | python3 -c 'import sys,json;print(json.load(sys.stdin)["spotId"])')
+  -F capturedAt=$(date -u +%FT%TZ) -F cleanupId=$CLEANUP -F cleanupDateId=$DATE | python3 -c 'import sys,json;print(json.load(sys.stdin)["spotId"])')
 
 # what was found (poll until status is completed)
 curl -s $API/spots/$SPOT/view | python3 -m json.tool | head -40
 
-# the scoreboard
+# the scoreboard — by team while developing, by cleanup during the event
+curl -s "$API/insights/leaderboard?since=$(date -u +%FT00:00:00Z)"
 curl -s "$API/insights/leaderboard?cleanup_id=$CLEANUP"
 
-# live events (Ctrl-C to stop)
+# live events (Ctrl-C to stop); drop the filter to see everything
 curl -N "$API/insights/events?cleanup_id=$CLEANUP"
 
 # count, then delete, your picks from a time range
