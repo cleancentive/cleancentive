@@ -11,14 +11,16 @@ We use the real production API; nothing here is a mock or sandbox. Please be nic
 | You need | Get it from | Send it as |
 |---|---|---|
 | A **user** (every pick belongs to one) | your own account, a guest session, or a player who signs in through your app | `Authorization: Bearer …` |
-| Your **team's API key** (identifies your app, budgets its traffic, attributes its picks) | handed over at kickoff | `X-API-Key: cc_live_…` |
+| Your **app's API key** (identifies your app, budgets its traffic, attributes its picks) | <https://cleancentive.org/profile#api-keys>, one per team | `X-API-Key: cc_live_…` |
 
 Send **both** on every write. A key alone cannot create picks; a user alone can, but then nobody knows they came from your game.
 
-### Your own token, in 30 seconds
-Sign in at <https://cleancentive.org>, open <https://cleancentive.org/profile#tokens>, create one. You get a `cc_pat_…` once; it acts as you, except it cannot change your emails, approve devices, mint tokens or delete your account.
+### Your own token and your app's key, in one minute
+Sign in at <https://cleancentive.org> (magic link to any email address), then:
+- <https://cleancentive.org/profile#tokens> → create a token. You get a `cc_pat_…` once; it acts as you, except it cannot change your emails, approve devices, mint credentials or delete your account.
+- <https://cleancentive.org/profile#api-keys> → create a key named after your game. You get a `cc_live_…` once. Any teammate can create it; share it inside the team, it is one budget for the whole team.
 
-From the terminal instead: [`mint-token.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/mint-token.sh) signs you in through a device code and prints a fresh token.
+From the terminal instead: [`mint-token.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/mint-token.sh) and [`mint-key.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/mint-key.sh) sign you in through a device code and print a fresh token or key.
 
 ```bash
 curl https://cleancentive.org/api/v1/user/profile -H "Authorization: Bearer $USER_TOKEN"
@@ -74,7 +76,7 @@ GET   /spots/:id/edit-history                          → { entries: [{ fieldCh
 ### Things that will bite you
 - **Same photo twice within 24 h = same spot.** The API de-duplicates by image hash per user. Testing with one photo in a loop silently returns the first spot. Use different photos.
 - **Same `uploadId` = same spot** (that is what makes retries safe).
-- **Budgets:** two independent limits. **Per user:** 300 picks per hour, counted on the bearer token's account. **Per key:** requests per minute on *your team's key* (default 60) — one budget for the whole team, not per player; ask us to raise it. Every request that carries the key counts, reads included, so send the key on writes only; the public reads below never need it. Over budget → `429` with a `Retry-After` header (seconds until the minute turns) and `retryAfterSeconds` in the body.
+- **Budgets:** two independent limits. **Per user:** 300 picks per hour, counted on the bearer token's account. **Per key:** requests per minute on *your app's key* (60) — one budget for the whole team, not per player; a steward on site raises it on request, no new key needed. Every request that carries the key counts, reads included, so send the key on writes only; the public reads below never need it. Over budget → `429` with a `Retry-After` header (seconds until the minute turns) and `retryAfterSeconds` in the body.
 - **A bad or revoked API key is refused everywhere, even on public routes** (`401`). Check the header before suspecting the route.
 - Item corrections are wiki-style: anyone signed in can change anything, with a public change history. Good for a "verify your teammate's find" mechanic; don't rely on it as anti-cheat.
 
@@ -126,7 +128,7 @@ Tidy the rest too: `DELETE /teams/active` (drop your active squad), `POST /teams
 ## 6. The hackathon cleanup
 A pick belongs to a cleanup when three things hold: the user has **joined** the cleanup (`POST /cleanups/<cleanup_id>/join`, registered users only), the pick names the cleanup **and** the date (`cleanupId` + `cleanupDateId`, or the date is the user's active one in the app), and `capturedAt` falls inside that date's window, ±30 minutes. Nothing is inferred from location. Otherwise the pick is still accepted (202) with a `warning` and `cleanupId: null`.
 
-Consequence for this week: **until Friday 18:00 nothing can attach to the hackathon cleanup**, so a scoreboard filtered by `cleanup_id` is empty while you develop. Filter by `team_id` (or `since`/`before`) during the week and switch to `cleanup_date_id` at kickoff.
+Consequence: **before the first date opens (Fri 30 Oct 18:00) nothing can attach to the hackathon cleanup**, so a scoreboard filtered by `cleanup_id` is empty while you develop. Filter by `team_id` (or `since`/`before`) until then and switch to `cleanup_date_id` once a date is open.
 
 Venue: Peter Merian-Strasse 80, 4052 Basel (47.5463, 7.5940).
 
@@ -143,12 +145,12 @@ Venue: Peter Merian-Strasse 80, 4052 Basel (47.5463, 7.5940).
 - **Real Basel data** is already on the map: `GET /insights/map` (GeoJSON) and `GET /insights/stats` need no credentials and cost nothing.
 
 ## 8. Everything once, from bash
-Each of these ran against production while this page was written (28 Oct — so the cleanup-filtered calls were legitimately empty, see section 6).
+Every line below has been run against production as written.
 
 ```bash
 API=https://cleancentive.org/api/v1
 USER_TOKEN=cc_pat_…      # from /profile#tokens or mint-token.sh
-TEAM_KEY=cc_live_…       # handed over at kickoff
+TEAM_KEY=cc_live_…       # from /profile#api-keys or mint-key.sh
 CLEANUP=01a11d1e-7023-71ad-b351-37b29bc1555f
 
 # who am I
@@ -188,5 +190,5 @@ Need a webhook, a different aggregation, a match endpoint? Ask. We deploy to pro
 ## 10. Reference clients
 All in [`examples/hack-kit/`](https://github.com/cleancentive/cleancentive/tree/main/examples/hack-kit) of the repo:
 - [`first-pick.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/first-pick.sh) — the loop once: sign in, log a pick, print what was found.
-- [`mint-token.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/mint-token.sh) — a personal access token from the terminal.
+- [`mint-token.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/mint-token.sh) and [`mint-key.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/mint-key.sh) — a personal access token or an API key from the terminal.
 - [`litter-duel.ts`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/litter-duel.ts) — a complete two-squad game in 200 lines of TypeScript ([Bun](https://bun.sh)): squads, picks, live feed, verify, scoreboard, and a cleanup that leaves nothing behind. `USER_TOKEN=… TEAM_KEY=… bun litter-duel.ts play a.jpg b.jpg c.jpg d.jpg e.jpg`, then `bun litter-duel.ts cleanup`. Written against this page, and every gap it found is fixed above.
