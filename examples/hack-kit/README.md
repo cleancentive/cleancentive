@@ -1,9 +1,9 @@
-# Litter Wars hack kit — building on the Cleancentive API
+# Litter Wars hack kit
 
-Everything a team needs to build a game on top of cleancentive.org during BaselHack 2026. The API is the same one the app uses; nothing here is a mock.
+We use the real production API; nothing here is a mock or sandbox. Please be nice ;-)
 
 - Base URL: `https://cleancentive.org/api/v1`
-- Interactive docs: <https://cleancentive.org/api/> · machine-readable: <https://cleancentive.org/api/openapi.json> (OpenAPI 3; generate a client from it)
+- Swagger UI: <https://cleancentive.org/api/>
 - Source (AGPL-3.0): <https://github.com/cleancentive/cleancentive>
 - On site: Matthias Cullmann (API, backend), Johannes Bohren
 
