@@ -5,7 +5,6 @@ We use the real production API; nothing here is a mock or sandbox. Please be nic
 - Base URL: `https://cleancentive.org/api/v1`
 - Swagger UI: <https://cleancentive.org/api/>
 - Source (AGPL-3.0): <https://github.com/cleancentive/cleancentive>
-- On site: Matthias Cullmann (API, backend), Johannes Bohren
 
 ## 1. Credentials — who and which app
 
@@ -37,8 +36,9 @@ curl https://cleancentive.org/api/v1/user/profile -H "Authorization: Bearer $USE
 
 A pick is attributed to the **active team of the user who logs it** at the moment it is logged. Nothing in the pick request chooses the team.
 
-- Create or find a team: `GET /teams`, `POST /teams`
-- A player joins and activates: `POST /teams/:id/join`, then `POST /teams/:id/activate` (registered users only)
+- Create a team: `POST /teams` with `{"name":"…","description":"…"}` → the team, including its `id`. Find it again with `GET /teams?q=<name>`.
+- A player joins and activates: `POST /teams/:id/join`, then `POST /teams/:id/activate` (registered users only). Joining twice is harmless.
+- Only **listed** teams get their own scoreboard row. Unlisted and archived teams fold into the `teamId: null` row, so keep your squads listed while you play.
 
 Make "join our squad" the first thing your game does.
 
@@ -57,14 +57,26 @@ curl -X POST https://cleancentive.org/api/v1/spots \
 Fields: `image` (JPEG/PNG/WebP/HEIC, ≤ 15 MB), `uploadId` (a UUID you generate), `latitude`, `longitude`, `capturedAt` (ISO 8601). Optional: `accuracyMeters`, `cleanupId` + `cleanupDateId`, `pickedUp=false` for litter you only spotted, `thumbnail`.
 
 ### Find out what was picked
-Detection runs in the background (seconds). Either poll `GET /spots/:id/view` (public) until `status` is `completed` and read `items[]` (`objectLabel`, `materialLabel`, `brandLabel` as `{ id, name }`, `weightGrams`, `confidence`) — or subscribe to the event stream below and wait for `spot.completed`.
+Detection runs in the background (seconds). Either poll `GET /spots/:id/view` (public) until `status` is `completed` and read `items[]` (`id`, `objectLabel`, `materialLabel`, `brandLabel` as `{ id, name }`, `weightGrams`, `confidence`, `humanVerified`) — or subscribe to the event stream below and wait for `spot.completed`.
+
+The view also carries `userId`, `teamId`, `cleanupId`, `capturedAt`, `latitude`, `longitude`, `pickedUp` — enough for a per-player score (match `userId` with `GET /user/profile`). A player's own history is `GET /spots?limit=100` with their bearer token (`since` to bound it, `nextCursor` → `before` to page).
+
+### Verify a teammate's find
+Anyone signed in can correct any pick's items; a correction marks the item `humanVerified` and the scoreboard follows within a second.
+```
+GET   /labels?type=object&search=bottle               → [{ id, name }, …]  (types: object, material, brand)
+PATCH /spots/:id/items/:itemId  {"weightGrams": 264}   (or objectLabelId / materialLabelId / brandLabelId)
+POST  /spots/:id/items          {"objectLabelId": "…", "weightGrams": 20}
+DELETE /spots/:id/items/:itemId
+GET   /spots/:id/edit-history                          → { entries: [{ fieldChanged, oldValue, newValue, createdByName, createdAt }] }
+```
 
 ### Things that will bite you
 - **Same photo twice within 24 h = same spot.** The API de-duplicates by image hash per user. Testing with one photo in a loop silently returns the first spot. Use different photos.
 - **Same `uploadId` = same spot** (that is what makes retries safe).
-- **Budgets:** two independent limits. **Per user:** 300 picks per hour, counted on the bearer token's account. **Per key:** requests per minute on *your team's key* (default 60, any route that carries the key) — one budget for the whole team, not per player; ask us to raise it. Over budget → `429`, retry after the minute turns.
+- **Budgets:** two independent limits. **Per user:** 300 picks per hour, counted on the bearer token's account. **Per key:** requests per minute on *your team's key* (default 60) — one budget for the whole team, not per player; ask us to raise it. Every request that carries the key counts, reads included, so send the key on writes only; the public reads below never need it. Over budget → `429` with a `Retry-After` header (seconds until the minute turns) and `retryAfterSeconds` in the body.
 - **A bad or revoked API key is refused everywhere, even on public routes** (`401`). Check the header before suspecting the route.
-- Anyone signed in can correct any pick's detected items (wiki-style, with a change history). Good for a "verify your teammate's find" mechanic; don't rely on it as anti-cheat.
+- Item corrections are wiki-style: anyone signed in can change anything, with a public change history. Good for a "verify your teammate's find" mechanic; don't rely on it as anti-cheat.
 
 ## 4. Live scoreboard
 
@@ -90,7 +102,7 @@ data: {…same fields…, "items":{"count":3,"totalWeightGrams":120,"topObject":
 event: spot.deleted
 data: {…same fields…}
 ```
-Filters: `team_id`, `cleanup_id`, `cleanup_date_id`. A `heartbeat` event with no data arrives every 15 s; `EventSource` in the browser ignores it. Public, no auth. Payloads carry no user ids.
+Filters: `team_id`, `cleanup_id`, `cleanup_date_id`, one value each — for two squads open one unfiltered stream (the whole city is a trickle) and match `teamId` yourself. A `heartbeat` event with no data arrives every 15 s; `EventSource` in the browser ignores it. Public, no auth. Payloads carry no user ids.
 
 ```js
 const es = new EventSource('https://cleancentive.org/api/v1/insights/events?cleanup_id=…');
@@ -98,8 +110,8 @@ es.addEventListener('spot.completed', (e) => { const spot = JSON.parse(e.data); 
 ```
 
 ### Stats and map
-- `GET /insights/stats?team_id=…` — totals, weekly series, top objects/materials/brands
-- `GET /insights/map?cleanup_id=…` — GeoJSON of picks and cleanup locations (the real Basel data)
+- `GET /insights/stats?team_id=…` → `{ summary: { totalSpots, totalItems, estimatedWeightGrams, … }, timeSeries, spotStats, … }` — totals, weekly series, top objects/materials/brands
+- `GET /insights/map?team_id=…` → `{ spots: <FeatureCollection>, cleanupLocations: <FeatureCollection> }` — two GeoJSON collections, not one; `cleanup_id`, `since`, `picked_up` filter too (the real Basel data)
 
 ## 5. Cleaning up after yourself
 Test picks land on the real map. Delete them:
@@ -108,6 +120,8 @@ DELETE /spots?since=2026-10-30T00:00:00Z&before=2026-10-31T00:00:00Z&dry_run=tru
 DELETE /spots?since=…&before=…                                                     → { deleted, remaining }
 ```
 Your own picks only, by capture time, 500 per call. Also under **Profile → Delete picks**. Stewards can do the same for a whole team.
+
+Tidy the rest too: `DELETE /teams/active` (drop your active squad), `POST /teams/:id/archive` for test squads, `POST /cleanups/:id/leave`. A guest erases itself with `DELETE /user/profile?mode=delete`.
 
 ## 6. The hackathon cleanup
 A pick belongs to a cleanup when three things hold: the user has **joined** the cleanup (`POST /cleanups/<cleanup_id>/join`, registered users only), the pick names the cleanup **and** the date (`cleanupId` + `cleanupDateId`, or the date is the user's active one in the app), and `capturedAt` falls inside that date's window, ±30 minutes. Nothing is inferred from location. Otherwise the pick is still accepted (202) with a `warning` and `cleanupId: null`.
@@ -125,7 +139,7 @@ Venue: Peter Merian-Strasse 80, 4052 Basel (47.5463, 7.5940).
 
 ## 7. Test data
 - **Your own phone** is the best source: every photo is new, and new photos never collide with the 24-hour de-duplication.
-- **TACO** (<http://tacodataset.org>, 1 500 litter photos with annotations, CC BY 4.0) is handy for scripted tests. Pros: real litter, varied, free. Cons: every upload is a real detection call that counts against your budgets, photos land on the public map at whatever coordinates you send — so delete them afterwards (section 5) — and the same TACO photo twice in a day returns the first spot. Attribute TACO if you ship its images.
+- **TACO** (<http://tacodataset.org>, 1 500 litter photos with annotations, CC BY 4.0) is handy for scripted tests. No need for the full download: `data/annotations.json` in its GitHub repo lists a 640 px URL per photo (`flickr_640_url`), curl a handful. Pros: real litter, varied, free. Cons: every upload is a real detection call that counts against your budgets, photos land on the public map at whatever coordinates you send — so delete them afterwards (section 5) — and the same TACO photo twice in a day returns the first spot. Attribute TACO if you ship its images.
 - **Real Basel data** is already on the map: `GET /insights/map` (GeoJSON) and `GET /insights/stats` need no credentials and cost nothing.
 
 ## 8. Everything once, from bash
@@ -169,4 +183,10 @@ curl -s -X DELETE -H "Authorization: Bearer $USER_TOKEN" "$API/spots?since=2026-
 ```
 
 ## 9. Endpoints on demand
-Need a webhook, a different aggregation, a match endpoint? Ask. We deploy to production in about ten minutes. [`first-pick.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/first-pick.sh) runs the whole loop once; both scripts live in `examples/hack-kit/` of the repo.
+Need a webhook, a different aggregation, a match endpoint? Ask. We deploy to production in about ten minutes.
+
+## 10. Reference clients
+All in [`examples/hack-kit/`](https://github.com/cleancentive/cleancentive/tree/main/examples/hack-kit) of the repo:
+- [`first-pick.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/first-pick.sh) — the loop once: sign in, log a pick, print what was found.
+- [`mint-token.sh`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/mint-token.sh) — a personal access token from the terminal.
+- [`litter-duel.ts`](https://github.com/cleancentive/cleancentive/blob/main/examples/hack-kit/litter-duel.ts) — a complete two-squad game in 200 lines of TypeScript ([Bun](https://bun.sh)): squads, picks, live feed, verify, scoreboard, and a cleanup that leaves nothing behind. `USER_TOKEN=… TEAM_KEY=… bun litter-duel.ts play a.jpg b.jpg c.jpg d.jpg e.jpg`, then `bun litter-duel.ts cleanup`. Written against this page, and every gap it found is fixed above.
