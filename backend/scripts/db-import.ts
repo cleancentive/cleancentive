@@ -3,14 +3,7 @@ import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import { Client, types } from 'pg';
 import { CreateBucketCommand, HeadBucketCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
-import {
-  DATA_DIR,
-  type BundleManifest,
-  discoverBundles,
-  resolveChain,
-  resolvePath,
-  sourceLabels,
-} from './lib/bundles';
+import { DATA_DIR, type BundleManifest, resolvePath, safeLabel } from './lib/bundles';
 
 // Preserve raw timestamp strings from Postgres
 types.setTypeParser(1114, (val) => val);
@@ -78,17 +71,13 @@ function hasArg(flag: string): boolean {
 }
 
 function printUsage(): void {
-  console.log('Usage:');
-  console.log('  Single bundle: bun run scripts/db-import.ts --input <dir> --mode <replace|merge>');
-  console.log('  Chain restore: bun run scripts/db-import.ts --chain [--input <root>] [--source <label>]');
+  console.log('Usage: bun run scripts/db-import.ts (--input <dir> | --source <name>) --mode <replace|merge>');
   console.log('');
   console.log('Flags:');
-  console.log('  --input <dir>           Bundle dir (single) or root holding bundles (chain; default: data/)');
-  console.log('  --mode <replace|merge>  Single-bundle: replace = truncate + insert; merge = upsert on PK');
-  console.log('  --chain                 Rebuild from the latest full + its increments (full=replace, incr=merge)');
-  console.log('  --source <label>        Chain: which source to restore (default: the only one present)');
-  console.log('  --merge-base            Chain: apply the full via merge too (additive, no truncate)');
-  console.log('  --scope <groups>        Override: only import these groups from the bundle(s)');
+  console.log('  --input <dir>           Bundle folder to import');
+  console.log('  --source <name>         Shorthand for --input data/<name> (the folder the default export keeps)');
+  console.log('  --mode <replace|merge>  replace = truncate + insert; merge = upsert on PK');
+  console.log('  --scope <groups>        Override: only import these groups from the bundle');
   console.log('  --no-images             Skip S3 image upload even if the bundle contains images');
   console.log('  --target-is-production  Required when DB_HOST is not localhost');
   console.log('  --dry-run               Print plan without writing');
@@ -220,6 +209,8 @@ async function collectImageFiles(imagesDir: string): Promise<string[]> {
   async function walk(dir: string): Promise<void> {
     const entries = await readdir(dir, { withFileTypes: true });
     for (const entry of entries) {
+      // Skips images/.deleted/ (images the source no longer references) and stray dotfiles.
+      if (entry.name.startsWith('.')) continue;
       const fullPath = join(dir, entry.name);
       if (entry.isDirectory()) {
         await walk(fullPath);
@@ -253,7 +244,7 @@ async function readManifest(inputDir: string): Promise<BundleManifest> {
     console.error(`Cannot read manifest at: ${manifestPath}`);
     process.exit(1);
   }
-  if (manifest.version !== 1 && manifest.version !== 2) {
+  if (manifest.version !== 1 && manifest.version !== 2 && manifest.version !== 3) {
     console.error(`Unsupported manifest version: ${manifest.version}`);
     process.exit(1);
   }
@@ -491,7 +482,8 @@ async function runSingleBundle(opts: {
   targetIsProduction: boolean;
   scopeArg: string | null;
 }): Promise<void> {
-  const inputArg = getArgValue('--input');
+  const sourceArg = getArgValue('--source');
+  const inputArg = getArgValue('--input') ?? (sourceArg ? join(DATA_DIR, safeLabel(sourceArg)) : null);
   const mode = getArgValue('--mode');
   if (!inputArg || !mode) {
     printUsage();
@@ -548,91 +540,6 @@ async function runSingleBundle(opts: {
   printSummary([stats]);
 }
 
-async function runChain(opts: {
-  skipImages: boolean;
-  dryRun: boolean;
-  targetIsProduction: boolean;
-  scopeArg: string | null;
-  mergeBase: boolean;
-}): Promise<void> {
-  const inputArg = getArgValue('--input');
-  const root = inputArg ? resolvePath(inputArg) : DATA_DIR;
-  const bundles = discoverBundles(root);
-  if (bundles.length === 0) {
-    console.error(`No bundles found in ${root}.`);
-    process.exit(1);
-  }
-
-  let src = getArgValue('--source');
-  if (!src) {
-    const labels = sourceLabels(bundles);
-    if (labels.length === 1) {
-      src = labels[0];
-    } else {
-      console.error(`Multiple sources in ${root} — pass --source <label> (found: ${labels.join(', ') || 'none'}).`);
-      process.exit(1);
-    }
-  }
-
-  const chain = resolveChain(bundles, { sourceLabel: src });
-  if (chain.length === 0) {
-    console.error(`No full bundle found for source '${src}' in ${root}.`);
-    process.exit(1);
-  }
-
-  const bundleMode = (i: number): 'replace' | 'merge' => (i === 0 && !opts.mergeBase ? 'replace' : 'merge');
-
-  console.log(`Chain restore for source '${src}' — ${chain.length} bundle(s):`);
-  chain.forEach((b, i) => {
-    const rows = Object.values(b.manifest.tables).reduce((s, t) => s + t.row_count, 0);
-    console.log(`  ${i + 1}. ${b.id} [${b.manifest.type}] → ${bundleMode(i)} (${rows} rows)`);
-  });
-
-  if (opts.dryRun) {
-    console.log('');
-    console.log('Dry run — no changes will be made.');
-    return;
-  }
-
-  const base = chain[0];
-  if (opts.targetIsProduction && !opts.mergeBase) {
-    const c = new Client(dbConfig());
-    await c.connect();
-    console.log('');
-    console.log('WARNING: About to REPLACE production data via chain restore.');
-    const groups = resolveScope(opts.scopeArg, base.manifest.scope);
-    const availableTables = getTablesForGroups(groups).filter((t) => base.manifest.tables[t]);
-    await printReplaceDiff(c, availableTables, base.manifest);
-    await c.end();
-    if (!(await askConfirmation('\nType YES to proceed: '))) {
-      console.log('Aborted.');
-      process.exit(0);
-    }
-  }
-
-  const dbClient = new Client(dbConfig());
-  await dbClient.connect();
-  const canDeferFKs = await trySetReplica(dbClient);
-  await dbClient.query('BEGIN');
-  const allStats: Stats[] = [];
-  for (let i = 0; i < chain.length; i++) {
-    const b = chain[i];
-    console.log(`\nApplying ${b.id} (${bundleMode(i)}):`);
-    allStats.push(await applyBundle(dbClient, b.dir, b.manifest, bundleMode(i), { scopeArg: opts.scopeArg, canDeferFKs }));
-  }
-  if (canDeferFKs) await dbClient.query("SET session_replication_role = 'origin'");
-  await dbClient.query('COMMIT');
-  await dbClient.end();
-  console.log('\nDatabase chain restore complete.');
-
-  for (const b of chain) {
-    const img = await uploadBundleImages(b.dir, opts.skipImages);
-    if (img) console.log(`  ${b.id} images: ${img.uploaded} uploaded, ${img.failed} failed`);
-  }
-
-  printSummary(allStats);
-}
-
 async function main(): Promise<void> {
   if (hasArg('--help')) {
     printUsage();
@@ -646,7 +553,7 @@ async function main(): Promise<void> {
     scopeArg: getArgValue('--scope'),
   };
 
-  // Production safety (applies to single-bundle and chain modes)
+  // Production safety
   const dbHost = process.env.DB_HOST || 'localhost';
   const isLocalhost = dbHost === 'localhost' || dbHost === '127.0.0.1';
   if (!isLocalhost && !opts.targetIsProduction) {
@@ -655,10 +562,10 @@ async function main(): Promise<void> {
   }
 
   if (hasArg('--chain')) {
-    await runChain({ ...opts, mergeBase: hasArg('--merge-base') });
-  } else {
-    await runSingleBundle(opts);
+    console.error('--chain is gone: the default export keeps one folder per source. Restore it with --source <name> --mode replace.');
+    process.exit(1);
   }
+  await runSingleBundle(opts);
 }
 
 main().catch((error) => {

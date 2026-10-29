@@ -1,5 +1,5 @@
-import { createWriteStream, existsSync, statSync } from 'node:fs';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { appendFileSync, createWriteStream, existsSync, statSync } from 'node:fs';
+import { mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
@@ -7,13 +7,20 @@ import { Client, types } from 'pg';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import {
   DATA_DIR,
-  WATERMARK_COLUMN,
+  DELETED_DIR,
+  DELETED_IMAGES_DIR,
+  SYNC_LOG_FILE,
+  SYNC_STATE_DIR,
   type BundleManifest,
-  type BundleType,
-  bundleId,
-  discoverBundles,
-  findBase,
+  type Row,
+  isCapExceeded,
+  mergeRows,
+  planImageSync,
+  planTableSync,
+  referencedImageKeys,
   resolvePath,
+  rowKey,
+  safeLabel,
   sourceLabel,
 } from './lib/bundles';
 
@@ -72,6 +79,12 @@ const TABLE_ORDER: string[] = [
   'feedback_responses',
 ];
 
+const FETCH_BATCH = 500;
+const DOWNLOAD_TIMEOUT_MS = 60_000;
+const DOWNLOAD_ATTEMPTS = 3;
+/** Exit code when the image phase stopped on the object store's daily cap. */
+const EXIT_CAP_EXCEEDED = 2;
+
 function getArgValue(flag: string): string | null {
   const index = process.argv.indexOf(flag);
   if (index === -1) return null;
@@ -83,19 +96,24 @@ function hasArg(flag: string): boolean {
 }
 
 function printUsage(): void {
-  console.log('Usage: bun run scripts/db-export.ts [--full | --incremental]');
+  console.log('Usage: bun run scripts/db-export.ts [--source <name>] [--full --output <dir>]');
   console.log('');
-  console.log('By default writes an auto-named bundle into data/ (repo root), choosing');
-  console.log('incremental when a compatible previous bundle exists, else a full export.');
+  console.log('By default keeps one backup folder per source, data/<source>/, and updates it in');
+  console.log('place: only new and changed rows are fetched, rows that vanished from the source');
+  console.log('move to deleted/, and only images not yet on disk are downloaded.');
   console.log('');
   console.log('Flags:');
-  console.log('  --full              Force a full export (snapshot of all rows in scope)');
-  console.log('  --incremental       Force an incremental export (error if no prior bundle)');
-  console.log('  --output-root <dir> Folder to hold auto-named bundles (default: data/)');
-  console.log('  --output <dir>      Write the bundle to exactly this dir (one-off)');
-  console.log('  --scope <groups>    Comma-separated scope groups (default: all)');
+  console.log('  --source <name>     Name of the source and its folder (default: BACKUP_SOURCE, else');
+  console.log('                      derived from DB_HOST — "local" for localhost, so pass');
+  console.log('                      --source prod when exporting production over a tunnel)');
+  console.log('  --output-root <dir> Folder that holds the per-source folders (default: data/)');
+  console.log('  --output <dir>      Use exactly this folder instead of <root>/<source>');
+  console.log('  --full              One-off snapshot: export everything into --output (required),');
+  console.log('                      no sync state, no deleted archive');
+  console.log('  --scope <groups>    Comma-separated scope groups (default: all; a folder keeps the');
+  console.log('                      scope of its first run)');
   console.log('                      Groups: users, teams, cleanups, spots, labels, feedback, all');
-  console.log('  --no-images         Skip S3 image download');
+  console.log('  --no-images         Skip S3 images');
   console.log('  --help              Show this help');
 }
 
@@ -131,7 +149,6 @@ function resolveScope(scopeArg: string | null): { groups: ScopeGroup[]; expanded
     }
   }
 
-  // Check soft dependencies
   for (const group of requested) {
     const softDeps = (GROUP_SOFT_DEPENDENCIES as Record<string, ScopeGroup[]>)[group];
     if (softDeps) {
@@ -143,7 +160,6 @@ function resolveScope(scopeArg: string | null): { groups: ScopeGroup[]; expanded
     }
   }
 
-  // Return groups in canonical order
   const groups = ALL_GROUPS.filter((g) => groupSet.has(g));
   return { groups, expanded, warnings };
 }
@@ -158,20 +174,41 @@ function getTablesForGroups(groups: ScopeGroup[]): string[] {
   return TABLE_ORDER.filter((t) => tableSet.has(t));
 }
 
-const DOWNLOAD_TIMEOUT_MS = 60_000;
-const DOWNLOAD_ATTEMPTS = 3;
+function createDbClient(): Client {
+  return new Client({
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    user: process.env.DB_USERNAME || 'cleancentive',
+    password: process.env.DB_PASSWORD || 'cleancentive_dev_password',
+    database: process.env.DB_DATABASE || 'cleancentive',
+  });
+}
+
+function createS3Client(): S3Client {
+  return new S3Client({
+    region: process.env.S3_REGION || 'us-east-1',
+    endpoint: process.env.S3_ENDPOINT || 'http://localhost:9002',
+    forcePathStyle: true,
+    credentials: {
+      accessKeyId: process.env.S3_ACCESS_KEY || 'minioadmin',
+      secretAccessKey: process.env.S3_SECRET_KEY || 'minioadmin',
+    },
+  });
+}
+
+class CapExceededError extends Error {}
 
 /**
  * Fetches one object into the bundle. A file already on disk is kept, so a
  * rerun resumes rather than restarts. Each attempt is bounded: an object
  * store that stops sending mid-stream used to hang the export forever — and
  * with nothing else keeping the event loop alive, Bun then exited 0 as if
- * the export had finished.
+ * the export had finished. A daily-cap answer throws CapExceededError at once:
+ * every further request would fail the same way until the cap resets.
  */
 async function downloadS3Object(s3Client: S3Client, bucket: string, key: string, outputDir: string): Promise<boolean> {
   const filePath = join(outputDir, 'images', key);
-  const dir = filePath.substring(0, filePath.lastIndexOf('/'));
-  await mkdir(dir, { recursive: true });
+  await mkdir(dirname(filePath), { recursive: true });
   if (existsSync(filePath) && statSync(filePath).size > 0) return true;
 
   for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
@@ -184,8 +221,9 @@ async function downloadS3Object(s3Client: S3Client, bucket: string, key: string,
       return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('NoSuchKey') || message.includes('The specified key does not exist')) return false;
       await rm(filePath, { force: true });
+      if (isCapExceeded(error)) throw new CapExceededError(message);
+      if (message.includes('NoSuchKey') || message.includes('The specified key does not exist')) return false;
       if (attempt === DOWNLOAD_ATTEMPTS) {
         console.warn(`  giving up on ${key} after ${DOWNLOAD_ATTEMPTS} attempts: ${message}`);
         return false;
@@ -198,198 +236,348 @@ async function downloadS3Object(s3Client: S3Client, bucket: string, key: string,
   return false;
 }
 
-async function main(): Promise<void> {
-  if (hasArg('--help')) {
-    printUsage();
-    return;
-  }
-
-  const skipImages = hasArg('--no-images');
-  const scopeArg = getArgValue('--scope');
-  const forceFull = hasArg('--full');
-  const forceIncremental = hasArg('--incremental');
-
-  if (forceFull && forceIncremental) {
-    console.error('Pass only one of --full / --incremental.');
-    process.exit(1);
-  }
-
-  const { groups, expanded, warnings } = resolveScope(scopeArg);
-
-  if (expanded.length > 0) {
-    console.log(`Scope auto-expanded to include: ${expanded.join(', ')}`);
-  }
-  for (const warning of warnings) {
-    console.log(`Warning: ${warning}`);
-  }
-
-  const tables = getTablesForGroups(groups);
-
-  const dbHost = process.env.DB_HOST || 'localhost';
-  const srcLabel = sourceLabel(dbHost);
-
-  // Where bundles live (for naming + base discovery) and where this one is written.
-  const explicitOutput = getArgValue('--output');
-  const outputRootArg = getArgValue('--output-root');
-  const root = explicitOutput
-    ? dirname(resolvePath(explicitOutput))
-    : outputRootArg
-      ? resolvePath(outputRootArg)
-      : DATA_DIR;
-
-  const dbClient = new Client({
-    host: dbHost,
-    port: parseInt(process.env.DB_PORT || '5432', 10),
-    user: process.env.DB_USERNAME || 'cleancentive',
-    password: process.env.DB_PASSWORD || 'cleancentive_dev_password',
-    database: process.env.DB_DATABASE || 'cleancentive',
-  });
-
-  const bucketName = process.env.S3_BUCKET || 'cleancentive-images';
-  const s3Client = new S3Client({
-    region: process.env.S3_REGION || 'us-east-1',
-    endpoint: process.env.S3_ENDPOINT || 'http://localhost:9002',
-    forcePathStyle: true,
-    credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY || 'minioadmin',
-      secretAccessKey: process.env.S3_SECRET_KEY || 'minioadmin',
-    },
-  });
-
-  await dbClient.connect();
-
-  // One boundary for the whole export, taken from the DB clock in the same timestamp frame
-  // as the created_at/updated_at columns (which are `timestamp` without tz).
-  const boundary = (await dbClient.query('SELECT now()::timestamp AS wm')).rows[0].wm as string;
-
-  // Full vs incremental: incremental when a compatible base bundle exists (unless --full).
-  const base = forceFull ? null : findBase(discoverBundles(root), { sourceLabel: srcLabel, scope: groups });
-  if (forceIncremental && !base) {
-    console.error(
-      `No compatible base bundle in ${root} for source '${srcLabel}' with this scope — ` +
-        'run a full export first (or drop --incremental).',
-    );
-    await dbClient.end();
-    process.exit(1);
-  }
-  const type: BundleType = base ? 'incremental' : 'full';
-  const since = base ? base.manifest.high_watermark ?? null : null;
-  const parent = base ? base.manifest.bundle_id ?? base.id : null;
-
-  const outputDir = explicitOutput ? resolvePath(explicitOutput) : join(root, bundleId(srcLabel, boundary, type));
-  await mkdir(outputDir, { recursive: true });
-
-  console.log(`Export type: ${type}${type === 'incremental' ? ` (changes since ${since})` : ''}`);
-  console.log(`Exporting ${tables.length} tables: ${tables.join(', ')}`);
-
-  const manifest: BundleManifest = {
-    version: 2,
-    exported_at: new Date().toISOString(),
-    source_database: process.env.DB_DATABASE || 'cleancentive',
-    source_host: dbHost,
-    source_label: srcLabel,
-    type,
-    bundle_id: basename(outputDir),
-    since,
-    high_watermark: boundary,
-    parent,
-    scope: groups,
-    tables: {},
-    images: { downloaded: 0, failed: 0, skipped: skipImages },
-  };
-
-  for (const table of tables) {
-    const filePath = join(outputDir, `${table}.ndjson`);
-    const writeStream = createWriteStream(filePath);
-
-    let rowCount = 0;
-    const cursorName = `export_cursor_${table}`;
-    const batchSize = 1000;
-
-    // Incremental: only rows changed in (since, boundary]. since/boundary are DB-produced
-    // timestamp strings, safe to inline as quoted literals.
-    const wmCol = WATERMARK_COLUMN[table] ?? 'updated_at';
-    const where =
-      type === 'incremental' && since
-        ? ` WHERE "${wmCol}" > '${since}'::timestamp AND "${wmCol}" <= '${boundary}'::timestamp`
-        : '';
-
-    await dbClient.query('BEGIN');
-    await dbClient.query(`DECLARE ${cursorName} CURSOR FOR SELECT * FROM "${table}"${where}`);
-
-    while (true) {
-      const result = await dbClient.query(`FETCH ${batchSize} FROM ${cursorName}`);
-      if (result.rows.length === 0) break;
-
-      for (const row of result.rows) {
-        writeStream.write(JSON.stringify(row) + '\n');
-        rowCount++;
-      }
-    }
-
-    await dbClient.query(`CLOSE ${cursorName}`);
-    await dbClient.query('COMMIT');
-    writeStream.end();
-
-    // Wait for write stream to finish
-    await new Promise<void>((resolve, reject) => {
-      writeStream.on('finish', resolve);
-      writeStream.on('error', reject);
-    });
-
-    manifest.tables[table] = { row_count: rowCount };
-    console.log(`  ${table}: ${rowCount} rows`);
-  }
-
-  // Everything the image phase needs is on disk now. Close the session before
-  // it: a download of a few GB over a tunnel outlasts idle timeouts, and the
-  // dropped connection used to fail the whole export at the very end.
-  await dbClient.end();
-
-  // Download images for the spots in THIS bundle (incremental → only changed spots).
-  const includeImages = !skipImages && groups.includes('spots');
-  if (includeImages) {
-    console.log('Downloading images from S3...');
-    const spotsFile = join(outputDir, 'spots.ndjson');
-    const spotsContent = await Bun.file(spotsFile).text();
-    const lines = spotsContent.trim().split('\n').filter(Boolean);
-
-    let downloaded = 0;
-    let failed = 0;
-
-    for (const line of lines) {
-      const spot = JSON.parse(line);
-
-      if (spot.image_key) {
-        const ok = await downloadS3Object(s3Client, bucketName, spot.image_key, outputDir);
-        if (ok) downloaded++;
-        else failed++;
-      }
-
-      if (spot.thumbnail_key) {
-        const ok = await downloadS3Object(s3Client, bucketName, spot.thumbnail_key, outputDir);
-        if (ok) downloaded++;
-        else failed++;
-      }
-    }
-
-    manifest.images = { downloaded, failed, skipped: false };
-    console.log(`  Images: ${downloaded} downloaded, ${failed} failed`);
-  }
-
-  await writeFile(join(outputDir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
-
-  console.log('');
-  console.log(`Export complete (${type}) → ${outputDir}`);
-  console.log(`  Scope: ${groups.join(', ')}`);
-  console.log(`  Tables: ${Object.keys(manifest.tables).length}`);
-  console.log(`  Total rows: ${Object.values(manifest.tables).reduce((sum, t) => sum + t.row_count, 0)}`);
-  if (includeImages) {
-    console.log(`  Images: ${manifest.images?.downloaded ?? 0} downloaded, ${manifest.images?.failed ?? 0} failed`);
-  }
+interface ImageRunResult {
+  downloaded: number;
+  failed: number;
+  pending: number;
+  capExceeded: boolean;
 }
 
-main().catch((error) => {
-  console.error('Export failed:', error);
-  process.exit(1);
-});
+/** Downloads `keys` in order, stopping on the first cap-exceeded answer. */
+async function downloadImages(keys: string[], outputDir: string): Promise<ImageRunResult> {
+  const s3Client = createS3Client();
+  const bucket = process.env.S3_BUCKET || 'cleancentive-images';
+  const result: ImageRunResult = { downloaded: 0, failed: 0, pending: 0, capExceeded: false };
+  for (let i = 0; i < keys.length; i++) {
+    try {
+      if (await downloadS3Object(s3Client, bucket, keys[i], outputDir)) result.downloaded++;
+      else result.failed++;
+    } catch (error) {
+      if (!(error instanceof CapExceededError)) throw error;
+      result.capExceeded = true;
+      result.pending = keys.length - i;
+      console.warn(`  The object store's daily cap is used up: ${error.message}`);
+      break;
+    }
+    if ((i + 1) % 250 === 0) console.log(`  … ${i + 1}/${keys.length}`);
+  }
+  return result;
+}
+
+async function readNdjson(filePath: string): Promise<Row[]> {
+  if (!existsSync(filePath)) return [];
+  const content = await Bun.file(filePath).text();
+  return content.split('\n').filter(Boolean).map((line) => JSON.parse(line));
+}
+
+async function readJson<T>(filePath: string): Promise<T | null> {
+  if (!existsSync(filePath)) return null;
+  return JSON.parse(await Bun.file(filePath).text()) as T;
+}
+
+/** Write via a temp file and rename, so a crash never leaves a half-written file behind. */
+async function writeAtomically(filePath: string, content: string): Promise<void> {
+  await mkdir(dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.tmp`;
+  await writeFile(tmp, content);
+  await rename(tmp, filePath);
+}
+
+function toNdjson(rows: Row[]): string {
+  return rows.map((row) => JSON.stringify(row) + '\n').join('');
+}
+
+async function primaryKeyColumns(db: Client, table: string): Promise<string[]> {
+  const result = await db.query(
+    `SELECT a.attname AS column
+       FROM pg_index i
+       JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+      WHERE i.indrelid = $1::regclass AND i.indisprimary
+      ORDER BY array_position(i.indkey::int2[], a.attnum)`,
+    [`"${table}"`],
+  );
+  const columns = result.rows.map((r) => r.column as string);
+  if (columns.length === 0) throw new Error(`Table ${table} has no primary key; it cannot be synced row by row.`);
+  return columns;
+}
+
+async function fetchRowsByKey(db: Client, table: string, pk: string[], keys: string[]): Promise<Row[]> {
+  const rows: Row[] = [];
+  for (let i = 0; i < keys.length; i += FETCH_BATCH) {
+    const batch = keys.slice(i, i + FETCH_BATCH);
+    if (pk.length === 1) {
+      const result = await db.query(`SELECT * FROM "${table}" WHERE "${pk[0]}"::text = ANY($1::text[])`, [batch]);
+      rows.push(...result.rows);
+    } else {
+      const tuples = batch.map((key) => JSON.parse(key) as string[]);
+      const params = pk.map((_, column) => tuples.map((tuple) => tuple[column]));
+      const columns = pk.map((c) => `"${c}"::text`).join(', ');
+      const unnest = pk.map((_, n) => `$${n + 1}::text[]`).join(', ');
+      const result = await db.query(`SELECT * FROM "${table}" WHERE (${columns}) IN (SELECT * FROM unnest(${unnest}))`, params);
+      rows.push(...result.rows);
+    }
+  }
+  return rows;
+}
+
+async function listImagesOnDisk(imagesDir: string): Promise<Set<string>> {
+  const found = new Set<string>();
+  if (!existsSync(imagesDir)) return found;
+  async function walk(dir: string, prefix: string): Promise<void> {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith('.')) continue; // .deleted archive, .DS_Store, temp files
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) await walk(join(dir, entry.name), rel);
+      else found.add(rel);
+    }
+  }
+  await walk(imagesDir, '');
+  return found;
+}
+
+type TableStats = { added: number; updated: number; unchanged: number; deleted: number };
+
+/**
+ * Brings data/<source>/ up to date with the source database.
+ *
+ * Every table is read from one REPEATABLE READ snapshot. For each table the source
+ * sends only a primary key and an md5 per row; rows whose hash moved since the last
+ * run (or that are missing locally) are fetched in full. Rows the source no longer
+ * has are appended to deleted/<table>.ndjson before they leave the table file, so an
+ * accidental delete on the source stays recoverable from the backup.
+ */
+async function syncMirror(opts: {
+  dir: string;
+  source: string;
+  groups: ScopeGroup[];
+  tables: string[];
+  skipImages: boolean;
+}): Promise<number> {
+  const { dir, source, groups, tables, skipImages } = opts;
+  const startedAt = new Date().toISOString();
+  const manifestPath = join(dir, 'manifest.json');
+  const hashesPath = join(dir, SYNC_STATE_DIR, 'hashes.json');
+
+  const previous = await readJson<BundleManifest>(manifestPath);
+  if (previous) {
+    const same = previous.scope.length === groups.length && groups.every((g) => previous.scope.includes(g));
+    if (!same) {
+      console.error(`${dir} holds scope [${previous.scope.join(', ')}]; this run asks for [${groups.join(', ')}].`);
+      console.error('A folder keeps the scope of its first run. Use another --output for a different scope.');
+      return 1;
+    }
+  }
+  const previousHashes = (await readJson<Record<string, Record<string, string>>>(hashesPath)) ?? {};
+  await mkdir(dir, { recursive: true });
+
+  console.log(`Syncing ${tables.length} tables into ${dir} (source '${source}')`);
+  if (!previous || !existsSync(hashesPath)) console.log('  No sync state yet: every row is fetched once.');
+
+  const db = createDbClient();
+  await db.connect();
+  await db.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+  const syncedAt = (await db.query('SELECT now()::timestamp AS at')).rows[0].at as string;
+
+  const nextHashes: Record<string, Record<string, string>> = {};
+  const results = new Map<string, { rows: Row[]; removed: Row[]; stats: TableStats }>();
+  for (const table of tables) {
+    const pk = await primaryKeyColumns(db, table);
+    const keySelect = pk.map((c) => `"${c}"::text AS "${c}"`).join(', ');
+    const hashRows = (await db.query(`SELECT ${keySelect}, md5(t::text) AS row_hash FROM "${table}" t`)).rows as Row[];
+    const currentHashes: Record<string, string> = {};
+    for (const r of hashRows) currentHashes[rowKey(r, pk)] = r.row_hash as string;
+
+    const local = await readNdjson(join(dir, `${table}.ndjson`));
+    const keyOf = (row: Row) => rowKey(row, pk);
+    const plan = planTableSync(new Set(local.map(keyOf)), previousHashes[table], currentHashes);
+    const fetched = await fetchRowsByKey(db, table, pk, plan.fetch);
+    const merged = mergeRows(local, fetched, new Set(plan.remove), keyOf);
+
+    nextHashes[table] = currentHashes;
+    results.set(table, merged);
+    const s = merged.stats;
+    console.log(`  ${table}: ${merged.rows.length} rows (+${s.added} ~${s.updated} -${s.deleted})`);
+  }
+  await db.query('COMMIT');
+  // Close before images: a long download over a tunnel outlasts idle timeouts.
+  await db.end();
+
+  // Archive first, then replace table files, then the hashes: a crash at any point
+  // leaves either the old state or a state the next run repairs by refetching.
+  for (const [table, { removed }] of results) {
+    if (removed.length === 0) continue;
+    const archive = join(dir, DELETED_DIR, `${table}.ndjson`);
+    await mkdir(dirname(archive), { recursive: true });
+    appendFileSync(archive, removed.map((row) => JSON.stringify({ deleted_detected_at: syncedAt, row }) + '\n').join(''));
+  }
+  for (const [table, { rows }] of results) await writeAtomically(join(dir, `${table}.ndjson`), toNdjson(rows));
+  await writeAtomically(hashesPath, JSON.stringify(nextHashes) + '\n');
+
+  // Images: download what live spots reference and the folder lacks; archive the rest.
+  let images: BundleManifest['images'] = { downloaded: 0, failed: 0, skipped: true };
+  let capExceeded = false;
+  if (!skipImages && groups.includes('spots')) {
+    const imagesDir = join(dir, 'images');
+    const referenced = referencedImageKeys(results.get('spots')?.rows ?? []);
+    const imagePlan = planImageSync(referenced, await listImagesOnDisk(imagesDir));
+    for (const key of imagePlan.orphaned) {
+      const target = join(imagesDir, DELETED_IMAGES_DIR, key);
+      await mkdir(dirname(target), { recursive: true });
+      await rename(join(imagesDir, key), target);
+    }
+    console.log(`Images: ${referenced.size} referenced, ${imagePlan.download.length} to download, ${imagePlan.orphaned.length} archived`);
+    const run = await downloadImages(imagePlan.download, dir);
+    capExceeded = run.capExceeded;
+    images = {
+      downloaded: run.downloaded,
+      failed: run.failed,
+      skipped: false,
+      on_disk: (await listImagesOnDisk(imagesDir)).size,
+      pending: run.pending,
+      cap_exceeded: run.capExceeded,
+    };
+  }
+
+  const manifest: BundleManifest = {
+    version: 3,
+    type: 'mirror',
+    bundle_id: basename(dir),
+    source_label: source,
+    exported_at: new Date().toISOString(),
+    high_watermark: syncedAt,
+    source_database: process.env.DB_DATABASE || 'cleancentive',
+    source_host: process.env.DB_HOST || 'localhost',
+    scope: groups,
+    tables: Object.fromEntries([...results].map(([table, r]) => [table, { row_count: r.rows.length }])),
+    images,
+  };
+  await writeAtomically(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+
+  const totals = [...results.values()].reduce(
+    (sum, r) => ({
+      added: sum.added + r.stats.added,
+      updated: sum.updated + r.stats.updated,
+      deleted: sum.deleted + r.stats.deleted,
+    }),
+    { added: 0, updated: 0, deleted: 0 },
+  );
+  appendFileSync(
+    join(dir, SYNC_LOG_FILE),
+    JSON.stringify({
+      started_at: startedAt,
+      finished_at: new Date().toISOString(),
+      source_snapshot_at: syncedAt,
+      rows: totals,
+      tables: Object.fromEntries(
+        [...results]
+          .filter(([, r]) => r.stats.added + r.stats.updated + r.stats.deleted > 0)
+          .map(([table, r]) => [table, { added: r.stats.added, updated: r.stats.updated, deleted: r.stats.deleted }]),
+      ),
+      images,
+    }) + '\n',
+  );
+
+  console.log('');
+  console.log(`Sync complete → ${dir}`);
+  console.log(`  Rows: +${totals.added} added, ~${totals.updated} changed, -${totals.deleted} archived as deleted`);
+  if (!images.skipped) {
+    console.log(`  Images: ${images.downloaded} downloaded, ${images.failed} failed, ${images.on_disk} on disk`);
+  }
+  if (capExceeded) {
+    console.error(`  ${images.pending} images are still missing because the daily cap is used up. Run again after it resets.`);
+    return EXIT_CAP_EXCEEDED;
+  }
+  return 0;
+}
+
+/** One-off snapshot of everything in scope into exactly `dir`. No sync state. */
+async function exportSnapshot(opts: { dir: string; source: string; groups: ScopeGroup[]; tables: string[]; skipImages: boolean }): Promise<number> {
+  const { dir, source, groups, tables, skipImages } = opts;
+  await mkdir(dir, { recursive: true });
+  const db = createDbClient();
+  await db.connect();
+  await db.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+  const snapshotAt = (await db.query('SELECT now()::timestamp AS at')).rows[0].at as string;
+
+  console.log(`Snapshot of ${tables.length} tables into ${dir}`);
+  const counts: BundleManifest['tables'] = {};
+  let spots: Row[] = [];
+  for (const table of tables) {
+    const rows = (await db.query(`SELECT * FROM "${table}"`)).rows as Row[];
+    await writeAtomically(join(dir, `${table}.ndjson`), toNdjson(rows));
+    counts[table] = { row_count: rows.length };
+    if (table === 'spots') spots = rows;
+    console.log(`  ${table}: ${rows.length} rows`);
+  }
+  await db.query('COMMIT');
+  await db.end();
+
+  let images: BundleManifest['images'] = { downloaded: 0, failed: 0, skipped: true };
+  let capExceeded = false;
+  if (!skipImages && groups.includes('spots')) {
+    console.log('Downloading images from S3...');
+    const run = await downloadImages([...referencedImageKeys(spots)].sort(), dir);
+    capExceeded = run.capExceeded;
+    images = { downloaded: run.downloaded, failed: run.failed, skipped: false, pending: run.pending, cap_exceeded: run.capExceeded };
+  }
+
+  const manifest: BundleManifest = {
+    version: 3,
+    type: 'full',
+    bundle_id: basename(dir),
+    source_label: source,
+    exported_at: new Date().toISOString(),
+    high_watermark: snapshotAt,
+    source_database: process.env.DB_DATABASE || 'cleancentive',
+    source_host: process.env.DB_HOST || 'localhost',
+    scope: groups,
+    tables: counts,
+    images,
+  };
+  await writeAtomically(join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+  console.log(`Snapshot complete → ${dir}`);
+  if (capExceeded) {
+    console.error(`  ${images.pending} images are missing because the daily cap is used up. Rerun into the same --output to resume.`);
+    return EXIT_CAP_EXCEEDED;
+  }
+  return 0;
+}
+
+async function main(): Promise<number> {
+  if (hasArg('--help')) {
+    printUsage();
+    return 0;
+  }
+  if (hasArg('--incremental')) {
+    console.error('--incremental is gone: the default export now updates data/<source>/ in place.');
+    return 1;
+  }
+
+  const { groups, expanded, warnings } = resolveScope(getArgValue('--scope'));
+  if (expanded.length > 0) console.log(`Scope auto-expanded to include: ${expanded.join(', ')}`);
+  for (const warning of warnings) console.log(`Warning: ${warning}`);
+  const tables = getTablesForGroups(groups);
+
+  const source = safeLabel(getArgValue('--source') ?? process.env.BACKUP_SOURCE ?? '') || sourceLabel(process.env.DB_HOST || 'localhost');
+  const explicitOutput = getArgValue('--output');
+  const root = getArgValue('--output-root') ? resolvePath(getArgValue('--output-root')!) : DATA_DIR;
+  const skipImages = hasArg('--no-images');
+
+  if (hasArg('--full')) {
+    if (!explicitOutput) {
+      console.error('--full writes a one-off snapshot and needs --output <dir>.');
+      return 1;
+    }
+    return exportSnapshot({ dir: resolvePath(explicitOutput), source, groups, tables, skipImages });
+  }
+
+  const dir = explicitOutput ? resolvePath(explicitOutput) : join(root, source);
+  return syncMirror({ dir, source, groups, tables, skipImages });
+}
+
+main()
+  .then((code) => process.exit(code))
+  .catch((error) => {
+    console.error('Export failed:', error);
+    process.exit(1);
+  });

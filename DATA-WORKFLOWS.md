@@ -1,16 +1,17 @@
 # Data Workflows — Export, Import, Backup & Synthetic Generation
 
-This document covers how CleanCentive moves application data around: exporting and
-importing the database + object storage (full **and** incremental), running
-backup/restore drills, and generating realistic synthetic datasets.
+This document covers how CleanCentive moves application data around: backing up the
+database + object storage, restoring it, running drills, and generating realistic
+synthetic datasets.
 
 All tools share one **bundle format**, so a synthetic dataset and a real export are
 interchangeable: you can restore a backup, then layer synthetic scenario packs on top.
 
-By default, bundles land in a git-ignored **`data/`** folder at the repo root, with
-auto-generated names that encode the source, timestamp, and whether the bundle is a
-full snapshot or an incremental delta. The tooling uses that folder to decide whether
-to export incrementally and to replay a restore chain.
+By default the export keeps **one folder per source** in the git-ignored **`data/`**
+folder at the repo root (`data/local/`, `data/prod/`) and updates it in place: each
+run fetches only rows that are new or changed, archives rows that vanished, and
+downloads only images that are not on disk yet. The folder name never changes;
+everything about the runs lives in files inside it.
 
 > **Paths are repo-root-relative.** Every path flag (`--output`, `--input`, `--spec`,
 > `--labels-from`, `--output-root`) is resolved against the **repo root**, regardless
@@ -35,10 +36,11 @@ scripts. Pass script flags after a `--` separator:
 
 | Command | What it does |
 | --- | --- |
-| `bun run data:export -- [--full \| --incremental]` | Export to `data/` — auto-incremental when a prior bundle exists, else full |
-| `bun run data:backup -- ` | Force a **full** snapshot into `data/` |
-| `bun run data:import -- --input <dir> --mode <replace\|merge>` | Import a single bundle |
-| `bun run data:restore -- [--source <label>]` | Rebuild the DB from the latest full + its increments (chain) |
+| `bun run data:export -- [--source <name>]` | Bring `data/<source>/` up to date (only the delta is transferred) |
+| `bun run data:backup -- [--source <name>]` | Same as `data:export` |
+| `bun run data:export -- --full --output <dir>` | One-off snapshot of everything into exactly `<dir>` |
+| `bun run data:import -- --input <dir> --mode <replace\|merge>` | Import a bundle |
+| `bun run data:restore -- --source <name>` | Replace the DB with `data/<source>/` (= `data:import --input data/<source> --mode replace`) |
 | `bun run data:generate -- [--spec <file>] [...]` | Generate a synthetic bundle (see below) |
 | `bun run data:clean-e2e [-- --apply]` | Remove what the Playwright suite left in the dev database (see below) |
 
@@ -66,38 +68,42 @@ Take a `bun run data:backup` first if the database holds anything you care about
 
 ## Bundle format (the contract)
 
-A bundle is a directory, by default `data/<source>-<YYYYMMDD-HHMMSS>-<full|incr>/`
-(e.g. `data/local-20260530-164512-full/`):
+A bundle is a directory. The default export keeps one per source, `data/<source>/`:
 
 ```
-<bundle>/
-  manifest.json
-  <table>.ndjson          # one JSON object per line, in dependency order
-  images/<s3-key>         # mirrors S3 keys, e.g. images/spots/<id>/original-<uploadId>.jpg
-                          # (present only when `spots` is in scope and images aren't skipped)
+data/prod/
+  manifest.json            # what the folder holds and when it was last synced (below)
+  <table>.ndjson           # current rows, one JSON object per line, sorted by primary key
+  images/<s3-key>          # mirrors S3 keys, e.g. images/spots/<id>/original-<uploadId>.jpg
+  sync-log.ndjson          # one line per run: rows added/changed/archived per table, images
+  .sync/hashes.json        # primary key → row hash from the last run (drives the next delta)
+  deleted/<table>.ndjson   # rows that vanished from the source: {deleted_detected_at, row}
+  images/.deleted/<s3-key> # images no longer referenced by any live spot
 ```
 
-`manifest.json` (version 2):
+`sync-log.ndjson`, `.sync/`, `deleted/` and `images/.deleted/` are bookkeeping: the
+importer never reads them, so restoring the folder restores the source's live state.
+A one-off `--full --output <dir>` snapshot has only the manifest, tables and images.
+
+`manifest.json` (version 3):
 
 ```json
 {
-  "version": 2,
-  "type": "full",                       // or "incremental"
-  "bundle_id": "local-20260530-164512-full",
-  "source_label": "local",              // from DB_HOST (localhost → "local")
-  "since": null,                        // incremental lower bound (null for full)
-  "high_watermark": "2026-05-30 16:45:12.123456",
-  "parent": null,                       // bundle_id this increment builds on
-  "exported_at": "2026-05-30T16:45:12.000Z",
+  "version": 3,
+  "type": "mirror",                     // or "full" for a one-off snapshot
+  "bundle_id": "prod",
+  "source_label": "prod",               // --source, else BACKUP_SOURCE, else from DB_HOST
+  "high_watermark": "2026-10-29 07:31:02.321629",  // source DB clock of the snapshot read
+  "exported_at": "2026-10-29T07:31:22.000Z",
   "source_database": "cleancentive",
-  "source_host": "localhost",
+  "source_host": "127.0.0.1",
   "scope": ["labels", "users", "teams", "cleanups", "spots", "feedback"],
-  "tables": { "spots": { "row_count": 600 }, "spot_edits": { "row_count": 41 } },
-  "images": { "downloaded": 1200, "failed": 0, "skipped": false }
+  "tables": { "spots": { "row_count": 2573 }, "spot_edits": { "row_count": 5 } },
+  "images": { "downloaded": 0, "failed": 0, "skipped": false, "on_disk": 5146, "pending": 0, "cap_exceeded": false }
 }
 ```
 
-`db-import` accepts **version 1** (legacy, always full) and **version 2** bundles.
+`db-import` accepts versions 1 and 2 (older full and incremental bundles) and 3.
 
 **Stability guarantee.** Any bundle producer must emit this shape: the `scope` array,
 a per-table `row_count`, and the optional `images` block. Each `<table>.ndjson` row's
@@ -120,70 +126,73 @@ stored as JSON objects (not pre-stringified).
 Tables are inserted in topological (forward) order and truncated in reverse. Hard FK
 dependencies are auto-expanded: `teams`, `cleanups`, and `spots` all pull in `users`.
 
-## Export (full & incremental)
+## Export
 
 ```bash
-bun run data:export                 # auto: incremental if a prior bundle exists, else full
-bun run data:export -- --full       # force a full snapshot  (alias: data:backup)
-bun run data:export -- --incremental # force incremental (errors if no compatible base)
+bun run data:export                          # bring data/local/ up to date
+bun run data:export -- --source prod         # bring data/prod/ up to date (prod env, see runbook)
+bun run data:export -- --full --output data/before-migration   # one-off snapshot
 ```
 
 Flags:
 
-- `--full` / `--incremental` — force the mode (default is auto).
-- `--output-root <dir>` — folder that holds auto-named bundles (default: `data/`).
-- `--output <dir>` — write to exactly this dir instead of an auto name (one-off).
-- `--scope <groups>` — subset of `users, teams, cleanups, spots, labels, feedback`, or `all` (default).
-- `--no-images` — skip downloading S3 images.
+- `--source <name>` — the source's name and folder. Default: `BACKUP_SOURCE`, else
+  derived from `DB_HOST` (`localhost`/`127.0.0.1` → `local`). **A production export
+  over an SSH tunnel connects to `127.0.0.1`, so always pass `--source prod`.**
+- `--output-root <dir>` — folder holding the per-source folders (default: `data/`).
+- `--output <dir>` — use exactly this folder instead of `<root>/<source>`.
+- `--full` — one-off snapshot into `--output` (required): every row, every image, no
+  sync state. Rerunning into the same folder resumes the image download.
+- `--scope <groups>` — subset of `users, teams, cleanups, spots, labels, feedback`, or
+  `all` (default). A folder keeps the scope of its first run; another scope needs
+  another `--output`.
+- `--no-images` — skip images.
 
-**How incremental works.** Each export records a `high_watermark` (the DB clock at
-export start). An incremental export selects only rows changed in
-`(base.high_watermark, now]`, using each table's watermark column — `updated_at` for
-most tables, `created_at` for the append-only audit tables (`spot_edits`,
-`detected_item_edits`). It only downloads images for the spots in that delta. A bundle
-is an eligible **base** for the next incremental when it has the same `source_label`
-and the same `scope`.
+**How a run works.** Every table is read from one `REPEATABLE READ` snapshot. For each
+table the source sends only a primary key and an `md5` of the row (about 50 bytes per
+row); rows whose hash moved since the last run, or that are missing locally, are then
+fetched in full. That catches every write, whether or not it bumps `updated_at`. Rows
+the source no longer has are appended to `deleted/<table>.ndjson` before they leave the
+table file, so an accidental delete on the source stays recoverable. Images: every key
+referenced by a live spot that is not on disk is downloaded; images nothing references
+any more move to `images/.deleted/`. A run without sync state (first run, or an older
+bundle renamed to `data/<source>/`) fetches every row once and still downloads only
+the missing images.
+
+Files are written through a temp file and renamed: the archive first, then the table
+files, then the hashes, the manifest last. A run that dies leaves a state the next run
+completes.
+
+**Object-store daily cap.** Backblaze B2 refuses downloads once the account's daily
+download or Class B cap is used up, and the same cap serves production thumbnails. The
+export stops the image phase at the first such answer instead of trying every remaining
+object, records `pending` and `cap_exceeded` in the manifest, and exits with code `2`.
+The next run downloads what is still missing. Only a first run into an empty folder
+moves gigabytes; routine runs move the few images of new picks.
 
 Connection env vars (dev defaults): `DB_HOST=localhost`, `DB_PORT=5432`,
 `DB_USERNAME=cleancentive`, `DB_PASSWORD=…`, `DB_DATABASE=cleancentive`;
 `S3_ENDPOINT=http://localhost:9002`, `S3_REGION=us-east-1`,
 `S3_BUCKET=cleancentive-images`, `S3_ACCESS_KEY=minioadmin`, `S3_SECRET_KEY=minioadmin`.
 
-> **Deletes are not captured by increments.** A watermark sees inserts and updates,
-> not hard deletes (admin spot purge, account deletion, worker re-detection replacing
-> `detected_items`, …). So an incremental chain is **additive**: replaying it keeps
-> rows that were deleted at the source after the last full. To reconcile deletions,
-> take a fresh **full** snapshot (`data:backup`). Recommended routine: a periodic full
-> (e.g. daily/weekly) plus frequent increments between them.
-
 ## Import
-
-### Single bundle
 
 ```bash
 bun run data:import -- --input data/<bundle> --mode <replace|merge>
+bun run data:restore -- --source prod      # = --input data/prod --mode replace
 ```
 
 - `replace` — `TRUNCATE … CASCADE` the in-scope tables (reverse order), then insert.
   The bundle becomes authoritative for its scope.
 - `merge` — upsert `ON CONFLICT (id) DO UPDATE`. Additive and idempotent (used for
-  synthetic packs and applying increments).
+  synthetic packs).
+- `--source <name>` — shorthand for `--input data/<name>`.
 - `--scope <groups>`, `--no-images`, `--dry-run`, and `--target-is-production` (below).
 
-### Chain restore (full + increments)
+Images are uploaded from `images/`, skipping `images/.deleted/`. Rows in `deleted/`
+are never imported; to bring one back, copy its `row` into the table file first.
 
-```bash
-bun run data:restore                       # = db:import --chain  (default --input data/)
-bun run data:restore -- --source local     # pick a source when data/ holds several
-bun run data:restore -- --merge-base        # apply the full via merge too (no truncate)
-```
-
-`--chain` discovers bundles under `--input` (default `data/`), resolves the latest
-**full** for the source plus every increment taken after it, and applies them in order:
-the full via `replace`, each increment via `merge`. `--source <label>` is required only
-when multiple sources are present. `--dry-run` prints the ordered chain without writing.
-
-**FK handling.** Replace/chain set `session_replication_role = 'replica'` to defer FK
+**FK handling.** Replace sets `session_replication_role = 'replica'` to defer FK
 checks during the transaction (needs an elevated DB role); if unavailable, a two-pass
 fallback NULLs the circular `users` columns (`active_team_id`,
 `active_cleanup_date_id`, `avatar_email_id`) then restores them. Merge mode alone does
@@ -192,15 +201,26 @@ in insert order (the synthetic generator leaves those `users` columns NULL).
 
 ## Backup / restore runbook
 
-### (a) Full backup
+### (a) Back up production
+
+Read-only against production; run it as often as you like, a run without changes
+transfers a few hundred KB and no images.
 
 ```bash
-# Point DB_*/S3_* at the source (dev defaults, or prod env for a prod backup).
-bun run data:backup                 # full snapshot → data/<source>-<ts>-full/
+# 1. Tunnel to the prod database (5432 locally is the dev DB, so use 5433).
+ssh -f -N -i ~/.ssh/cleancentive_deploy -L 127.0.0.1:5433:127.0.0.1:5432 deploy@46.225.228.123
+
+# 2. Credentials from the private repo, then sync data/prod/.
+set -a; eval "$(grep -E '^(DB_USERNAME|DB_PASSWORD|DB_DATABASE|S3_ENDPOINT|S3_ACCESS_KEY|S3_SECRET_KEY|S3_BUCKET|S3_REGION)=' ../cleancentive-private/.env)"; set +a
+DB_HOST=127.0.0.1 DB_PORT=5433 bun run data:backup -- --source prod
+
+# 3. Close the tunnel.
+pkill -f "5433:127.0.0.1:5432"
 ```
 
-Verify `manifest.json` has `type: "full"`, all six scope groups, sensible
-`row_count`s, and that `images/` is populated. Remember the scope boundary above.
+Check the last line of `data/prod/sync-log.ndjson`. Exit code `2` means the B2 daily
+cap stopped the image phase; rerun after midnight UTC. Remember the scope boundary
+above.
 
 ### (b) Restore into a fresh dev database
 
@@ -216,9 +236,12 @@ bun run dev:infra:start
 #    DB, wait for the migration log, then stop it.
 bun run --filter '@cleancentive/backend' dev   # Ctrl-C after migrations finish
 
-# 3. Restore the whole chain (latest full + increments). Localhost → no prod gate.
-bun run data:restore
+# 3. Restore a backup folder. Localhost → no prod gate.
+bun run data:restore -- --source prod
 ```
+
+A scratch database works too: `CREATE DATABASE`, then `CREATE EXTENSION postgis` and
+`CREATE EXTENSION "uuid-ossp"` in it before the migrations run.
 
 To start from a truly empty DB, drop and recreate it (`DROP DATABASE` /
 `CREATE DATABASE`) rather than `docker compose down -v` — the latter wipes **all** dev
@@ -232,12 +255,11 @@ no-op; on an existing dev DB it discards those ephemeral rows, which are re-deri
 
 ```bash
 # DB_HOST points at production; --target-is-production is mandatory.
-bun run data:restore -- --target-is-production            # chain restore, or:
-bun run data:import -- --input data/<bundle> --mode replace --target-is-production
+bun run data:restore -- --source prod --target-is-production
 ```
 
 When `DB_HOST` is not localhost, `--target-is-production` is required. A production
-replace (single bundle or the full at the head of a chain) prints a per-table
+replace prints a per-table
 current-vs-bundle row-count diff and requires typing `YES`.
 
 > **Production guardrail.** Production data state must be reproducible from a known
@@ -305,10 +327,11 @@ background is in
 
 ## Troubleshooting
 
-- **`Unsupported manifest version`** — bundles must be `version: 1` or `2`.
+- **`Unsupported manifest version`** — bundles must be `version: 1`, `2` or `3`.
 - **Spec/file not found with a relative path** — paths are repo-root-relative; e.g. use `--spec backend/scripts/synthetic/specs/base-basel.json` (not `scripts/...`).
-- **`No compatible base bundle … cannot do --incremental`** — run a full export first, or keep `--scope`/source consistent across the chain.
+- **`… holds scope [...]; this run asks for [...]`** — a backup folder keeps the scope of its first run; pass another `--output` for a different scope.
+- **A prod backup landed in `data/local/`** — the tunnel makes the host `127.0.0.1`; pass `--source prod`.
+- **Export exits with code 2** — the object store's daily cap stopped the image phase; rows are up to date, rerun after the cap resets for the missing images.
 - **`Cannot set session_replication_role`** — the fast FK-deferral path needs an elevated DB role; the import falls back to the two-pass approach automatically.
-- **Deleted rows reappear after a chain restore** — expected; increments are additive. Take a fresh full (`data:backup`) to reconcile deletions.
 - **Duplicate labels after a synthetic merge** — you used `--labels emit` against a DB that already seeded labels; regenerate with `--labels-from <labels-export>`.
 - **No TACO images found** — point `--taco-path` at a TACO checkout containing `data/annotations.json` and the image batch folders.
