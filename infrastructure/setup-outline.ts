@@ -93,10 +93,16 @@ async function ensureWikiBucket(): Promise<void> {
   // CORS: Outline uses FILE_STORAGE=s3 with presigned direct-to-bucket uploads,
   // so the browser POSTs the file straight to the bucket. Without a CORS rule
   // allowing the wiki origin, the browser's preflight is rejected and every
-  // upload fails with "Upload failed". MinIO (dev) allows all origins by
-  // default, but Backblaze B2 (prod) denies by default — hence this rule.
-  // PutBucketCors replaces the full CORS config, so this is idempotent.
+  // upload fails with "Upload failed".
+  //
+  // Ask the endpoint the same preflight the browser sends rather than assuming
+  // the rule is missing: MinIO allows every origin by default and answers
+  // PutBucketCors with NotImplemented, so attempting it there only ever warns
+  // about a problem that does not exist.
   const wikiOrigin = new URL(OUTLINE_PUBLIC_URL).origin;
+  if (await isUploadOriginAllowed(wikiOrigin)) return;
+
+  // PutBucketCors replaces the full CORS config, so this is idempotent.
   try {
     await client.send(
       new PutBucketCorsCommand({
@@ -116,14 +122,38 @@ async function ensureWikiBucket(): Promise<void> {
     );
     console.log(`Outline: set bucket CORS to allow ${wikiOrigin}.`);
   } catch (e) {
-    // Backblaze B2 keys scoped to object read/write (no writeBucketCors
-    // capability) return "not entitled" here. In that case set the CORS rule
-    // once from the B2 web console (Bucket → CORS Rules) or re-run with a key
-    // that has bucket-config capability — object uploads stay broken until then.
     console.warn(
-      `Outline: could not set bucket CORS (${e instanceof Error ? e.message : e}). ` +
-        `Browser uploads will fail until ${wikiOrigin} is allowed on bucket "${OUTLINE_S3_BUCKET}".`,
+      `Outline: ${wikiOrigin} may not upload to bucket "${OUTLINE_S3_BUCKET}" at ${OUTLINE_S3_CONFIG.endpoint}, ` +
+        `and setting the rule failed (${e instanceof Error ? e.message : e}). Browser uploads will fail until it is allowed. ` +
+        `On Backblaze B2, use a key with the writeBucketCors capability, or add the rule under Bucket Settings -> CORS Rules. ` +
+        `On MinIO, add ${wikiOrigin} to MINIO_API_CORS_ALLOW_ORIGIN on the minio service in infrastructure/docker-compose.dev.yml.`,
     );
+  }
+}
+
+/**
+ * Sends the CORS preflight a browser sends before a direct-to-bucket upload, so
+ * we only try to provision a rule that is actually missing. An unreachable
+ * endpoint counts as "not allowed" so the caller still reports the problem.
+ */
+async function isUploadOriginAllowed(origin: string): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `${OUTLINE_S3_CONFIG.endpoint.replace(/\/+$/, '')}/${OUTLINE_S3_BUCKET}/cors-preflight-probe`,
+      {
+        method: 'OPTIONS',
+        headers: {
+          Origin: origin,
+          'Access-Control-Request-Method': 'PUT',
+          'Access-Control-Request-Headers': 'content-type',
+        },
+        signal: AbortSignal.timeout(5000),
+      },
+    );
+    const allowedOrigin = response.headers.get('access-control-allow-origin');
+    return allowedOrigin === '*' || allowedOrigin === origin;
+  } catch {
+    return false;
   }
 }
 
