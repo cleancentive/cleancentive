@@ -4,8 +4,8 @@ import { Repository, IsNull, Not } from 'typeorm';
 import { Client as PgClient } from 'pg';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { HeadBucketCommand, CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
-import { getOutlineS3ClientConfig } from '../common/outline-s3-client';
-import { getBackblazeApiUrl, updateBackblazeBucketCors } from '../common/backblaze-b2';
+import { getOutlineS3ClientConfig, isUploadOriginAllowed } from '../common/outline-s3-client';
+import { describeBackblazeCorsFailure, getBackblazeApiUrl, isBackblazeEndpoint, updateBackblazeBucketCors } from '../common/backblaze-b2';
 import { UserService } from '../user/user.service';
 import { AdminService } from '../admin/admin.service';
 import { Team } from '../team/team.entity';
@@ -81,12 +81,13 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
   }
 
   async bootstrap(): Promise<void> {
-    // Bucket presence check is best-effort: Backblaze B2 (and many S3-
-    // compatible providers) reject HeadBucket/CreateBucket when the app key
-    // is scoped to a single existing bucket. The bucket exists in prod, so a
-    // failure here must not abort the rest of the bootstrap.
+    // Storage bootstrap is best-effort: Backblaze B2 (and many S3-compatible
+    // providers) reject HeadBucket/CreateBucket when the app key is scoped to a
+    // single existing bucket. The bucket exists in prod, so a failure here must
+    // not abort the rest of the bootstrap.
     try {
       await this.ensureWikiBucket();
+      await this.ensureWikiUploadCors();
     } catch (e) {
       this.logger.warn(`Wiki bucket check skipped (${e instanceof Error ? e.message : e})`);
     }
@@ -138,7 +139,7 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
 
     // Bucket presence check is best-effort (B2 rejects HeadBucket/CreateBucket
     // when the key is scoped to a single existing bucket). Keep it isolated so a
-    // "not entitled" failure here never prevents the CORS step below from running.
+    // "not entitled" failure here never prevents the CORS step from running.
     try {
       await client.send(new HeadBucketCommand({ Bucket: this.outlineS3Bucket }));
     } catch {
@@ -151,6 +152,27 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
         );
       }
     }
+  }
+
+  /**
+   * Makes sure the browser may upload wiki attachments straight to object
+   * storage. Only Backblaze needs provisioning here; dev's MinIO already allows
+   * every origin, so we probe first and stay quiet when there is nothing to fix.
+   */
+  private async ensureWikiUploadCors(): Promise<void> {
+    const wikiOrigin = new URL(this.outlinePublicUrl).origin;
+    const { endpoint } = getOutlineS3ClientConfig(process.env);
+
+    if (await isUploadOriginAllowed(endpoint, this.outlineS3Bucket, wikiOrigin)) return;
+
+    if (!isBackblazeEndpoint(endpoint)) {
+      this.logger.warn(
+        `Wiki uploads from ${wikiOrigin} will fail: ${endpoint} does not allow that origin on bucket ` +
+          `"${this.outlineS3Bucket}", and only Backblaze buckets can be configured from here. ` +
+          `MinIO allows every origin unless MINIO_API_CORS_ALLOW_ORIGIN is set — if you set it, add ${wikiOrigin}.`,
+      );
+      return;
+    }
 
     try {
       await updateBackblazeBucketCors(
@@ -160,15 +182,11 @@ export class OutlineSyncService implements OnModuleInit, OnModuleDestroy {
           apiUrl: getBackblazeApiUrl(process.env),
         },
         this.outlineS3Bucket,
-        new URL(this.outlinePublicUrl).origin,
+        wikiOrigin,
       );
-      this.logger.log(`Set Outline bucket CORS to allow ${new URL(this.outlinePublicUrl).origin}`);
+      this.logger.log(`Set Outline bucket CORS to allow ${wikiOrigin}`);
     } catch (e) {
-      this.logger.warn(
-        `Could not set Outline bucket CORS (${e instanceof Error ? e.message : e}). ` +
-          `Browser uploads will fail until ${new URL(this.outlinePublicUrl).origin} is allowed on bucket ` +
-          `"${this.outlineS3Bucket}" (the B2 key needs the writeBucketCors capability).`,
-      );
+      this.logger.warn(describeBackblazeCorsFailure(e, this.outlineS3Bucket, wikiOrigin));
     }
   }
 

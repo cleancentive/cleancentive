@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, test } from 'bun:test';
 
 import { OutlineSyncService } from './outline-sync.service';
-import { getOutlineS3ClientConfig } from '../common/outline-s3-client';
+import { getOutlineS3ClientConfig, isUploadOriginAllowed } from '../common/outline-s3-client';
 
 describe('outline S3 config', () => {
   test('uses dedicated wiki S3 env vars when bootstrapping Outline storage', () => {
@@ -28,6 +28,221 @@ describe('outline S3 config', () => {
     });
   });
 });
+
+describe('wiki upload CORS', () => {
+  test('treats a wildcard or matching allow-origin header as already configured', async () => {
+    const originalFetch = globalThis.fetch;
+    const requests: Array<{ url: string; method?: string; origin?: string }> = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push({
+        url: String(input),
+        method: init?.method,
+        origin: new Headers(init?.headers).get('origin') ?? undefined,
+      });
+      return new Response(null, { status: 204, headers: { 'access-control-allow-origin': '*' } });
+    }) as unknown as typeof fetch;
+
+    const allowed = await isUploadOriginAllowed(
+      'http://localhost:9002/',
+      'cleancentive-wiki',
+      'https://wiki.cleancentive.local',
+    );
+
+    globalThis.fetch = originalFetch;
+
+    expect(allowed).toBe(true);
+    expect(requests).toEqual([
+      {
+        url: 'http://localhost:9002/cleancentive-wiki/cors-preflight-probe',
+        method: 'OPTIONS',
+        origin: 'https://wiki.cleancentive.local',
+      },
+    ]);
+  });
+
+  test('reports a missing allow-origin header as not configured', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(null, { status: 403 })) as unknown as typeof fetch;
+
+    const allowed = await isUploadOriginAllowed(
+      'https://s3.us-west-004.backblazeb2.com',
+      'cleancentive-wiki',
+      'https://wiki.cleancentive.org',
+    );
+
+    globalThis.fetch = originalFetch;
+
+    expect(allowed).toBe(false);
+  });
+
+  test('never calls Backblaze when dev storage is MinIO and the origin already passes preflight', async () => {
+    const { service, warnings } = createCorsHarness();
+    const requests: string[] = [];
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      requests.push(String(input));
+      return new Response(null, {
+        status: 204,
+        headers: { 'access-control-allow-origin': 'https://wiki.cleancentive.local' },
+      });
+    }) as unknown as typeof fetch;
+
+    await withOutlineStorageEnv({ S3_ENDPOINT: 'http://localhost:9002' }, async () => {
+      await (service as any).ensureWikiUploadCors();
+    });
+
+    globalThis.fetch = originalFetch;
+
+    expect(requests).toEqual(['http://localhost:9002/cleancentive-wiki/cors-preflight-probe']);
+    expect(requests.some((url) => url.includes('backblazeb2.com'))).toBe(false);
+    expect(warnings).toEqual([]);
+  });
+
+  test('explains the MinIO knob instead of Backblaze capabilities when a non-B2 endpoint blocks the origin', async () => {
+    const { service, warnings } = createCorsHarness();
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(null, { status: 403 })) as unknown as typeof fetch;
+
+    await withOutlineStorageEnv({ S3_ENDPOINT: 'http://localhost:9002' }, async () => {
+      await (service as any).ensureWikiUploadCors();
+    });
+
+    globalThis.fetch = originalFetch;
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('MINIO_API_CORS_ALLOW_ORIGIN');
+    expect(warnings[0]).not.toContain('writeBucketCors');
+  });
+
+  test('provisions Backblaze CORS when a B2 endpoint blocks the wiki origin', async () => {
+    const { service, logs, warnings } = createCorsHarness();
+    const b2Calls: string[] = [];
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/cors-preflight-probe')) return new Response(null, { status: 403 });
+      b2Calls.push(url);
+      if (url.endsWith('/b2_authorize_account')) {
+        return new Response(
+          JSON.stringify({ accountId: 'acct', apiUrl: 'https://api004.backblazeb2.com', authorizationToken: 'token' }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith('/b2_list_buckets')) {
+        return new Response(
+          JSON.stringify({ buckets: [{ bucketId: 'bucket-id', bucketName: 'cleancentive-wiki', bucketType: 'allPrivate' }] }),
+          { status: 200 },
+        );
+      }
+      return new Response('{}', { status: 200 });
+    }) as unknown as typeof fetch;
+
+    await withOutlineStorageEnv(
+      {
+        OUTLINE_S3_ENDPOINT: 'https://s3.us-west-004.backblazeb2.com',
+        OUTLINE_S3_ACCESS_KEY: 'key-id',
+        OUTLINE_S3_SECRET_KEY: 'key-secret',
+        OUTLINE_B2_API_URL: 'https://api004.backblazeb2.com',
+      },
+      async () => {
+        await (service as any).ensureWikiUploadCors();
+      },
+    );
+
+    globalThis.fetch = originalFetch;
+
+    expect(b2Calls).toHaveLength(3);
+    expect(b2Calls[2]).toEndWith('/b2_update_bucket');
+    expect(warnings).toEqual([]);
+    expect(logs[0]).toContain('https://wiki.cleancentive.local');
+  });
+
+  test('names writeBucketCors when Backblaze refuses the bucket update', async () => {
+    const { service, warnings } = createCorsHarness();
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith('/cors-preflight-probe')) return new Response(null, { status: 403 });
+      if (url.endsWith('/b2_authorize_account')) {
+        return new Response(
+          JSON.stringify({ accountId: 'acct', apiUrl: 'https://api004.backblazeb2.com', authorizationToken: 'token' }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith('/b2_list_buckets')) {
+        return new Response(
+          JSON.stringify({ buckets: [{ bucketId: 'bucket-id', bucketName: 'cleancentive-wiki', bucketType: 'allPrivate' }] }),
+          { status: 200 },
+        );
+      }
+      return new Response(JSON.stringify({ code: 'unauthorized', message: '', status: 401 }), { status: 401 });
+    }) as unknown as typeof fetch;
+
+    await withOutlineStorageEnv(
+      {
+        OUTLINE_S3_ENDPOINT: 'https://s3.us-west-004.backblazeb2.com',
+        OUTLINE_S3_ACCESS_KEY: 'key-id',
+        OUTLINE_S3_SECRET_KEY: 'key-secret',
+        OUTLINE_B2_API_URL: 'https://api004.backblazeb2.com',
+      },
+      async () => {
+        await (service as any).ensureWikiUploadCors();
+      },
+    );
+
+    globalThis.fetch = originalFetch;
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('writeBucketCors');
+    expect(warnings[0]).toContain('cleancentive-wiki');
+  });
+});
+
+/** Harness with the real CORS step restored (the shared harness stubs it out) and the logger captured. */
+function createCorsHarness() {
+  const { service } = createOutlineSyncHarness();
+  const logs: string[] = [];
+  const warnings: string[] = [];
+
+  delete (service as any).ensureWikiUploadCors;
+  (service as any).logger = {
+    log: (message: string) => logs.push(message),
+    warn: (message: string) => warnings.push(message),
+    debug: () => {},
+  };
+
+  return { service, logs, warnings };
+}
+
+async function withOutlineStorageEnv(overrides: Record<string, string>, run: () => Promise<void>) {
+  const storageKeys = [
+    'S3_ENDPOINT',
+    'S3_ACCESS_KEY',
+    'S3_SECRET_KEY',
+    'OUTLINE_S3_ENDPOINT',
+    'OUTLINE_S3_ACCESS_KEY',
+    'OUTLINE_S3_SECRET_KEY',
+    'OUTLINE_B2_API_URL',
+    'B2_API_URL',
+  ];
+  const saved = Object.fromEntries(storageKeys.map((key) => [key, process.env[key]]));
+
+  for (const key of storageKeys) delete process.env[key];
+  Object.assign(process.env, overrides);
+
+  try {
+    await run();
+  } finally {
+    for (const key of storageKeys) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key] as string;
+    }
+  }
+}
 
 describe('OutlineSyncService maintenance', () => {
   test('rejects wipe requests without the exact confirmation before touching Outline', async () => {
@@ -551,6 +766,7 @@ function createOutlineSyncHarness(options: {
   service.ensureStewardsGroup = async () => undefined;
   service.syncExistingAdmins = async () => undefined;
   service.ensureWikiBucket = async () => undefined;
+  service.ensureWikiUploadCors = async () => undefined;
   service.cacheOutlineTeamAndAdmin = async () => undefined;
   service.provisionWorkspaceBrandingAndAnalytics = async () => undefined;
   service.provisionApiKey = async () => undefined;
