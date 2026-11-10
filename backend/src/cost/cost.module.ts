@@ -7,6 +7,7 @@ import { CostService } from './cost.service';
 import { InvoiceService } from './invoice.service';
 import { InvoiceIngestService } from './invoice-ingest.service';
 import { CostAlertService } from './cost-alert.service';
+import { InvoiceScanStatusStore } from './invoice-scan-status';
 import { AdminModule } from '../admin/admin.module';
 import { AdminGuard } from '../admin/admin.guard';
 import { OutlineSyncModule } from '../outline-sync/outline-sync.module';
@@ -23,7 +24,7 @@ import { EmailModule } from '../email/email.module';
   ],
   // AdminModule exports AdminService but not AdminGuard, so the guard is
   // provided here too. It holds no state, so a second instance costs nothing.
-  providers: [AdminGuard, CostService, InvoiceService, InvoiceIngestService, CostAlertService],
+  providers: [AdminGuard, CostService, InvoiceService, InvoiceIngestService, InvoiceScanStatusStore, CostAlertService],
   controllers: [CostController],
   exports: [CostAlertService],
 })

@@ -13,6 +13,7 @@ import { AdminService } from '../admin/admin.service';
 import { decideAlert, type ActionableState, type AlertDecision, type AlertState } from '../admin/alert-decision';
 import { CostService } from './cost.service';
 import { InvoiceIngestService } from './invoice-ingest.service';
+import { InvoiceScanStatusStore } from './invoice-scan-status';
 import type { CostSnapshot } from './cost.types';
 
 export interface CostAlertReason {
@@ -59,6 +60,7 @@ export class CostAlertService implements OnModuleInit, OnModuleDestroy {
     private readonly adminService: AdminService,
     private readonly costService: CostService,
     private readonly invoiceIngest: InvoiceIngestService,
+    private readonly scanStatus: InvoiceScanStatusStore,
     private readonly emailService: EmailService,
   ) {
     this.redis = new Redis(redisConnection());
@@ -128,10 +130,11 @@ export class CostAlertService implements OnModuleInit, OnModuleDestroy {
    * A fixed jobId plus a short delay collapses the several `documents.update`
    * events Outline emits for a single upload into one scan.
    */
-  async requestInvoiceScan(): Promise<void> {
+  async requestInvoiceScan(delayMs = 20_000): Promise<void> {
+    await this.scanStatus.markQueued();
     await this.queue.add('invoice-scan', {}, {
       jobId: 'invoice-scan-pending',
-      delay: 20_000,
+      delay: delayMs,
       removeOnComplete: true,
       removeOnFail: true,
     });

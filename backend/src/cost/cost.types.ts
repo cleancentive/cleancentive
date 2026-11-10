@@ -72,6 +72,29 @@ export interface CostSnapshot {
   /** The most recent invoice per vendor, to check our arithmetic against. */
   lastInvoices: LastInvoice[];
   invoicesNeedingAttention: number;
+  /** The wiki document invoices are attached to (urlId), or null when ingestion is off. */
+  invoiceDocId: string | null;
+}
+
+/**
+ * Where the invoice scan is, for the progress bar.
+ *
+ * Kept in Redis rather than returned from the request: a scan OCRs one PDF
+ * after another and outlasts any proxy timeout, and scans also start from the
+ * wiki webhook and the daily job, which no request is waiting on.
+ */
+export interface InvoiceScanStatus {
+  state: 'idle' | 'queued' | 'running' | 'done' | 'error';
+  /** PDFs that need reading in this run — already-known and missing ones are not counted. */
+  total: number;
+  done: number;
+  current: string | null;
+  ingested: number;
+  failed: number;
+  skipped: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: string | null;
 }
 
 export function unavailable(vendor: Vendor, error: unknown): VendorCost {

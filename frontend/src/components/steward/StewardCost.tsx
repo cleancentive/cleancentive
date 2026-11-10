@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAdminStore, type VendorCost, type VendorInvoiceRow } from '../../stores/adminStore'
 import { WeeklyBarChart, type WeeklyBar } from '../WeeklyBarChart'
@@ -12,7 +12,29 @@ const VENDOR_COLORS: Record<string, string> = {
   other: 'var(--gray-400)',
 }
 
+/** Where a steward downloads each vendor's bill. None of them offers an invoice API. */
+const VENDOR_BILLING_URLS: Record<string, string> = {
+  hetzner: 'https://accounts.hetzner.com/invoice',
+  mistral: 'https://admin.mistral.ai/',
+  backblaze: 'https://secure.backblaze.com/billing.htm',
+  resend: 'https://resend.com/settings/billing',
+}
+
+/** Monthly bills; past this, the newest one on file is probably not the newest one issued. */
+const INVOICE_STALE_DAYS = 40
+
+const SCAN_POLL_MS = 2000
+
 const MONTHS_SHOWN = 12
+
+function invoiceDocUrl(docId: string | null): string | null {
+  return docId && WIKI_URL ? `${WIKI_URL.replace(/\/$/, '')}/doc/${docId}` : null
+}
+
+function isInvoiceMissing(invoiceDate: string | null | undefined, now = Date.now()): boolean {
+  if (!invoiceDate) return true
+  return now - new Date(invoiceDate).getTime() > INVOICE_STALE_DAYS * 24 * 3600 * 1000
+}
 
 /** A chart of nothing but zero bars says less than the sentence it replaces. */
 function hasAnyValue(bars: WeeklyBar[]): boolean {
@@ -32,10 +54,8 @@ export function StewardCost() {
   const { t } = useTranslation(['steward', 'common'])
   const snapshot = useAdminStore((s) => s.costSnapshot)
   const invoices = useAdminStore((s) => s.costInvoices)
-  const isLoading = useAdminStore((s) => s.isLoadingCost)
   const fetchCost = useAdminStore((s) => s.fetchCost)
   const fetchCostInvoices = useAdminStore((s) => s.fetchCostInvoices)
-  const scanInvoices = useAdminStore((s) => s.scanInvoices)
 
   useEffect(() => {
     fetchCost()
@@ -96,7 +116,20 @@ export function StewardCost() {
         <p className="project-section-hint">{t('cost.runRateHint')}</p>
         {snapshot.fx.stale && <p className="project-section-hint">{t('cost.fxStale')}</p>}
 
-        <VendorTable vendors={snapshot.vendors} lastInvoices={snapshot.lastInvoices} />
+        <VendorTable
+          vendors={snapshot.vendors}
+          lastInvoices={snapshot.lastInvoices}
+          docUrl={invoiceDocUrl(snapshot.invoiceDocId)}
+        />
+
+        <InvoiceScanPanel
+          docUrl={invoiceDocUrl(snapshot.invoiceDocId)}
+          needingAttention={snapshot.invoicesNeedingAttention}
+          onFinished={() => {
+            fetchCost()
+            fetchCostInvoices()
+          }}
+        />
       </fieldset>
 
       <fieldset className="page-card">
@@ -141,12 +174,7 @@ export function StewardCost() {
         )}
       </fieldset>
 
-      <InvoiceTable
-        invoices={invoices}
-        isLoading={isLoading}
-        needingAttention={snapshot.invoicesNeedingAttention}
-        onScan={scanInvoices}
-      />
+      <InvoiceTable invoices={invoices} docUrl={invoiceDocUrl(snapshot.invoiceDocId)} />
     </>
   )
 }
@@ -154,9 +182,11 @@ export function StewardCost() {
 function VendorTable({
   vendors,
   lastInvoices,
+  docUrl,
 }: {
   vendors: VendorCost[]
   lastInvoices: { vendor: string; invoiceDate: string | null; currency: string | null; amountGross: number | null }[]
+  docUrl: string | null
 }) {
   const { t } = useTranslation(['steward', 'common'])
 
@@ -190,6 +220,23 @@ function VendorTable({
                 <td>
                   {last ? money(last.amountGross, last.currency) : '—'}
                   {last?.invoiceDate && <div className="admin-storage-label">{last.invoiceDate}</div>}
+                  {/* A free-tier vendor sends no bill, so only nag where money is being spent. */}
+                  {(vendor.projectedMonth ?? 0) > 0 && isInvoiceMissing(last?.invoiceDate) && (
+                    <div className="admin-storage-label cost-invoice-missing">
+                      {t('cost.invoiceMissing')}{' '}
+                      {VENDOR_BILLING_URLS[vendor.vendor] && (
+                        <a href={VENDOR_BILLING_URLS[vendor.vendor]} target="_blank" rel="noopener noreferrer">
+                          {t('cost.downloadFrom', { vendor: t(`cost.vendor.${vendor.vendor}`) })}
+                        </a>
+                      )}
+                      {VENDOR_BILLING_URLS[vendor.vendor] && docUrl && ' → '}
+                      {docUrl && (
+                        <a href={docUrl} target="_blank" rel="noopener noreferrer">
+                          {t('cost.attachInWiki')}
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </td>
               </tr>
             )
@@ -200,38 +247,114 @@ function VendorTable({
   )
 }
 
-function InvoiceTable({
-  invoices,
-  isLoading,
+function InvoiceScanPanel({
+  docUrl,
   needingAttention,
-  onScan,
+  onFinished,
 }: {
-  invoices: VendorInvoiceRow[]
-  isLoading: boolean
+  docUrl: string | null
   needingAttention: number
-  onScan: () => Promise<void>
+  onFinished: () => void
 }) {
+  const { t, i18n } = useTranslation(['steward', 'common'])
+  const scan = useAdminStore((s) => s.invoiceScan)
+  const scanInvoices = useAdminStore((s) => s.scanInvoices)
+  const fetchInvoiceScanStatus = useAdminStore((s) => s.fetchInvoiceScanStatus)
+  const active = scan?.state === 'queued' || scan?.state === 'running'
+  const wasActive = useRef(false)
+
+  // Once on mount, so a scan started by a wiki upload shows up here too.
+  useEffect(() => {
+    fetchInvoiceScanStatus()
+  }, [fetchInvoiceScanStatus])
+
+  useEffect(() => {
+    if (!active) return
+    const timer = window.setInterval(() => void fetchInvoiceScanStatus(), SCAN_POLL_MS)
+    return () => window.clearInterval(timer)
+  }, [active, fetchInvoiceScanStatus])
+
+  useEffect(() => {
+    if (wasActive.current && !active) onFinished()
+    wasActive.current = active
+  }, [active, onFinished])
+
+  const finishedAt = scan?.finishedAt
+    ? new Date(scan.finishedAt).toLocaleString(i18n.language, { dateStyle: 'short', timeStyle: 'short' })
+    : null
+
+  return (
+    <div className="cost-invoice-scan">
+      <h3>{t('cost.invoicesLegend')}</h3>
+      <p className="project-section-hint">
+        {t('cost.scanHint')}{' '}
+        {docUrl && (
+          <a href={docUrl} target="_blank" rel="noopener noreferrer">
+            {t('cost.openBillingDoc')}
+          </a>
+        )}
+      </p>
+      <div className="cost-invoice-scan-actions">
+        <button type="button" onClick={() => void scanInvoices()} disabled={active}>
+          {active ? t('cost.scanning') : t('cost.rescan')}
+        </button>
+        {needingAttention > 0 && (
+          <a href="#invoices" className="admin-storage-label">
+            {t('cost.needAttention', { count: needingAttention })}
+          </a>
+        )}
+      </div>
+
+      {active && (
+        <div className="cost-invoice-scan-progress" aria-live="polite">
+          {scan?.state === 'running' && scan.total > 0 ? (
+            <>
+              <progress value={scan.done} max={scan.total} />
+              <span>
+                {t('cost.scanProgress', { done: scan.done, total: scan.total })}
+                {scan.current && <span className="admin-storage-label"> · {scan.current}</span>}
+              </span>
+            </>
+          ) : (
+            <>
+              <progress />
+              <span>{scan?.state === 'queued' ? t('cost.scanQueued') : t('cost.scanListing')}</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {scan?.state === 'done' && finishedAt && (
+        <p className="admin-storage-label">
+          {t('cost.lastScan', {
+            when: finishedAt,
+            ingested: scan.ingested,
+            skipped: scan.skipped,
+            failed: scan.failed,
+          })}
+        </p>
+      )}
+      {scan?.state === 'error' && (
+        <p className="admin-storage-label">{t('cost.scanFailed', { error: scan.error ?? '' })}</p>
+      )}
+    </div>
+  )
+}
+
+function InvoiceTable({ invoices, docUrl }: { invoices: VendorInvoiceRow[]; docUrl: string | null }) {
   const { t } = useTranslation(['steward', 'common'])
   const correctInvoice = useAdminStore((s) => s.correctInvoice)
   const [editing, setEditing] = useState<string | null>(null)
 
   return (
-    <fieldset className="page-card">
+    <fieldset className="page-card" id="invoices">
       <legend>{t('cost.invoicesLegend')}</legend>
       <p className="project-section-hint">
         {t('cost.invoicesHint')}{' '}
-        {WIKI_URL && (
-          <a href={WIKI_URL} target="_blank" rel="noopener noreferrer">
-            {t('cost.openWiki')}
+        {(docUrl ?? WIKI_URL) && (
+          <a href={docUrl ?? WIKI_URL} target="_blank" rel="noopener noreferrer">
+            {t('cost.openBillingDoc')}
           </a>
-        )}
-      </p>
-      <p>
-        <button type="button" onClick={() => void onScan()} disabled={isLoading}>
-          {isLoading ? t('cost.scanning') : t('cost.rescan')}
-        </button>
-        {needingAttention > 0 && (
-          <span className="admin-storage-label"> {t('cost.needAttention', { count: needingAttention })}</span>
         )}
       </p>
 

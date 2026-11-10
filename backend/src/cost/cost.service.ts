@@ -101,6 +101,7 @@ export class CostService {
       invoiceMonths,
       lastInvoices,
       invoicesNeedingAttention,
+      invoiceDocId: process.env.COST_INVOICE_DOC_ID || null,
     };
   }
 

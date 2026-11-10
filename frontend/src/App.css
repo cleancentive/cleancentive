@@ -5470,3 +5470,40 @@ textarea.mono {
   margin: 0.75rem 0 0;
   font-size: 0.9rem;
 }
+
+/* Steward cost page: invoice scan panel under the vendor table */
+.cost-invoice-scan {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--color-border, var(--gray-200));
+}
+
+.cost-invoice-scan h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.cost-invoice-scan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin: 0.5rem 0;
+}
+
+.cost-invoice-scan-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+  overflow-wrap: anywhere;
+}
+
+.cost-invoice-scan-progress progress {
+  width: 100%;
+  height: 6px;
+}
+
+.cost-invoice-missing {
+  color: var(--amber-800);
+}

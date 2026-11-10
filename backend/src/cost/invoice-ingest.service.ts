@@ -9,7 +9,9 @@ import { OutlineSyncService } from '../outline-sync/outline-sync.service';
 import { postJson } from './http';
 import { fetchChfRateOn } from './providers/fx';
 import { VendorInvoice } from './vendor-invoice.entity';
-import { VENDORS } from './cost.types';
+import { VENDORS, type InvoiceScanStatus } from './cost.types';
+import { IDLE_SCAN_STATUS, InvoiceScanStatusStore } from './invoice-scan-status';
+import { CostService } from './cost.service';
 
 const MISTRAL_API = 'https://api.mistral.ai/v1';
 const OCR_MODEL = 'mistral-ocr-latest';
@@ -86,6 +88,24 @@ export function normalizeAnnotation(raw: unknown): ParsedInvoice | null {
   };
 }
 
+export interface ScanResult {
+  scanned: number;
+  ingested: number;
+  failed: number;
+  skipped: number;
+}
+
+/** S3 and B2 disagree on how to say "no such object"; accept every spelling. */
+export function isMissingObject(error: unknown): boolean {
+  const e = error as { name?: string; message?: string; $metadata?: { httpStatusCode?: number } } | null;
+  return (
+    e?.name === 'NoSuchKey' ||
+    e?.name === 'NotFound' ||
+    e?.$metadata?.httpStatusCode === 404 ||
+    e?.message === 'Key not found'
+  );
+}
+
 function safeParse(raw: string): Record<string, unknown> | null {
   try {
     return JSON.parse(raw) as Record<string, unknown>;
@@ -105,6 +125,8 @@ export class InvoiceIngestService {
     @InjectRepository(VendorInvoice)
     private readonly invoiceRepository: Repository<VendorInvoice>,
     private readonly outlineSync: OutlineSyncService,
+    private readonly scanStatus: InvoiceScanStatusStore,
+    private readonly costService: CostService,
   ) {}
 
   /**
@@ -112,59 +134,119 @@ export class InvoiceIngestService {
    *
    * Already-ingested attachments are skipped before anything is downloaded or
    * OCR'd, so re-scanning — on a webhook, a cron, or a button — costs nothing.
+   * Progress goes to the scan status store as it happens, for the steward page.
    */
-  async scan(): Promise<{ scanned: number; ingested: number; failed: number; skipped: number }> {
+  async scan(): Promise<ScanResult> {
+    const result: ScanResult = { scanned: 0, ingested: 0, failed: 0, skipped: 0 };
     if (!this.documentId) {
       this.logger.log('Invoice scan skipped: COST_INVOICE_DOC_ID is not set');
-      return { scanned: 0, ingested: 0, failed: 0, skipped: 0 };
+      // Still recorded: a button press queued this, and "queued" must not stay forever.
+      await this.scanStatus.set({
+        ...IDLE_SCAN_STATUS,
+        state: 'error',
+        finishedAt: new Date().toISOString(),
+        error: 'COST_INVOICE_DOC_ID is not set, so there is no billing page to read',
+      });
+      return result;
     }
 
+    const status: InvoiceScanStatus = {
+      ...IDLE_SCAN_STATUS,
+      state: 'running',
+      startedAt: new Date().toISOString(),
+    };
+    await this.scanStatus.set(status);
+
+    try {
+      await this.runScan(result, status);
+    } catch (error) {
+      await this.scanStatus.set({
+        ...status,
+        state: 'error',
+        current: null,
+        finishedAt: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+
+    // Before "done", not after: the page refetches the snapshot the moment it
+    // sees the scan finish, and must not get the cached one from before it.
+    if (result.ingested || result.failed) await this.costService.invalidate();
+    await this.scanStatus.set({ ...status, state: 'done', current: null, finishedAt: new Date().toISOString() });
+    if (result.ingested || result.failed) {
+      this.logger.log(
+        `Invoice scan: ${result.ingested} ingested, ${result.failed} unreadable, ${result.skipped} skipped`,
+      );
+    }
+    return result;
+  }
+
+  private async runScan(result: ScanResult, status: InvoiceScanStatus): Promise<void> {
     const documentIds = await this.outlineSync.listDocumentTree(this.documentId);
     const attachments = await this.outlineSync.listPdfAttachments(documentIds);
-    if (attachments.length === 0) {
-      return { scanned: 0, ingested: 0, failed: 0, skipped: 0 };
-    }
+    result.scanned = attachments.length;
+    if (attachments.length === 0) return;
 
-    const known = new Set(
-      (
-        await this.invoiceRepository.find({
-          select: ['attachment_id'],
-          where: { attachment_id: In(attachments.map((a) => a.id)) },
-        })
-      ).map((row) => row.attachment_id),
-    );
+    const rows = await this.invoiceRepository.find({ select: ['attachment_id', 'file_name'] });
+    const knownIds = new Set(rows.map((row) => row.attachment_id));
+    // The same PDF attached twice is one invoice, not two: counting it again
+    // would double that month. Outline keeps the uploaded file name, and vendor
+    // file names carry the invoice number, so the name identifies the bill.
+    const handledNames = new Set(rows.map((row) => row.file_name));
 
-    let ingested = 0;
-    let failed = 0;
-    let skipped = 0;
-
-    for (const attachment of attachments) {
-      if (known.has(attachment.id)) {
-        skipped++;
-        continue;
-      }
+    const candidates = attachments.filter((attachment) => {
+      if (knownIds.has(attachment.id) || handledNames.has(attachment.fileName)) return false;
       if (attachment.size > MAX_PDF_BYTES) {
         this.logger.warn(`Skipping ${attachment.fileName}: ${attachment.size} bytes is too large for an invoice`);
-        skipped++;
-        continue;
+        return false;
+      }
+      return true;
+    });
+    result.skipped = attachments.length - candidates.length;
+    this.syncStatus(status, result, { total: candidates.length });
+    await this.scanStatus.set(status);
+
+    for (const attachment of candidates) {
+      this.syncStatus(status, result, { current: attachment.fileName });
+      await this.scanStatus.set(status);
+
+      // Checked here rather than up front: a duplicate is only redundant once
+      // an earlier copy was actually read, and that copy may be a deleted upload.
+      if (handledNames.has(attachment.fileName)) {
+        result.skipped++;
+      } else {
+        try {
+          await this.ingestOne(attachment);
+          handledNames.add(attachment.fileName);
+          result.ingested++;
+        } catch (error) {
+          if (isMissingObject(error)) {
+            // Outline keeps the attachment row after the upload is removed from
+            // the page; there is nothing to read and nothing for a steward to fix.
+            this.logger.debug(`Skipping ${attachment.fileName}: no longer in the wiki bucket`);
+            result.skipped++;
+          } else {
+            this.logger.warn(
+              `Could not read invoice ${attachment.fileName}: ${error instanceof Error ? error.message : error}`,
+            );
+            await this.saveFailure(attachment, error);
+            handledNames.add(attachment.fileName);
+            result.failed++;
+          }
+        }
       }
 
-      try {
-        await this.ingestOne(attachment);
-        ingested++;
-      } catch (error) {
-        this.logger.warn(
-          `Could not read invoice ${attachment.fileName}: ${error instanceof Error ? error.message : error}`,
-        );
-        await this.saveFailure(attachment, error);
-        failed++;
-      }
+      this.syncStatus(status, result, { done: status.done + 1 });
     }
+  }
 
-    if (ingested || failed) {
-      this.logger.log(`Invoice scan: ${ingested} ingested, ${failed} unreadable, ${skipped} already known`);
-    }
-    return { scanned: attachments.length, ingested, failed, skipped };
+  private syncStatus(status: InvoiceScanStatus, result: ScanResult, patch: Partial<InvoiceScanStatus>): void {
+    Object.assign(status, patch, {
+      ingested: result.ingested,
+      failed: result.failed,
+      skipped: result.skipped,
+    });
   }
 
   private async ingestOne(attachment: {
@@ -204,7 +286,10 @@ export class InvoiceIngestService {
 
     const { amountChf, fxRate } = await this.convert(parsed);
 
+    // `insert` with a plain object skips the entity's @BeforeInsert hook, so
+    // the id has to be given here or Postgres rejects the row.
     await this.invoiceRepository.insert({
+      id: uuidv7(),
       attachment_id: attachment.id,
       outline_document_id: attachment.documentId,
       file_name: attachment.fileName,
@@ -246,6 +331,7 @@ export class InvoiceIngestService {
     // can correct by hand.
     await this.invoiceRepository
       .insert({
+        id: uuidv7(),
         attachment_id: attachment.id,
         outline_document_id: attachment.documentId,
         file_name: attachment.fileName,
@@ -253,7 +339,11 @@ export class InvoiceIngestService {
         parse_status: 'failed',
         parsed_raw: { error: error instanceof Error ? error.message : String(error) },
       })
-      .catch(() => undefined);
+      .catch((insertError) => {
+        this.logger.warn(
+          `Could not record the failure for ${attachment.fileName}: ${insertError instanceof Error ? insertError.message : insertError}`,
+        );
+      });
   }
 
   private async downloadAttachment(key: string): Promise<Uint8Array> {

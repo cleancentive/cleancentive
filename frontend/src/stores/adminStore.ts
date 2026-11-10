@@ -67,6 +67,21 @@ export interface CostSnapshot {
     amountChf: number | null
   }>
   invoicesNeedingAttention: number
+  /** The wiki document invoices are attached to (urlId), or null when ingestion is off. */
+  invoiceDocId: string | null
+}
+
+export interface InvoiceScanStatus {
+  state: 'idle' | 'queued' | 'running' | 'done' | 'error'
+  total: number
+  done: number
+  current: string | null
+  ingested: number
+  failed: number
+  skipped: number
+  startedAt: string | null
+  finishedAt: string | null
+  error: string | null
 }
 
 export interface VendorInvoiceRow {
@@ -219,6 +234,7 @@ interface AdminState {
   costSnapshot: CostSnapshot | null
   costInvoices: VendorInvoiceRow[]
   isLoadingCost: boolean
+  invoiceScan: InvoiceScanStatus | null
   purgeStatus: PurgeStatus | null
   retryFailedSpotsResult: string | null
   feedbackItems: FeedbackItem[]
@@ -244,6 +260,7 @@ interface AdminState {
   fetchCostInvoices: () => Promise<void>
   correctInvoice: (id: string, correction: Record<string, unknown>) => Promise<void>
   scanInvoices: () => Promise<void>
+  fetchInvoiceScanStatus: () => Promise<InvoiceScanStatus | null>
   fetchPurgeStatus: () => Promise<void>
   retryFailedSpots: (limit: number) => Promise<void>
   cleanOrphanedFailedJobs: () => Promise<void>
@@ -290,6 +307,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   costSnapshot: null,
   costInvoices: [],
   isLoadingCost: false,
+  invoiceScan: null,
   purgeStatus: null,
   retryFailedSpotsResult: null,
   feedbackItems: [],
@@ -493,16 +511,25 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     const headers = getAuthHeaders()
     if (!headers.Authorization) return
 
-    set({ isLoadingCost: true })
     try {
-      await axios.post(`${API_BASE}/admin/cost/invoices/scan`, {}, { headers })
-      await get().fetchCostInvoices()
-      await get().fetchCost()
+      // Queues the scan and returns at once; the page polls the status below.
+      const response = await axios.post(`${API_BASE}/admin/cost/invoices/scan`, {}, { headers })
+      set({ invoiceScan: response.data })
     } catch (error: any) {
-      set({
-        error: error.response?.data?.message || 'Failed to re-scan invoices',
-        isLoadingCost: false,
-      })
+      set({ error: error.response?.data?.message || 'Failed to start the invoice scan' })
+    }
+  },
+
+  fetchInvoiceScanStatus: async () => {
+    const headers = getAuthHeaders()
+    if (!headers.Authorization) return null
+
+    try {
+      const response = await axios.get(`${API_BASE}/admin/cost/invoices/scan-status`, { headers })
+      set({ invoiceScan: response.data })
+      return response.data as InvoiceScanStatus
+    } catch {
+      return null
     }
   },
 
@@ -715,6 +742,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     costSnapshot: null,
     costInvoices: [],
     isLoadingCost: false,
+    invoiceScan: null,
     purgeStatus: null,
     isLoadingOps: false,
     reviewQueue: [],
